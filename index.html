@@ -818,11 +818,31 @@ document.addEventListener('wheel', function(e) {
         <div id="pay-filter-summary" style="font-size:12px;color:#1d4ed8;font-weight:600"></div>
       </div>
 
-      <div class="metrics" id="pay-metrics"></div>
-      <div id="pay-due-alerts" style="margin-bottom:12px"></div>
-      <div style="margin-bottom:12px"><button class="btn btn-primary" id="btn-record-pay">+ Record Payment</button></div>
-      <div id="pay-account-breakdown"></div>
-      <div class="card" style="padding:0;overflow:hidden"><div id="pay-table"></div></div>
+      <!-- Payment page tab switcher -->
+      <div style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;margin-bottom:16px">
+        <button class="pay-main-tab" data-ptab="projects" onclick="switchPayTab('projects',this)"
+          style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#1d4ed8;border-bottom:2px solid #1d4ed8;margin-bottom:-2px;cursor:pointer;font-family:inherit">
+          📋 Projects View
+        </button>
+        <button class="pay-main-tab" data-ptab="feed" onclick="switchPayTab('feed',this)"
+          style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
+          📜 Transaction Feed
+        </button>
+      </div>
+
+      <!-- Projects tab content -->
+      <div id="pay-tab-projects">
+        <div class="metrics" id="pay-metrics"></div>
+        <div id="pay-due-alerts" style="margin-bottom:12px"></div>
+        <div style="margin-bottom:12px"><button class="btn btn-primary" id="btn-record-pay">+ Record Payment</button></div>
+        <div id="pay-account-breakdown"></div>
+        <div class="card" style="padding:0;overflow:hidden"><div id="pay-table"></div></div>
+      </div>
+
+      <!-- Transaction Feed tab content -->
+      <div id="pay-tab-feed" style="display:none">
+        <div id="txn-feed-container"></div>
+      </div>
     </div>
 
     <div id="page-team" class="page">
@@ -907,6 +927,7 @@ document.addEventListener('wheel', function(e) {
     </div>
 
     <div id="page-accounts" class="page" style="display:none">
+      <div id="pay-closed-alerts" style="margin-bottom:16px"></div>
     </div>
 
     <!-- ══════════════════════════════════════════
@@ -1314,14 +1335,23 @@ document.addEventListener('wheel', function(e) {
   vaultPage.innerHTML =
     '<div class="page-title">🗄️ Data Vault</div>' +
     '<div class="page-sub">Central repository — locate any client data across all storage locations.</div>' +
-    '<div class="toolbar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">' +
-      '<input type="text" class="fi" id="dv-search" placeholder="Search couple, photographer, location, NAS, drive…" oninput="renderDataVault()">' +
-      '<select class="fi" style="flex:0;width:160px" id="dv-location-f" onchange="renderDataVault()"><option value="">All Locations</option></select>' +
-      '<select class="fi" style="flex:0;width:140px" id="dv-backup-f" onchange="renderDataVault()"><option value="">All Backup Status</option><option value="yes">✅ Backed Up</option><option value="no">❌ No Backup</option></select>' +
-      '<select class="fi" style="flex:0;width:140px" id="dv-status-f" onchange="renderDataVault()"><option value="">All Entry Status</option><option value="secured">✅ Secured</option><option value="uploaded">☁️ Uploaded</option><option value="pending">⏳ Pending</option></select>' +
+    '<div style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;margin-bottom:16px">' +
+      '<button class="dv-main-tab" data-dvtab="vault" onclick="switchDVTab(\'vault\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:700;color:#1d4ed8;border-bottom:2px solid #1d4ed8;margin-bottom:-2px;cursor:pointer;font-family:inherit">🗄️ Data Vault</button>' +
+      '<button class="dv-main-tab" data-dvtab="archive-queue" onclick="switchDVTab(\'archive-queue\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">📦 Ready to Archive</button>' +
+      '<button class="dv-main-tab" data-dvtab="archives" onclick="switchDVTab(\'archives\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">🗃️ Archives</button>' +
     '</div>' +
-    '<div id="dv-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>' +
-    '<div class="card" style="padding:0;overflow:hidden"><div id="dv-table"></div></div>';
+    '<div id="dv-tab-vault">' +
+      '<div class="toolbar" style="flex-wrap:wrap;gap:8px;margin-bottom:16px">' +
+        '<input type="text" class="fi" id="dv-search" placeholder="Search couple, photographer, location, NAS, drive…" oninput="renderDataVault()">' +
+        '<select class="fi" style="flex:0;width:160px" id="dv-location-f" onchange="renderDataVault()"><option value="">All Locations</option></select>' +
+        '<select class="fi" style="flex:0;width:140px" id="dv-backup-f" onchange="renderDataVault()"><option value="">All Backup Status</option><option value="yes">✅ Backed Up</option><option value="no">❌ No Backup</option></select>' +
+        '<select class="fi" style="flex:0;width:140px" id="dv-status-f" onchange="renderDataVault()"><option value="">All Entry Status</option><option value="secured">✅ Secured</option><option value="uploaded">☁️ Uploaded</option><option value="pending">⏳ Pending</option></select>' +
+      '</div>' +
+      '<div id="dv-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>' +
+      '<div class="card" style="padding:0;overflow:hidden"><div id="dv-table"></div></div>' +
+    '</div>' +
+    '<div id="dv-tab-archive-queue" style="display:none"><div id="dv-archive-queue"></div></div>' +
+    '<div id="dv-tab-archives" style="display:none"><div id="dv-archives-list"></div></div>';
   mainDiv.appendChild(vaultPage);
 })();
 </script>
@@ -1376,6 +1406,7 @@ document.addEventListener('wheel', function(e) {
         <button class="tab-btn" data-tab="qt-deliverables">📦 Deliverables</button>
         <button class="tab-btn" data-tab="qt-pricing">💰 Pricing</button>
         <button class="tab-btn" data-tab="qt-terms">📜 Terms</button>
+        <button class="tab-btn" data-tab="qt-timeline">⏱️ Timeline</button>
         <button class="tab-btn" data-tab="qt-preview">👁️ Preview</button>
       </div>
 
@@ -1404,7 +1435,6 @@ document.addEventListener('wheel', function(e) {
           <div class="fr"><label class="fl">Lead Source</label>
             <select class="fi" id="qf-source">
               <option value="">-- Select --</option>
-              <option>Instagram</option><option>Google</option><option>Facebook</option><option>Referral</option><option>JustDial</option><option>WedMeGood</option><option>Walk-in</option><option>Other</option>
             </select>
           </div>
         </div>
@@ -1467,7 +1497,7 @@ document.addEventListener('wheel', function(e) {
         <input type="hidden" id="qd-trad-video"><input type="hidden" id="qd-pics">
         <input type="hidden" id="qd-gallery"><input type="hidden" id="qd-album">
         <input type="hidden" id="qd-prewed-album"><input type="hidden" id="qd-frames">
-        <input type="hidden" id="qd-raw"><input type="hidden" id="qd-travel">
+        <input type="hidden" id="qd-raw"><input type="hidden" id="qd-travel"><input type="hidden" id="qd-stay">
         <textarea id="qd-custom-notes" style="display:none"></textarea>
       </div>
 
@@ -1490,16 +1520,22 @@ document.addEventListener('wheel', function(e) {
           </div>
         </div>
         <div id="quot-price-summary" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;margin-bottom:14px;font-size:13px"></div>
-        <div class="fr"><label class="fl">Payment Terms</label>
+        <div class="fr"><label class="fl">Payment Split</label>
           <select class="fi" id="qf-payterms" onchange="onQuotPayTermsChange()">
-            <option value="30-50-20">30% Booking + 50% Before Event + 20% After Delivery</option>
-            <option value="50-50">50% Advance + 50% Before Delivery</option>
-            <option value="30-40-30">30% + 40% + 30% (Three Installments)</option>
-            <option value="100">100% Full Advance</option>
-            <option value="custom">✏️ Custom Payment Terms</option>
+            <option value="30-50-10-5-5">30% + 50% + 10% + 5% + 5% (Default)</option>
+            <option value="30-50-10-10">30% + 50% + 10% + 10%</option>
+            <option value="20-60-10-10">20% + 60% + 10% + 10%</option>
+            <option value="50-50">50% + 50%</option>
+            <option value="custom">✏️ Custom Payment Split</option>
           </select>
         </div>
-        <div id="qf-payterms-custom-row" style="display:none" class="fr"><label class="fl">Custom Payment Terms</label><textarea class="fi" id="qf-payterms-custom-text" rows="3" placeholder="e.g. 25% on booking, 50% before shoot, 25% before delivery…"></textarea></div>
+        <div id="qf-payterms-preview" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:12px;margin-bottom:4px;display:none"></div>
+        <div id="qf-payterms-custom-row" style="display:none;margin-bottom:8px">
+          <div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">Custom Payment Split</div>
+          <div id="quot-custom-pay-rows"></div>
+          <button type="button" onclick="addQuotCustomPayRow()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:6px">+ Add Stage</button>
+          <div id="quot-custom-pay-total" style="font-size:11px;color:#888;margin-top:6px"></div>
+        </div>
         <div class="fr"><label class="fl">Additional Pricing Notes</label><textarea class="fi" id="qf-price-notes" rows="2" placeholder="e.g. Outstation travel charges extra, drone subject to availability…"></textarea></div>
       </div>
 
@@ -1515,7 +1551,29 @@ document.addEventListener('wheel', function(e) {
         <button type="button" class="btn btn-sm" onclick="addCustomTerm()" style="background:#f1f5f9;border-color:#e2e8f0;color:#334155;font-weight:600">+ Add Custom Term</button>
       </div>
 
-      <!-- Tab 6: Preview PDF -->
+      <!-- Tab 6: Delivery Timeline -->
+      <div id="qt-timeline" class="tab-pane">
+        <div style="font-size:13px;color:#555;margin-bottom:12px">
+          Set expected delivery timelines for each event type. These appear in the quotation as a professional timeline section.
+          <br><span style="font-size:11px;color:#888;margin-top:4px;display:block">Manage default templates in <strong>Settings → Delivery Timelines</strong>. You can also customise per-quotation here.</span>
+        </div>
+
+        <!-- Template selector -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+          <label style="font-size:12px;font-weight:700;color:#555">Load Template:</label>
+          <select class="fi" id="qt-timeline-preset" style="flex:0;width:auto;font-size:12px" onchange="loadTimelinePreset()">
+            <option value="">— Select preset —</option>
+          </select>
+          <button type="button" onclick="saveTimelineAsPreset()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">💾 Save as preset</button>
+        </div>
+
+        <!-- Timeline entries list -->
+        <div id="qt-timeline-rows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
+
+        <button type="button" onclick="addTimelineRow()" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">+ Add Milestone</button>
+      </div>
+
+      <!-- Tab 7: Preview PDF -->
       <div id="qt-preview" class="tab-pane">
         <!-- ── Photo Upload for KB Editorial Beige ── -->
         <div id="quot-img-upload-panel" style="margin-bottom:16px;background:#fff8f0;border:1.5px solid #e8d5b0;border-radius:10px;padding:14px">
@@ -2269,7 +2327,7 @@ var OB_DEFAULT_FIELDS = [
   {key:'region',           label:'Region',                        type:'select',   required:false, section:'📅 Event Details', options:'North India,South India,East India,West India,Central India,Destination - Domestic,Destination - International'},
   {key:'event_type',       label:'Event Type',                    type:'select',   required:true,  section:'📅 Event Details', options:'Wedding,Pre-Wedding Shoot,Engagement,Haldi,Mehendi,Sangeet,Reception,Birthday,Corporate Event,Baby Shower,Other'},
   // ── 📣 Lead Source ───────────────────────────────────────────────────────
-  {key:'lead_source',      label:'How did you find us?',          type:'select',   required:false, section:'📣 Lead Source', options:'Instagram,Google Search,Facebook,YouTube,JustDial,Wedding Wire,WedMeGood,Shaadi.com,Referral from Friend/Family,Referral from Past Client,Walk-In,Other'},
+  {key:'lead_source',      label:'How did you find us?',          type:'select',   required:false, section:'📣 Lead Source', options:'Instagram,WhatsApp,Google Search,Facebook,YouTube,JustDial,Wedding Wire,WedMeGood,Shaadi.com,Referral from Friend/Family,Referral from Past Client,Walk-In,Other'},
   {key:'referred_by',      label:'Referred By (if applicable)',   type:'text',     required:false, section:'📣 Lead Source', placeholder:'Name of the person who referred you'},
   // ── 📱 Social Media ──────────────────────────────────────────────────────
   {key:'bride_instagram',  label:"Bride's Instagram Handle",      type:'text',     required:false, section:'📱 Social Media', placeholder:'@bridename'},
@@ -3227,7 +3285,7 @@ function sv(i,v){var e=$(i);if(e)e.value=(v==null)?'':v;}
 function fmt(n){return '₹'+(parseInt(n)||0).toLocaleString('en-IN');}
 function tod(){return new Date().toISOString().split('T')[0];}
 function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d)-new Date())/86400000);}
-function pl(){return Object.values(projects);}
+function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
 function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Production',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
 function avatarColor(name){var c=['#1d4ed8','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46'];var h=0;for(var i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length];}
@@ -3306,6 +3364,8 @@ document.body.addEventListener('click', function(e) {
     var pane = document.getElementById(tabBtn.getAttribute('data-tab'));
     if (pane) pane.classList.add('active');
     if (tabBtn.getAttribute('data-tab') === 'qt-preview') renderQuotPreview();
+    if (tabBtn.getAttribute('data-tab') === 'qt-timeline') { initTimelineTab(); renderTimelineRows(); }
+    if (tabBtn.getAttribute('data-tab') === 'qt-pricing') onQuotPayTermsChange();
   }
 });
 
@@ -3468,6 +3528,7 @@ function loadAll(){
         // Keep inv caches in sync from the single settings payload (no extra listeners)
         _invTermsCache=(crmSettings.inv_terms&&crmSettings.inv_terms.length)?crmSettings.inv_terms:null;
         _invPaymentTermsCache=(crmSettings.inv_payment_terms&&crmSettings.inv_payment_terms.length)?crmSettings.inv_payment_terms:null;
+        ensureWhatsAppInSources();
       });
       db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};});
       db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
@@ -3510,6 +3571,7 @@ function autoAdvanceStage(projId,targetStage,reason){
     if(!err){
       logStageChange(projId, cur, targetStage, reason, 'Auto');
       showToast('Pipeline: '+p.bride+' & '+p.groom+' moved to '+stageLabel(targetStage)+' ('+reason+')');
+      if(targetStage==='complete'){firePaymentClosedNotification(projId,p,'Auto');}
       if(typeof renderPipeline==='function')renderPipeline();
       if(typeof renderDashboard==='function')renderDashboard();
       if(editProjId===projId)renderStageLog(); showWAStageSuggestion(projId, targetStage);
@@ -3742,6 +3804,331 @@ function renderDataManagerDashboard(dc) {
         '</tr>';
       }).join('') + '</tbody></table></div>' : '');
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 3 — ARCHIVE SYSTEM
+// ═══════════════════════════════════════════════════════════════════
+
+function switchDVTab(tab, btn) {
+  document.querySelectorAll('.dv-main-tab').forEach(function(b) {
+    b.style.color = '#888'; b.style.borderBottomColor = 'transparent'; b.style.fontWeight = '500';
+  });
+  btn.style.color = '#1d4ed8'; btn.style.borderBottomColor = '#1d4ed8'; btn.style.fontWeight = '700';
+  ['vault','archive-queue','archives'].forEach(function(t) {
+    var el = document.getElementById('dv-tab-' + t);
+    if (el) el.style.display = (t === tab) ? '' : 'none';
+  });
+  if (tab === 'archive-queue') renderArchiveQueue();
+  if (tab === 'archives') renderArchives();
+}
+
+function renderArchiveQueue() {
+  var el = document.getElementById('dv-archive-queue');
+  if (!el) return;
+  var isSA = CU && CU.role === 'superadmin';
+  var isDM = CU && (CU.role === 'datamanager' || CU.role === 'admin' || isSA);
+  if (!isDM) { el.innerHTML = '<div class="empty">Access restricted.</div>'; return; }
+
+  // Projects: stage=complete, not archived, all payments done
+  var queue = pl().filter(function(p) {
+    if (p.archived) return false;
+    if (p.stage !== 'complete') return false;
+    return true;
+  });
+
+  if (!queue.length) {
+    el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:20px;text-align:center;color:#166534">' +
+      '<div style="font-size:24px;margin-bottom:8px">✅</div>' +
+      '<div style="font-size:14px;font-weight:700">No clients pending archival</div>' +
+      '<div style="font-size:12px;margin-top:4px;color:#4ade80">All completed projects have been processed.</div>' +
+    '</div>';
+    return;
+  }
+
+  var rows = queue.map(function(p) {
+    var couple = escHtml((p.bride||'') + ' & ' + (p.groom||''));
+    var req = p.archiveRequest || {};
+    var statusLabel = req.clientApproval === 'approved' ? '<span style="color:#16a34a;font-weight:700">✅ Client Approved</span>'
+      : req.clientApproval === 'declined' ? '<span style="color:#dc2626;font-weight:700">❌ Client Declined</span>'
+      : req.initiated ? '<span style="color:#d97706;font-weight:700">⏳ Awaiting Client</span>'
+      : '<span style="color:#888">Not Initiated</span>';
+
+    var paidAmt = typeof paidTotal === 'function' ? paidTotal(p) : 0;
+    var totalAmt = typeof netVal === 'function' ? netVal(p) : (p.value || 0);
+    var balance = totalAmt - paidAmt;
+    var balColor = balance > 0 ? '#dc2626' : '#16a34a';
+
+    var actionBtn = '';
+    if (!req.initiated) {
+      actionBtn = '<button class="btn btn-sm" style="font-size:11px;background:#1d4ed8;color:#fff;border:none" onclick="openArchiveRequest(' + p.id + ')">📤 Initiate Request</button>';
+    } else if (req.clientApproval === 'approved') {
+      actionBtn = '<button class="btn btn-sm" style="font-size:11px;background:#16a34a;color:#fff;border:none" onclick="confirmArchiveClient(' + p.id + ')">🗃️ Archive Client</button>';
+    } else {
+      actionBtn = '<button class="btn btn-sm" style="font-size:11px" onclick="openArchiveRequest(' + p.id + ')">✏️ Update Status</button>';
+    }
+
+    return '<tr style="border-top:1px solid #f0f0f0">' +
+      '<td style="padding:10px 12px;font-weight:700">' + couple + '</td>' +
+      '<td style="padding:10px 12px"><span style="font-size:10px;font-family:monospace;background:#f1f5f9;padding:2px 6px;border-radius:4px">' + escHtml(p.refcode||'—') + '</span></td>' +
+      '<td style="padding:10px 12px;font-size:12px;color:#888">' + escHtml(p.date||'—') + '</td>' +
+      '<td style="padding:10px 12px;font-weight:700;color:#1d4ed8">' + fmt(totalAmt) + '</td>' +
+      '<td style="padding:10px 12px;font-weight:700;color:' + balColor + '">' + (balance > 0 ? fmt(balance) + ' pending' : '₹0 — Fully Paid') + '</td>' +
+      '<td style="padding:10px 12px">' + statusLabel + '</td>' +
+      '<td style="padding:10px 12px">' + actionBtn + '</td>' +
+    '</tr>';
+  }).join('');
+
+  el.innerHTML =
+    '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#9a3412">' +
+      '📦 <strong>' + queue.length + ' client' + (queue.length!==1?'s':'') + '</strong> with completed projects — ready for archival process.' +
+    '</div>' +
+    '<div class="card" style="padding:0;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+    '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb">' +
+      '<th style="padding:10px 12px;text-align:left;font-weight:700">Couple</th>' +
+      '<th style="padding:10px 12px;text-align:left;font-weight:700">Ref</th>' +
+      '<th style="padding:10px 12px;text-align:left;font-weight:700">Event Date</th>' +
+      '<th style="padding:10px 12px;text-align:left;font-weight:700">Total Value</th>' +
+      '<th style="padding:10px 12px;text-align:left;font-weight:700">Balance</th>' +
+      '<th style="padding:10px 12px;text-align:left;font-weight:700">Deletion Request</th>' +
+      '<th style="padding:10px 12px;text-align:left;font-weight:700">Action</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function openArchiveRequest(projId) {
+  var p = projects[projId]; if (!p) return;
+  var req = p.archiveRequest || {};
+  var ex = document.getElementById('archive-req-modal'); if (ex) ex.remove();
+  var couple = escHtml((p.bride||'') + ' & ' + (p.groom||''));
+
+  // Build WhatsApp message
+  var waMsg = encodeURIComponent(
+    'Hi, this is KB Studio. As we have successfully delivered all your wedding memories, ' +
+    'we would like to inform you that we are planning to clear the raw data from our servers. ' +
+    'Please confirm if you have received and saved all delivered files. ' +
+    'Reply YES to approve data deletion or NO to retain for now.
+
+Couple: ' + (p.bride||'') + ' & ' + (p.groom||'')
+  );
+  var waNum = (p.phone||'').replace(/[^0-9]/g,'');
+  var waLink = waNum ? 'https://wa.me/91' + waNum + '?text=' + waMsg : '';
+
+  var modal = document.createElement('div');
+  modal.id = 'archive-req-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.2)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+        '<div style="font-size:15px;font-weight:800">📤 Data Deletion Request</div>' +
+        '<button onclick="document.getElementById('archive-req-modal').remove()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px">✕</button>' +
+      '</div>' +
+      '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:12px">Client: ' + couple + '</div>' +
+      (waLink ? '<a href="' + waLink + '" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:#25D366;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:700;margin-bottom:14px">📲 Send WhatsApp Request</a>' : '') +
+      '<div style="margin-bottom:12px">' +
+        '<label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px">Client Contact Date</label>' +
+        '<input type="date" id="ar-contact-date" class="fi" value="' + (req.contactDate||tod()) + '" style="font-size:12px">' +
+      '</div>' +
+      '<div style="margin-bottom:16px">' +
+        '<label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:6px">Client Approval Status</label>' +
+        '<div style="display:flex;gap:8px">' +
+          ['pending','approved','declined'].map(function(v) {
+            var labels = {pending:'⏳ Pending', approved:'✅ Approved', declined:'❌ Declined'};
+            var colors = {pending:'#d97706', approved:'#16a34a', declined:'#dc2626'};
+            var sel = (req.clientApproval||'pending') === v;
+            return '<button class="ar-status-btn" data-val="' + v + '" onclick="selectARStatus(this)" ' +
+              'style="flex:1;padding:8px;border-radius:8px;border:2px solid ' + (sel ? colors[v] : '#e5e7eb') + ';background:' + (sel ? colors[v]+'15' : '#fff') + ';font-size:12px;font-weight:700;color:' + (sel ? colors[v] : '#888') + ';cursor:pointer;font-family:inherit">' + labels[v] + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button onclick="document.getElementById('archive-req-modal').remove()" style="flex:1;background:#f1f5f9;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>' +
+        '<button onclick="saveArchiveRequest(' + projId + ')" style="flex:1;background:#1d4ed8;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 Save Request</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+}
+
+function selectARStatus(btn) {
+  document.querySelectorAll('.ar-status-btn').forEach(function(b) {
+    var v = b.dataset.val;
+    var colors = {pending:'#d97706', approved:'#16a34a', declined:'#dc2626'};
+    b.style.borderColor = '#e5e7eb'; b.style.background = '#fff'; b.style.color = '#888';
+  });
+  var colors = {pending:'#d97706', approved:'#16a34a', declined:'#dc2626'};
+  var v = btn.dataset.val;
+  btn.style.borderColor = colors[v]; btn.style.background = colors[v]+'15'; btn.style.color = colors[v];
+}
+
+function saveArchiveRequest(projId) {
+  var contactDate = (document.getElementById('ar-contact-date')||{}).value || tod();
+  var statusBtn = document.querySelector('.ar-status-btn[style*="15")');
+  // find selected
+  var selectedStatus = 'pending';
+  document.querySelectorAll('.ar-status-btn').forEach(function(b) {
+    if (b.style.background.indexOf('15') !== -1 || b.style.borderColor !== 'rgb(229, 231, 235)') {
+      selectedStatus = b.dataset.val;
+    }
+  });
+  var req = { initiated: true, contactDate: contactDate, clientApproval: selectedStatus, updatedAt: Date.now(), updatedBy: CU ? (CU.name||CU.username) : '' };
+  db.ref('crm_projects/' + projId + '/archiveRequest').update(req, function(err) {
+    if (!err) {
+      document.getElementById('archive-req-modal').remove();
+      showToast('✅ Archive request updated!');
+      renderArchiveQueue();
+    }
+  });
+}
+
+function confirmArchiveClient(projId) {
+  var p = projects[projId]; if (!p) return;
+  var couple = (p.bride||'') + ' & ' + (p.groom||'');
+  if (!confirm('Archive ' + couple + '?
+
+This will move all their data to the Archives section. The client will no longer appear in active lists.
+
+This can be undone by a Superadmin.')) return;
+
+  // Build full archive snapshot
+  var snapshot = {
+    id: projId, couple: couple, refcode: p.refcode || '',
+    bride: p.bride||'', groom: p.groom||'',
+    phone: p.phone||'', email: p.email||'', city: p.city||'',
+    date: p.date||'', eventType: p.eventType||'',
+    value: typeof netVal === 'function' ? netVal(p) : (p.value||0),
+    paidTotal: typeof paidTotal === 'function' ? paidTotal(p) : 0,
+    payLedger: p.payLedger || [],
+    customDelivs: p.customDelivs || [],
+    dataEntries: p.dataEntries || [],
+    eventDays: p.eventDays || [],
+    stageLog: p.stageLog || [],
+    archiveRequest: p.archiveRequest || {},
+    archivedAt: Date.now(),
+    archivedBy: CU ? (CU.name||CU.username) : ''
+  };
+
+  db.ref('crm_archive/' + projId).set(snapshot, function(err) {
+    if (err) { alert('Error: ' + err.message); return; }
+    db.ref('crm_projects/' + projId).update({ archived: true, archivedAt: Date.now() }, function(err2) {
+      if (!err2) {
+        showToast('🗃️ ' + couple + ' archived successfully!');
+        renderArchiveQueue();
+      }
+    });
+  });
+}
+
+function renderArchives() {
+  var el = document.getElementById('dv-archives-list');
+  if (!el) return;
+  var isSA = CU && CU.role === 'superadmin';
+  var isDM = CU && (CU.role === 'datamanager' || CU.role === 'admin' || isSA);
+  if (!isDM) { el.innerHTML = '<div class="empty">Access restricted.</div>'; return; }
+
+  el.innerHTML = '<div style="color:#888;font-size:13px;padding:20px;text-align:center">Loading archives…</div>';
+
+  db.ref('crm_archive').once('value', function(snap) {
+    var archives = snap.val() || {};
+    var list = Object.values(archives).sort(function(a,b){ return (b.archivedAt||0) - (a.archivedAt||0); });
+
+    if (!list.length) {
+      el.innerHTML = '<div class="empty">No archived clients yet.</div>';
+      return;
+    }
+
+    var searchQ = '';
+    var searchBar = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">' +
+      '<input type="text" id="arc-search" class="fi" placeholder="🔍 Search couple, city, year…" style="max-width:280px;font-size:12px" oninput="filterArchiveList()">' +
+      (isSA ? '<button class="btn btn-sm" style="font-size:11px;background:#f1f5f9;color:#555" onclick="renderArchives()">↺ Refresh</button>' : '') +
+      '</div>';
+
+    var cards = list.map(function(a) {
+      var arDate = a.archivedAt ? new Date(a.archivedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+      var paidAmt = a.paidTotal || 0;
+      var totalAmt = a.value || 0;
+      var bal = totalAmt - paidAmt;
+      return '<div class="arc-card" data-couple="' + escHtml((a.couple||'').toLowerCase()) + '" data-city="' + escHtml((a.city||'').toLowerCase()) + '" ' +
+        'style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
+          '<div>' +
+            '<div style="font-size:14px;font-weight:800;color:#1a1a1a">' + escHtml(a.couple||'—') + '</div>' +
+            '<div style="font-size:11px;color:#888;margin-top:2px">' + escHtml(a.refcode||'') + ' · Archived ' + arDate + ' by ' + escHtml(a.archivedBy||'—') + '</div>' +
+          '</div>' +
+          '<span style="background:#f3f4f6;color:#6b7280;font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px">🗃️ ARCHIVED</span>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;font-size:12px">' +
+          '<div><span style="color:#888">📞 Phone</span><br><strong>' + escHtml(a.phone||'—') + '</strong></div>' +
+          '<div><span style="color:#888">📍 City</span><br><strong>' + escHtml(a.city||'—') + '</strong></div>' +
+          '<div><span style="color:#888">📅 Event</span><br><strong>' + escHtml(a.date||'—') + '</strong></div>' +
+          '<div><span style="color:#888">💰 Total</span><br><strong style="color:#1d4ed8">' + fmt(totalAmt) + '</strong></div>' +
+          '<div><span style="color:#888">✅ Paid</span><br><strong style="color:#16a34a">' + fmt(paidAmt) + '</strong></div>' +
+          '<div><span style="color:#888">⚠️ Balance</span><br><strong style="color:' + (bal>0?'#dc2626':'#16a34a') + '">' + (bal>0?fmt(bal):'Fully Paid') + '</strong></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+          '<button onclick="toggleArchiveDetails('' + a.id + '')" style="background:#f1f5f9;border:1px solid #e5e7eb;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">📋 View Details</button>' +
+          (isSA ? '<button onclick="restoreFromArchive(' + a.id + ')" style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">↩ Restore</button>' : '') +
+        '</div>' +
+        '<div id="arc-details-' + a.id + '" style="display:none;margin-top:12px;border-top:1px solid #f0f0f0;padding-top:12px">' +
+          renderArchiveDetails(a) +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    el.innerHTML = searchBar +
+      '<div style="font-size:12px;color:#888;margin-bottom:10px">' + list.length + ' archived client' + (list.length!==1?'s':'') + '</div>' +
+      '<div id="arc-cards">' + cards + '</div>';
+  });
+}
+
+function renderArchiveDetails(a) {
+  var payments = (a.payLedger||[]).map(function(e) {
+    return '<tr><td style="padding:6px 10px">' + escHtml(e.stage||'—') + '</td>' +
+      '<td style="padding:6px 10px;font-weight:700;color:#16a34a">₹' + fmtNum(parseInt(e.amount)||0) + '</td>' +
+      '<td style="padding:6px 10px;color:#888">' + escHtml(e.date||'—') + '</td>' +
+      '<td style="padding:6px 10px;color:#555">' + escHtml(e.account||'—') + '</td>' +
+      '<td style="padding:6px 10px;color:#888">' + escHtml(e.recordedBy||'—') + '</td></tr>';
+  }).join('');
+
+  var delivs = (a.customDelivs||[]).map(function(d) {
+    return '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #f5f5f5">' +
+      '<span>' + escHtml(d.name||d.type||'—') + '</span>' +
+      '<span style="color:#16a34a;font-weight:700">' + (d.status==='delivered'?'✅ Delivered':'⏳ '+escHtml(d.status||'—')) + '</span>' +
+    '</div>';
+  }).join('');
+
+  return '<div style="font-size:12px">' +
+    (payments ? '<div style="font-weight:700;margin-bottom:6px;color:#555">💳 Payment History</div>' +
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:12px;font-size:11px;border:1px solid #f0f0f0;border-radius:8px;overflow:hidden">' +
+        '<thead><tr style="background:#f8fafc"><th style="padding:6px 10px;text-align:left">Stage</th><th style="padding:6px 10px;text-align:left">Amount</th><th style="padding:6px 10px;text-align:left">Date</th><th style="padding:6px 10px;text-align:left">Account</th><th style="padding:6px 10px;text-align:left">By</th></tr></thead>' +
+        '<tbody>' + payments + '</tbody></table>' : '') +
+    (delivs ? '<div style="font-weight:700;margin-bottom:6px;color:#555">📦 Deliverables</div><div style="margin-bottom:8px">' + delivs + '</div>' : '') +
+  '</div>';
+}
+
+function toggleArchiveDetails(id) {
+  var el = document.getElementById('arc-details-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+function filterArchiveList() {
+  var q = ((document.getElementById('arc-search')||{}).value||'').toLowerCase();
+  document.querySelectorAll('.arc-card').forEach(function(card) {
+    var match = !q || (card.dataset.couple||'').indexOf(q) !== -1 || (card.dataset.city||'').indexOf(q) !== -1;
+    card.style.display = match ? '' : 'none';
+  });
+}
+
+function restoreFromArchive(projId) {
+  if (!CU || CU.role !== 'superadmin') return;
+  if (!confirm('Restore this client from archive back to active projects?')) return;
+  db.ref('crm_projects/' + projId).update({ archived: false, archivedAt: null }, function(err) {
+    if (!err) {
+      db.ref('crm_archive/' + projId).remove(function() {
+        showToast('↩ Client restored to active projects.');
+        renderArchives();
+      });
+    }
+  });
+}
+
 
 // ═══ DATA MANAGER LOG TAB ═══════════════════════════════════════════════════
 var shootDayCount = 0;
@@ -4003,10 +4390,24 @@ function runDateAutomations(){
 
 var DEFAULT_EVENT_TYPES=['Day Wedding','Night Wedding','Destination Wedding','Pre-Wedding Shoot','Engagement','Mehendi','Sangeet','Haldi','Reception','Maternity','Birthday','Baby Shower','Corporate Event','Anniversary','Full Package'];
 var DEFAULT_PACKAGES=['Basic (Photography)','Standard (Photo + Video)','Premium (Photo + Video + Drone)','Elite (Full Coverage)','Custom'];
-var DEFAULT_SOURCES=['Referral','Instagram','Google','Facebook','JustDial','Wedding Wire','Walk-in','Other'];
+var DEFAULT_SOURCES=['Referral','Instagram','WhatsApp','Google','Facebook','YouTube','JustDial','Wedding Wire','WedMeGood','Walk-in','Other'];
 var DEFAULT_FRAMESIZES=['4x6','5x7','6x8','8x10','8x12','10x12','10x15','12x18','12x36 (Panorama)','16x20','16x24','20x30','24x36','Custom'];
 
 function getSettingList(key,defaults){var s=crmSettings[key];if(s&&s.length)return s;return defaults.slice();}
+
+// Ensure 'WhatsApp' is always present in the sources list (migration for existing Firebase data)
+function ensureWhatsAppInSources() {
+  var saved = crmSettings['sources'];
+  if (!saved || !saved.length) return; // using defaults, already has WhatsApp
+  if (saved.indexOf('WhatsApp') === -1) {
+    // Insert after Instagram
+    var idx = saved.indexOf('Instagram');
+    var updated = saved.slice();
+    updated.splice(idx !== -1 ? idx + 1 : 2, 0, 'WhatsApp');
+    db.ref('crm_settings/sources').set(updated);
+    crmSettings['sources'] = updated; // update local cache immediately
+  }
+}
 function saveSettingList(key,arr,cb){db.ref('crm_settings/'+key).set(arr,function(){if(cb)cb();});}
 
 function populateProjectDropdowns(p){
@@ -4159,7 +4560,20 @@ function renderSettings(){
     '<div id="sidebar-customizer-mount"></div>' +
   '</div>';
 
+  // ── Delivery Timeline Templates ──────────────────────────────────
+  html += '<div class="card" style="margin-top:16px">' +
+    '<div class="card-hdr"><span class="card-title">\u23f1\ufe0f Delivery Timeline Templates</span>' +
+    '<span style="font-size:11px;color:#16a34a;background:#f0fdf4;padding:3px 10px;border-radius:20px;border:1px solid #bbf7d0;font-weight:600">Saved to Firebase</span></div>' +
+    '<p style="font-size:12px;color:#888;margin-bottom:12px">Manage delivery timeline presets that appear in the Quotation Builder. Built-in templates (Wedding, Pre-Wedding, Engagement, Sangeet, Haldi) are always available — add custom ones here.</p>' +
+    '<div id="delivery-timeline-settings-mount"></div>' +
+  '</div>';
+
   sc.innerHTML = html;
+
+  // Mount timeline settings
+  var tlMount = document.getElementById('delivery-timeline-settings-mount');
+  if (tlMount && typeof renderDeliveryTimelineSettings === 'function') renderDeliveryTimelineSettings(tlMount);
+
   sc.querySelectorAll('.stag-del').forEach(function(btn){btn.addEventListener('click',function(){var t=btn.closest('.stag');removeSettingItem(t.dataset.key,t.dataset.val);});});
   sc.querySelectorAll('.sadd-btn').forEach(function(btn){btn.addEventListener('click',function(){addSettingItem(btn.dataset.key);});});
   sc.querySelectorAll('.sadd-inp').forEach(function(inp){inp.addEventListener('keydown',function(e){if(e.key==='Enter')addSettingItem(inp.dataset.key);});});
@@ -5605,7 +6019,131 @@ function renderUsers(){
     '</div>';
   }).join('');
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 2 — PAYMENT CLOSED NOTIFICATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════
+
+function firePaymentClosedNotification(projId, p, triggeredBy) {
+  // Don't double-fire if already notified for this project's completion
+  var existingKey = 'payclose_' + projId;
+  db.ref('crm_notifications').orderByChild('projId').equalTo(projId).once('value', function(snap) {
+    var existing = snap.val() || {};
+    var alreadyFired = Object.values(existing).some(function(n) { return n.type === 'payment_closed' && !n.dismissed; });
+    if (alreadyFired) return;
+    var notif = {
+      type: 'payment_closed',
+      projId: projId,
+      couple: (p.bride || '') + ' & ' + (p.groom || ''),
+      refcode: p.refcode || '',
+      totalValue: (typeof netVal === 'function') ? netVal(p) : (p.value || 0),
+      paidTotal: (typeof paidTotal === 'function') ? paidTotal(p) : 0,
+      balanceAtClose: (typeof balDue === 'function') ? balDue(p) : 0,
+      triggeredBy: triggeredBy || (CU ? (CU.name || CU.username) : 'System'),
+      at: Date.now(),
+      verified: false,
+      verifiedBy: null,
+      verifiedAt: null
+    };
+    db.ref('crm_notifications').push(notif, function(err) {
+      if (!err) {
+        // Refresh notification badge if accounts/admin is viewing
+        if (typeof updatePayClosedBadge === 'function') updatePayClosedBadge();
+      }
+    });
+  });
+}
+
+function verifyPaymentClosed(notifKey) {
+  if (!CU) return;
+  var who = CU.name || CU.username;
+  db.ref('crm_notifications/' + notifKey).update({
+    verified: true,
+    verifiedBy: who,
+    verifiedAt: Date.now()
+  }, function(err) {
+    if (!err) {
+      showToast('✅ Payment verified by ' + who);
+      renderPayClosedAlerts();
+      updatePayClosedBadge();
+    }
+  });
+}
+
+function updatePayClosedBadge() {
+  var badge = document.getElementById('pay-closed-badge');
+  if (!badge) return;
+  var count = 0;
+  db.ref('crm_notifications').orderByChild('type').equalTo('payment_closed').once('value', function(snap) {
+    var all = snap.val() || {};
+    count = Object.values(all).filter(function(n) { return !n.verified; }).length;
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+  });
+}
+
+function renderPayClosedAlerts() {
+  var el = document.getElementById('pay-closed-alerts');
+  if (!el) return;
+  var isSA = CU && (CU.role === 'superadmin');
+  var isAcc = CU && (CU.role === 'accounts');
+  if (!isSA && !isAcc) { el.innerHTML = ''; return; }
+
+  db.ref('crm_notifications').orderByChild('type').equalTo('payment_closed').once('value', function(snap) {
+    var all = snap.val() || {};
+    var unverified = Object.entries(all)
+      .filter(function(e) { return !e[1].verified; })
+      .sort(function(a, b) { return b[1].at - a[1].at; });
+
+    if (!unverified.length) {
+      el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;color:#166534;font-size:13px;display:flex;align-items:center;gap:10px">' +
+        '<span style="font-size:18px">✅</span><span>All closed payments have been verified by accounts.</span></div>';
+      return;
+    }
+
+    var html = '<div style="background:#fef9c3;border:1px solid #fde047;border-radius:10px;padding:0;overflow:hidden;margin-bottom:4px">' +
+      '<div style="padding:12px 16px;border-bottom:1px solid #fde047;display:flex;align-items:center;gap:8px">' +
+        '<span style="font-size:16px">⚠️</span>' +
+        '<span style="font-size:13px;font-weight:700;color:#713f12">' + unverified.length + ' client' + (unverified.length > 1 ? 's' : '') + ' closed — pending accounts verification</span>' +
+      '</div>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+        '<thead><tr style="background:#fef08a">' +
+          '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#713f12">Couple</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#713f12">Ref</th>' +
+          '<th style="padding:8px 12px;text-align:right;font-weight:700;color:#713f12">Total Value</th>' +
+          '<th style="padding:8px 12px;text-align:right;font-weight:700;color:#713f12">Amount Paid</th>' +
+          '<th style="padding:8px 12px;text-align:right;font-weight:700;color:#713f12">Balance at Close</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#713f12">Closed By</th>' +
+          '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#713f12">Date</th>' +
+          '<th style="padding:8px 12px"></th>' +
+        '</tr></thead><tbody>' +
+      unverified.map(function(entry) {
+        var k = entry[0], n = entry[1];
+        var d = new Date(n.at);
+        var dateStr = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+        var balColor = (n.balanceAtClose || 0) > 0 ? '#dc2626' : '#16a34a';
+        var balText = (n.balanceAtClose || 0) > 0 ? fmt(n.balanceAtClose) : '₹0 (Fully Paid)';
+        return '<tr style="border-top:1px solid #fde68a">' +
+          '<td style="padding:9px 12px;font-weight:700;color:#1a1a1a">' + escHtml(n.couple || '—') + '</td>' +
+          '<td style="padding:9px 12px"><span style="background:#f1f5f9;color:#475569;padding:2px 6px;border-radius:4px;font-size:10px;font-family:monospace">' + escHtml(n.refcode || '—') + '</span></td>' +
+          '<td style="padding:9px 12px;text-align:right;color:#1d4ed8;font-weight:600">' + fmt(n.totalValue || 0) + '</td>' +
+          '<td style="padding:9px 12px;text-align:right;color:#16a34a;font-weight:700">' + fmt(n.paidTotal || 0) + '</td>' +
+          '<td style="padding:9px 12px;text-align:right;font-weight:700;color:' + balColor + '">' + balText + '</td>' +
+          '<td style="padding:9px 12px;color:#555">' + escHtml(n.triggeredBy || '—') + '</td>' +
+          '<td style="padding:9px 12px;color:#888">' + dateStr + '</td>' +
+          '<td style="padding:9px 12px"><button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-size:11px" onclick="verifyPaymentClosed('' + k + '')">✓ Mark Verified</button></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>';
+
+    el.innerHTML = html;
+  });
+}
+
 function renderAccounts(){
+  // Fire payment-closed alerts for accounts/superadmin
+  if (typeof renderPayClosedAlerts === 'function') renderPayClosedAlerts();
+  if (typeof updatePayClosedBadge === 'function') updatePayClosedBadge();
   var list=accList();
   var canEdit = can('canManageAccounts');
   var icons={current:'🏦',savings:'💳',upi:'📱',cash:'💵',other:'🔖'};
@@ -5719,6 +6257,7 @@ $('btn-save-proj').addEventListener('click',function(){
     sv('f-refcode',refcode);
     var newStage=p.stage;
     if(newStage!==exStage){logStageChange(id,exStage,newStage,'Manual stage update',CU?CU.name||CU.username:'Admin');}
+    if(newStage==='complete'&&exStage!=='complete'){firePaymentClosedNotification(id,p,CU?CU.name||CU.username:'Admin');}
     closeModal('proj-modal');
     showToast('Project saved! Code: '+refcode);
   });
@@ -5726,6 +6265,180 @@ $('btn-save-proj').addEventListener('click',function(){
 function autoLinkReferral(p){var ex=Object.values(referral).find(function(c){return c.projectId===p.id||c.refcode===p.refcode;});if(ex)return;var id=Date.now();db.ref('crm_referral/'+id).set({id:id,name:p.bride+(p.groom?' & '+p.groom:''),phone:p.phone||'',city:p.city||p.state||'',booking:netVal(p)||0,code:p.refcode,projectId:p.id,points:0,history:[],createdAt:tod()});}
 $('btn-delete-proj').addEventListener('click',function(){if(!editProjId||CU.role!=='superadmin')return;var p=projects[editProjId];if(!p)return;if(!confirm('PERMANENTLY DELETE "'+p.bride+' & '+p.groom+'"?\n\nThis cannot be undone.'))return;db.ref('crm_projects/'+editProjId).remove(function(){closeModal('proj-modal');showToast('🗑️ Project deleted.');});});
 function deleteProjDirect(id){if(CU.role!=='superadmin'){alert('Only Super Admin can delete.');return;}var p=projects[id];if(!p)return;if(!confirm('PERMANENTLY DELETE "'+p.bride+' & '+p.groom+'"?'))return;db.ref('crm_projects/'+id).remove(function(){showToast('🗑️ Deleted.');});}
+
+// ═══════════════════════════════════════════════════════════════════
+// PHASE 5 — TRANSACTION FEED + DUPLICATE DETECTION
+// ═══════════════════════════════════════════════════════════════════
+
+function switchPayTab(tab, btn) {
+  document.querySelectorAll('.pay-main-tab').forEach(function(b) {
+    b.style.color = '#888';
+    b.style.borderBottomColor = 'transparent';
+    b.style.fontWeight = '500';
+  });
+  btn.style.color = '#1d4ed8';
+  btn.style.borderBottomColor = '#1d4ed8';
+  btn.style.fontWeight = '700';
+  var projTab = document.getElementById('pay-tab-projects');
+  var feedTab = document.getElementById('pay-tab-feed');
+  if (!projTab || !feedTab) return;
+  if (tab === 'projects') {
+    projTab.style.display = '';
+    feedTab.style.display = 'none';
+  } else {
+    projTab.style.display = 'none';
+    feedTab.style.display = '';
+    renderTxnFeed();
+  }
+}
+
+function renderTxnFeed() {
+  var el = document.getElementById('txn-feed-container');
+  if (!el) return;
+  var isSA = CU && CU.role === 'superadmin';
+  var isAcc = CU && (CU.role === 'accounts' || CU.role === 'admin');
+  if (!isSA && !isAcc) { el.innerHTML = '<div class="empty">Access restricted.</div>'; return; }
+
+  // Resolve filters (reuse existing filter controls)
+  var accF = (document.getElementById('pay-acc-f') || {value:''}).value;
+  var dateRange = getPayDateRange();
+  var searchQ = (document.getElementById('txn-search') || {value:''}).value.trim().toLowerCase();
+  var modeF = (document.getElementById('txn-mode-f') || {value:''}).value;
+
+  // Flatten all ledger entries
+  var allTxns = [];
+  pl().forEach(function(p) {
+    if (p.archived) return;
+    (p.payLedger || []).forEach(function(e, idx) {
+      if (accF && e.account !== accF) return;
+      if (dateRange && !inDateRange(e.date || '', dateRange)) return;
+      if (modeF && (e.mode || '') !== modeF) return;
+      var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+      if (searchQ && couple.toLowerCase().indexOf(searchQ) === -1) return;
+      allTxns.push({ e: e, p: p, idx: idx, couple: couple });
+    });
+  });
+
+  // Sort newest first
+  allTxns.sort(function(a, b) {
+    var da = a.e.ts || new Date(a.e.date || 0).getTime();
+    var db2 = b.e.ts || new Date(b.e.date || 0).getTime();
+    return db2 - da;
+  });
+
+  // Duplicate detection: same projId + stage + amount + date (±1 day)
+  var dupSet = new Set();
+  for (var i = 0; i < allTxns.length; i++) {
+    for (var j = i + 1; j < allTxns.length; j++) {
+      var a = allTxns[i].e, b2 = allTxns[j].e;
+      var pa = allTxns[i].p, pb = allTxns[j].p;
+      if (pa.id !== pb.id) continue;
+      if (a.stage !== b2.stage) continue;
+      if (parseInt(a.amount) !== parseInt(b2.amount)) continue;
+      var da2 = new Date(a.date || 0).getTime();
+      var db3 = new Date(b2.date || 0).getTime();
+      if (Math.abs(da2 - db3) <= 86400000) {
+        dupSet.add(i);
+        dupSet.add(j);
+      }
+    }
+  }
+  var dupCount = dupSet.size / 2 | 0;
+
+  // Build extra filter bar
+  var filterBar = '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;background:#f9f9fb;border:1px solid #e8e8ee;border-radius:10px;padding:10px 14px">' +
+    '<input type="text" id="txn-search" class="fi" placeholder="🔍 Search couple…" style="flex:1;min-width:160px;max-width:220px;font-size:12px;padding:6px 10px" value="' + escHtml(searchQ) + '" oninput="renderTxnFeed()">' +
+    '<select id="txn-mode-f" class="fi" style="flex:0;width:auto;font-size:12px;padding:5px 10px" onchange="renderTxnFeed()">' +
+      '<option value="">All Modes</option>' +
+      ['cash','online','cheque','upi','bank_transfer'].map(function(m){
+        return '<option value="'+m+'"'+(modeF===m?' selected':'')+'>'+m.replace(/_/g,' ').replace(/\w/g,function(c){return c.toUpperCase()})+'</option>';
+      }).join('') +
+    '</select>' +
+    '<span style="font-size:12px;color:#555;font-weight:600">' + allTxns.length + ' transaction' + (allTxns.length!==1?'s':'') +
+    ' · <span style="color:#16a34a">₹' + fmtNum(allTxns.reduce(function(s,t){return s+(parseInt(t.e.amount)||0);},0)) + '</span></span>' +
+    '</div>';
+
+  // Duplicate alert banner
+  var dupBanner = '';
+  if (dupCount > 0) {
+    dupBanner = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">' +
+      '<span style="font-size:18px">⚠️</span>' +
+      '<span style="font-size:13px;font-weight:700;color:#991b1b">' + dupCount + ' possible duplicate pair' + (dupCount>1?'s':'') + ' detected — flagged below</span>' +
+      '</div>';
+  }
+
+  if (!allTxns.length) {
+    el.innerHTML = filterBar + '<div class="empty">No transactions found for the selected filters.</div>';
+    return;
+  }
+
+  // Table
+  var rows = allTxns.map(function(item, i) {
+    var e = item.e, p = item.p;
+    var isDup = dupSet.has(i);
+    var dateStr = e.date ? new Date(e.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    var rowBg = isDup ? 'background:#fff7ed' : (i%2===0 ? '#fff' : '#fafafa');
+    var stageLabel2 = e.stage || '—';
+    var modeStr = (e.mode||'—').replace(/_/g,' ').replace(/\w/g,function(c){return c.toUpperCase();});
+    return '<tr style="border-top:1px solid #f0f0f0;' + rowBg + '">' +
+      '<td style="padding:9px 12px;font-weight:700;color:#1a1a1a;white-space:nowrap">' +
+        '<span style="cursor:pointer;color:#1d4ed8;text-decoration:underline" onclick="openProject(' + p.id + ','t-payments')">' + escHtml(item.couple) + '</span>' +
+      '</td>' +
+      '<td style="padding:9px 12px"><span style="background:#f1f5f9;color:#475569;padding:2px 6px;border-radius:4px;font-size:10px;font-family:monospace">' + escHtml(p.refcode||'—') + '</span></td>' +
+      '<td style="padding:9px 12px;font-size:12px;color:#555">' + escHtml(stageLabel2) + '</td>' +
+      '<td style="padding:9px 12px;font-weight:800;color:#16a34a;font-size:13px">₹' + fmtNum(parseInt(e.amount)||0) + '</td>' +
+      '<td style="padding:9px 12px;font-size:12px;color:#1d4ed8;font-weight:600">' + escHtml(e.account||'—') + '</td>' +
+      '<td style="padding:9px 12px;font-size:12px;color:#555">' + modeStr + '</td>' +
+      '<td style="padding:9px 12px;font-size:11px;font-family:monospace;color:#888">' + escHtml(e.ref||'—') + '</td>' +
+      '<td style="padding:9px 12px;font-size:12px;color:#888">' + dateStr + '</td>' +
+      '<td style="padding:9px 12px;font-size:11px;color:#aaa">' + escHtml(e.recordedBy||'—') + '</td>' +
+      '<td style="padding:9px 12px">' +
+        (isDup ? '<span style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px">⚠ Duplicate?</span>' : '<span style="color:#16a34a;font-size:11px;font-weight:600">✓</span>') +
+      '</td>' +
+      (isSA && isDup ?
+        '<td style="padding:9px 12px"><button class="btn btn-sm" style="font-size:11px;background:#dc2626;color:#fff;border:none" onclick="deleteTxnEntry(' + p.id + ',' + item.idx + ')">🗑 Remove</button></td>' :
+        '<td style="padding:9px 12px"></td>') +
+    '</tr>';
+  }).join('');
+
+  var tableHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+    '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb">' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151;white-space:nowrap">Couple</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Ref</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Stage</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Amount</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Account</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Mode</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Reference</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Date</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Recorded By</th>' +
+      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Status</th>' +
+      (isSA ? '<th style="padding:9px 12px"></th>' : '') +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '</table></div>';
+
+  el.innerHTML = filterBar + dupBanner + '<div class="card" style="padding:0;overflow:hidden">' + tableHTML + '</div>';
+}
+
+function deleteTxnEntry(projId, entryIdx) {
+  if (!CU || CU.role !== 'superadmin') return;
+  var p = projects[projId]; if (!p) return;
+  var ledger = JSON.parse(JSON.stringify(p.payLedger || []));
+  var entry = ledger[entryIdx];
+  if (!entry) return;
+  if (!confirm('Remove this payment entry?\n' + fmt(entry.amount) + ' · ' + (entry.stage||'') + ' · ' + (entry.date||''))) return;
+  ledger.splice(entryIdx, 1);
+  db.ref('crm_projects/' + projId + '/payLedger').set(ledger, function(err) {
+    if (!err) { showToast('🗑️ Entry removed.'); renderTxnFeed(); }
+    else { alert('Error: ' + err.message); }
+  });
+}
+
+function fmtNum(n) {
+  return (n || 0).toLocaleString('en-IN');
+}
+
 
 // ═══ PAY LEDGER ══════════════════════════════════════
 function populateAccountDropdown(selId){var el=$(selId);if(!el)return;el.innerHTML=accList().map(function(a){return '<option value="'+a.name+'">'+a.name+'</option>';}).join('');}
@@ -5901,7 +6614,7 @@ document.addEventListener('click', function(e) {
   }
 });
 
-$('btn-save-pay-entry').addEventListener('click',function(){if(!editProjId)return;var p=projects[editProjId];if(!p)return;var amt=parseInt(gv('pe-amount'))||0;if(!amt){alert('Enter amount.');return;}var sk=gv('pe-stage');var entry={stage:sk,amount:amt,date:gv('pe-date'),mode:gv('pe-mode'),account:gv('pe-account'),ref:gv('pe-ref'),due:gv('pe-due'),notes:gv('pe-notes'),ts:Date.now()};var ledger=(p.payLedger||[]).concat([entry]);var upd={payLedger:ledger};if(entry.due)upd['pay_'+sk+'_due']=entry.due;var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||(sk||'').toLowerCase().includes('advance'));var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate==='')){ upd.bookdate=entry.date; }db.ref('crm_projects/'+editProjId).update(upd,function(err){if(err){alert('Error: '+err.message);return;}closeModal('pay-entry-modal');showToast('✅ '+fmt(amt)+' recorded!');renderPayLedger();setTimeout(function(){runPaymentAutomations(editProjId);},400);setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);});});
+$('btn-save-pay-entry').addEventListener('click',function(){if(!editProjId)return;var p=projects[editProjId];if(!p)return;var amt=parseInt(gv('pe-amount'))||0;if(!amt){alert('Enter amount.');return;}var sk=gv('pe-stage');var entry={stage:sk,amount:amt,date:gv('pe-date'),mode:gv('pe-mode'),account:gv('pe-account'),ref:gv('pe-ref'),due:gv('pe-due'),notes:gv('pe-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};var ledger=(p.payLedger||[]).concat([entry]);var upd={payLedger:ledger};if(entry.due)upd['pay_'+sk+'_due']=entry.due;var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||(sk||'').toLowerCase().includes('advance'));var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate==='')){ upd.bookdate=entry.date; }db.ref('crm_projects/'+editProjId).update(upd,function(err){if(err){alert('Error: '+err.message);return;}closeModal('pay-entry-modal');showToast('✅ '+fmt(amt)+' recorded!');renderPayLedger();setTimeout(function(){runPaymentAutomations(editProjId);},400);setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);});});
 function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
 
 $('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().map(function(p){return '<option value="'+p.id+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');$('rp-client-info').style.display='none';openModal('rp-modal');});
@@ -5927,7 +6640,7 @@ $('rp-client').addEventListener('change',function(){
     }
   }
 });
-$('btn-save-rp').addEventListener('click',function(){var id=parseInt(gv('rp-client'));var p=projects[id];if(!p){alert('Select a client.');return;}var amt=parseInt(gv('rp-amount'))||0;if(!amt){alert('Enter amount.');return;}var sk=gv('rp-stage');var payDate=gv('rp-date');var entry={stage:sk,amount:amt,date:payDate,mode:gv('rp-mode'),account:gv('rp-account'),ref:gv('rp-ref'),due:gv('rp-due'),notes:gv('rp-notes'),ts:Date.now()};var ledger=(p.payLedger||[]).concat([entry]);var upd={payLedger:ledger};if(entry.due)upd['pay_'+sk+'_due']=entry.due;
+$('btn-save-rp').addEventListener('click',function(){var id=parseInt(gv('rp-client'));var p=projects[id];if(!p){alert('Select a client.');return;}var amt=parseInt(gv('rp-amount'))||0;if(!amt){alert('Enter amount.');return;}var sk=gv('rp-stage');var payDate=gv('rp-date');var entry={stage:sk,amount:amt,date:payDate,mode:gv('rp-mode'),account:gv('rp-account'),ref:gv('rp-ref'),due:gv('rp-due'),notes:gv('rp-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};var ledger=(p.payLedger||[]).concat([entry]);var upd={payLedger:ledger};if(entry.due)upd['pay_'+sk+'_due']=entry.due;
 // AUTO-FILL BOOKING DATE from first advance payment
 var isAdvance=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
 var existingAdvance=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
@@ -7156,6 +7869,8 @@ function buildSidebar() {
           var pending = Object.values(quotations||{}).filter(function(q){ return q.status==='pending_approval'; }).length;
           return pending > 0 ? '<span style="margin-left:auto;background:#7c3aed;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 7px;flex-shrink:0">' + pending + '</span>' : '';
         })() : '') +
+        ((page === 'users' || page === 'accounts') && CU && (CU.role === 'superadmin' || CU.role === 'admin' || CU.role === 'accounts') ?
+          '<span id="pay-closed-badge" style="margin-left:auto;background:#dc2626;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 7px;flex-shrink:0;display:none">0</span>' : '') +
         '</div>';
     });
     html += '</div>';
@@ -9522,6 +10237,7 @@ function openNewQuotation() {
   quotDays = [];
   quotDeliverables = [];
   clearQuotForm();
+  fillSel('qf-source', 'sources', DEFAULT_SOURCES, '');
   document.getElementById('quot-modal-title').textContent = 'New Quotation';
   document.getElementById('quot-modal-sub').textContent = '';
   // Auto-load default images from Firebase — no upload needed
@@ -9557,7 +10273,8 @@ function openEditQuotation(id) {
   populateQuotSalesperson();
   sv2('qf-bride', q.bride); sv2('qf-groom', q.groom); sv2('qf-phone', q.phone);
   sv2('qf-email', q.email); sv2('qf-city', q.city); sv2('qf-venue', q.venue);
-  sv2('qf-region', q.region); sv2('qf-source', q.source);
+  fillSel('qf-source', 'sources', DEFAULT_SOURCES, q.source || '');
+  sv2('qf-region', q.region);
   sv2('qf-salesperson', q.salesperson); sv2('qf-status', q.status || 'draft');
   sv2('qf-notes', q.notes);
   if (q.deliverables) {
@@ -9565,14 +10282,18 @@ function openEditQuotation(id) {
     sv2('qd-teaser', d.teaser); sv2('qd-film', d.film); sv2('qd-highlight', d.highlight);
     sv2('qd-reels', d.reels); sv2('qd-trad-video', d.tradVideo); sv2('qd-pics', d.pics);
     sv2('qd-gallery', d.gallery); sv2('qd-album', d.album); sv2('qd-prewed-album', d.prewedAlbum);
-    sv2('qd-frames', d.frames); sv2('qd-raw', d.raw); sv2('qd-travel', d.travel);
+    sv2('qd-frames', d.frames); sv2('qd-raw', d.raw); sv2('qd-travel', d.travel); sv2('qd-stay', d.stay||'');
     sv2('qd-custom-notes', d.customNotes);
   }
   sv2('qf-value', q.value); sv2('qf-discount', q.discount);
   sv2('qf-gst', q.gst || 'excluded'); sv2('qf-currency', q.currency || 'INR');
-  sv2('qf-payterms', q.payterms || '30-50-20'); sv2('qf-price-notes', q.priceNotes);
-  sv2('qf-payterms-custom-text', q.paytermsCustom);
+  sv2('qf-payterms', q.payterms || '30-50-10-5-5'); sv2('qf-price-notes', q.priceNotes);
   onQuotPayTermsChange();
+  if (q.payterms === 'custom' && Array.isArray(q.paytermsCustom) && q.paytermsCustom.length) {
+    loadQuotCustomPayRows(q.paytermsCustom);
+  }
+  quotTimeline = Array.isArray(q.timeline) ? JSON.parse(JSON.stringify(q.timeline)) : [];
+  setTimeout(function(){ initTimelineTab(); renderTimelineRows(); }, 300);
   updateQuotPriceSummary();
   renderQuotDays();
   // Load deliverables — use 300ms to ensure modal DOM is fully ready
@@ -9805,13 +10526,15 @@ function _clearQuotImages() {
 function clearQuotForm() {
   ['qf-bride','qf-groom','qf-phone','qf-email','qf-city','qf-venue','qf-notes',
    'qd-teaser','qd-film','qd-highlight','qd-reels','qd-trad-video','qd-pics',
-   'qd-album','qd-prewed-album','qd-frames','qd-travel','qd-custom-notes',
+   'qd-album','qd-prewed-album','qd-frames','qd-travel','qd-stay','qd-custom-notes',
    'qf-value','qf-discount','qf-price-notes','qf-payterms-custom-text'].forEach(function(id) {
     sv2(id, '');
   });
   sv2('qf-region', ''); sv2('qf-source', ''); sv2('qf-salesperson', '');
   sv2('qf-status', 'draft'); sv2('qf-gst', 'excluded'); sv2('qf-currency', 'INR');
-  sv2('qd-gallery', ''); sv2('qd-raw', ''); sv2('qf-payterms', '30-50-20');
+  sv2('qd-gallery', ''); sv2('qd-raw', ''); sv2('qf-payterms', '30-50-10-5-5');
+  quotTimeline = [];
+  if (typeof renderTimelineRows === 'function') setTimeout(function(){ initTimelineTab(); renderTimelineRows(); }, 200);
   var cpr = document.getElementById('qf-payterms-custom-row');
   if (cpr) cpr.style.display = 'none';
 }
@@ -9913,6 +10636,275 @@ function updateQuotPriceSummary() {
 }
 
 function onQuotPayTermsChange() {
+  var preset = (document.getElementById('qf-payterms') || {}).value || '30-50-10-5-5';
+  var row = document.getElementById('qf-payterms-custom-row');
+  var preview = document.getElementById('qf-payterms-preview');
+  if (row) row.style.display = preset === 'custom' ? 'block' : 'none';
+  if (preset === 'custom') {
+    if (!document.getElementById('quot-custom-pay-rows').children.length) {
+      addQuotCustomPayRow(); addQuotCustomPayRow(); addQuotCustomPayRow();
+    }
+    updateQuotCustomPayTotal();
+    if (preview) preview.style.display = 'none';
+    return;
+  }
+  var terms = PAY_PRESETS[preset] || PAY_PRESETS['30-50-10-5-5'];
+  var val = parseInt((document.getElementById('qf-value')||{}).value) || 0;
+  var disc = parseInt((document.getElementById('qf-discount')||{}).value) || 0;
+  var net = val - disc;
+  if (preview) {
+    preview.style.display = 'block';
+    preview.innerHTML = terms.map(function(t) {
+      return '<span style="margin-right:12px;color:#166534"><strong>' + t.label + ':</strong> ' +
+        (net ? '₹' + Math.round(net * t.pct / 100).toLocaleString('en-IN') + ' (' + t.pct + '%)' : t.pct + '%') +
+        '<span style="color:#888;font-size:10px;margin-left:4px">— ' + t.desc + '</span></span>';
+    }).join('<br>');
+  }
+}
+
+function addQuotCustomPayRow() {
+  var wrap = document.getElementById('quot-custom-pay-rows');
+  if (!wrap) return;
+  var idx = wrap.children.length;
+  var row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
+  row.innerHTML =
+    '<input class="fi" placeholder="Stage label (e.g. Advance)" style="flex:2;font-size:12px" oninput="updateQuotCustomPayTotal()">' +
+    '<input class="fi" type="number" placeholder="%" min="0" max="100" style="flex:0;width:70px;font-size:12px" oninput="updateQuotCustomPayTotal()">' +
+    '<input class="fi" placeholder="Description" style="flex:2;font-size:12px">' +
+    '<button onclick="this.parentNode.remove();updateQuotCustomPayTotal()" style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px;font-family:inherit">✕</button>';
+  wrap.appendChild(row);
+}
+
+function updateQuotCustomPayTotal() {
+  var wrap = document.getElementById('quot-custom-pay-rows');
+  var totalEl = document.getElementById('quot-custom-pay-total');
+  if (!wrap || !totalEl) return;
+  var total = 0;
+  Array.from(wrap.children).forEach(function(row) {
+    var pctInp = row.querySelectorAll('input')[1];
+    total += parseInt(pctInp ? pctInp.value : 0) || 0;
+  });
+  totalEl.textContent = 'Total: ' + total + '% ' + (total === 100 ? '✅' : total > 100 ? '⚠️ Over 100%' : '⚠️ Must equal 100%');
+  totalEl.style.color = total === 100 ? '#16a34a' : '#dc2626';
+}
+
+function getQuotCustomPayTerms() {
+  var wrap = document.getElementById('quot-custom-pay-rows');
+  if (!wrap) return [];
+  var terms = [];
+  Array.from(wrap.children).forEach(function(row, i) {
+    var inputs = row.querySelectorAll('input');
+    var label = (inputs[0] ? inputs[0].value.trim() : '') || ('Stage ' + (i+1));
+    var pct   = parseInt(inputs[1] ? inputs[1].value : 0) || 0;
+    var desc  = (inputs[2] ? inputs[2].value.trim() : '');
+    if (pct > 0) terms.push({ key: 'cq' + i, label: label, pct: pct, desc: desc });
+  });
+  return terms;
+}
+
+function loadQuotCustomPayRows(terms) {
+  var wrap = document.getElementById('quot-custom-pay-rows');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  terms.forEach(function(t) {
+    addQuotCustomPayRow();
+    var row = wrap.lastElementChild;
+    var inputs = row.querySelectorAll('input');
+    if (inputs[0]) inputs[0].value = t.label || '';
+    if (inputs[1]) inputs[1].value = t.pct || '';
+    if (inputs[2]) inputs[2].value = t.desc || '';
+  });
+  updateQuotCustomPayTotal();
+}
+
+// ─── DELIVERY TIMELINE ─────────────────────────────────────────────
+
+// Default timeline templates — stored in crm_settings/delivery_timelines
+var DEFAULT_TIMELINE_PRESETS = {
+  wedding: {
+    label: '💍 Wedding',
+    milestones: [
+      { label: 'Raw Data Delivery',          days: 3,  unit: 'days',   from: 'event',    desc: 'All raw files transferred to hard drive' },
+      { label: 'Teaser / Short Film',         days: 7,  unit: 'days',   from: 'event',    desc: 'Social media teaser ready to share' },
+      { label: 'Highlight Film',              days: 30, unit: 'days',   from: 'event',    desc: 'Highlight edit delivered for review' },
+      { label: 'Traditional Video',           days: 45, unit: 'days',   from: 'event',    desc: 'Full traditional coverage edit' },
+      { label: 'Edited Photo Gallery',        days: 21, unit: 'days',   from: 'event',    desc: 'Culled & colour-graded photos delivered' },
+      { label: 'Wedding Film',                days: 90, unit: 'days',   from: 'event',    desc: 'Cinematic full-length film' },
+      { label: 'Album Design Approval',       days: 45, unit: 'days',   from: 'event',    desc: 'Album layout sent for client approval' },
+      { label: 'Final Album Dispatch',        days: 30, unit: 'days',   from: 'approval', desc: 'After design approval received' }
+    ]
+  },
+  prewedding: {
+    label: '🌸 Pre-Wedding',
+    milestones: [
+      { label: 'Teaser / Sneak Peek',         days: 3,  unit: 'days',   from: 'shoot',    desc: '2–3 edited photos shared' },
+      { label: 'Pre-Wedding Short Film',      days: 10, unit: 'days',   from: 'shoot',    desc: 'Cinematic short film delivered' },
+      { label: 'Edited Photo Gallery',        days: 15, unit: 'days',   from: 'shoot',    desc: 'Full gallery of edited photos' },
+      { label: 'Pre-Wedding Album Design',    days: 30, unit: 'days',   from: 'shoot',    desc: 'Album layout sent for approval' },
+      { label: 'Album Dispatch',              days: 30, unit: 'days',   from: 'approval', desc: 'After design approval received' }
+    ]
+  },
+  engagement: {
+    label: '💍 Engagement / Roka',
+    milestones: [
+      { label: 'Teaser Photos',               days: 2,  unit: 'days',   from: 'event',    desc: 'Quick teaser photos for sharing' },
+      { label: 'Edited Photo Gallery',        days: 10, unit: 'days',   from: 'event',    desc: 'Complete edited gallery' },
+      { label: 'Highlight Reel',              days: 10, unit: 'days',   from: 'event',    desc: 'Short highlights video' }
+    ]
+  },
+  sangeet: {
+    label: '🎶 Sangeet / Cocktail',
+    milestones: [
+      { label: 'Event Teaser',                days: 3,  unit: 'days',   from: 'event',    desc: 'Instagram-ready teaser reel' },
+      { label: 'Edited Photo Gallery',        days: 14, unit: 'days',   from: 'event',    desc: 'Full photo gallery' },
+      { label: 'Highlight Video',             days: 21, unit: 'days',   from: 'event',    desc: 'Sangeet / cocktail highlight film' }
+    ]
+  },
+  haldi_mehendi: {
+    label: '🌼 Haldi / Mehendi',
+    milestones: [
+      { label: 'Quick Edits / Teaser',        days: 2,  unit: 'days',   from: 'event',    desc: 'Teaser photos for sharing' },
+      { label: 'Edited Photo Gallery',        days: 10, unit: 'days',   from: 'event',    desc: 'Full edited gallery' }
+    ]
+  }
+};
+
+var quotTimeline = []; // [{label, days, unit, from, desc}]
+
+function initTimelineTab() {
+  // Populate preset selector from settings + defaults
+  var sel = document.getElementById('qt-timeline-preset');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select preset —</option>';
+  var saved = (crmSettings.delivery_timelines) || {};
+  // Merge defaults + saved
+  var all = Object.assign({}, DEFAULT_TIMELINE_PRESETS, saved);
+  Object.keys(all).forEach(function(k) {
+    var opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = all[k].label || k;
+    sel.appendChild(opt);
+  });
+}
+
+function loadTimelinePreset() {
+  var key = (document.getElementById('qt-timeline-preset') || {}).value;
+  if (!key) return;
+  var saved = (crmSettings.delivery_timelines) || {};
+  var all = Object.assign({}, DEFAULT_TIMELINE_PRESETS, saved);
+  var preset = all[key];
+  if (!preset) return;
+  quotTimeline = JSON.parse(JSON.stringify(preset.milestones || []));
+  renderTimelineRows();
+}
+
+function renderTimelineRows() {
+  var wrap = document.getElementById('qt-timeline-rows');
+  if (!wrap) return;
+  if (!quotTimeline.length) {
+    wrap.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:13px">No milestones yet. Load a preset or add manually.</div>';
+    return;
+  }
+  wrap.innerHTML = quotTimeline.map(function(m, i) {
+    return '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">' +
+      '<div style="flex:3;min-width:120px"><label style="font-size:10px;font-weight:700;color:#888;display:block;margin-bottom:3px">MILESTONE</label>' +
+        '<input class="fi" value="' + escHtml(m.label||'') + '" style="font-size:12px;font-weight:600" oninput="quotTimeline[' + i + '].label=this.value"></div>' +
+      '<div style="flex:0;min-width:65px"><label style="font-size:10px;font-weight:700;color:#888;display:block;margin-bottom:3px">DAYS</label>' +
+        '<input class="fi" type="number" value="' + (m.days||0) + '" min="0" style="font-size:12px;width:65px" oninput="quotTimeline[' + i + '].days=parseInt(this.value)||0"></div>' +
+      '<div style="flex:2;min-width:110px"><label style="font-size:10px;font-weight:700;color:#888;display:block;margin-bottom:3px">FROM</label>' +
+        '<select class="fi" style="font-size:12px" onchange="quotTimeline[' + i + '].from=this.value">' +
+          ['event','shoot','approval','booking'].map(function(v) {
+            return '<option value="' + v + '"' + (m.from===v?' selected':'') + '>' + v.charAt(0).toUpperCase()+v.slice(1) + ' Date</option>';
+          }).join('') +
+        '</select></div>' +
+      '<div style="flex:3;min-width:120px"><label style="font-size:10px;font-weight:700;color:#888;display:block;margin-bottom:3px">DESCRIPTION</label>' +
+        '<input class="fi" value="' + escHtml(m.desc||'') + '" style="font-size:12px" oninput="quotTimeline[' + i + '].desc=this.value"></div>' +
+      '<button onclick="quotTimeline.splice(' + i + ',1);renderTimelineRows()" style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:6px 8px;cursor:pointer;font-size:12px;font-family:inherit;margin-top:18px;flex-shrink:0">✕</button>' +
+    '</div>';
+  }).join('');
+}
+
+function addTimelineRow() {
+  quotTimeline.push({ label: '', days: 14, unit: 'days', from: 'event', desc: '' });
+  renderTimelineRows();
+}
+
+function saveTimelineAsPreset() {
+  if (!quotTimeline.length) { showToast('Add some milestones first.'); return; }
+  var name = prompt('Preset name (e.g. "Destination Wedding"):');
+  if (!name) return;
+  var key = name.toLowerCase().replace(/[^a-z0-9]/g,'_');
+  var preset = { label: name, milestones: JSON.parse(JSON.stringify(quotTimeline)) };
+  var saved = JSON.parse(JSON.stringify(crmSettings.delivery_timelines || {}));
+  saved[key] = preset;
+  db.ref('crm_settings/delivery_timelines').set(saved, function(err) {
+    if (!err) { showToast('✅ Preset "' + name + '" saved!'); initTimelineTab(); }
+  });
+}
+
+// ─── Settings page: Delivery Timeline Manager ──────────────────────
+
+function renderDeliveryTimelineSettings(container) {
+  var saved = crmSettings.delivery_timelines || {};
+  var all = Object.assign({}, DEFAULT_TIMELINE_PRESETS, saved);
+  var keys = Object.keys(all);
+
+  var html = '<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">' +
+    '<span style="font-size:12px;color:#555">' + keys.length + ' timeline template' + (keys.length!==1?'s':'') + ' available</span>' +
+    '<button onclick="openNewTimelinePreset()" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">+ New Template</button>' +
+  '</div>';
+
+  html += keys.map(function(k) {
+    var p = all[k];
+    var isDefault = !!DEFAULT_TIMELINE_PRESETS[k];
+    var isSaved = !!saved[k];
+    return '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:8px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+        '<span style="font-size:13px;font-weight:700">' + escHtml(p.label||k) + '</span>' +
+        '<div style="display:flex;gap:6px">' +
+          (isDefault && !isSaved ? '<span style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600">Default</span>' : '') +
+          (isSaved ? '<button onclick="deleteTimelinePreset('' + k + '')" style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit">Delete</button>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+        (p.milestones||[]).map(function(m) {
+          return '<span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 10px;font-size:11px;color:#374151">' +
+            escHtml(m.label||'') + ' — ' + (m.days||0) + ' days from ' + (m.from||'event') + '</span>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  container.innerHTML = html;
+}
+
+function deleteTimelinePreset(key) {
+  if (!confirm('Delete this timeline template?')) return;
+  db.ref('crm_settings/delivery_timelines/' + key).remove(function() {
+    showToast('🗑️ Template deleted.'); renderSettings();
+  });
+}
+
+function openNewTimelinePreset() {
+  var name = prompt('New template name (e.g. "Destination Wedding Package"):');
+  if (!name) return;
+  var key = name.toLowerCase().replace(/[^a-z0-9]/g,'_');
+  var preset = { label: name, milestones: [
+    { label: 'Teaser',           days: 7,  from: 'event',    desc: '' },
+    { label: 'Edited Gallery',   days: 21, from: 'event',    desc: '' },
+    { label: 'Main Film',        days: 60, from: 'event',    desc: '' }
+  ]};
+  var saved = JSON.parse(JSON.stringify(crmSettings.delivery_timelines || {}));
+  saved[key] = preset;
+  db.ref('crm_settings/delivery_timelines').set(saved, function(err) {
+    if (!err) { showToast('✅ Template created! Edit it in the quotation builder.'); renderSettings(); }
+  });
+}
+
+
+// ══ QUOTATION TIMELINE & PAYMENT ══
+
   var sel = document.getElementById('qf-payterms');
   var row = document.getElementById('qf-payterms-custom-row');
   if (sel && row) row.style.display = sel.value === 'custom' ? 'block' : 'none';
@@ -9938,7 +10930,8 @@ var QD_PRESETS = [
   { id:'photo-frames',      cat:'📔 Albums', label:'Photo Frames',         detail:'1 Frame',    icon:'🖼', durations:['1 Frame','2 Frames','4 Frames','6 Frames','Custom'], hasQty:true },
   // ── Data ──
   { id:'full-raw',          cat:'💾 Data',   label:'Full Raw Data',        detail:'All Files',  icon:'💾', durations:['All Files','Selected Files'] },
-  { id:'travel-stay',       cat:'🚗 Other',  label:'Travel & Stay',        detail:'Included',   icon:'✈️', durations:['Included','To & Fro Only','Excluded — Extra'] },
+  { id:'travel',             cat:'🚗 Other',  label:'Travel',               detail:'Included',   icon:'✈️', durations:['Included','To & Fro Only','Excluded — Extra'] },
+  { id:'accommodation',      cat:'🚗 Other',  label:'Stay / Accommodation',  detail:'Included',   icon:'🏨', durations:['Included','Client Managed','Excluded — Extra'] },
 ];
 
 // In-memory deliverables for current quotation
@@ -10233,7 +11226,22 @@ function qdSyncHidden() {
   setHidden('qd-prewed-album', find('prewed-album'));
   setHidden('qd-frames',     find('photo-frames'));
   setHidden('qd-raw',        find('full-raw'));
-  setHidden('qd-travel',     find('travel-stay'));
+  setHidden('qd-travel',     find('travel'));
+  setHidden('qd-stay',       find('accommodation'));
+  // Auto-select terms based on travel + stay selection
+  (function(){
+    var travelVal = gv2('qd-travel') || '';
+    var stayVal   = gv2('qd-stay')   || '';
+    // Only auto-apply for pre-wedding context
+    var hasPrewed = quotDeliverables.some(function(d){ return (d.id||'').indexOf('prewed') !== -1 || (d.label||'').toLowerCase().indexOf('pre') !== -1; });
+    if (!hasPrewed) return;
+    var allClient  = (travelVal.indexOf('Excluded') !== -1 || travelVal === '') && (stayVal === 'Client Managed' || stayVal.indexOf('Excluded') !== -1 || stayVal === '');
+    var stayIncl   = stayVal === 'Included';
+    var termsCbox  = document.querySelector('#qb-terms-list input[data-term="pt_prewed_all"]');
+    var termsCbox2 = document.querySelector('#qb-terms-list input[data-term="pt_prewed_tf"]');
+    if (allClient && termsCbox && !termsCbox.checked) { termsCbox.click(); }
+    if (stayIncl && termsCbox2 && !termsCbox2.checked) { termsCbox2.click(); }
+  })();
   // Store full deliverables as JSON in custom-notes for PDF use
   var customItems = quotDeliverables.filter(function(d){ return d.isCustom; }).map(function(d){ return d.label + ': ' + d.detail; }).join('\n');
   var cn = document.getElementById('qd-custom-notes'); if(cn) cn.value = customItems;
@@ -10258,7 +11266,8 @@ function qdLoadFromData(deliverables, customDelivsArr) {
       { field:'prewedAlbum', id:'prewed-album',    icon:'📗', label:'Pre-Wedding Album' },
       { field:'frames',      id:'photo-frames',    icon:'🖼', label:'Photo Frames / Prints' },
       { field:'raw',         id:'full-raw',        icon:'💾', label:'Full Raw Data' },
-      { field:'travel',      id:'travel-stay',     icon:'✈️', label:'Travel & Stay' },
+      { field:'travel',      id:'travel',          icon:'✈️', label:'Travel' },
+      { field:'stay',        id:'accommodation',   icon:'🏨', label:'Stay / Accommodation' },
     ];
     legacyMap.forEach(function(m) {
       var val = deliverables[m.field];
@@ -10299,7 +11308,7 @@ function saveQuotation(silent) {
       teaser: gv2('qd-teaser'), film: gv2('qd-film'), highlight: gv2('qd-highlight'),
       reels: gv2('qd-reels'), tradVideo: gv2('qd-trad-video'), pics: gv2('qd-pics'),
       gallery: gv2('qd-gallery'), album: gv2('qd-album'), prewedAlbum: gv2('qd-prewed-album'),
-      frames: gv2('qd-frames'), raw: gv2('qd-raw'), travel: gv2('qd-travel'),
+      frames: gv2('qd-frames'), raw: gv2('qd-raw'), travel: gv2('qd-travel'), stay: gv2('qd-stay'),
       customNotes: gv2('qd-custom-notes')
     },
     quotDeliverables: JSON.parse(JSON.stringify(quotDeliverables)),
@@ -10307,9 +11316,10 @@ function saveQuotation(silent) {
     discount: parseFloat(gv2('qf-discount')) || 0,
     gst: gv2('qf-gst') || 'excluded',
     currency: gv2('qf-currency') || 'INR',
-    payterms: gv2('qf-payterms') || '30-50-20',
-    paytermsCustom: gv2('qf-payterms-custom-text'),
+    payterms: gv2('qf-payterms') || '30-50-10-5-5',
+    paytermsCustom: (gv2('qf-payterms') === 'custom') ? getQuotCustomPayTerms() : [],
     priceNotes: gv2('qf-price-notes'),
+    timeline: JSON.parse(JSON.stringify(quotTimeline)),
     terms: collectQuotTerms(),
     // coverImageUrl / aboutImageUrl = Firebase Storage URL (new, lightweight)
     // coverImageB64 / aboutImageB64 = legacy base64 (kept for backwards compat reading, cleared on re-save)
@@ -10365,7 +11375,8 @@ function convertQuotToProject(overrideId) {
     source: q.source || '',
     value: q.value || 0,
     discount: q.discount || 0,
-    payPreset: '30-50-20',
+    payPreset: (q.payterms && q.payterms !== 'custom' && PAY_PRESETS[q.payterms]) ? q.payterms : '30-50-10-5-5',
+    customPayTerms: (q.payterms === 'custom' && Array.isArray(q.paytermsCustom)) ? q.paytermsCustom : [],
     stage: 'preprod',
     type: 'Full Package',
     package: 'Custom',
@@ -10411,7 +11422,8 @@ function buildDelivNotesFromQuot(q) {
   if (d.pics) lines.push('Edited Pics: ' + d.pics);
   if (d.album) lines.push('Album: ' + d.album);
   if (d.raw && d.raw !== '') lines.push('Raw Data: ' + d.raw);
-  if (d.travel) lines.push('Travel/Stay: ' + d.travel);
+  if (d.travel) lines.push('Travel: ' + d.travel);
+  if (d.stay) lines.push('Stay / Accommodation: ' + d.stay);
   if (d.customNotes) lines.push(d.customNotes);
   return lines.join('\n');
 }
@@ -10550,15 +11562,16 @@ function collectQuotData() {
       teaser: gv2('qd-teaser'), film: gv2('qd-film'), highlight: gv2('qd-highlight'),
       reels: gv2('qd-reels'), tradVideo: gv2('qd-trad-video'), pics: gv2('qd-pics'),
       gallery: gv2('qd-gallery'), album: gv2('qd-album'), prewedAlbum: gv2('qd-prewed-album'),
-      frames: gv2('qd-frames'), raw: gv2('qd-raw'), travel: gv2('qd-travel'),
+      frames: gv2('qd-frames'), raw: gv2('qd-raw'), travel: gv2('qd-travel'), stay: gv2('qd-stay'),
       customNotes: gv2('qd-custom-notes')
     },
     quotDeliverables: JSON.parse(JSON.stringify(quotDeliverables)),
     value: value,
     discount: discount,
     gst: gv2('qf-gst') || (savedQ ? savedQ.gst : '') || 'excluded',
-    payterms: gv2('qf-payterms') || (savedQ ? savedQ.payterms : '') || '30-50-20',
-    paytermsCustom: gv2('qf-payterms-custom-text') || (savedQ ? savedQ.paytermsCustom : '') || '',
+    payterms: gv2('qf-payterms') || (savedQ ? savedQ.payterms : '') || '30-50-10-5-5',
+    paytermsCustom: (gv2('qf-payterms') === 'custom') ? getQuotCustomPayTerms() : (savedQ ? savedQ.paytermsCustom : []),
+    timeline: JSON.parse(JSON.stringify(quotTimeline)),
     priceNotes: gv2('qf-price-notes') || (savedQ ? savedQ.priceNotes : '') || '',
     terms: collectQuotTerms()
   };
@@ -10702,13 +11715,32 @@ function buildQuotPDFDom(q) {
   var net = (parseFloat(q.value)||0) - (parseFloat(q.discount)||0);
   var clientName = (q.bride || 'Client') + (q.groom ? ' & ' + q.groom : '');
 
-  var payTermsText = {
-    '30-50-20': '30% on Booking  ·  50% Before Event  ·  20% After Delivery',
-    '50-50':    '50% Advance  ·  50% Before Delivery',
-    '30-40-30': '30% + 40% + 30% (Three Installments)',
-    '100':      '100% Full Advance',
-    'custom':   q.paytermsCustom || 'As discussed'
-  }[q.payterms] || 'As discussed';
+  // Build payTermsText from PAY_PRESETS for sync with project
+  var payTermsText;
+  if (q.payterms === 'custom' && Array.isArray(q.paytermsCustom) && q.paytermsCustom.length) {
+    payTermsText = q.paytermsCustom.map(function(t){ return t.label + ' (' + t.pct + '%)'; }).join('  ·  ');
+  } else {
+    var _pts = PAY_PRESETS[q.payterms] || PAY_PRESETS['30-50-10-5-5'];
+    payTermsText = _pts.map(function(t){ return t.label + ' (' + t.pct + '%)'; }).join('  ·  ');
+  }
+
+  // Build timeline HTML for preview
+  var timelineHTML = '';
+  if (q.timeline && q.timeline.length) {
+    timelineHTML = q.timeline.map(function(m, i) {
+      return '<div style="display:flex;gap:0;align-items:flex-start;margin-bottom:10px">' +
+        '<div style="display:flex;flex-direction:column;align-items:center;margin-right:14px;flex-shrink:0">' +
+          '<div style="width:28px;height:28px;border-radius:50%;border:2px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">' + (i+1) + '</div>' +
+          (i < q.timeline.length - 1 ? '<div style="width:2px;flex:1;min-height:18px;background:currentColor;opacity:0.25;margin-top:3px"></div>' : '') +
+        '</div>' +
+        '<div style="flex:1;padding-bottom:4px">' +
+          '<div style="font-size:13px;font-weight:700">' + escHtml(m.label||'') + '</div>' +
+          '<div style="font-size:11px;opacity:0.65;margin-top:2px">Within <strong>' + (m.days||0) + ' days</strong> from ' + (m.from||'event') + ' date' +
+            (m.desc ? ' — ' + escHtml(m.desc) : '') + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
 
   var gstNote = q.gst === 'excluded' ? '* GST not included — applicable as per government regulations'
                : q.gst === '18'       ? '18% GST is included in the above price'
@@ -11067,7 +12099,8 @@ function buildQuotPDFDom(q) {
     {l:'Pre-Wedding Album',  sub:'Printed Keepsake',            v:d.prewedAlbum},
     {l:'Photo Frames',       sub:'Archival Prints',             v:d.frames},
     {l:'Raw Data',           sub:'Full Archive Handover',       v:d.raw==='yes'?'Full Raw Data':d.raw==='partial'?'Partial Raw':''},
-    {l:'Travel & Stay',      sub:'Outstation Coverage',         v:d.travel}
+    {l:'Travel',             sub:'Outstation Coverage',         v:d.travel},
+    {l:'Stay / Accommodation', sub:'Hotel / Client Managed',     v:d.stay}
   ].filter(function(i) { return i.v && i.v.toString().trim(); });
 
   // Append custom/smart deliverables from quotDeliverables array
@@ -11155,6 +12188,14 @@ function buildQuotPDFDom(q) {
       '<div style="' + S.ptLbl + '">Payment Terms</div>' +
       payTermsText +
     '</div>' +
+
+    // Timeline section
+    (timelineHTML ? (
+      '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin:20px 0 10px;font-family:Arial,sans-serif">Delivery Timeline</div>' +
+      '<div style="background:' + (isNoir ? 'rgba(201,169,110,0.04)' : 'rgba(138,115,85,0.03)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.2)' : '#e8e0d5') + ';border-radius:8px;padding:16px 18px;color:' + (isNoir ? '#e8d5b0' : '#2c2418') + ';font-family:Arial,sans-serif">' +
+        timelineHTML +
+      '</div>'
+    ) : '') +
 
     // Notes
     (q.priceNotes
@@ -12425,111 +13466,7 @@ function promptRevenueTarget() {
 // UPGRADE #7 — POST-PRODUCTION KANBAN BOARD
 // Visual drag-and-drop board for deliverable workflow
 // ─────────────────────────────────────────────────────────────────
-var KANBAN_COLS = [
-  { key: 'raw_received', label: 'Raw Received', color: '#64748b', bg: '#f8fafc' },
-  { key: 'editing', label: 'Editing', color: '#1d4ed8', bg: '#eff6ff' },
-  { key: 'internal_review', label: 'Internal Review', color: '#7c3aed', bg: '#faf5ff' },
-  { key: 'client_review', label: 'Client Review', color: '#d97706', bg: '#fffbeb' },
-  { key: 'revision', label: 'Revision', color: '#dc2626', bg: '#fef2f2' },
-  { key: 'delivered', label: 'Delivered', color: '#16a34a', bg: '#f0fdf4' }
-];
-
-// Map old status to kanban column
-function delivToKanban(d) {
-  if (d.kanbanStatus) return d.kanbanStatus;
-  if (d.status === 'delivered') return 'delivered';
-  if (d.status === 'review') return 'internal_review';
-  if (d.status === 'inprogress') return 'editing';
-  return 'raw_received';
-}
-
-function renderKanbanBoard() {
-  var el = document.getElementById('pp-kanban-board');
-  if (!el) return;
-
-  // Collect all deliverables across projects
-  var allItems = [];
-  pl().forEach(function(p) {
-    if (p.stage === 'complete') return;
-    (p.customDelivs || []).forEach(function(d, idx) {
-      allItems.push({ projId: p.id, couple: p.bride + ' & ' + p.groom, d: d, idx: idx, p: p });
-    });
-  });
-
-  var today = new Date(); today.setHours(0,0,0,0);
-
-  el.innerHTML = '<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:12px;min-height:500px">' +
-    KANBAN_COLS.map(function(col) {
-      var cards = allItems.filter(function(item) { return delivToKanban(item.d) === col.key; });
-      var cardsHTML = cards.length ? cards.map(function(item) {
-        var d = item.d;
-        var health = calcHealthScore(item.p);
-        var edName = d.editorId && teamData[d.editorId] ? teamData[d.editorId].name : '—';
-        var daysLeft = d.date ? Math.ceil((new Date(d.date) - today) / 86400000) : null;
-        var urgentColor = daysLeft !== null ? (daysLeft < 0 ? '#dc2626' : daysLeft <= 7 ? '#d97706' : '#10b981') : '#aaa';
-        var revCount = d.revisionCount || 0;
-        return '<div class="kb-kanban-card" data-projid="' + item.projId + '" data-did="' + d.id + '" data-col="' + col.key + '" ' +
-          'style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:11px;margin-bottom:8px;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.05);position:relative" ' +
-          'draggable="true" ondragstart="kanbanDragStart(event,\'' + item.projId + '\',\'' + d.id + '\')">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
-          healthRingHTML(health, 28) +
-          '<span style="font-size:10px;color:#888;background:#f1f5f9;padding:2px 6px;border-radius:4px">' + (d.category || d.type || '—') + '</span>' +
-          '</div>' +
-          '<div style="font-size:12px;font-weight:700;margin-bottom:3px;line-height:1.3">' + (d.name || d.type || 'Deliverable') + '</div>' +
-          '<div style="font-size:11px;color:#555;margin-bottom:4px">👫 ' + item.couple + '</div>' +
-          '<div style="font-size:11px;color:#888;margin-bottom:4px">✂️ ' + edName + '</div>' +
-          (daysLeft !== null ? '<div style="font-size:10px;font-weight:700;color:' + urgentColor + '">' +
-            (daysLeft < 0 ? '⚠️ ' + Math.abs(daysLeft) + 'd overdue' : daysLeft === 0 ? '🔴 Due today' : '📅 ' + daysLeft + 'd left') + '</div>' : '') +
-          (revCount > 0 ? '<div style="font-size:10px;color:#d97706;margin-top:3px">🔄 ' + revCount + ' revision' + (revCount > 1 ? 's' : '') + '</div>' : '') +
-          '<div style="margin-top:8px;display:flex;gap:4px;flex-wrap:wrap">' +
-          KANBAN_COLS.filter(function(c) { return c.key !== col.key; }).slice(0, 2).map(function(c) {
-            return '<button onclick="moveKanbanCard(\'' + item.projId + '\',\'' + d.id + '\',\'' + c.key + '\')" ' +
-              'style="background:' + c.bg + ';border:1px solid ' + c.color + '44;color:' + c.color + ';border-radius:4px;font-size:9px;font-weight:700;padding:2px 6px;cursor:pointer;font-family:inherit">→ ' + c.label + '</button>';
-          }).join('') +
-          '<button onclick="openProject(' + item.projId + ',\'t-deliv\')" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:4px;font-size:9px;font-weight:600;padding:2px 6px;cursor:pointer;font-family:inherit">Open</button>' +
-          '</div>' +
-          '</div>';
-      }).join('') : '<div style="text-align:center;padding:20px;color:#ccc;font-size:12px">Drop here</div>';
-
-      return '<div class="kb-kanban-col" data-col="' + col.key + '" ' +
-        'style="min-width:200px;flex:1;background:' + col.bg + ';border-radius:12px;padding:12px;flex-shrink:0;border-top:3px solid ' + col.color + '" ' +
-        'ondragover="event.preventDefault()" ondrop="kanbanDrop(event,\'' + col.key + '\')">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
-        '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:' + col.color + '">' + col.label + '</div>' +
-        '<div style="background:' + col.color + '22;color:' + col.color + ';font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">' + cards.length + '</div>' +
-        '</div>' +
-        cardsHTML +
-        '</div>';
-    }).join('') +
-    '</div>';
-}
-
-var _kanbanDragData = null;
-function kanbanDragStart(event, projId, did) {
-  _kanbanDragData = { projId: projId, did: did };
-  event.dataTransfer.effectAllowed = 'move';
-}
-function kanbanDrop(event, newCol) {
-  event.preventDefault();
-  if (!_kanbanDragData) return;
-  moveKanbanCard(_kanbanDragData.projId, _kanbanDragData.did, newCol);
-  _kanbanDragData = null;
-}
-
-function moveKanbanCard(projId, did, newCol) {
-  var p = projects[projId]; if (!p) return;
-  var delivs = JSON.parse(JSON.stringify(p.customDelivs || []));
-  var d = delivs.find(function(x) { return x.id === did; });
-  if (!d) return;
-  d.kanbanStatus = newCol;
-  // Also sync to legacy status field
-  var legacyMap = { raw_received: 'pending', editing: 'inprogress', internal_review: 'review', client_review: 'review', revision: 'inprogress', delivered: 'delivered' };
-  d.status = legacyMap[newCol] || d.status;
-  if (newCol === 'delivered' && !d.date) d.date = tod();
-  db.ref('crm_projects/' + projId + '/customDelivs').set(delivs, function(err) {
-    if (!err) { showToast('✅ Moved to ' + newCol.replace(/_/g, ' ')); renderKanbanBoard(); }
-  });
-}
+// Kanban board removed — using 5-tab deliverable tracker instead
 
 
 // ─────────────────────────────────────────────────────────────────
@@ -12647,7 +13584,6 @@ function submitRevisionRequest(projId, delivId) {
   d.revisionCount = nextRound;
   d.lastRevisionNote = what;
   d.status = 'inprogress';
-  d.kanbanStatus = 'revision';
   if (!d.revisionLog) d.revisionLog = [];
   d.revisionLog.push({ round: nextRound, what: what, who: who, priority: prio, at: Date.now() });
 
@@ -12655,7 +13591,6 @@ function submitRevisionRequest(projId, delivId) {
     if (!err) {
       document.getElementById('rev-tracker-modal').remove();
       showToast('🔄 Revision Round ' + nextRound + ' logged!');
-      renderKanbanBoard();
       renderPostProd();
     }
   });
@@ -12862,7 +13797,6 @@ function clientApproveDeliverable(projId, delivId) {
     var delivs = JSON.parse(JSON.stringify(p.customDelivs || []));
     var d = delivs.find(function(x) { return x.id === delivId; });
     if (!d) return;
-    d.kanbanStatus = 'delivered';
     d.status = 'delivered';
     d.clientApproved = true;
     d.clientApprovedAt = Date.now();
@@ -12889,7 +13823,6 @@ function clientRequestRevision(projId, delivId) {
     var nextRound = (d.revisionCount || 0) + 1;
     d.revisionCount = nextRound;
     d.lastRevisionNote = note;
-    d.kanbanStatus = 'revision';
     d.status = 'inprogress';
     if (!d.revisionLog) d.revisionLog = [];
     d.revisionLog.push({ round: nextRound, what: note, who: 'Client', at: Date.now() });
@@ -13145,39 +14078,23 @@ if (_origRenderPostProd2) {
 }
 
 function injectKanbanTab() {
-  var tabBar = document.querySelector('#page-postprod .tabs, #page-postprod [class*="tab"]');
-  // Find pp tab buttons
+  // Kanban tab removed — only injecting Feedback tab now
   var ppTabs = document.querySelectorAll('.pp-tab-btn');
   if (!ppTabs.length) return;
-
-  var hasKanban = Array.from(ppTabs).some(function(b) { return b.dataset.tab === 'kanban'; });
-  if (!hasKanban) {
+  var hasFeedback = Array.from(ppTabs).some(function(b) { return b.dataset.tab === 'feedback'; });
+  if (!hasFeedback) {
     var lastTab = ppTabs[ppTabs.length - 1];
-    var kanbanBtn = document.createElement('button');
-    kanbanBtn.className = 'tab-btn pp-tab-btn';
-    kanbanBtn.dataset.tab = 'kanban';
-    kanbanBtn.textContent = '📌 Kanban';
-    kanbanBtn.style.cssText = 'background:none;border:none;padding:9px 11px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;font-weight:500';
-    kanbanBtn.addEventListener('click', function() {
-      document.querySelectorAll('.pp-tab-btn').forEach(function(b) { b.style.borderBottomColor = 'transparent'; b.style.color = '#888'; });
-      kanbanBtn.style.borderBottomColor = '#1a1a1a'; kanbanBtn.style.color = '#1a1a1a';
-      var pc = document.getElementById('pp-content'); if (!pc) return;
-      pc.innerHTML = '<div id="pp-kanban-board"></div>';
-      renderKanbanBoard();
-    });
-    if (lastTab.parentNode) lastTab.parentNode.appendChild(kanbanBtn);
-
-    // Also add feedback & revision stats tabs
+    var tabStyle = 'background:none;border:none;padding:9px 11px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;font-weight:500';
     var fbBtn = document.createElement('button');
     fbBtn.className = 'tab-btn pp-tab-btn';
     fbBtn.dataset.tab = 'feedback';
-    fbBtn.textContent = '⭐ Feedback';
-    fbBtn.style.cssText = kanbanBtn.style.cssText;
+    fbBtn.textContent = '\u2b50 Feedback';
+    fbBtn.style.cssText = tabStyle;
     fbBtn.addEventListener('click', function() {
       document.querySelectorAll('.pp-tab-btn').forEach(function(b) { b.style.borderBottomColor = 'transparent'; b.style.color = '#888'; });
       fbBtn.style.borderBottomColor = '#1a1a1a'; fbBtn.style.color = '#1a1a1a';
       var pc = document.getElementById('pp-content'); if (!pc) return;
-      pc.innerHTML = '<div id="feedback-dashboard"></div><div style="margin-top:14px" id="editor-revision-stats-wrap"><div style="font-size:12px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">🔄 Editor Revision Rates</div><div id="editor-revision-stats"></div></div>';
+      pc.innerHTML = '<div id="feedback-dashboard"></div><div style="margin-top:14px" id="editor-revision-stats-wrap"><div style="font-size:12px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">\ud83d\udd04 Editor Revision Rates</div><div id="editor-revision-stats"></div></div>';
       renderFeedbackDashboard();
       renderEditorRevisionStats();
     });
@@ -13775,25 +14692,7 @@ function escHtml(str) {
   };
 })();
 
-// ── 13. KANBAN DRAG-DROP (Post-Prod status moved) ─────────────────
-(function() {
-  var _origKanbanDrop = window.kanbanDrop;
-  if (typeof _origKanbanDrop !== 'function') return;
-  window.kanbanDrop = function(event, newCol) {
-    // Read card data before drop changes it
-    var dragged = document.querySelector('.kb-kanban-card.dragging');
-    var projId  = dragged ? dragged.dataset.projid : null;
-    var oldCol  = dragged ? dragged.dataset.col    : null;
-    var p       = projId ? (projects[projId] || {}) : {};
-    var couple  = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
-    _origKanbanDrop(event, newCol);
-    if (projId && oldCol && newCol && oldCol !== newCol) {
-      logActivity('deliverable', 'Kanban Card Moved',
-        (couple || projId) + ' — ' + oldCol + ' → ' + newCol + (p.refcode ? ' [' + p.refcode + ']' : ''),
-        { projId:projId, from:oldCol, to:newCol, refcode:p.refcode });
-    }
-  };
-})();
+// ── 13. KANBAN DRAG-DROP — removed (Kanban tab removed in Phase 1)
 
 console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — Activity Log ✅');
 
