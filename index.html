@@ -11272,7 +11272,22 @@ function qdUpdateNote(i, val) {
   if (quotDeliverables[i]) { quotDeliverables[i].note = val; qdSyncHidden(); }
 }
 function qdUpdateField(i, field, val) {
-  if (quotDeliverables[i]) { quotDeliverables[i][field] = field === 'qty' ? (parseInt(val)||1) : val; qdSyncHidden(); }
+  if (!quotDeliverables[i]) return;
+  quotDeliverables[i][field] = field === 'qty' ? (parseInt(val)||1) : val;
+  // Rebuild detail string from qty + size so save/PDF always reflects current values
+  var d = quotDeliverables[i];
+  var preset = QD_PRESETS.find(function(p){ return p.id === d.id; });
+  if (preset && (preset.hasSizes || preset.hasQty)) {
+    var qty  = d.qty || 1;
+    var size = (d.size && d.size !== '-- Size --') ? ' · ' + d.size : '';
+    var unit = (d.id === 'photo-frames')
+      ? (qty === 1 ? ' Frame' : ' Frames')
+      : (qty === 1 ? ' Album' : ' Albums');
+    d.detail      = qty + unit + size;
+    d.customDetail = d.detail;
+  }
+  qdRenderList();
+  qdSyncHidden();
 }
 function qdRemove(i) {
   quotDeliverables.splice(i, 1); qdInit(); qdSyncHidden();
@@ -11288,22 +11303,38 @@ function qdAddCustom() {
 }
 
 function qdSyncHidden() {
-  // Sync to legacy hidden fields for save compatibility
-  var find = function(id){ var d=quotDeliverables.find(function(x){return x.id===id;}); return d?(d.customDetail||d.detail):''; };
+  // Sync to legacy hidden fields for save/load compatibility.
+  // The PDF now reads directly from quotDeliverables so these hidden
+  // fields are only needed for backward-compat with old saved data.
+  var findVal = function(id) {
+    var d = quotDeliverables.find(function(x){ return x.id === id; });
+    if (!d) return '';
+    // For albums/frames: prefer reconstructed detail (qty + size) over raw default
+    if (d.qty && d.qty > 0 && (d.id === 'wedding-album' || d.id === 'prewed-album' || d.id === 'photo-frames')) {
+      var qty  = d.qty || 1;
+      var size = (d.size && d.size !== '-- Size --') ? ' · ' + d.size : '';
+      var unit = (d.id === 'photo-frames')
+        ? (qty === 1 ? ' Frame' : ' Frames')
+        : (qty === 1 ? ' Album' : ' Albums');
+      return qty + unit + size;
+    }
+    return d.customDetail || d.detail || '';
+  };
   var setHidden = function(elId, val){ var el=document.getElementById(elId); if(el) el.value=val; };
-  setHidden('qd-teaser',     find('wedding-teaser') || find('prewed-teaser'));
-  setHidden('qd-film',       find('wedding-film'));
-  setHidden('qd-highlight',  find('highlight-film'));
-  setHidden('qd-reels',      find('short-reels'));
-  setHidden('qd-trad-video', find('trad-video'));
-  setHidden('qd-pics',       find('edited-gallery'));
-  setHidden('qd-gallery',    find('online-gallery') ? 'yes' : '');
-  setHidden('qd-album',      find('wedding-album'));
-  setHidden('qd-prewed-album', find('prewed-album'));
-  setHidden('qd-frames',     find('photo-frames'));
-  setHidden('qd-raw',        find('full-raw'));
-  setHidden('qd-travel',     find('travel'));
-  setHidden('qd-stay',       find('accommodation'));
+  // Wedding teaser and pre-wedding teaser are separate IDs — store each independently
+  setHidden('qd-teaser',       findVal('wedding-teaser'));
+  setHidden('qd-film',         findVal('wedding-film'));
+  setHidden('qd-highlight',    findVal('highlight-film'));
+  setHidden('qd-reels',        findVal('short-reels'));
+  setHidden('qd-trad-video',   findVal('trad-video'));
+  setHidden('qd-pics',         findVal('edited-gallery'));
+  setHidden('qd-gallery',      findVal('online-gallery') ? 'yes' : '');
+  setHidden('qd-album',        findVal('wedding-album'));
+  setHidden('qd-prewed-album', findVal('prewed-album'));
+  setHidden('qd-frames',       findVal('photo-frames'));
+  setHidden('qd-raw',          findVal('full-raw'));
+  setHidden('qd-travel',       findVal('travel'));
+  setHidden('qd-stay',         findVal('accommodation'));
   // Auto-select terms based on travel + stay selection
   (function(){
     var travelVal = gv2('qd-travel') || '';
@@ -12161,38 +12192,68 @@ function buildQuotPDFDom(q) {
   }
 
   // ══════════════════════════════════════════════════════════════
-  // DELIVERABLES PAGE — editorial checklist style
+  // DELIVERABLES PAGE — built exclusively from quotDeliverables
+  // (legacy hardcoded array removed: fixes duplicate items,
+  //  double-unit "2 Reels reels" / "500 Photos photos" bugs,
+  //  and album qty/size being ignored in the PDF)
   // ══════════════════════════════════════════════════════════════
-  var delivItems = [
-    {l:'Teaser',             sub:'2–3 Min · Social Ready',      v:d.teaser},
-    {l:'Wedding Film',       sub:'15–20 Min · Feature Length',  v:d.film},
-    {l:'Highlight Film',     sub:'5–7 Min · Cinematic Edit',    v:d.highlight},
-    {l:'Short Reels',        sub:'Vertical · Curated Cuts',     v:d.reels ? d.reels+' reels' : ''},
-    {l:'Traditional Video',  sub:'Full Ceremony Coverage',      v:d.tradVideo},
-    {l:'Edited Gallery',     sub:'300–500 High-Res Images',     v:d.pics ? d.pics+' photos' : ''},
-    {l:'Online Gallery',     sub:'Private Delivery Portal',     v:d.gallery==='yes' ? 'Included' : ''},
-    {l:'Wedding Album',     sub:'Premium Add-On',              v:d.album},
-    {l:'Pre-Wedding Album',  sub:'Printed Keepsake',            v:d.prewedAlbum},
-    {l:'Photo Frames',       sub:'Archival Prints',             v:d.frames},
-    {l:'Raw Data',           sub:'Full Archive Handover',       v:d.raw==='yes'?'Full Raw Data':d.raw==='partial'?'Partial Raw':''},
-    {l:'Travel',             sub:'Outstation Coverage',         v:d.travel},
-    {l:'Stay / Accommodation', sub:'Hotel / Client Managed',     v:d.stay}
-  ].filter(function(i) { return i.v && i.v.toString().trim(); });
-
-  // Append custom/smart deliverables from quotDeliverables array
+  var delivItems = [];
   if (q.quotDeliverables && q.quotDeliverables.length) {
     q.quotDeliverables.forEach(function(qd) {
-      // Avoid duplicating items already in standard list above
-      var alreadyListed = delivItems.some(function(di) { return di.l.toLowerCase() === (qd.label||'').toLowerCase(); });
-      if (!alreadyListed && qd.label) {
-        delivItems.push({
-          l: (qd.icon ? qd.icon + ' ' : '') + qd.label,
-          sub: qd.detail || 'Included',
-          v: qd.customDetail || qd.detail || 'Included'
-        });
+      if (!qd.label) return;
+      var preset = (typeof QD_PRESETS !== 'undefined')
+        ? QD_PRESETS.find(function(p){ return p.id === qd.id; })
+        : null;
+
+      // ── Build right-hand value string ──
+      var valStr;
+      if (preset && (preset.hasSizes || preset.hasQty)) {
+        // Albums / Frames: show qty + size
+        var qty  = qd.qty || 1;
+        var size = (qd.size && qd.size !== '-- Size --') ? ' · ' + qd.size : '';
+        var unit = (qd.id === 'photo-frames')
+          ? (qty === 1 ? ' Frame' : ' Frames')
+          : (qty === 1 ? ' Album' : ' Albums');
+        valStr = qty + unit + size;
+      } else {
+        valStr = qd.customDetail || qd.detail || 'Included';
       }
+
+      // ── Build subtitle (small caps below label) ──
+      var subMap = {
+        'wedding-teaser':  '2–3 Min · Social Ready',
+        'prewed-teaser':   '2–3 Min · Pre-Wedding',
+        'wedding-film':    '15–20 Min · Feature Length',
+        'highlight-film':  '5–7 Min · Cinematic Edit',
+        'short-reels':     'Vertical · Curated Cuts',
+        'trad-video':      'Full Ceremony Coverage',
+        'edited-gallery':  '300–500 High-Res Images',
+        'online-gallery':  'Private Delivery Portal',
+        'wedding-album':   'Premium Add-On',
+        'prewed-album':    'Printed Keepsake',
+        'photo-frames':    'Archival Prints',
+        'full-raw':        'Full Archive Handover',
+        'travel':          'Outstation Coverage',
+        'accommodation':   'Hotel / Client Managed'
+      };
+      var subStr = (preset && subMap[qd.id]) ? subMap[qd.id] : (qd.detail || 'Included');
+
+      delivItems.push({
+        l:   (qd.icon ? qd.icon + ' ' : '') + qd.label,
+        sub: subStr,
+        v:   valStr
+      });
     });
   }
+
+  // ── Dynamic page numbers (crew can span multiple pages) ──────
+  // Page 1 = cover, Page 2 = about (if image), Page 3+ = crew pages,
+  // then deliverables, pricing, terms
+  var _crewPageCount = (crewPage.match(/class="qpdf-page"/g) || []).length;
+  var _baseAfterCover = q.aboutImageB64 ? 2 : 1;          // cover + optional about
+  var _pgDeliv  = _baseAfterCover + _crewPageCount + 1;   // deliv page number
+  var _pgPrice  = _pgDeliv + (delivItems.length ? 1 : 0); // pricing page number
+  var _pgTerms  = _pgPrice + 1;                           // terms page number
 
   var delivPage = '';
   if (delivItems.length) {
@@ -12230,7 +12291,7 @@ function buildQuotPDFDom(q) {
       '</div>' +
 
       '</div>' +
-      pageFooter('Package Deliverables  ·  ' + clientName, q.aboutImageB64 ? 4 : 3) +
+      pageFooter('Package Deliverables  ·  ' + clientName, _pgDeliv) +
     '</div>';
   }
 
@@ -12285,7 +12346,7 @@ function buildQuotPDFDom(q) {
     '</div>' +
 
     '</div>' +
-    pageFooter('Pricing & Terms  ·  ' + clientName, q.aboutImageB64 ? 5 : 4) +
+    pageFooter('Pricing & Terms  ·  ' + clientName, _pgPrice) +
   '</div>';
 
   // ══════════════════════════════════════════════════════════════
@@ -12304,7 +12365,7 @@ function buildQuotPDFDom(q) {
     }
   }
   if (allTermLines.length) {
-    var pageNum = (q.aboutImageB64 ? 6 : 5);
+    var pageNum = _pgTerms;
     termsPage = '<div class="qpdf-page" style="' + S.page + '">' +
       pageHeader('Terms & Conditions', clientName) +
       '<div style="flex:1;overflow:hidden;">' +
