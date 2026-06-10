@@ -524,6 +524,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .evday-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07)}
 .evday-remove{position:absolute;top:10px;right:10px;background:none;border:none;font-size:18px;color:#ccc;cursor:pointer;line-height:1;padding:0}
 .evday-remove:hover{color:#dc2626}
+/* Date input: show DD-MM-YYYY format hint */
+input[type='date'] { letter-spacing: 0.5px; }
+input[type='date']::-webkit-datetime-edit-text { color: #aaa; }
+input[type='date']::-webkit-datetime-edit-day-field,
+input[type='date']::-webkit-datetime-edit-month-field,
+input[type='date']::-webkit-datetime-edit-year-field { color: #1a1a1a; }
+input[type='date']:empty:before,
+input[type='date'][value='']:before { content: 'DD-MM-YYYY'; color: #aaa; }
 </style>
 <script>
 // Prevent pinch-to-zoom on iOS (touchstart with 2+ touches)
@@ -2036,14 +2044,50 @@ document.addEventListener('wheel', function(e) {
   <div class="modal modal-sm">
     <div class="modal-hdr"><div class="modal-title">Record Payment</div><button class="modal-close" data-close="pay-entry-modal">✕</button></div>
     <div class="modal-body">
-      <div class="fg"><div class="fr"><label class="fl">Payment Stage *</label><select class="fi" id="pe-stage"></select></div><div class="fr"><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="pe-amount"></div></div>
-      <div class="fg"><div class="fr"><label class="fl">Payment Date *</label><input class="fi" type="date" id="pe-date"></div><div class="fr"><label class="fl">Payment Mode</label><select class="fi" id="pe-mode"><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Mixed</option></select></div></div>
+
+      <!-- Mode toggle: Single vs Smart Split -->
+      <div style="display:flex;gap:0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:14px">
+        <button id="pe-mode-single" onclick="setPEMode('single')" style="flex:1;padding:7px;font-size:12px;font-weight:700;background:#1a1a1a;color:#fff;border:none;cursor:pointer;font-family:inherit">💸 Single Entry</button>
+        <button id="pe-mode-split" onclick="setPEMode('split')" style="flex:1;padding:7px;font-size:12px;font-weight:600;background:#f1f5f9;color:#888;border:none;cursor:pointer;font-family:inherit">⚡ Smart Split</button>
+      </div>
+
+      <!-- Single entry fields -->
+      <div id="pe-single-fields">
+        <div class="fg">
+          <div class="fr">
+            <label class="fl">Payment Stage <span style="color:#aaa;font-weight:400;font-size:10px">(optional)</span></label>
+            <select class="fi" id="pe-stage"></select>
+          </div>
+          <div class="fr"><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="pe-amount" oninput="updatePEPreview()"></div>
+        </div>
+      </div>
+
+      <!-- Smart Split fields -->
+      <div id="pe-split-fields" style="display:none">
+        <div class="fr" style="margin-bottom:8px">
+          <label class="fl" style="font-weight:700">Total Amount Received (₹) *</label>
+          <input class="fi" type="number" id="pe-split-amount" placeholder="e.g. 110000" oninput="previewSmartSplit()">
+        </div>
+        <div id="pe-split-preview" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:12px;margin-bottom:8px"></div>
+      </div>
+
+      <!-- Common fields -->
+      <div class="fg">
+        <div class="fr"><label class="fl">Payment Date *</label><input class="fi" type="date" id="pe-date"></div>
+        <div class="fr"><label class="fl">Payment Mode</label><select class="fi" id="pe-mode"><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Mixed</option></select></div>
+      </div>
       <div class="fr"><label class="fl">Account Received In *</label><select class="fi" id="pe-account"></select></div>
-      <div class="fg"><div class="fr"><label class="fl">Transaction / UTR No.</label><input class="fi" id="pe-ref"></div><div class="fr"><label class="fl">Due Date (remaining)</label><input class="fi" type="date" id="pe-due"></div></div>
+      <div class="fg">
+        <div class="fr"><label class="fl">Transaction / UTR No.</label><input class="fi" id="pe-ref"></div>
+        <div class="fr"><label class="fl">Due Date (remaining)</label><input class="fi" type="date" id="pe-due"></div>
+      </div>
       <div class="fr"><label class="fl">Notes</label><textarea class="fi" id="pe-notes" rows="2"></textarea></div>
       <div id="pe-preview" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:13px;display:none;margin-top:8px"></div>
     </div>
-    <div class="modal-foot"><button class="btn" data-close="pay-entry-modal">Cancel</button><button class="btn btn-primary" id="btn-save-pay-entry">✅ Record Payment</button></div>
+    <div class="modal-foot">
+      <button class="btn" data-close="pay-entry-modal">Cancel</button>
+      <button class="btn btn-primary" id="btn-save-pay-entry">✅ Record Payment</button>
+    </div>
   </div>
 </div>
 
@@ -2679,7 +2723,7 @@ function renderObResponses() {
         '<td>' + (p.date || '—') + '</td>' +
         '<td>' + (p.city || '—') + '</td>' +
         '<td>' + (filled ? '<span class="badge b-green">✅ Filled</span>' : '<span class="badge b-amber">⏳ Pending</span>') + '</td>' +
-        '<td style="font-size:11px;color:#888">' + (filled ? new Date(p.clientOnboarding.submittedAt).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}) : '—') + '</td>' +
+        '<td style="font-size:11px;color:#888">' + (filled ? fmtDate(p.clientOnboarding.submittedAt) : '—') + '</td>' +
         '<td>' + (filled ? '<button class="btn btn-sm" onclick="viewObResponse(' + p.id + ')">View</button>' : '<button class="btn btn-sm" onclick="copyObLink(' + p.id + ')">Copy Link</button>') + '</td>' +
       '</tr>';
     }).join('') + '</tbody></table></div>';
@@ -2707,7 +2751,7 @@ function viewObResponse(id) {
   if (title) title.textContent = p.bride + ' & ' + p.groom + ' — Onboarding';
   if (body) {
     body.innerHTML =
-      '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#166534">✅ Submitted: ' + new Date(ob.submittedAt).toLocaleDateString('en-IN', {day:'numeric',month:'long',year:'numeric'}) + '</div>' +
+      '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#166534">✅ Submitted: ' + fmtDate(ob.submittedAt) + '</div>' +
       '<div style="display:grid;gap:6px">' +
       rows.map(function(r) {
         return '<div style="display:grid;grid-template-columns:170px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0">' +
@@ -3084,7 +3128,7 @@ function renderCelebrations() {
         '<div style="font-size:36px">' + e.icon + '</div>' +
         '<div style="flex:1">' +
           '<div style="font-size:15px;font-weight:800">' + e.label + '</div>' +
-          '<div style="font-size:12px;color:#555;margin-top:2px">' + e.sub + ' &nbsp;·&nbsp; ' + e.date.toLocaleDateString('en-IN', {day:'numeric',month:'long',year:'numeric'}) + '</div>' +
+          '<div style="font-size:12px;color:#555;margin-top:2px">' + e.sub + ' &nbsp;·&nbsp; ' + fmtDate(e.date) + '</div>' +
           '<div style="font-size:11px;color:#888;margin-top:2px">Couple: ' + p.bride + ' & ' + p.groom + (p.city ? ' · ' + p.city : '') + '</div>' +
         '</div>' +
         '<div style="text-align:right;flex-shrink:0">' +
@@ -3284,6 +3328,45 @@ function gv(i){var e=$(i);return e?e.value:'';}
 function sv(i,v){var e=$(i);if(e)e.value=(v==null)?'':v;}
 function fmt(n){return '₹'+(parseInt(n)||0).toLocaleString('en-IN');}
 function tod(){return new Date().toISOString().split('T')[0];}
+
+// Global date formatter — always DD-MM-YYYY for display
+function fmtDate(str) {
+  if (!str) return '—';
+  // Handle timestamp numbers
+  if (typeof str === 'number') {
+    var d = new Date(str);
+    if (isNaN(d)) return '—';
+    var dd = String(d.getDate()).padStart(2,'0');
+    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var yyyy = d.getFullYear();
+    return dd + '-' + mm + '-' + yyyy;
+  }
+  // Handle yyyy-mm-dd string (from HTML date inputs)
+  var m = String(str).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[3] + '-' + m[2] + '-' + m[1];
+  // Handle Date objects or other parseable strings
+  try {
+    var d2 = new Date(str);
+    if (!isNaN(d2)) {
+      var dd2 = String(d2.getDate()).padStart(2,'0');
+      var mm2 = String(d2.getMonth()+1).padStart(2,'0');
+      return dd2 + '-' + mm2 + '-' + d2.getFullYear();
+    }
+  } catch(e) {}
+  return String(str);
+}
+
+// fmtDateTime — DD-MM-YYYY HH:MM
+function fmtDateTime(ts) {
+  if (!ts) return '—';
+  var d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+  if (isNaN(d)) return '—';
+  var dd = String(d.getDate()).padStart(2,'0');
+  var mm = String(d.getMonth()+1).padStart(2,'0');
+  var hh = String(d.getHours()).padStart(2,'0');
+  var min = String(d.getMinutes()).padStart(2,'0');
+  return dd + '-' + mm + '-' + d.getFullYear() + ' ' + hh + ':' + min;
+}
 function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d)-new Date())/86400000);}
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
@@ -3598,7 +3681,7 @@ function renderStageLog() {
   if (!log.length) { el.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px 0">No stage changes recorded yet.</div>'; return; }
   el.innerHTML = log.map(function(e) {
     var d = new Date(e.at);
-    var dateStr = d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) + ' ' + d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+    var dateStr = fmtDateTime(d.getTime());
     return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;align-items:flex-start">' +
       '<div style="flex-shrink:0;margin-top:2px">' +
         '<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">' + stageLabel(e.from).replace('Pre-Production','Pre-Prod').replace('Post-Production','Post-Prod') + '</span>' +
@@ -3653,7 +3736,7 @@ function renderRawApprovalStatus(){
   var p=editProjId?projects[editProjId]:null;if(!p)return;
   var btn=document.getElementById('btn-approve-raw');
   if(p.rawDataApproved){
-    el.innerHTML='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d"><b>Raw data approved</b> by '+(p.rawDataApprovedBy||'Data Manager')+(p.rawDataApprovedAt?' on '+new Date(p.rawDataApprovedAt).toLocaleDateString('en-IN'):'')+' &mdash; Project moved to Post-Production</div>';
+    el.innerHTML='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d"><b>Raw data approved</b> by '+(p.rawDataApprovedBy||'Data Manager')+(p.rawDataApprovedAt?' on '+fmtDate(p.rawDataApprovedAt):'')+' &mdash; Project moved to Post-Production</div>';
     if(btn)btn.style.display='none';
   } else {
     el.innerHTML='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:13px;color:#c2410c">Raw data not yet approved by Data Manager.</div>';
@@ -3799,7 +3882,7 @@ function renderDataManagerDashboard(dc) {
           '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
           '<td>' + (p.date || '—') + '</td>' +
           '<td>' + (p.dataLogApprovedBy || '—') + '</td>' +
-          '<td style="font-size:12px">' + (p.dataLogApprovedAt ? new Date(p.dataLogApprovedAt).toLocaleDateString('en-IN') : '—') + '</td>' +
+          '<td style="font-size:12px">' + (p.dataLogApprovedAt ? fmtDate(p.dataLogApprovedAt) : '—') + '</td>' +
           '<td><button class="btn btn-sm" onclick="openProject(' + p.id + ')">View</button></td>' +
         '</tr>';
       }).join('') + '</tbody></table></div>' : '');
@@ -3870,7 +3953,7 @@ function renderArchiveQueue() {
     return '<tr style="border-top:1px solid #f0f0f0">' +
       '<td style="padding:10px 12px;font-weight:700">' + couple + '</td>' +
       '<td style="padding:10px 12px"><span style="font-size:10px;font-family:monospace;background:#f1f5f9;padding:2px 6px;border-radius:4px">' + escHtml(p.refcode||'—') + '</span></td>' +
-      '<td style="padding:10px 12px;font-size:12px;color:#888">' + escHtml(p.date||'—') + '</td>' +
+      '<td style="padding:10px 12px;font-size:12px;color:#888">' + fmtDate(p.date) + '</td>' +
       '<td style="padding:10px 12px;font-weight:700;color:#1d4ed8">' + fmt(totalAmt) + '</td>' +
       '<td style="padding:10px 12px;font-weight:700;color:' + balColor + '">' + (balance > 0 ? fmt(balance) + ' pending' : '₹0 — Fully Paid') + '</td>' +
       '<td style="padding:10px 12px">' + statusLabel + '</td>' +
@@ -4035,7 +4118,7 @@ function renderArchives() {
       '</div>';
 
     var cards = list.map(function(a) {
-      var arDate = a.archivedAt ? new Date(a.archivedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+      var arDate = a.archivedAt ? fmtDate(a.archivedAt) : '—';
       var paidAmt = a.paidTotal || 0;
       var totalAmt = a.value || 0;
       var bal = totalAmt - paidAmt;
@@ -4051,7 +4134,7 @@ function renderArchives() {
         '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px;font-size:12px">' +
           '<div><span style="color:#888">📞 Phone</span><br><strong>' + escHtml(a.phone||'—') + '</strong></div>' +
           '<div><span style="color:#888">📍 City</span><br><strong>' + escHtml(a.city||'—') + '</strong></div>' +
-          '<div><span style="color:#888">📅 Event</span><br><strong>' + escHtml(a.date||'—') + '</strong></div>' +
+          '<div><span style="color:#888">📅 Event</span><br><strong>' + fmtDate(a.date) + '</strong></div>' +
           '<div><span style="color:#888">💰 Total</span><br><strong style="color:#1d4ed8">' + fmt(totalAmt) + '</strong></div>' +
           '<div><span style="color:#888">✅ Paid</span><br><strong style="color:#16a34a">' + fmt(paidAmt) + '</strong></div>' +
           '<div><span style="color:#888">⚠️ Balance</span><br><strong style="color:' + (bal>0?'#dc2626':'#16a34a') + '">' + (bal>0?fmt(bal):'Fully Paid') + '</strong></div>' +
@@ -4358,7 +4441,7 @@ function renderDataLogApprovalStatus() {
   var saveBtn2 = document.getElementById('btn-save-datalog');
   var isDM = CU && CU.role === 'datamanager';
   if (p.dataLogApproved) {
-    el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d"><b>✅ Data log approved</b> by ' + (p.dataLogApprovedBy || 'Data Manager') + (p.dataLogApprovedAt ? ' on ' + new Date(p.dataLogApprovedAt).toLocaleDateString('en-IN') : '') + ' — Project moved to Post-Production</div>';
+    el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d"><b>✅ Data log approved</b> by ' + (p.dataLogApprovedBy || 'Data Manager') + (p.dataLogApprovedAt ? ' on ' + fmtDate(p.dataLogApprovedAt) : '') + ' — Project moved to Post-Production</div>';
     if (btn) btn.style.display = 'none';
     if (saveBtn2) saveBtn2.style.display = 'none';
   } else {
@@ -4982,7 +5065,7 @@ function renderBriefTab(p){
   var brief=p.clientBrief;
   var fv=document.getElementById('brief-filled-view'),ev=document.getElementById('brief-empty-view'),dc=document.getElementById('brief-details-content');
   if(brief&&brief.submittedAt){
-    if(fv){fv.style.display='block';fv.innerHTML='<div style="display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px"><span style="font-size:22px">✅</span><div><div style="font-size:13px;font-weight:700;color:#166534">Client Brief Received</div><div style="font-size:11px;color:#4ade80">Submitted: '+new Date(brief.submittedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})+'</div></div><button class="btn btn-sm" style="margin-left:auto" id="btn-clear-brief">Clear & Resend</button></div>';
+    if(fv){fv.style.display='block';fv.innerHTML='<div style="display:flex;align-items:center;gap:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px"><span style="font-size:22px">✅</span><div><div style="font-size:13px;font-weight:700;color:#166534">Client Brief Received</div><div style="font-size:11px;color:#4ade80">Submitted: '+fmtDate(brief.submittedAt)+'</div></div><button class="btn btn-sm" style="margin-left:auto" id="btn-clear-brief">Clear & Resend</button></div>';
     var cb=document.getElementById('btn-clear-brief');if(cb)cb.onclick=function(){if(confirm('Clear submitted brief?'))db.ref('crm_projects/'+editProjId+'/clientBrief').remove(function(){showToast('Brief cleared.');renderBriefTab(projects[editProjId]||{});});};}
     if(ev)ev.style.display='none';
     if(dc){var rows=[['Contact',brief.contactName],['Phone',brief.contactPhone],['Songs',brief.songs],['Song Mood',brief.songMood],['References',brief.references],['Special Moments',brief.specialMoments],['People',brief.people],['Avoid',brief.avoid],['Album Style',brief.albumStyle],['Notes',brief.notes]];dc.style.color='#333';dc.innerHTML='<div style="display:grid;gap:8px">'+rows.filter(function(r){return r[1];}).map(function(r){return '<div style="display:grid;grid-template-columns:140px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #f0f0f0"><div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase">'+r[0]+'</div><div style="font-size:13px">'+r[1]+'</div></div>';}).join('')+'</div>';}
@@ -5178,7 +5261,7 @@ function renderPostProd(){
         eHtml+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;background:#f8f8f8;padding:10px;border-radius:8px;margin-bottom:10px">';
         eHtml+='<div><span style="color:#888">👫 Couple:</span> <b>'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</b></div>';
         eHtml+='<div><span style="color:#888">📍 City:</span> '+(p.city||'—')+'</div>';
-        eHtml+='<div><span style="color:#888">📅 Event Date:</span> '+(p.date||'—')+'</div>';
+        eHtml+='<div><span style="color:#888">📅 Event Date:</span> '+fmtDate(p.date)+'</div>';
         eHtml+='<div><span style="color:#888">⏰ Deadline:</span> '+deadlineText+'</div>';
         eHtml+=(d.specs?'<div style="grid-column:1/-1"><span style="color:#888">📐 Specs:</span> '+d.specs+'</div>':'');
         eHtml+='</div>';
@@ -5197,7 +5280,7 @@ function renderPostProd(){
         var d=item.d,p=item.p;
         eHtml+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div><span style="font-size:11px;color:#888">'+(d.category||'')+'</span></td>';
         eHtml+='<td style="font-weight:600">'+p.bride+' & '+p.groom+'</td>';
-        eHtml+='<td style="font-size:12px">'+(d.date||'—')+'</td></tr>';
+        eHtml+='<td style="font-size:12px">'+fmtDate(d.date)+'</td></tr>';
       });
       eHtml+='</tbody></table></div>';
     }
@@ -5285,7 +5368,7 @@ function renderPostProd(){
       need.forEach(function(p){
         var url=window.location.origin+window.location.pathname+'?brief='+p.id;
         var waNum=(fieldVisible('phone') || fieldVisible('whatsapp')) ? (p.whatsapp||p.phone||'').replace(/[^0-9]/g,'') : '';
-        html+='<tr><td style="font-weight:700">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td>'+(p.date||'—')+'</td>';
+        html+='<tr><td style="font-weight:700">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
         html+='<td><span class="badge b-blue">'+(p.customDelivs||[]).length+' items</span></td>';
         html+='<td style="display:flex;gap:5px;flex-wrap:wrap">'+
           '<button class="btn btn-sm pp-copy-brief" data-url="'+url+'" style="font-size:11px">📋 Copy Link</button>'+
@@ -5344,7 +5427,7 @@ function renderPostProd(){
         html+='<td style="font-weight:600">'+item.couple+'</td>';
         html+='<td style="font-size:13px">'+edName+'</td>';
         html+='<td>'+revCell+'</td>';
-        html+='<td style="font-size:12px">'+(d.date||'—')+'</td>';
+        html+='<td style="font-size:12px">'+fmtDate(d.date)+'</td>';
         html+='<td style="font-weight:700;color:'+(urgent?'#dc2626':'#10b981')+'">'+(days!==null?(days<=0?'⚠️ OVERDUE':days+' days'):'—')+'</td>';
         html+='<td><div style="display:flex;gap:5px;align-items:center;min-width:180px">';
         html+='<input id="dlink-'+item.projId+'-'+d.id+'" type="text" value="'+(d.link||'')+'" placeholder="Paste Drive link…" style="flex:1;border:1px solid '+(d.link?'#86efac':'#ddd')+';border-radius:6px;padding:4px 8px;font-size:11px;min-width:0" onkeydown="if(event.key===\'Enter\')ppSaveDriveLink('+item.projId+',\''+d.id+'\')">';
@@ -5404,7 +5487,7 @@ function renderPostProd(){
         html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div><span style="font-size:11px;color:#888">'+(d.category||'')+'</span></td>';
         html+='<td style="font-weight:600">'+item.couple+'</td><td>'+edName+'</td>';
         html+='<td>'+revCell+'</td>';
-        html+='<td style="font-size:12px">'+(d.date||'—')+'</td>';
+        html+='<td style="font-size:12px">'+fmtDate(d.date)+'</td>';
         html+='<td>'+(d.link?'<a href="'+d.link+'" target="_blank" style="color:#3b82f6;font-size:12px;font-weight:600">Open ↗</a>':'—')+'</td>';
         html+='<td><button class="btn btn-sm pp-open-proj" data-id="'+item.projId+'">Open</button></td></tr>';
       });
@@ -5627,7 +5710,7 @@ function ppShowRevisionHistory(projId,delivId){
   modal.id='rev-hist-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
   var rows=revs.length?revs.map(function(r){
-    var dt=r.requestedAt?new Date(r.requestedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    var dt=r.requestedAt?fmtDate(r.requestedAt):'';
     return '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:10px;background:#fffbeb">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
       +'<span style="font-size:12px;font-weight:800;color:#854d0e">🔄 Round '+r.round+'</span>'
@@ -5924,7 +6007,7 @@ function renderReports(){
     '<div class="metrics"><div class="metric blue"><div class="ml">Bookings</div><div class="mv">'+list.length+'</div></div><div class="metric green"><div class="ml">Total Revenue</div><div class="mv">'+fmt(tR)+'</div></div><div class="metric green"><div class="ml">Avg Package</div><div class="mv">'+fmt(avg)+'</div></div><div class="metric amber"><div class="ml">Collection Rate</div><div class="mv">'+(tR>0?Math.round(tPd/tR*100):0)+'%</div></div><div class="metric north"><div class="ml">🔵 North Revenue</div><div class="mv">'+(northRev>=100000?'₹'+(northRev/100000).toFixed(1)+'L':fmt(northRev))+'</div></div><div class="metric south"><div class="ml">🟠 South Revenue</div><div class="mv">'+(southRev>=100000?'₹'+(southRev/100000).toFixed(1)+'L':fmt(southRev))+'</div></div></div>'+
     '<div class="rep-chart-grid-2"><div class="card"><div class="card-hdr"><span class="card-title">📅 Revenue by Month</span></div><div class="chart-wrap"><canvas id="rep-month-chart"></canvas></div></div><div class="card"><div class="card-hdr"><span class="card-title">💰 Paid vs Pending</span></div><div class="chart-wrap"><canvas id="rep-pay-chart"></canvas></div></div></div>'+
     '<div class="rep-chart-grid-3"><div class="card"><div class="card-hdr"><span class="card-title">🏙️ Revenue by State</span></div><div class="chart-wrap-sm"><canvas id="rep-state-chart"></canvas></div></div><div class="card"><div class="card-hdr"><span class="card-title">📣 Lead Sources</span></div><div class="chart-wrap-sm"><canvas id="rep-source-chart"></canvas></div></div><div class="card"><div class="card-hdr"><span class="card-title">🎬 Deliverables</span></div><div class="chart-wrap-sm"><canvas id="rep-deliv-chart"></canvas></div></div></div>'+
-    '<div class="card"><div class="card-hdr"><span class="card-title">👥 Client List</span><span style="font-size:12px;color:#888">'+list.length+' bookings</span></div><div class="mob-scroll"><table class="tbl"><thead><tr><th>Couple</th><th>Ref Code</th><th>Region</th><th>State</th><th>Booking Date</th><th>Package</th><th>Source</th></tr></thead><tbody>'+(list.length?list.slice().sort(function(a,b){return(b.bookdate||b.date||'').localeCompare(a.bookdate||a.date||'');}).map(function(p){return '<tr><td style="font-weight:600">'+p.bride+' & '+p.groom+'</td><td><span class="refcode" style="font-size:10px">'+(p.refcode||'—')+'</span></td><td>'+regionBadge(p.region)+'</td><td>'+(p.state||p.city||'—')+'</td><td>'+(p.bookdate||'—')+'</td><td style="font-weight:700;color:#16a34a">'+fmt(parseInt(p.value)||0)+'</td><td>'+(p.source||'—')+'</td></tr>';}).join(''):'<tr><td colspan="7" style="text-align:center;color:#aaa;padding:16px">No bookings found</td></tr>')+'</tbody></table></div></div>';
+    '<div class="card"><div class="card-hdr"><span class="card-title">👥 Client List</span><span style="font-size:12px;color:#888">'+list.length+' bookings</span></div><div class="mob-scroll"><table class="tbl"><thead><tr><th>Couple</th><th>Ref Code</th><th>Region</th><th>State</th><th>Booking Date</th><th>Package</th><th>Source</th></tr></thead><tbody>'+(list.length?list.slice().sort(function(a,b){return(b.bookdate||b.date||'').localeCompare(a.bookdate||a.date||'');}).map(function(p){return '<tr><td style="font-weight:600">'+p.bride+' & '+p.groom+'</td><td><span class="refcode" style="font-size:10px">'+(p.refcode||'—')+'</span></td><td>'+regionBadge(p.region)+'</td><td>'+(p.state||p.city||'—')+'</td><td>'+fmtDate(p.bookdate)+'</td><td style="font-weight:700;color:#16a34a">'+fmt(parseInt(p.value)||0)+'</td><td>'+(p.source||'—')+'</td></tr>';}).join(''):'<tr><td colspan="7" style="text-align:center;color:#aaa;padding:16px">No bookings found</td></tr>')+'</tbody></table></div></div>';
   setTimeout(function(){
     var mc=$('rep-month-chart');if(mc)repCharts.month=new Chart(mc,{type:'bar',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Revenue',data:mKeys.map(function(k){return byMonth[k].rev;}),backgroundColor:'rgba(29,78,216,0.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return v>=100000?'₹'+(v/100000).toFixed(1)+'L':'₹'+v.toLocaleString('en-IN');}}}}}});
     var pc=$('rep-pay-chart');if(pc)repCharts.pay=new Chart(pc,{type:'bar',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Paid',data:mKeys.map(function(k){return byMonth[k].paid;}),backgroundColor:'rgba(22,163,74,0.7)',borderRadius:4},{label:'Pending',data:mKeys.map(function(k){return Math.max(0,byMonth[k].rev-byMonth[k].paid);}),backgroundColor:'rgba(220,38,38,0.6)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true}}}});
@@ -6114,7 +6197,7 @@ function renderPayClosedAlerts() {
       unverified.map(function(entry) {
         var k = entry[0], n = entry[1];
         var d = new Date(n.at);
-        var dateStr = d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+        var dateStr = fmtDate(d.getTime());
         var balColor = (n.balanceAtClose || 0) > 0 ? '#dc2626' : '#16a34a';
         var balText = (n.balanceAtClose || 0) > 0 ? fmt(n.balanceAtClose) : '₹0 (Fully Paid)';
         return '<tr style="border-top:1px solid #fde68a">' +
@@ -6172,7 +6255,7 @@ function getExportList(){var yf=gv('exp-year'),rf=gv('exp-region'),sf=gv('exp-st
 function updateExportPreview(){var list=getExportList();var type=gv('exp-type');var typeLabel={contacts:'Contact List',full:'Full Client Sheet',payments:'Payment Sheet',referral:'Referral List'}[type]||type;$('exp-preview').innerHTML='<strong>'+list.length+' clients</strong> will be exported as <strong>'+typeLabel+'</strong>.';}
 function buildCSVData(){var list=getExportList();var type=gv('exp-type');var rows=[],headers=[];if(type==='contacts'){headers=['Name','Phone','WhatsApp','Email','City','State','Region'];rows=list.map(function(p){return[p.bride+' & '+p.groom,p.phone||'',p.whatsapp||'',p.email||'',p.city||'',p.state||'',p.region||''];});}else if(type==='full'){headers=['Name','Phone','WhatsApp','Email','City','State','Region','Event Date','Booking Date','Event Type','Package','Source','Value','Discount','Stage','Ref Code','Venue'];rows=list.map(function(p){return[p.bride+' & '+p.groom,p.phone||'',p.whatsapp||'',p.email||'',p.city||'',p.state||'',p.region||'',p.date||'',p.bookdate||'',p.type||'',p.package||'',p.source||'',p.value||0,p.discount||0,p.stage||'',p.refcode||'',p.venue||''];});}else if(type==='payments'){headers=['Name','Phone','Region','State','Net Value','Paid','Balance','Stage'];rows=list.map(function(p){return[p.bride+' & '+p.groom,p.phone||'',p.region||'',p.state||'',netVal(p),paidTotal(p),balDue(p),p.stage||''];});}else if(type==='referral'){var refList=Object.values(referral);headers=['Name','Phone','City','Ref Code','Points','Value (₹)'];rows=refList.map(function(c){return[c.name,c.phone||'',c.city||'',c.code||'',c.points||0,c.points||0];});}return{headers:headers,rows:rows};}
 $('btn-export-csv').addEventListener('click',function(){var d=buildCSVData();var csv=[d.headers].concat(d.rows).map(function(row){return row.map(function(cell){return '"'+(String(cell).replace(/"/g,'""'))+'"';}).join(',');}).join('\n');var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='KB-Studio-Export-'+gv('exp-type')+'-'+tod()+'.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);closeModal('export-modal');showToast('📄 CSV exported successfully!');});
-$('btn-export-pdf').addEventListener('click',function(){var d=buildCSVData();var type=gv('exp-type');var typeLabel={contacts:'Contact List',full:'Full Client Sheet',payments:'Payment Sheet',referral:'Referral List'}[type]||type;var win=window.open('','_blank');win.document.write('<!DOCTYPE html><html><head><title>KB Studio</title><style>body{font-family:Arial,sans-serif;padding:24px;font-size:12px}table{width:100%;border-collapse:collapse}th{background:#1a1a1a;color:#fff;padding:8px 10px;text-align:left;font-size:11px}td{padding:8px 10px;border-bottom:1px solid #eee;font-size:12px}tr:nth-child(even) td{background:#f9f9f9}.footer{margin-top:24px;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:12px}</style></head><body><h1>KB Studio Productions</h1><h2>'+typeLabel+' &middot; '+new Date().toLocaleDateString('en-IN')+'</h2><table><thead><tr>'+d.headers.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+d.rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table><div class=\'footer\'>KB Studio Productions &middot; Total: '+d.rows.length+' records &middot; '+new Date().toLocaleString('en-IN')+'</div></body></html>');win.document.close();setTimeout(function(){win.print();},500);closeModal('export-modal');showToast('\ud83d\udcd1 PDF ready to print/save!');});
+$('btn-export-pdf').addEventListener('click',function(){var d=buildCSVData();var type=gv('exp-type');var typeLabel={contacts:'Contact List',full:'Full Client Sheet',payments:'Payment Sheet',referral:'Referral List'}[type]||type;var win=window.open('','_blank');win.document.write('<!DOCTYPE html><html><head><title>KB Studio</title><style>body{font-family:Arial,sans-serif;padding:24px;font-size:12px}table{width:100%;border-collapse:collapse}th{background:#1a1a1a;color:#fff;padding:8px 10px;text-align:left;font-size:11px}td{padding:8px 10px;border-bottom:1px solid #eee;font-size:12px}tr:nth-child(even) td{background:#f9f9f9}.footer{margin-top:24px;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:12px}</style></head><body><h1>KB Studio Productions</h1><h2>'+typeLabel+' &middot; '+fmtDate(new Date())+'</h2><table><thead><tr>'+d.headers.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+d.rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table><div class=\'footer\'>KB Studio Productions &middot; Total: '+d.rows.length+' records &middot; '+fmtDateTime(Date.now())+'</div></body></html>');win.document.close();setTimeout(function(){win.print();},500);closeModal('export-modal');showToast('\ud83d\udcd1 PDF ready to print/save!');});
 
 // ═══ PROJECT MODAL ════════════════════════════════════
 $('btn-new-proj').addEventListener('click',function(){
@@ -6370,7 +6453,7 @@ function renderTxnFeed() {
   var rows = allTxns.map(function(item, i) {
     var e = item.e, p = item.p;
     var isDup = dupSet.has(i);
-    var dateStr = e.date ? new Date(e.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+    var dateStr = e.date ? fmtDate(e.date) : '—';
     var rowBg = isDup ? 'background:#fff7ed' : (i%2===0 ? '#fff' : '#fafafa');
     var stageLabel2 = e.stage || '—';
     var modeStr = (e.mode||'—').replace(/_/g,' ').replace(/\w/g,function(c){return c.toUpperCase();});
@@ -6441,6 +6524,10 @@ function populateStageDropdown(selId, projId) {
   var terms = getPayTerms(p);
   var el = $(selId); if (!el) return;
   var net = p ? netVal(p) : 0;
+  // Always add a blank 'general' option at top for untagged payments
+  var blankOpt = document.createElement('option');
+  blankOpt.value = 'general'; blankOpt.textContent = '— No specific stage (General)';
+  el.innerHTML = ''; el.appendChild(blankOpt);
   var ledger = p ? (p.payLedger || []) : [];
 
   // Build options — only show stages that are NOT fully paid
@@ -6482,9 +6569,10 @@ function renderPayLedger(){
   var ledger=p.payLedger||[];
   var html=ledger.length?'<table class="tbl" style="margin-bottom:14px"><thead><tr><th>#</th><th>Date</th><th>Stage</th><th>Amount</th><th>Mode</th><th>Account</th><th>Ref/UTR</th><th>Notes</th><th></th></tr></thead><tbody>'+
     ledger.map(function(e,i){
-      var term=terms.find(function(t){return t.key===e.stage;})||{label:e.stage||'—'};
+      var term=terms.find(function(t){return t.key===e.stage;})||{label:e.stage==='general'?'General Payment':(e.stage||'—')};
       var displayLabel=customLabels[e.stage+'_label']||term.label;
-      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+(e.date||'-')+'</td><td><span class="badge b-blue">'+displayLabel+'</span></td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
+      var badgeColor=e.stage==='general'?'b-gray':(e.autoSplit?'b-purple':'b-blue');
+      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+(e.autoSplit?'<span style="font-size:9px;color:#7c3aed;margin-left:4px">split</span>':'')+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
     }).join('')+'</tbody></table>':
     '<div class="empty" style="padding:16px">No payments recorded yet.</div>';
 
@@ -6496,7 +6584,19 @@ function renderPayLedger(){
   html+='</div>';
   html+=terms.map(function(t){
     var exp=Math.round(net*t.pct/100);
-    var stPaid=ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+    // Total untagged 'general' payments not yet allocated to any stage
+    var totalGeneral=ledger.filter(function(e){return e.stage==='general';}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+    // Distribute general payments: fill stages in order
+    var generalAllocated=0;
+    terms.forEach(function(tt){
+      if(tt.key===t.key)return;
+      var ttExp=Math.round(net*tt.pct/100);
+      var ttTagged=ledger.filter(function(e){return e.stage===tt.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+      var ttShortfall=Math.max(0,ttExp-ttTagged);
+      generalAllocated+=Math.min(ttShortfall,Math.max(0,totalGeneral-generalAllocated));
+    });
+    var generalForThisStage=Math.max(0,Math.min(Math.round(net*t.pct/100)-ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0),totalGeneral-generalAllocated));
+    var stPaid=ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0)+generalForThisStage;
     var badge=stPaid>=exp?'<span class="badge b-green">Paid &#x2713;</span>':stPaid>0?'<span class="badge b-amber">Partial</span>':'<span class="badge b-red">Pending</span>';
     var curLabel=customLabels[t.key+'_label']||t.label;
     var curDesc=customLabels[t.key+'_desc']||t.desc;
@@ -6542,6 +6642,79 @@ function savePayTermLabels(){
   });
 }
 
+// ═══ SMART PAYMENT RECORDING (Option A + C) ═══════════════════════
+
+var _peMode = 'single'; // 'single' | 'split'
+
+function setPEMode(mode) {
+  _peMode = mode;
+  var singleBtn = document.getElementById('pe-mode-single');
+  var splitBtn  = document.getElementById('pe-mode-split');
+  var singleF   = document.getElementById('pe-single-fields');
+  var splitF    = document.getElementById('pe-split-fields');
+  var preview   = document.getElementById('pe-preview');
+  if (singleBtn) { singleBtn.style.background = mode === 'single' ? '#1a1a1a' : '#f1f5f9'; singleBtn.style.color = mode === 'single' ? '#fff' : '#888'; singleBtn.style.fontWeight = mode === 'single' ? '700' : '600'; }
+  if (splitBtn)  { splitBtn.style.background  = mode === 'split'  ? '#1d4ed8' : '#f1f5f9'; splitBtn.style.color  = mode === 'split'  ? '#fff' : '#888'; splitBtn.style.fontWeight  = mode === 'split'  ? '700' : '600'; }
+  if (singleF)   singleF.style.display = mode === 'single' ? '' : 'none';
+  if (splitF)    splitF.style.display  = mode === 'split'  ? '' : 'none';
+  if (preview)   preview.style.display = 'none';
+  if (mode === 'split') previewSmartSplit();
+}
+
+// Calculate how a lump-sum amount splits across remaining stage balances
+function calcSmartSplit(totalAmt, p) {
+  var terms = getPayTerms(p);
+  var net   = netVal(p);
+  var remaining = totalAmt;
+  var splits = [];
+  terms.forEach(function(t) {
+    if (remaining <= 0) return;
+    var exp       = Math.round(net * t.pct / 100);
+    var alreadyPaid = (p.payLedger || []).filter(function(e) { return e.stage === t.key; }).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0);
+    var due = exp - alreadyPaid;
+    if (due <= 0) return; // stage already fully paid
+    var allocate = Math.min(due, remaining);
+    splits.push({ key: t.key, label: t.label, exp: exp, alreadyPaid: alreadyPaid, allocate: allocate, willFill: allocate >= due });
+    remaining -= allocate;
+  });
+  // If anything left over (overpayment), attach to last stage
+  if (remaining > 0 && splits.length > 0) {
+    splits[splits.length - 1].allocate += remaining;
+    splits[splits.length - 1].willFill = false;
+    splits[splits.length - 1].overpay = remaining;
+  }
+  return splits;
+}
+
+function previewSmartSplit() {
+  var p = editProjId ? projects[editProjId] : null;
+  var previewEl = document.getElementById('pe-split-preview');
+  if (!p || !previewEl) return;
+  var totalAmt = parseInt((document.getElementById('pe-split-amount') || {}).value) || 0;
+  if (!totalAmt) { previewEl.style.display = 'none'; return; }
+  var splits = calcSmartSplit(totalAmt, p);
+  if (!splits.length) { previewEl.style.display = 'block'; previewEl.innerHTML = '<span style="color:#888">All stages are fully paid.</span>'; return; }
+  previewEl.style.display = 'block';
+  previewEl.innerHTML =
+    '<div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:8px">⚡ Auto-split into ' + splits.length + ' entr' + (splits.length === 1 ? 'y' : 'ies') + ':</div>' +
+    splits.map(function(s) {
+      var statusIcon = s.willFill ? '✅' : (s.overpay ? '⚠️' : '💛');
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #dcfce7">' +
+        '<div>' +
+          '<span style="font-size:12px;font-weight:700;color:#1a1a1a">' + escHtml(s.label) + '</span>' +
+          (s.willFill ? '<span style="font-size:10px;color:#16a34a;margin-left:6px">Stage fully covered</span>' : '') +
+          (s.overpay  ? '<span style="font-size:10px;color:#d97706;margin-left:6px">+₹' + s.overpay.toLocaleString('en-IN') + ' over expected</span>' : '') +
+        '</div>' +
+        '<span style="font-size:13px;font-weight:800;color:#16a34a">' + statusIcon + ' ₹' + s.allocate.toLocaleString('en-IN') + '</span>' +
+      '</div>';
+    }).join('') +
+    '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;font-weight:700">' +
+      '<span style="color:#555">Total</span>' +
+      '<span style="color:#1d4ed8">₹' + totalAmt.toLocaleString('en-IN') + '</span>' +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Auto-fill amount when pe-stage changes
 document.addEventListener('change', function(e){
   if(e.target && e.target.id==='pe-stage'){
@@ -6578,17 +6751,21 @@ document.addEventListener('click', function(e) {
     var p = projects[editProjId]; if (!p) return;
     // Use smart populateStageDropdown — hides fully-paid stages
     populateStageDropdown('pe-stage', editProjId);
-    // Auto-select first unpaid stage
+    // Auto-select first unpaid stage (skip the 'general' blank option at index 0)
     var stEl = $('pe-stage');
-    if (stEl && stEl.options.length > 0) stEl.selectedIndex = 0;
+    if (stEl && stEl.options.length > 1) stEl.selectedIndex = 1;
     populateAccountDropdown('pe-account');
     sv('pe-date', tod());
     sv('pe-amount', '');
+    sv('pe-split-amount', '');
     sv('pe-ref', '');
     sv('pe-notes', '');
     sv('pe-due', '');
     sv('pe-mode', 'UPI');
     var prev = $('pe-preview'); if (prev) prev.style.display = 'none';
+    var spPrev = $('pe-split-preview'); if (spPrev) spPrev.style.display = 'none';
+    // Always reset to single mode
+    _peMode = 'single'; setPEMode('single');
     openModal('pay-entry-modal');
     // Auto-fill amount with the due amount for the selected stage
     setTimeout(function() {
@@ -6608,7 +6785,67 @@ document.addEventListener('click', function(e) {
   }
 });
 
-$('btn-save-pay-entry').addEventListener('click',function(){if(!editProjId)return;var p=projects[editProjId];if(!p)return;var amt=parseInt(gv('pe-amount'))||0;if(!amt){alert('Enter amount.');return;}var sk=gv('pe-stage');var entry={stage:sk,amount:amt,date:gv('pe-date'),mode:gv('pe-mode'),account:gv('pe-account'),ref:gv('pe-ref'),due:gv('pe-due'),notes:gv('pe-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};var ledger=(p.payLedger||[]).concat([entry]);var upd={payLedger:ledger};if(entry.due)upd['pay_'+sk+'_due']=entry.due;var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||(sk||'').toLowerCase().includes('advance'));var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate==='')){ upd.bookdate=entry.date; }db.ref('crm_projects/'+editProjId).update(upd,function(err){if(err){alert('Error: '+err.message);return;}closeModal('pay-entry-modal');showToast('✅ '+fmt(amt)+' recorded!');renderPayLedger();setTimeout(function(){runPaymentAutomations(editProjId);},400);setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);});});
+$('btn-save-pay-entry').addEventListener('click',function(){
+  if(!editProjId)return;
+  var p=projects[editProjId];if(!p)return;
+  var date=gv('pe-date'); var mode=gv('pe-mode'); var account=gv('pe-account');
+  var ref=gv('pe-ref'); var due=gv('pe-due'); var notes=gv('pe-notes');
+  var recordedBy=CU?(CU.name||CU.username||''):'';
+
+  if(_peMode==='split'){
+    // ── Smart Split mode: create multiple entries ──
+    var totalAmt=parseInt((document.getElementById('pe-split-amount')||{}).value)||0;
+    if(!totalAmt){alert('Enter the total amount received.');return;}
+    if(!date){alert('Enter payment date.');return;}
+    if(!account){alert('Select account.');return;}
+    var splits=calcSmartSplit(totalAmt,p);
+    if(!splits.length){showToast('All stages already fully paid.');return;}
+    var newEntries=splits.map(function(s){
+      return{stage:s.key,amount:s.allocate,date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,ts:Date.now(),recordedBy:recordedBy,autoSplit:true};
+    });
+    var ledger=(p.payLedger||[]).concat(newEntries);
+    var upd={payLedger:ledger};
+    // Auto-set bookdate if first advance entry
+    newEntries.forEach(function(entry){
+      var sk=entry.stage;
+      var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||(sk||'').toLowerCase().includes('advance'));
+      var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
+      if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate===''))upd.bookdate=entry.date;
+    });
+    db.ref('crm_projects/'+editProjId).update(upd,function(err){
+      if(err){alert('Error: '+err.message);return;}
+      closeModal('pay-entry-modal');
+      showToast('⚡ '+fmt(totalAmt)+' split into '+splits.length+' entries!');
+      renderPayLedger();
+      setTimeout(function(){runPaymentAutomations(editProjId);},400);
+      // Trigger auto-invoice for each split entry
+      setTimeout(function(){if(typeof triggerAutoInvoice==='function')newEntries.forEach(function(entry){triggerAutoInvoice(editProjId,entry);});},600);
+    });
+
+  } else {
+    // ── Single entry mode ──
+    var amt=parseInt(gv('pe-amount'))||0;
+    if(!amt){alert('Enter amount.');return;}
+    if(!date){alert('Enter payment date.');return;}
+    // Stage is now optional — blank = 'general'
+    var sk=gv('pe-stage')||'general';
+    var entry={stage:sk,amount:amt,date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,ts:Date.now(),recordedBy:recordedBy};
+    var ledger=(p.payLedger||[]).concat([entry]);
+    var upd={payLedger:ledger};
+    if(entry.due)upd['pay_'+sk+'_due']=entry.due;
+    var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||(sk||'').toLowerCase().includes('advance'));
+    var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
+    if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate===''))upd.bookdate=entry.date;
+    db.ref('crm_projects/'+editProjId).update(upd,function(err){
+      if(err){alert('Error: '+err.message);return;}
+      closeModal('pay-entry-modal');
+      showToast('✅ '+fmt(amt)+' recorded!');
+      renderPayLedger();
+      setTimeout(function(){runPaymentAutomations(editProjId);},400);
+      setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);
+    });
+  }
+});
 function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
 
 $('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().map(function(p){return '<option value="'+p.id+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');$('rp-client-info').style.display='none';openModal('rp-modal');});
@@ -8549,7 +8786,7 @@ function calShowEvent(e,projId){
   var bodyEl=document.getElementById('cal-popup-body');
   var openBtn=document.getElementById('cal-popup-open-btn');
   if(titleEl)titleEl.textContent=p.bride+' & '+p.groom;
-  if(bodyEl)bodyEl.innerHTML='<div style="line-height:2"><div><b>📅 Event Date:</b> '+(p.date||'—')+'</div><div><b>📍 City:</b> '+(p.city||'—')+'</div><div><b>🏛️ Venue:</b> '+(p.venue||'—')+'</div><div><b>📦 Package:</b> '+(p.package||'—')+'</div><div><b>🔄 Stage:</b> '+(p.stage||'—')+'</div></div>';
+  if(bodyEl)bodyEl.innerHTML='<div style="line-height:2"><div><b>📅 Event Date:</b> '+fmtDate(p.date)+'</div><div><b>📍 City:</b> '+(p.city||'—')+'</div><div><b>🏛️ Venue:</b> '+(p.venue||'—')+'</div><div><b>📦 Package:</b> '+(p.package||'—')+'</div><div><b>🔄 Stage:</b> '+(p.stage||'—')+'</div></div>';
   if(openBtn)openBtn.onclick=function(){document.getElementById('cal-popup').style.display='none';openProject(projId);};
   var rect=e.target.getBoundingClientRect();
   popup.style.display='block';
@@ -8951,9 +9188,9 @@ function buildInvoiceHTML(data, showTerms) {
   var balance = subtotal - paid;
   var rColor = data.region==='north'?'#1d4ed8':'#d97706';
   var rLabel = data.region==='north'?'North — Delhi Office':'South — Mumbai Office';
-  var dateStr = data.date ? new Date(data.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
-  var dueDateStr = data.dueDate ? new Date(data.dueDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
-  var evDateStr = data.eventDate ? new Date(data.eventDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
+  var dateStr = data.date ? fmtDate(data.date) : '';
+  var dueDateStr = data.dueDate ? fmtDate(data.dueDate) : '';
+  var evDateStr = data.eventDate ? fmtDate(data.eventDate) : '';
   var clientName = (data.bride||'Client') + (data.groom ? ' & ' + data.groom : '');
   var hasEvent = data.eventDate||data.venue||data.package;
 
@@ -9108,7 +9345,7 @@ function loadInvoiceFromPayments() {
     var termDesc = customLabels[e.stage + '_desc'] || term.desc || '';
     var parts = [label];
     if (termDesc) parts.push(termDesc);
-    if (e.date) { try { parts.push(new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})); } catch(x) { parts.push(e.date); } }
+    if (e.date) { try { parts.push(fmtDate(e.date)); } catch(x) { parts.push(e.date); } }
     if (e.mode) parts.push(e.mode);
     if (e.ref)  parts.push('Ref: ' + e.ref);
     return { desc: parts.join(' | '), qty: 1, rate: parseInt(e.amount) || 0 };
@@ -9590,7 +9827,7 @@ function renderPastInvoices() {
       var subtotal = (inv.items||[]).reduce(function(s,it){return s+(parseFloat(it.qty)||0)*(parseFloat(it.rate)||0);},0);
       var balance = subtotal - (parseFloat(inv.paid)||0);
       var balColor = balance <= 0 ? '#16a34a' : '#dc2626';
-      var savedDate = inv.savedAt ? new Date(inv.savedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+      var savedDate = fmtDate(inv.savedAt);
       var clientName = escHtml((inv.bride||'') + (inv.groom ? ' & ' + inv.groom : '') || 'Unknown Client');
       var invNoSafe = escHtml(inv.invoiceNo||'—');
       var refSafe = escHtml(inv.refcode||'');
@@ -9605,7 +9842,7 @@ function renderPastInvoices() {
             '</div>' +
             '<div style="font-size:15px;font-weight:700;color:#1a1a1a;margin-bottom:2px">' + clientName + '</div>' +
             '<div style="font-size:11px;color:#888">' +
-              (inv.date ? '📅 ' + new Date(inv.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '') +
+              (inv.date ? '📅 ' + fmtDate(inv.date) : '') +
               (inv.city ? ' · 📍 ' + escHtml(inv.city) : '') +
               (inv.package ? ' · 📦 ' + escHtml(inv.package) : '') +
             '</div>' +
@@ -10139,7 +10376,7 @@ function renderSalesDash() {
               '<div class="quot-card-meta">' + (q.city || '—') + (q.salesperson ? ' · ' + q.salesperson : '') + '</div>' +
               '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">' +
                 '<span style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</span>' +
-                '<span style="color:#aaa">' + (q.savedAt ? new Date(q.savedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '') + '</span>' +
+                '<span style="color:#aaa">' + (q.savedAt ? fmtDate(q.savedAt) : '') + '</span>' +
               '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
@@ -10206,7 +10443,7 @@ function renderSalesDash() {
             '<td style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</td>' +
             '<td>' + stepperHTML + '</td>' +
             '<td style="font-size:12px">' + (qt.salesperson || '—') + '</td>' +
-            '<td style="font-size:11px;color:#888">' + (qt.savedAt ? new Date(qt.savedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—') + '</td>' +
+            '<td style="font-size:11px;color:#888">' + (qt.savedAt ? fmtDate(qt.savedAt) : '—') + '</td>' +
             '<td>' +
               '<div style="display:flex;gap:4px;align-items:center">' +
               (nextS ? '<button class="btn btn-sm" style="background:' + QT_STATUS_COLORS[nextS] + '18;color:' + QT_STATUS_COLORS[nextS] + ';border-color:' + QT_STATUS_COLORS[nextS] + '55;font-size:10px;white-space:nowrap" onclick="quickChangeStatus(\'' + qt.id + '\',\'' + nextS + '\',event)" title="Advance to ' + QT_STATUS_LABELS[nextS] + '">→ ' + QT_STATUS_LABELS[nextS] + '</button>' : '') +
@@ -11128,7 +11365,7 @@ function updateQuotModalApprovalUI(q) {
     banner.style.background = '#e0f2fe';
     banner.style.color = '#0c4a6e';
     banner.style.border = '1px solid #7dd3fc';
-    banner.innerHTML = '✅ Approved by <b>' + (q.approvedBy||'—') + '</b>' + (q.approvedAt ? ' · ' + new Date(q.approvedAt).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) : '');
+    banner.innerHTML = '✅ Approved by <b>' + (q.approvedBy||'—') + '</b>' + (q.approvedAt ? ' · ' + fmtDate(q.approvedAt) : '');
   }
 }
 
@@ -11216,7 +11453,8 @@ function qdRenderList() {
       var qtyOnChange = "qdUpdateField(" + i + ",'qty',this.value)";
       var sizeOnChange = "qdUpdateField(" + i + ",'size',this.value)";
       extraFields +=
-        '<input type="number" min="1" max="20" value="' + (d.qty||1) + '" onchange="' + qtyOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;width:56px;font-family:inherit" title="Quantity" placeholder="Qty">' +
+        // oninput fires on every keystroke; onchange only fires on blur — use both to be safe
+        '<input type="number" min="1" max="20" value="' + (d.qty||1) + '" oninput="' + qtyOnChange + '" onchange="' + qtyOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;width:56px;font-family:inherit" title="Quantity" placeholder="Qty">' +
         '<select onchange="' + sizeOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;background:#f8fafc;color:#374151;font-family:inherit">' +
           ['-- Size --','12×36 (Panoramic)','12×30','10×30','10×24','10×20','10×12 (Square)','12×12 (Square)','14×14 (Square)','16×16 (Square)','Custom'].map(function(s){
             return '<option value="'+s+'"'+(d.size===s?' selected':'')+'>'+s+'</option>';
@@ -11226,7 +11464,8 @@ function qdRenderList() {
       var qtyOnChange = "qdUpdateField(" + i + ",'qty',this.value)";
       var sizeOnChange = "qdUpdateField(" + i + ",'size',this.value)";
       extraFields +=
-        '<input type="number" min="1" max="50" value="' + (d.qty||1) + '" onchange="' + qtyOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;width:56px;font-family:inherit" title="Quantity" placeholder="Qty">' +
+        // oninput fires on every keystroke; onchange only fires on blur — use both to be safe
+        '<input type="number" min="1" max="50" value="' + (d.qty||1) + '" oninput="' + qtyOnChange + '" onchange="' + qtyOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;width:56px;font-family:inherit" title="Quantity" placeholder="Qty">' +
         '<select onchange="' + sizeOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;background:#f8fafc;color:#374151;font-family:inherit">' +
           ['-- Size --','5×7','6×8','8×10','8×12','10×12','10×14','12×18','16×20','Custom'].map(function(s){
             return '<option value="'+s+'"'+(d.size===s?' selected':'')+'>'+s+'</option>';
@@ -11273,7 +11512,14 @@ function qdUpdateNote(i, val) {
 }
 function qdUpdateField(i, field, val) {
   if (!quotDeliverables[i]) return;
-  quotDeliverables[i][field] = field === 'qty' ? (parseInt(val)||1) : val;
+  // Parse qty — reject 0 / NaN (user mid-type, e.g. cleared the field)
+  if (field === 'qty') {
+    var parsed = parseInt(val, 10);
+    if (isNaN(parsed) || parsed < 1) return; // wait until they type a valid number
+    quotDeliverables[i].qty = parsed;
+  } else {
+    quotDeliverables[i][field] = val;
+  }
   // Rebuild detail string from qty + size so save/PDF always reflects current values
   var d = quotDeliverables[i];
   var preset = QD_PRESETS.find(function(p){ return p.id === d.id; });
@@ -11283,7 +11529,7 @@ function qdUpdateField(i, field, val) {
     var unit = (d.id === 'photo-frames')
       ? (qty === 1 ? ' Frame' : ' Frames')
       : (qty === 1 ? ' Album' : ' Albums');
-    d.detail      = qty + unit + size;
+    d.detail       = qty + unit + size;
     d.customDetail = d.detail;
   }
   qdRenderList();
@@ -11352,6 +11598,11 @@ function qdSyncHidden() {
   // Store full deliverables as JSON in custom-notes for PDF use
   var customItems = quotDeliverables.filter(function(d){ return d.isCustom; }).map(function(d){ return d.label + ': ' + d.detail; }).join('\n');
   var cn = document.getElementById('qd-custom-notes'); if(cn) cn.value = customItems;
+  // Auto-refresh preview panel whenever it is currently visible
+  var _previewPane = document.getElementById('qt-preview');
+  if (_previewPane && _previewPane.classList.contains('active')) {
+    renderQuotPreview();
+  }
 }
 
 function qdLoadFromData(deliverables, customDelivsArr) {
@@ -11869,7 +12120,7 @@ function buildQuotPDFDom(q) {
     }
   }
   var eventDateStr = firstEventDate
-    ? new Date(firstEventDate).toLocaleDateString('en-IN', {day:'numeric', month:'long', year:'numeric'})
+    ? fmtDate(firstEventDate)
     : '';
 
   // ── Shared style tokens ──
@@ -12076,7 +12327,7 @@ function buildQuotPDFDom(q) {
               var occ = (day.occasion || '').trim();
               var prefix = 'Day ' + dayNum;
               var label = occ && /^Day\s+\d+/i.test(occ) ? occ : (occ ? prefix + ': ' + occ : prefix);
-              return label + (day.date ? ' \u2014 ' + new Date(day.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}) : '');
+              return label + (day.date ? ' \u2014 ' + fmtDate(day.date) : '');
             })() +
           '</div>' +
         '</div>' +
@@ -12299,7 +12550,7 @@ function buildQuotPDFDom(q) {
   // PRICING PAGE — clean breakdown with dark price box
   // ══════════════════════════════════════════════════════════════
   var pricePage = '<div class="qpdf-page" style="' + S.page + '">' +
-    pageHeader('Pricing & Payment Terms', clientName + '<br>' + new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'})) +
+    pageHeader('Pricing & Payment Terms', clientName + '<br>' + fmtDate(new Date())) +
     '<div style="flex:1;overflow:hidden;">' +
     accentLine +
 
@@ -13757,7 +14008,7 @@ function ppShowRevisionHistory(projId, delivId) {
         (r.priority === 'urgent' ? '<span style="font-size:10px;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:2px 8px;border-radius:20px;font-weight:700">🔴 URGENT</span>' : '') +
         '</div>' +
         '<div style="font-size:13px;color:#333;margin-bottom:6px;line-height:1.5">' + r.what + '</div>' +
-        '<div style="font-size:11px;color:#888">By ' + (r.who || 'Admin') + ' · ' + new Date(r.at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + '</div>' +
+        '<div style="font-size:11px;color:#888">By ' + (r.who || 'Admin') + ' · ' + fmtDate(r.at) + '</div>' +
         '</div>';
     }).join('') : '<div class="empty">No revision history yet.</div>') +
     '</div>' +
@@ -14510,7 +14761,7 @@ function renderAlBatch(filtered, list, reset) {
     // ── Timestamp — handle missing/invalid ts ──
     var ts = l.ts || l.timestamp || l.createdAt || l.time || null;
     var dateObj = ts ? new Date(typeof ts === 'string' && ts.indexOf('-') > 0 ? ts : Number(ts)) : null;
-    var dateStr = (dateObj && !isNaN(dateObj)) ? dateObj.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '—';
+    var dateStr = fmtDate(dateObj);
     var timeStr = (dateObj && !isNaN(dateObj)) ? dateObj.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true }) : '';
 
     // ── User name — handle missing/empty user ──
