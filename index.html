@@ -7942,7 +7942,7 @@ function renderPage(name) {
   else if (name === 'settings') renderSettings();
   else if (name === 'users') { renderUsers(); renderAccounts(); applyUsersPageRBAC(); }
   else if (name === 'accounts') renderAccounts();
-  else if (name === 'quotations') { if (CU && CU.role === 'salesperson') renderSalesPersonDash(); else renderSalesDash(); }
+  else if (name === 'quotations') { renderSalesDash(); }
   else if (name === 'datavault') renderDataVault();
   else if (name === 'inventory') { loadAssets(); renderInventory(); }
 }
@@ -8092,23 +8092,13 @@ function buildSidebar() {
   var ac = getAccess();
   var layout = _sidebarLayout || DEFAULT_SIDEBAR_LAYOUT;
 
-  // For salesperson: ensure 'quotations' is present in the layout regardless of
-  // any saved Firebase layout that may predate this role's setup.
   if (CU && CU.role === 'salesperson') {
-    var hasQuotations = layout.some(function(grp) {
-      return !grp.sep && (grp.items || []).indexOf('quotations') !== -1;
-    });
-    if (!hasQuotations) {
-      // Deep-clone layout so we don't mutate the cached _sidebarLayout
+    var hasQ = layout.some(function(g) { return !g.sep && (g.items||[]).indexOf('quotations') !== -1; });
+    if (!hasQ) {
       layout = JSON.parse(JSON.stringify(layout));
-      // Try to add under 'Overview' group first, else prepend a new group
-      var overviewGrp = layout.find(function(g) { return g.label === 'Overview'; });
-      if (overviewGrp) {
-        overviewGrp.items = overviewGrp.items || [];
-        overviewGrp.items.push('quotations');
-      } else {
-        layout.unshift({ label: 'Overview', items: ['dashboard', 'quotations'] });
-      }
+      var og = layout.find(function(g) { return g.label === 'Overview'; });
+      if (og) { og.items = og.items||[]; og.items.push('quotations'); }
+      else { layout.unshift({ label:'Overview', items:['quotations'] }); }
     }
   }
 
@@ -8399,13 +8389,6 @@ function getDueAlerts() {
 }
 
 function renderDashboard() {
-  // Salesperson gets their own sales dashboard on the dashboard page too
-  if (CU && CU.role === 'salesperson') {
-    var greet = document.getElementById('dash-greet');
-    if (greet) { var hr = new Date().getHours(); greet.textContent = (hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening') + ', ' + CU.name + ' 👋'; }
-    renderSalesPersonDash();
-    return;
-  }
   var ac = getAccess();
   var list = pl();
   var greet = document.getElementById('dash-greet');
@@ -8973,6 +8956,7 @@ function doGoogleLogin() {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('main-app').style.display = 'block';
         buildSidebar(); applyRBAC();
+        if (match.role === 'salesperson') { navTo('quotations'); }
         loadDefaultQuotImages(); // pre-load defaults so quotations have images ready
         var lb = document.getElementById('btn-logout');
         if (lb) lb.onclick = function() {
@@ -9031,6 +9015,7 @@ function doLogin() {
       document.getElementById('main-app').style.display = 'block';
       buildSidebar();
       applyRBAC();
+      if (match.role === 'salesperson') { navTo('quotations'); }
       loadDefaultQuotImages();
       var lb = document.getElementById('btn-logout');
       if (lb) lb.onclick = function() {
@@ -10354,7 +10339,7 @@ function quotStatusBadge(s) {
 // ── Sales role — full quotations access ──────────────────────────────
 (function patchRoles() {
   ROLE_ACCESS.salesperson = {
-    pages: ['dashboard','quotations'],
+    pages: ['quotations'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -10553,7 +10538,10 @@ function renderSalesPersonDash() {
 
 function renderSalesDash() {
   renderApprovalQueue();
-  var list = ql();
+  var _all = ql();
+  var list = (CU && CU.role === 'salesperson')
+    ? _all.filter(function(q){ var me = CU.name||CU.username; return !me||!q.salesperson||q.salesperson===me; })
+    : _all;
   var statusF = (document.getElementById('sales-status-f') || {value:''}).value;
   var personF = (document.getElementById('sales-person-f') || {value:''}).value;
   var q = ((document.getElementById('sales-search') || {value:''}).value || '').toLowerCase();
@@ -10576,8 +10564,8 @@ function renderSalesDash() {
       '<div class="sales-metric gold"><div class="ml">Conversion Rate</div><div class="mv">' + convRate + '%</div><div class="ms">' + won.length + ' won / ' + lost.length + ' lost</div></div>';
   }
 
-  // Populate salesperson filter
   var spF = document.getElementById('sales-person-f');
+  if (spF) spF.style.display = (CU && CU.role === 'salesperson') ? 'none' : '';
   if (spF && spF.options.length <= 1) {
     var people = [...new Set(list.map(function(q) { return q.salesperson || ''; }).filter(Boolean))];
     people.forEach(function(p) { var o = document.createElement('option'); o.value = p; o.textContent = p; spF.appendChild(o); });
@@ -10680,8 +10668,8 @@ function renderSalesDash() {
               '<div style="display:flex;gap:4px;align-items:center">' +
               (nextS ? '<button class="btn btn-sm" style="background:' + QT_STATUS_COLORS[nextS] + '18;color:' + QT_STATUS_COLORS[nextS] + ';border-color:' + QT_STATUS_COLORS[nextS] + '55;font-size:10px;white-space:nowrap" onclick="quickChangeStatus(\'' + qt.id + '\',\'' + nextS + '\',event)" title="Advance to ' + QT_STATUS_LABELS[nextS] + '">→ ' + QT_STATUS_LABELS[nextS] + '</button>' : '') +
               '<button class="btn btn-sm" onclick="openEditQuotation(\'' + qt.id + '\')">✏️</button>' +
-              (qt.status === 'won' ? '<button class="btn btn-sm" style="background:#134e50;color:#fff;border-color:#134e50" onclick="convertQuotToProject(\'' + qt.id + '\')" title="Convert to Project">🚀 Convert</button>' + (qt.advancePaid ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ₹' + parseInt(qt.advancePaid).toLocaleString('en-IN') + ' paid</span>' : '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>') : '') +
-              '<button class="btn-danger" onclick="deleteQuotation(\'' + qt.id + '\')">✕</button>' +
+              (!(CU && CU.role === 'salesperson') && qt.status === 'won' ? '<button class="btn btn-sm" style="background:#134e50;color:#fff;border-color:#134e50" onclick="convertQuotToProject(\'' + qt.id + '\')" title="Convert to Project">🚀 Convert</button>' + (qt.advancePaid ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ₹' + parseInt(qt.advancePaid).toLocaleString('en-IN') + ' paid</span>' : '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>') : '') +
+              (!(CU && CU.role === 'salesperson') ? '<button class="btn-danger" onclick="deleteQuotation(\'' + qt.id + '\')">✕</button>' : '') +
               '</div></td></tr>';
         }).join('') + '</tbody></table>';
     }
