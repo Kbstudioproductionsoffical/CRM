@@ -8091,6 +8091,27 @@ function applySidebarLayout(jsonStr) {
 function buildSidebar() {
   var ac = getAccess();
   var layout = _sidebarLayout || DEFAULT_SIDEBAR_LAYOUT;
+
+  // For salesperson: ensure 'quotations' is present in the layout regardless of
+  // any saved Firebase layout that may predate this role's setup.
+  if (CU && CU.role === 'salesperson') {
+    var hasQuotations = layout.some(function(grp) {
+      return !grp.sep && (grp.items || []).indexOf('quotations') !== -1;
+    });
+    if (!hasQuotations) {
+      // Deep-clone layout so we don't mutate the cached _sidebarLayout
+      layout = JSON.parse(JSON.stringify(layout));
+      // Try to add under 'Overview' group first, else prepend a new group
+      var overviewGrp = layout.find(function(g) { return g.label === 'Overview'; });
+      if (overviewGrp) {
+        overviewGrp.items = overviewGrp.items || [];
+        overviewGrp.items.push('quotations');
+      } else {
+        layout.unshift({ label: 'Overview', items: ['dashboard', 'quotations'] });
+      }
+    }
+  }
+
   var sb = document.getElementById('sidebar'); if (!sb) return;
   var html = '';
   layout.forEach(function(group) {
