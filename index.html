@@ -994,9 +994,11 @@ document.addEventListener('wheel', function(e) {
         <button class="tab-btn" id="prio-tab-vip-btn" onclick="switchPriorityTab('vip')">⭐ VIP / Premium</button>
         <button class="tab-btn" id="prio-tab-annoyed-btn" onclick="switchPriorityTab('annoyed')">😤 Annoyed</button>
         <button class="tab-btn" id="prio-tab-nr-btn" onclick="switchPriorityTab('not_responding')">📵 Not Responding</button>
+        <button class="tab-btn" id="prio-tab-esc-btn" onclick="switchPriorityTab('escalations')" style="display:none">🚨 Escalations</button>
       </div>
       <div id="priority-metrics" class="metrics" style="margin-bottom:16px"></div>
       <div id="priority-list-container"></div>
+      <div id="sales-escalation-panel" style="margin-top:0"></div>
     </div>
 
     <!-- ══════════════════════════════════════════
@@ -2255,7 +2257,8 @@ document.addEventListener('wheel', function(e) {
             <option value="accounts">💰 Accounts — Payments &amp; finance only</option>
             <option value="postprod">🎬 Post Production — Deliverables &amp; briefs</option>
             <option value="editor">✂️ Editor — Own deliverables only</option>
-            <option value="sales">💼 Sales — Quotations &amp; leads only</option>
+            <option value="sales">💼 Sales Head — Full access + escalations + quotations</option>
+            <option value="salesperson">🧑‍💼 Sales Person — Quotations &amp; leads only</option>
             <option value="referral">🎁 Referral Manager — Referrals only</option>
             <option value="datamanager">🗂️ Data Manager — Projects &amp; reports</option>
             <option value="preprodmanager">📋 Pre-Prod Manager — Onboarding &amp; client setup</option>
@@ -3370,7 +3373,7 @@ function fmtDateTime(ts) {
 function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d)-new Date())/86400000);}
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
-function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Production',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
+function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Production',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
 function avatarColor(name){var c=['#1d4ed8','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46'];var h=0;for(var i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length];}
 function stageBadge(s){var m={preprod:['b-preprod','Pre-Prod'],production:['b-prod','Production'],postprod:['b-postprod','Post-Prod'],delivery:['b-delivery','Delivery'],payment:['b-payment','Pay Pending'],complete:['b-complete','Complete']};var v=m[s]||['b-gray',s];return '<span class="badge '+v[0]+'">'+v[1]+'</span>';}
 function regionBadge(r){return r==='north'?'<span class="badge b-north">🔵 North</span>':r==='south'?'<span class="badge b-south">🟠 South</span>':'';}
@@ -3612,6 +3615,9 @@ function loadAll(){
         _invTermsCache=(crmSettings.inv_terms&&crmSettings.inv_terms.length)?crmSettings.inv_terms:null;
         _invPaymentTermsCache=(crmSettings.inv_payment_terms&&crmSettings.inv_payment_terms.length)?crmSettings.inv_payment_terms:null;
         ensureWhatsAppInSources();
+        deduplicateEscalations();
+        // One-time wipe — remove this line after first load
+        if (!localStorage.getItem('esc_wiped_v1')) { wipeAllEscalations(); localStorage.setItem('esc_wiped_v1','1'); }
       });
       db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};});
       db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
@@ -6068,8 +6074,8 @@ function populateUserTeamDropdown(selectedId){
   sel.innerHTML='<option value="">— No team member linked —</option>'+allTeam.map(function(t){return '<option value="'+t.id+'"'+(t.id===selectedId?' selected':'')+'>'+t.name+' ('+t.role+(t.city?' · '+t.city:'')+')' +'</option>';}).join('');
 }
 function renderUsers(){
-  var list=Object.values(users).sort(function(a,b){var ro={superadmin:0,admin:1,accounts:2,postprod:3,datamanager:4,editor:5,referral:6,preprodmanager:7,socialmedia:8};return (ro[a.role]||9)-(ro[b.role]||9);});
-  var roleColors={superadmin:'#1d4ed8',admin:'#7c3aed',accounts:'#16a34a',postprod:'#d97706',editor:'#0891b2',referral:'#be185d',datamanager:'#475569',preprodmanager:'#0d9488',socialmedia:'#db2777'};
+  var list=Object.values(users).sort(function(a,b){var ro={superadmin:0,admin:1,sales:2,salesperson:3,accounts:4,postprod:5,datamanager:6,editor:7,referral:8,preprodmanager:9,socialmedia:10};return (ro[a.role]||9)-(ro[b.role]||9);});
+  var roleColors={superadmin:'#1d4ed8',admin:'#7c3aed',accounts:'#16a34a',postprod:'#d97706',editor:'#0891b2',referral:'#be185d',datamanager:'#475569',preprodmanager:'#0d9488',socialmedia:'#db2777',sales:'#6d28d9',salesperson:'#0891b2'};
   if(!list.length){$('user-list').innerHTML='<div class="empty">No users yet.</div>';return;}
   $('user-list').innerHTML=list.map(function(u){
     var col=avatarColor(u.name);
@@ -6569,10 +6575,12 @@ function renderPayLedger(){
   var ledger=p.payLedger||[];
   var html=ledger.length?'<table class="tbl" style="margin-bottom:14px"><thead><tr><th>#</th><th>Date</th><th>Stage</th><th>Amount</th><th>Mode</th><th>Account</th><th>Ref/UTR</th><th>Notes</th><th></th></tr></thead><tbody>'+
     ledger.map(function(e,i){
-      var term=terms.find(function(t){return t.key===e.stage;})||{label:e.stage==='general'?'General Payment':(e.stage||'—')};
-      var displayLabel=customLabels[e.stage+'_label']||term.label;
-      var badgeColor=e.stage==='general'?'b-gray':(e.autoSplit?'b-purple':'b-blue');
-      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+(e.autoSplit?'<span style="font-size:9px;color:#7c3aed;margin-left:4px">split</span>':'')+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
+      var isSplit = e.stage === 'split' && e.splitAllocation;
+      var term=terms.find(function(t){return t.key===e.stage;})||{label:e.stage==='general'?'General Payment':isSplit?'Smart Split':(e.stage||'—')};
+      var displayLabel = isSplit ? ('Split: ' + (e.splitAllocation.length) + ' stages') : (customLabels[e.stage+'_label']||term.label);
+      var badgeColor=e.stage==='general'?'b-gray':isSplit?'b-purple':'b-blue';
+      var splitDetail = isSplit && e.splitAllocation ? '<div style="font-size:10px;color:#7c3aed;margin-top:3px">'+e.splitAllocation.map(function(a){return a.label+': '+fmt(a.amount);}).join(' · ')+'</div>' : '';
+      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
     }).join('')+'</tbody></table>':
     '<div class="empty" style="padding:16px">No payments recorded yet.</div>';
 
@@ -6596,7 +6604,12 @@ function renderPayLedger(){
       generalAllocated+=Math.min(ttShortfall,Math.max(0,totalGeneral-generalAllocated));
     });
     var generalForThisStage=Math.max(0,Math.min(Math.round(net*t.pct/100)-ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0),totalGeneral-generalAllocated));
-    var stPaid=ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0)+generalForThisStage;
+    var stPaid=ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0)
+      + ledger.filter(function(e){return e.splitAllocation;}).reduce(function(a,e){
+          var alloc=e.splitAllocation.find(function(a){return a.stage===t.key;});
+          return a+(alloc?parseInt(alloc.amount)||0:0);
+        },0)
+      + generalForThisStage;
     var badge=stPaid>=exp?'<span class="badge b-green">Paid &#x2713;</span>':stPaid>0?'<span class="badge b-amber">Partial</span>':'<span class="badge b-red">Pending</span>';
     var curLabel=customLabels[t.key+'_label']||t.label;
     var curDesc=customLabels[t.key+'_desc']||t.desc;
@@ -6670,7 +6683,11 @@ function calcSmartSplit(totalAmt, p) {
   terms.forEach(function(t) {
     if (remaining <= 0) return;
     var exp       = Math.round(net * t.pct / 100);
-    var alreadyPaid = (p.payLedger || []).filter(function(e) { return e.stage === t.key; }).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0);
+    var alreadyPaid = (p.payLedger || []).filter(function(e) { return e.stage === t.key; }).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0)
+      + (p.payLedger || []).filter(function(e){ return e.splitAllocation; }).reduce(function(a,e){
+          var alloc=e.splitAllocation.find(function(x){return x.stage===t.key;});
+          return a+(alloc?parseInt(alloc.amount)||0:0);
+        },0);
     var due = exp - alreadyPaid;
     if (due <= 0) return; // stage already fully paid
     var allocate = Math.min(due, remaining);
@@ -6793,33 +6810,40 @@ $('btn-save-pay-entry').addEventListener('click',function(){
   var recordedBy=CU?(CU.name||CU.username||''):'';
 
   if(_peMode==='split'){
-    // ── Smart Split mode: create multiple entries ──
+    // ── Smart Split mode: ONE visible entry, internal stage allocations stored inside ──
     var totalAmt=parseInt((document.getElementById('pe-split-amount')||{}).value)||0;
     if(!totalAmt){alert('Enter the total amount received.');return;}
     if(!date){alert('Enter payment date.');return;}
     if(!account){alert('Select account.');return;}
     var splits=calcSmartSplit(totalAmt,p);
     if(!splits.length){showToast('All stages already fully paid.');return;}
-    var newEntries=splits.map(function(s){
-      return{stage:s.key,amount:s.allocate,date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,ts:Date.now(),recordedBy:recordedBy,autoSplit:true};
-    });
-    var ledger=(p.payLedger||[]).concat(newEntries);
+    // Single consolidated entry — visible in ledger as one row
+    // Internal split stored in splitAllocation[] for payment schedule calculation
+    var consolidatedEntry={
+      stage:'split',
+      amount:totalAmt,
+      date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,
+      ts:Date.now(),recordedBy:recordedBy,
+      splitAllocation:splits.map(function(s){return{stage:s.key,label:s.label,amount:s.allocate};}),
+      splitLabel:splits.map(function(s){return s.label+' ('+fmt(s.allocate)+')';}).join(' + ')
+    };
+    var ledger=(p.payLedger||[]).concat([consolidatedEntry]);
     var upd={payLedger:ledger};
-    // Auto-set bookdate if first advance entry
-    newEntries.forEach(function(entry){
-      var sk=entry.stage;
+    // Auto-set bookdate from first allocation stage if advance
+    var firstAlloc=splits[0];
+    if(firstAlloc){
+      var sk=firstAlloc.key;
       var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||(sk||'').toLowerCase().includes('advance'));
-      var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
-      if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate===''))upd.bookdate=entry.date;
-    });
+      var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk||(e.splitAllocation&&e.splitAllocation.some(function(a){return a.stage===sk;}));}).length===0;
+      if(isAdv&&noExisting&&date&&(!p.bookdate||p.bookdate===''))upd.bookdate=date;
+    }
     db.ref('crm_projects/'+editProjId).update(upd,function(err){
       if(err){alert('Error: '+err.message);return;}
       closeModal('pay-entry-modal');
-      showToast('⚡ '+fmt(totalAmt)+' split into '+splits.length+' entries!');
+      showToast('⚡ '+fmt(totalAmt)+' recorded & allocated across '+splits.length+' stages!');
       renderPayLedger();
       setTimeout(function(){runPaymentAutomations(editProjId);},400);
-      // Trigger auto-invoice for each split entry
-      setTimeout(function(){if(typeof triggerAutoInvoice==='function')newEntries.forEach(function(entry){triggerAutoInvoice(editProjId,entry);});},600);
+      setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,consolidatedEntry);},600);
     });
 
   } else {
@@ -7731,8 +7755,8 @@ var _fieldVisibility = {};   // loaded from Firebase, cache updated by listener
 
 var FIELD_VIS_DEFAULTS = {
   // field key → array of roles that CAN see it by default
-  phone:    ['superadmin','intern','admin','accounts','preprodmanager','sales'],
-  whatsapp: ['superadmin','intern','admin','accounts','preprodmanager','sales'],
+  phone:    ['superadmin','intern','admin','accounts','preprodmanager','sales','salesperson'],
+  whatsapp: ['superadmin','intern','admin','accounts','preprodmanager','sales','salesperson'],
   email:    ['superadmin','intern','admin','accounts','preprodmanager','sales']
 };
 
@@ -7771,7 +7795,7 @@ function loadFieldVisibility() {
 function saveFieldVisibility() {
   var fv = {};
   var fields  = ['phone', 'whatsapp', 'email'];
-  var roles   = ['admin','intern','accounts','preprodmanager','postprod','editor','datamanager','referral','sales','socialmedia'];
+  var roles   = ['admin','intern','accounts','preprodmanager','postprod','editor','datamanager','referral','sales','salesperson','socialmedia'];
   fields.forEach(function(f) {
     fv[f] = {};
     roles.forEach(function(r) {
@@ -7803,7 +7827,8 @@ function renderFieldVisibilityPanel() {
     { key:'editor',         label:'✂️ Editor' },
     { key:'datamanager',    label:'🗂️ Data Manager' },
     { key:'referral',       label:'🎁 Referral Mgr' },
-    { key:'sales',          label:'💼 Sales' },
+    { key:'sales',          label:'💼 Sales Head' },
+    { key:'salesperson',    label:'🧑‍💼 Sales Person' },
     { key:'socialmedia',    label:'📱 Social Media' }
   ];
 
@@ -7917,10 +7942,9 @@ function renderPage(name) {
   else if (name === 'settings') renderSettings();
   else if (name === 'users') { renderUsers(); renderAccounts(); applyUsersPageRBAC(); }
   else if (name === 'accounts') renderAccounts();
-  else if (name === 'quotations') { renderSalesDash(); }
+  else if (name === 'quotations') { if (CU && CU.role === 'salesperson') renderSalesPersonDash(); else renderSalesDash(); }
   else if (name === 'datavault') renderDataVault();
   else if (name === 'inventory') { loadAssets(); renderInventory(); }
-  else if (name === 'sales' || name === 'quotations') renderSalesDash();
 }
 
 function navTo(name) {
@@ -8354,6 +8378,13 @@ function getDueAlerts() {
 }
 
 function renderDashboard() {
+  // Salesperson gets their own sales dashboard on the dashboard page too
+  if (CU && CU.role === 'salesperson') {
+    var greet = document.getElementById('dash-greet');
+    if (greet) { var hr = new Date().getHours(); greet.textContent = (hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening') + ', ' + CU.name + ' 👋'; }
+    renderSalesPersonDash();
+    return;
+  }
   var ac = getAccess();
   var list = pl();
   var greet = document.getElementById('dash-greet');
@@ -9929,13 +9960,14 @@ function triggerAutoInvoice(projId, paymentEntry) {
   var p = projects[projId];
   if (!p) return;
   _autoInvProjId = projId;
-  _autoInvPaidAmt = parseInt(paymentEntry.amount) || 0;
+  // Always use cumulative paid total so balance matches the project exactly
+  _autoInvPaidAmt = paidTotal(p);
 
-  // Build line items: package as the main item
+  // Build line items: package as the main item at full net value
   var net = netVal(p);
   _autoInvItems = [{
     desc: (p.package || 'Photography + Videography Package') +
-          (paymentEntry.stage ? ' — ' + (getPayTerms(p).find(function(t){return t.key===paymentEntry.stage;})||{label:paymentEntry.stage}).label : ''),
+          (paymentEntry.stage && paymentEntry.stage !== 'general' ? ' — ' + (getPayTerms(p).find(function(t){return t.key===paymentEntry.stage;})||{label:paymentEntry.stage}).label : ''),
     qty: 1,
     rate: net
   }];
@@ -10138,7 +10170,7 @@ function canApproveQuotations() {
   return CU && (CU.role === 'superadmin' || CU.role === 'admin');
 }
 function isSalesPerson() {
-  return CU && (CU.role === 'sales' || CU.role === 'superadmin' || CU.role === 'admin');
+  return CU && (CU.role === 'sales' || CU.role === 'superadmin' || CU.role === 'admin') && CU.role !== 'salesperson';
 }
 function submitForApproval(id, event) {
   if (event) event.stopPropagation();
@@ -10300,7 +10332,7 @@ function quotStatusBadge(s) {
 // ── Sidebar entry + RBAC ─────────────────────────────────────────
 // ── Sales role — full quotations access ──────────────────────────────
 (function patchRoles() {
-  ROLE_ACCESS.sales = {
+  ROLE_ACCESS.salesperson = {
     pages: ['dashboard','quotations'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
@@ -10308,7 +10340,19 @@ function quotStatusBadge(s) {
     canSeeAllTabs:false, allowedTabs:['t-details'],
     canManageSettings:false, canExport:true,
     canCreateQuotations:true, canEditQuotations:true, canDownloadQuotations:true,
-    canSeeContactDetails:true
+    canApproveQuotations:false, canSeeContactDetails:true,
+    isSalesperson:true
+  };
+  ROLE_ACCESS.sales = {
+    pages: ['dashboard','pipeline','projects','quotations','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','priority','activitylog'],
+    canEditProjects:true, canDeleteProjects:false, canRecordPayments:true,
+    canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
+    canManageUsers:false, canManageAccounts:false, canManageReferral:true,
+    canSeeAllTabs:true, allowedTabs:null,
+    canManageSettings:false, canExport:true,
+    canCreateQuotations:true, canEditQuotations:true, canDownloadQuotations:true,
+    canApproveQuotations:true, canSeeContactDetails:true,
+    canSeeEscalations:true
   };
   // Make sure superadmin and intern also see quotations page
   ['superadmin','intern','accounts'].forEach(function(r) {
@@ -10319,6 +10363,173 @@ function quotStatusBadge(s) {
 })();
 
 // ── SALES DASHBOARD ──────────────────────────────────────────────
+function renderSalesEscalations() {
+  var el = document.getElementById('sales-escalation-panel');
+  if (!el) return;
+  var isSalesOrAdmin = CU && (CU.role === 'superadmin' || CU.role === 'sales' || CU.role === 'intern');
+  if (!isSalesOrAdmin) { el.innerHTML = ''; return; }
+
+  
+// One-time wipe all escalations from Firebase (called once on load)
+function wipeAllEscalations() {
+  db.ref('crm_escalations').remove(function() {
+    console.log('All escalations wiped from Firebase.');
+  });
+}
+
+// One-time cleanup: remove old projId_timestamp duplicate escalation keys
+function deduplicateEscalations() {
+  db.ref('crm_escalations').once('value', function(snap) {
+    var all = snap.val() || {};
+    var keys = Object.keys(all);
+    // Find keys that look like projId_timestamp (contain underscore + digits at end)
+    var seen = {}; // projId -> best key to keep
+    var toDelete = [];
+    keys.forEach(function(k) {
+      var m = k.match(/^(.+)_(\d+)$/);
+      if (m) {
+        // Old format key — mark for deletion after keeping newest per projId
+        var projId = m[1];
+        if (!seen[projId] || all[k].escalatedAt > all[seen[projId]].escalatedAt) {
+          if (seen[projId]) toDelete.push(seen[projId]);
+          seen[projId] = k;
+        } else {
+          toDelete.push(k);
+        }
+        // Also save the record under clean projId key if not exists
+        if (!all[projId]) {
+          db.ref('crm_escalations/' + projId).set(all[k]);
+        }
+      }
+    });
+    // Delete all old-format keys
+    toDelete.forEach(function(k) { db.ref('crm_escalations/' + k).remove(); });
+    // Also remove the 'kept' old-format keys since we've migrated them
+    Object.values(seen).forEach(function(k) { db.ref('crm_escalations/' + k).remove(); });
+    if (toDelete.length || Object.keys(seen).length) {
+      console.log('Escalation dedup: removed ' + (toDelete.length + Object.keys(seen).length) + ' old keys');
+    }
+  });
+}
+
+db.ref('crm_escalations').orderByChild('resolved').equalTo(false).once('value', function(snap) {
+    var all = snap.val() || {};
+    var open = Object.entries(all).filter(function(e) { return !e[1].resolved; })
+      .sort(function(a,b) { return new Date(b[1].escalatedAt) - new Date(a[1].escalatedAt); });
+
+    if (!open.length) { el.innerHTML = ''; return; }
+
+    var rows = open.map(function(entry) {
+      var k = entry[0], esc = entry[1];
+      var p = projects[esc.projId] || {};
+      var dateStr = fmtDate(esc.escalatedAt);
+      var phone = esc.phone || p.phone || '';
+      var waNum = phone.replace(/[^0-9]/g,'');
+      var waLink = waNum ? 'https://wa.me/91' + (waNum.length === 10 ? waNum : waNum.slice(-10)) : '';
+      return '<tr style="border-top:1px solid #fee2e2">' +
+        '<td style="padding:9px 12px;font-weight:700">' + escHtml(esc.clientName||'—') + '</td>' +
+        '<td style="padding:9px 12px"><span style="font-size:10px;font-family:monospace;background:#f1f5f9;padding:2px 6px;border-radius:4px">' + escHtml(esc.refcode||'—') + '</span></td>' +
+        '<td style="padding:9px 12px;font-size:12px;color:#555">' + escHtml(esc.phone||'—') + '</td>' +
+        '<td style="padding:9px 12px;font-weight:700;color:#dc2626">' + fmt(esc.balance||0) + '</td>' +
+        '<td style="padding:9px 12px;font-size:11px;color:#888">' + dateStr + '</td>' +
+        '<td style="padding:9px 12px;font-size:11px;color:#555">' + escHtml(esc.escalatedBy||'—') + '</td>' +
+        '<td style="padding:9px 12px;display:flex;gap:6px">' +
+          (waLink ? '<a href="' + waLink + '" target="_blank" style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;text-decoration:none;display:inline-block">📲 WhatsApp</a>' : '') +
+          '<button onclick="resolveEscalation(\'' + k + '\')" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">✓ Resolved</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+
+    el.innerHTML =
+      '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;overflow:hidden">' +
+        '<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #fecaca">' +
+          '<span style="font-size:16px">🚨</span>' +
+          '<span style="font-size:13px;font-weight:800;color:#991b1b">' + open.length + ' Escalated Client' + (open.length!==1?'s':'') + ' — Not Responding</span>' +
+          '<span style="margin-left:auto;font-size:11px;color:#888">Escalated by team for your follow-up</span>' +
+        '</div>' +
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+          '<thead><tr style="background:#fff5f5">' +
+            '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#7f1d1d">Client</th>' +
+            '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#7f1d1d">Ref</th>' +
+            '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#7f1d1d">Phone</th>' +
+            '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#7f1d1d">Balance</th>' +
+            '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#7f1d1d">Escalated On</th>' +
+            '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#7f1d1d">By</th>' +
+            '<th style="padding:8px 12px;text-align:left;font-weight:700;color:#7f1d1d">Action</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table></div>' +
+      '</div>';
+  });
+}
+
+function resolveEscalation(key) {
+  if (!confirm('Mark this escalation as resolved?')) return;
+  db.ref('crm_escalations/' + key).update({ resolved: true, resolvedAt: Date.now(), resolvedBy: CU ? (CU.name||CU.username) : '' }, function() {
+    showToast('✅ Escalation resolved!');
+    renderSalesEscalations();
+  });
+}
+
+function renderSalesPersonDash() {
+  // Salesperson sees only their own quotations + ability to create new ones
+  renderApprovalQueue();
+  var myName = CU ? (CU.name || CU.username) : '';
+  var list = ql().filter(function(q) {
+    return !myName || !q.salesperson || q.salesperson === myName;
+  });
+
+  var won  = list.filter(function(q){return q.status==='won';}).length;
+  var lost = list.filter(function(q){return q.status==='lost';}).length;
+  var open = list.filter(function(q){return q.status==='open'||q.status==='sent';}).length;
+  var pending = list.filter(function(q){return q.status==='pending_approval';}).length;
+
+  var sc = document.getElementById('page-quotations'); if (!sc) return;
+  sc.innerHTML =
+    '<div class="page-title">🧑‍💼 My Quotations</div>' +
+    '<div class="page-sub">Create and manage your quotations.</div>' +
+    '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px">' +
+      '<div class="metric blue"><div class="ml">My Quotes</div><div class="mv">' + list.length + '</div></div>' +
+      '<div class="metric amber"><div class="ml">Open</div><div class="mv">' + open + '</div></div>' +
+      '<div class="metric green"><div class="ml">Won</div><div class="mv">' + won + '</div></div>' +
+      '<div class="metric red"><div class="ml">Lost</div><div class="mv">' + lost + '</div></div>' +
+    '</div>' +
+    (pending ? '<div id="approval-queue-mount"></div>' : '') +
+    '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+      '<button class="btn btn-primary" onclick="openNewQuotation()">+ New Quotation</button>' +
+    '</div>' +
+    '<div class="card" style="padding:0"><div id="sp-quot-table"></div></div>';
+
+  // Render quotation table
+  var tableEl = document.getElementById('sp-quot-table');
+  if (!tableEl) return;
+  if (!list.length) { tableEl.innerHTML = '<div class="empty">No quotations yet. Create your first one!</div>'; return; }
+
+  var statusColors = {open:'b-blue',sent:'b-amber',won:'b-green',lost:'b-red',pending_approval:'b-purple'};
+  tableEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+    '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb">' +
+      '<th style="padding:10px 14px;text-align:left;font-weight:700">Client</th>' +
+      '<th style="padding:10px 14px;text-align:left;font-weight:700">Event</th>' +
+      '<th style="padding:10px 14px;text-align:left;font-weight:700">Value</th>' +
+      '<th style="padding:10px 14px;text-align:left;font-weight:700">Status</th>' +
+      '<th style="padding:10px 14px;text-align:left;font-weight:700">Date</th>' +
+      '<th style="padding:10px 14px"></th>' +
+    '</tr></thead><tbody>' +
+    list.sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);}).map(function(q) {
+      var couple = escHtml((q.bride||'')+(q.groom?' & '+q.groom:''));
+      var status = q.status||'open';
+      return '<tr style="border-top:1px solid #f0f0f0" onmouseover="this.style.background=\'#fafafa\'" onmouseout="this.style.background=\'\';">' +
+        '<td style="padding:10px 14px;font-weight:700">' + couple + '<div style="font-size:11px;color:#888">' + escHtml(q.city||'') + '</div></td>' +
+        '<td style="padding:10px 14px;font-size:12px;color:#555">' + escHtml(q.type||'—') + '</td>' +
+        '<td style="padding:10px 14px;font-weight:700;color:#1d4ed8">' + fmt((parseInt(q.value)||0)-(parseInt(q.discount)||0)) + '</td>' +
+        '<td style="padding:10px 14px"><span class="badge ' + (statusColors[status]||'b-blue') + '">' + status.replace(/_/g,' ') + '</span></td>' +
+        '<td style="padding:10px 14px;font-size:12px;color:#888">' + fmtDate(q.createdAt) + '</td>' +
+        '<td style="padding:10px 14px"><button class="btn btn-sm" onclick="editQuotation(\'' + q.id + '\')";>✏️ Edit</button></td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table>';
+}
+
 function renderSalesDash() {
   renderApprovalQueue();
   var list = ql();
@@ -12989,15 +13200,35 @@ function getFlagBadgeHTML(flag) {
 var _prioTab = 'all';
 function switchPriorityTab(tab) {
   _prioTab = tab;
-  ['all','vip','annoyed','not_responding'].forEach(function(t) {
+  ['all','vip','annoyed','not_responding','escalations'].forEach(function(t) {
     var btn = document.getElementById('prio-tab-' + t + '-btn');
     if (btn) btn.classList.toggle('active', t === tab);
   });
-  renderPriorityPage();
+  var listEl = document.getElementById('priority-list-container');
+  var escEl  = document.getElementById('sales-escalation-panel');
+  var metricsEl = document.getElementById('priority-metrics');
+  if (tab === 'escalations') {
+    if (listEl)    listEl.style.display = 'none';
+    if (metricsEl) metricsEl.style.display = 'none';
+    if (escEl)     escEl.style.display = '';
+    if (typeof renderSalesEscalations === 'function') renderSalesEscalations();
+  } else {
+    if (listEl)    listEl.style.display = '';
+    if (metricsEl) metricsEl.style.display = '';
+    if (escEl)     escEl.style.display = 'none';
+    renderPriorityPage();
+  }
 }
 
 function renderPriorityPage() {
   var allProjects = Object.values(projects);
+
+  // Show escalation tab only to sales head and superadmin/admin
+  var escTab = document.getElementById('prio-tab-esc-btn');
+  var isSalesOrAdmin = CU && (CU.role === 'superadmin' || CU.role === 'sales' || CU.role === 'intern');
+  if (escTab) escTab.style.display = isSalesOrAdmin ? '' : 'none';
+  // Render escalation panel if on escalations sub-tab or if sales head
+  if (isSalesOrAdmin && typeof renderSalesEscalations === 'function') renderSalesEscalations();
   var flagged = allProjects.filter(function(p) { return p.clientFlag && p.clientFlag !== ''; });
 
   // Metrics
@@ -13071,11 +13302,6 @@ function clearClientFlag(projId) {
 // ═══════════════════════════════════════════════════════════════════════
 function escalateToSalesHead(projId) {
   var p = projects[projId]; if (!p) return;
-  // Find sales head from users/team
-  var salesHead = null;
-  Object.values(typeof users !== 'undefined' ? users : {}).forEach(function(u) {
-    if ((u.role === 'superadmin' || u.role === 'admin') && !salesHead) salesHead = u;
-  });
   var now = new Date().toISOString();
   var escRecord = {
     projId: projId,
@@ -13087,33 +13313,19 @@ function escalateToSalesHead(projId) {
     escalatedAt: now,
     resolved: false
   };
-  db.ref('crm_escalations/' + projId + '_' + Date.now()).set(escRecord, function() {
-    // Push Firebase notification to all admins/superadmins
+  // Use projId as key — overwrites any existing escalation for same client (no duplicates)
+  db.ref('crm_escalations/' + projId).set(escRecord, function() {
+    // Push CRM notification to sales head, superadmin, intern only
     pushSystemNotification({
       type: 'escalation',
       icon: '📵',
       title: 'Client Not Responding — Escalated',
-      body: (p.bride + ' & ' + p.groom) + ' (Ref: ' + (p.refcode||'—') + ') — Balance: ' + fmt(Math.max(0,balDue(p))),
+      body: (p.bride + ' & ' + p.groom) + ' (Ref: ' + (p.refcode||'—') + ') — Balance: ' + fmt(Math.max(0, balDue(p))),
       projId: projId,
-      forRoles: ['superadmin', 'admin'],
+      forRoles: ['superadmin', 'sales', 'intern'],
       at: now
     });
-    showToast('📲 Escalated to Sales Head!');
-    // Offer WhatsApp to sales head
-    var fn = p.bride ? p.bride.split(' ')[0] : 'Client';
-    var msg = '🚨 *Escalation Alert \u2014 KB Studio*\n\nClient *' + p.bride + ' & ' + p.groom + '* is not responding to the post-production team.\n\n\ud83d\udccb Ref: ' + (p.refcode||'\u2014') + '\n\ud83d\udcde Phone: ' + (p.phone||'\u2014') + '\n\ud83d\udcb0 Balance Due: ' + fmt(Math.max(0,balDue(p))) + '\n\nPlease connect with them to close this client.\n\n\u2014 CRM Auto-Alert';
-    var salesPhone = salesHead && salesHead.phone ? salesHead.phone.replace(/[^0-9]/g,'') : '';
-    if (salesPhone && salesPhone.length >= 10) {
-      if (confirm('Open WhatsApp to notify Sales Head (' + (salesHead.name||'Admin') + ')?')) {
-        var num = salesPhone.length === 10 ? '91' + salesPhone : salesPhone;
-        window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
-      }
-    } else {
-      if (confirm('No Sales Head phone found. Copy escalation message?')) {
-        navigator.clipboard && navigator.clipboard.writeText(msg);
-        showToast('📋 Message copied!');
-      }
-    }
+    showToast('✅ Escalated to Sales Head!');
   });
 }
 
@@ -13413,7 +13625,8 @@ if (_origBtnSaveProj) {
 // PHASE 5 — Payment-Gated "Won" status in Quotations
 // ═══════════════════════════════════════════════════════════════════════
 
-// Override quickChangeStatus to gate "won" behind advance payment
+// quickChangeStatus override — runs after all functions loaded
+window.addEventListener('load', function() {
 var _origQuickChangeStatus = quickChangeStatus;
 quickChangeStatus = function(id, newStatus, event) {
   if (newStatus === 'won') {
@@ -13425,7 +13638,8 @@ quickChangeStatus = function(id, newStatus, event) {
     }
   }
   _origQuickChangeStatus(id, newStatus, event);
-};
+}
+});;
 
 function showPaymentGate(quotId, q, event) {
   if (event) event.stopPropagation();
@@ -13495,7 +13709,8 @@ function confirmPaymentGate(quotId) {
   });
 }
 
-// Override convertQuotToProject to also gate on payment
+// convertQuotToProject override — runs after all functions loaded
+window.addEventListener('load', function() {
 var _origConvertQuotToProject = convertQuotToProject;
 convertQuotToProject = function(overrideId) {
   var id = overrideId || editQuotId;
@@ -13506,7 +13721,8 @@ convertQuotToProject = function(overrideId) {
     return;
   }
   _origConvertQuotToProject(overrideId);
-};
+}
+});;
 
 // ═══════════════════════════════════════════════════════════════════════
 // PHASE 6 — Integrate flags into project table, pipeline, post-prod
