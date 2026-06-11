@@ -487,28 +487,57 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .cal-nav-btn:hover{background:#f5f5f5}
 .cal-month-label{font-size:18px;font-weight:800;color:#1a1a1a;min-width:180px;text-align:center}
 .cal-view-toggle{display:flex;gap:4px;margin-left:auto}
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#e5e5e5;border-radius:10px;overflow:hidden;border:1px solid #e5e5e5}
-.cal-dow{background:#f8f8f8;padding:8px 4px;text-align:center;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em}
-.cal-cell{background:#fff;min-height:100px;padding:6px;position:relative;cursor:pointer;transition:background .1s}
-.cal-cell:hover{background:#fafafa}
-.cal-cell.today{background:#eff6ff}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#e5e5e5;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.cal-dow{background:#f4f6f8;padding:10px 4px;text-align:center;font-size:10px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.1em}
+.cal-cell{background:#fff;min-height:110px;padding:7px;position:relative;cursor:pointer;transition:background .15s,box-shadow .15s;border-top:2px solid transparent}
+.cal-cell:hover{background:#f9fafb;box-shadow:inset 0 0 0 1px #dbeafe}
+.cal-cell.today{background:#eff6ff;border-top:2px solid #3b82f6}
 .cal-cell.other-month{background:#fafafa}
-.cal-cell.other-month .cal-day-num{color:#ccc}
-.cal-day-num{font-size:12px;font-weight:700;color:#555;margin-bottom:4px;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%}
-.cal-cell.today .cal-day-num{background:#1a1a1a;color:#fff}
-.cal-event-chip{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;display:block;line-height:1.4}
-.cal-event-chip:hover{opacity:.85;transform:translateX(1px)}
-.cal-more{font-size:10px;color:#888;font-weight:600;padding:1px 4px;cursor:pointer}
-.cal-more:hover{color:#1a1a1a}
+.cal-cell.other-month .cal-day-num{color:#d1d5db}
+.cal-cell.has-events{border-left:3px solid #e5e7eb}
+.cal-day-num{font-size:12px;font-weight:700;color:#374151;margin-bottom:4px;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%}
+.cal-cell.today .cal-day-num{background:#3b82f6;color:#fff;font-weight:800}
+.cal-cell.weekend .cal-day-num{color:#9ca3af}
+.cal-day-count{font-size:9px;font-weight:800;background:#f1f5f9;color:#64748b;border-radius:10px;padding:0 5px;line-height:17px;float:right;margin-top:4px;display:none}
+.cal-cell.has-events .cal-day-count{display:inline-block}
+.cal-event-chip{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;display:block;line-height:1.5;transition:filter .12s,transform .12s}
+.cal-event-chip:hover{filter:brightness(.93);transform:translateX(2px)}
+.cal-more{font-size:10px;color:#6366f1;font-weight:700;padding:2px 4px;cursor:pointer;display:inline-block;margin-top:1px;border-radius:4px;background:#eef2ff}
+.cal-more:hover{background:#ddd6fe;color:#4338ca}
 /* Week view */
-.cal-week-grid{display:grid;grid-template-columns:60px repeat(7,1fr);gap:1px;background:#e5e5e5;border-radius:10px;overflow:hidden;border:1px solid #e5e5e5}
-.cal-week-dow{background:#f8f8f8;padding:8px 4px;text-align:center;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em}
-.cal-week-dow.today-col{background:#eff6ff;color:#1d4ed8}
-.cal-week-time{background:#f8f8f8;padding:8px 4px;font-size:10px;color:#aaa;text-align:right;border-right:1px solid #e5e5e5;min-height:60px;display:flex;align-items:flex-start;justify-content:flex-end;padding-top:4px}
-.cal-week-cell{background:#fff;min-height:60px;padding:4px;border-top:1px solid #f5f5f5;position:relative}
+.cal-week-grid{display:grid;grid-template-columns:60px repeat(7,1fr);gap:1px;background:#e5e5e5;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.cal-week-dow{background:#f4f6f8;padding:10px 4px;text-align:center;font-size:10px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.1em}
+.cal-week-dow.today-col{background:#eff6ff;color:#3b82f6;font-weight:800}
+.cal-week-time{background:#f4f6f8;padding:8px 6px;font-size:10px;color:#9ca3af;text-align:right;border-right:1px solid #e5e5e5;min-height:56px;display:flex;align-items:flex-start;justify-content:flex-end;padding-top:4px;font-weight:600}
+.cal-week-cell{background:#fff;min-height:56px;padding:4px;border-top:1px solid #f0f0f0;position:relative}
 .cal-week-cell.today-col{background:#eff6ff}
+/* Day view */
+.cal-day-view{background:#fff;border-radius:12px;border:1px solid #e5e5e5;box-shadow:0 2px 12px rgba(0,0,0,.06);overflow:hidden}
+.cal-day-header{background:#f4f6f8;padding:14px 20px;border-bottom:1px solid #e5e5e5;font-size:15px;font-weight:800;color:#1a1a1a}
+.cal-day-event-row{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid #f3f4f6;transition:background .1s;cursor:pointer}
+.cal-day-event-row:hover{background:#f9fafb}
+.cal-day-event-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.cal-day-empty{padding:40px 20px;text-align:center;color:#9ca3af;font-size:13px}
+/* Agenda sidebar panel */
+.cal-agenda{background:#fff;border-radius:12px;border:1px solid #e5e5e5;padding:0;overflow:hidden;margin-top:16px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.cal-agenda-header{background:#1a1a1a;color:#fff;padding:12px 16px;font-size:12px;font-weight:800;letter-spacing:.05em;display:flex;align-items:center;gap:8px}
+.cal-agenda-item{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid #f3f4f6;cursor:pointer;transition:background .1s}
+.cal-agenda-item:hover{background:#f9fafb}
+.cal-agenda-date{font-size:10px;font-weight:800;color:#888;min-width:38px;text-align:center;background:#f4f6f8;border-radius:6px;padding:4px 2px;line-height:1.3}
+.cal-agenda-empty{padding:20px 16px;color:#9ca3af;font-size:12px;text-align:center}
+/* Month summary bar */
+.cal-month-summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:#f8fafc;border-radius:10px;border:1px solid #e5e5e5;align-items:center}
+.cal-summary-pill{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
 /* Event detail popup */
-.cal-popup{position:fixed;z-index:9000;background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.18);border:1px solid #e5e5e5;width:320px;padding:16px;display:none}
+.cal-popup{position:fixed;z-index:9000;background:#fff;border-radius:14px;box-shadow:0 12px 48px rgba(0,0,0,.22);border:1px solid #e5e5e5;width:340px;padding:0;display:none;overflow:hidden}
+.cal-popup-header{padding:14px 16px 10px;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:flex-start}
+.cal-popup-body{padding:14px 16px}
+.cal-popup-row{display:flex;align-items:center;gap:8px;font-size:12px;color:#555;padding:3px 0;line-height:1.5}
+.cal-popup-actions{padding:0 16px 14px;display:flex;gap:8px}
+/* Event type filter chips */
+.cal-type-filter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.cal-type-chip{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;cursor:pointer;border:1.5px solid transparent;transition:all .15s;user-select:none}
+.cal-type-chip.active{border-color:currentColor;box-shadow:0 0 0 2px rgba(0,0,0,.08)}
 /* Event day chip colors by event type */
 .chip-haldi{background:#fef9c3;color:#854d0e}
 .chip-sangeet{background:#fce7f3;color:#be185d}
@@ -524,14 +553,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .evday-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07)}
 .evday-remove{position:absolute;top:10px;right:10px;background:none;border:none;font-size:18px;color:#ccc;cursor:pointer;line-height:1;padding:0}
 .evday-remove:hover{color:#dc2626}
-/* Date input: show DD-MM-YYYY format hint */
+/* Date input: show DD MMM YYYY format hint */
 input[type='date'] { letter-spacing: 0.5px; }
 input[type='date']::-webkit-datetime-edit-text { color: #aaa; }
 input[type='date']::-webkit-datetime-edit-day-field,
 input[type='date']::-webkit-datetime-edit-month-field,
 input[type='date']::-webkit-datetime-edit-year-field { color: #1a1a1a; }
 input[type='date']:empty:before,
-input[type='date'][value='']:before { content: 'DD-MM-YYYY'; color: #aaa; }
+input[type='date'][value='']:before { content: 'DD MMM YYYY'; color: #aaa; }
 </style>
 <script>
 // Prevent pinch-to-zoom on iOS (touchstart with 2+ touches)
@@ -721,10 +750,16 @@ document.addEventListener('wheel', function(e) {
 
   <!-- ══ Notification Panel ══ -->
   <div id="notif-backdrop" onclick="closeNotifPanel()" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,.3)"></div>
-  <div id="notif-panel" style="display:none;position:fixed;top:calc(56px + env(safe-area-inset-top));right:12px;width:340px;max-width:calc(100vw - 24px);background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.18);border:1px solid #e5e5e5;z-index:1200;overflow:hidden;max-height:70vh;display:none;flex-direction:column">
-    <div style="padding:14px 16px 10px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-      <span style="font-size:14px;font-weight:800">🔔 Notifications</span>
-      <button onclick="closeNotifPanel()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;line-height:1">✕</button>
+  <div id="notif-panel" style="display:none;position:fixed;top:calc(56px + env(safe-area-inset-top));right:12px;width:340px;max-width:calc(100vw - 24px);background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,.18);border:1px solid #e5e5e5;z-index:1200;overflow:hidden;max-height:70vh;flex-direction:column">
+    <div style="padding:12px 14px 10px;border-bottom:1px solid #f0f0f0;flex-shrink:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:14px;font-weight:800">🔔 Notifications</span>
+        <button onclick="closeNotifPanel()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;line-height:1">✕</button>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button onclick="markAllNotifsRead()" style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;padding:5px 8px;font-size:11px;font-weight:600;color:#475569;cursor:pointer;font-family:inherit">✅ Mark all read</button>
+        <button onclick="clearAllNotifs()" style="flex:1;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;padding:5px 8px;font-size:11px;font-weight:600;color:#dc2626;cursor:pointer;font-family:inherit">🗑️ Clear all</button>
+      </div>
     </div>
     <div id="notif-list" style="overflow-y:auto;flex:1;padding:8px 0"></div>
   </div>
@@ -1130,46 +1165,63 @@ document.addEventListener('wheel', function(e) {
     ══════════════════════════════════════════ -->
     <div id="page-calendar" class="page">
       <div class="page-title">📅 Shoot Calendar</div>
-      <div class="page-sub">All scheduled shoot days across every project — month &amp; week view.</div>
+      <div class="page-sub">All scheduled shoot days across every project — month, week &amp; day view.</div>
+
+      <!-- Nav bar -->
       <div class="cal-nav">
-        <button class="cal-nav-btn" onclick="calNav(-1)">&#8592;</button>
-        <div class="cal-month-label" id="cal-header-label">May 2026</div>
-        <button class="cal-nav-btn" onclick="calNav(1)">&#8594;</button>
-        <button class="cal-nav-btn" onclick="calGoToday()" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0">Today</button>
+        <button class="cal-nav-btn" onclick="calNav(-1)" title="Previous">&#8592;</button>
+        <div class="cal-month-label" id="cal-header-label">June 2026</div>
+        <button class="cal-nav-btn" onclick="calNav(1)" title="Next">&#8594;</button>
+        <button class="cal-nav-btn" onclick="calGoToday()" style="background:#f0fdf4;color:#166534;border-color:#bbf7d0;font-size:12px">Today</button>
         <div class="cal-view-toggle">
           <button class="btn-view active" id="cal-btn-month" onclick="setCalView('month')">Month</button>
           <button class="btn-view" id="cal-btn-week" onclick="setCalView('week')">Week</button>
+          <button class="btn-view" id="cal-btn-day" onclick="setCalView('day')">Day</button>
+          <button class="btn-view" id="cal-btn-agenda" onclick="setCalView('agenda')">Agenda</button>
         </div>
-        <select class="fi" id="cal-region-f" style="flex:0;width:auto;max-width:160px" onchange="renderCalendar()">
+        <select class="fi" id="cal-region-f" style="flex:0;width:auto;max-width:150px" onchange="renderCalendar()">
           <option value="">All Regions</option>
           <option value="north">🔵 North</option>
           <option value="south">🟠 South</option>
         </select>
       </div>
-      <!-- Legend -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-        <span style="font-size:11px;color:#888;font-weight:600">Legend:</span>
-        <span class="cal-event-chip chip-haldi" style="position:static;display:inline-block">Haldi</span>
-        <span class="cal-event-chip chip-sangeet" style="position:static;display:inline-block">Sangeet</span>
-        <span class="cal-event-chip chip-wedding" style="position:static;display:inline-block">Wedding</span>
-        <span class="cal-event-chip chip-reception" style="position:static;display:inline-block">Reception</span>
-        <span class="cal-event-chip chip-mehendi" style="position:static;display:inline-block">Mehendi</span>
-        <span class="cal-event-chip chip-prewedding" style="position:static;display:inline-block">Pre-Wedding</span>
-        <span class="cal-event-chip chip-engagement" style="position:static;display:inline-block">Engagement</span>
-        <span class="cal-event-chip chip-afterparty" style="position:static;display:inline-block">After Party</span>
-        <span class="cal-event-chip chip-other" style="position:static;display:inline-block">Other</span>
+
+      <!-- Event type filter -->
+      <div class="cal-type-filter" id="cal-type-filter">
+        <span style="font-size:11px;color:#888;font-weight:700;margin-right:2px">Filter:</span>
+        <span class="cal-type-chip chip-haldi active" data-type="haldi" onclick="calToggleType('haldi',this)">Haldi</span>
+        <span class="cal-type-chip chip-sangeet active" data-type="sangeet" onclick="calToggleType('sangeet',this)">Sangeet</span>
+        <span class="cal-type-chip chip-wedding active" data-type="wedding" onclick="calToggleType('wedding',this)">Wedding</span>
+        <span class="cal-type-chip chip-reception active" data-type="reception" onclick="calToggleType('reception',this)">Reception</span>
+        <span class="cal-type-chip chip-mehendi active" data-type="mehendi" onclick="calToggleType('mehendi',this)">Mehendi</span>
+        <span class="cal-type-chip chip-prewedding active" data-type="prewedding" onclick="calToggleType('prewedding',this)">Pre-Wedding</span>
+        <span class="cal-type-chip chip-engagement active" data-type="engagement" onclick="calToggleType('engagement',this)">Engagement</span>
+        <span class="cal-type-chip chip-afterparty active" data-type="afterparty" onclick="calToggleType('afterparty',this)">After Party</span>
+        <span class="cal-type-chip chip-other active" data-type="other" onclick="calToggleType('other',this)">Other</span>
+        <span style="margin-left:4px;font-size:11px;color:#6366f1;font-weight:700;cursor:pointer" onclick="calResetTypeFilter()">Reset</span>
       </div>
+
+      <!-- Month summary bar -->
+      <div class="cal-month-summary" id="cal-month-summary"></div>
+
+      <!-- Main grid -->
       <div id="cal-grid-container"></div>
     </div>
-    <!-- Calendar Event Popup -->
+
+    <!-- Improved Calendar Event Popup -->
     <div class="cal-popup" id="cal-popup">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
-        <div id="cal-popup-title" style="font-size:15px;font-weight:800"></div>
-        <button onclick="document.getElementById('cal-popup').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:#aaa;line-height:1;padding:0">&times;</button>
+      <div class="cal-popup-header" id="cal-popup-header-wrap">
+        <div>
+          <div id="cal-popup-type-badge" style="font-size:10px;font-weight:800;margin-bottom:4px"></div>
+          <div id="cal-popup-title" style="font-size:15px;font-weight:800;color:#1a1a1a"></div>
+          <div id="cal-popup-date-sub" style="font-size:11px;color:#888;margin-top:2px"></div>
+        </div>
+        <button onclick="document.getElementById('cal-popup').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer;color:#aaa;line-height:1;padding:0;flex-shrink:0">&times;</button>
       </div>
-      <div id="cal-popup-body" style="font-size:13px;color:#555;line-height:1.7"></div>
-      <div style="margin-top:12px;display:flex;gap:8px">
+      <div class="cal-popup-body" id="cal-popup-body"></div>
+      <div class="cal-popup-actions">
         <button class="btn btn-primary btn-sm" id="cal-popup-open-btn" style="flex:1">Open Project</button>
+        <button class="btn btn-sm" id="cal-popup-wa-btn" style="background:#25D366;color:#fff;border:none">WhatsApp</button>
       </div>
     </div>
 
@@ -3043,9 +3095,10 @@ function renderCelebrations() {
         // Anniversary: only show from 1st year onwards (years >= 1)
         // "today" anniversary = if event date month/day matches today exactly
         var anniv = new Date(today.getFullYear(), evDate.getMonth(), evDate.getDate());
-        // If this year's anniversary has already passed (strictly past), use next year
-        if (anniv < today) anniv.setFullYear(anniv.getFullYear() + 1);
-        var years = anniv.getFullYear() - evDate.getFullYear();
+        // Calculate years using this year first (before potentially bumping to next year)
+        var years = today.getFullYear() - evDate.getFullYear();
+        // If this year's anniversary has already strictly passed, move to next year and increment years
+        if (anniv < today) { anniv.setFullYear(anniv.getFullYear() + 1); years++; }
         // Skip 0-year (same year as wedding) — must be at least 1 full year
         if (years >= 1) {
           var diff = Math.ceil((anniv - today) / 86400000);
@@ -3119,7 +3172,9 @@ function renderCelebrations() {
       (p.onboarding && (p.onboarding.bride_phone || p.onboarding.phone)) || ''
     ).replace(/[^0-9]/g, '');
     // If number is 10 digits, add 91 prefix; if already 12 digits starting with 91, keep as is
-    var waFull = waNum.length === 10 ? '91' + waNum : waNum.length === 12 ? waNum : waNum.length > 0 ? '91' + waNum : '';
+    // Only accept 10-digit (local) or 12-digit (with country code) numbers; reject anything else
+    var waFull = waNum.length === 10 ? '91' + waNum : waNum.length === 12 && waNum.startsWith('91') ? waNum : '';
+    if (!waFull && waNum.length > 0) console.warn('Celebrations: unexpected phone length:', waNum.length, '— skipping WA link');
     var greetMsg = e.type === 'anniversary'
       ? 'Dear ' + p.bride + ' & ' + p.groom + '! 💍\n\nHappy ' + e.sub + '! 🎊\n\nIt\'s been ' + (e.years) + ' beautiful year' + (e.years===1?'':'s') + ' since your special day. Wishing you endless love, laughter, and joy! 💕\n\n— Team KB Studio Productions 📷'
       : e.type === 'bride_bday'
@@ -3157,12 +3212,15 @@ function renderCelebrations() {
 function celCopyGreeting(btn, encoded) {
   try {
     var msg = decodeURIComponent(encoded);
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(msg).then(function() { showToast('Greeting copied!'); });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(msg).then(function() { showToast('Greeting copied!'); }).catch(function() { showToast('Copy failed — try again'); });
     } else {
-      var ta = document.createElement('textarea'); ta.value = msg;
-      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
-      document.body.removeChild(ta); showToast('Greeting copied!');
+      // Fallback for older browsers (execCommand is deprecated but still works in most)
+      var ta = document.createElement('textarea');
+      ta.value = msg; ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand('copy'); showToast('Greeting copied!'); } catch(ex) { showToast('Copy failed — please copy manually'); }
+      document.body.removeChild(ta);
     }
   } catch(e) { showToast('Copy failed — try again'); }
 }
@@ -3204,17 +3262,52 @@ function updateRegionHint(){var r=gv('f-region');var s=gv('f-state');var hint=$(
 // ═══════════════════════════════════════════════════════
 // FIREBASE
 // ═══════════════════════════════════════════════════════
-firebase.initializeApp({
-  apiKey:            "AIzaSyBVU8vEW29wDdV5r8cpxnPmrqBOMQkxrUM",
-  authDomain:        "kbstudiocrm.firebaseapp.com",
-  databaseURL:       "https://kbstudiocrm-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "kbstudiocrm",
-  storageBucket:     "kbstudiocrm.firebasestorage.app",
-  messagingSenderId: "650778757936",
-  appId:             "1:650778757936:web:b715c0488bc5bd663a16f5",
-  measurementId:     "G-SJGMDMZK6V"
-});
-var db=firebase.database();
+// ⚠️  SECURITY NOTES:
+//  1. The apiKey below is a client-side identifier, NOT a secret — it is
+//     safe to include in frontend code. Access is controlled by Firebase
+//     Security Rules, NOT by keeping the key secret.
+//  2. YOU MUST configure Firebase Realtime Database Security Rules to restrict
+//     read/write access to authenticated users only. Example rules:
+//     {
+//       "rules": {
+//         ".read":  "auth != null",
+//         ".write": "auth != null"
+//       }
+//     }
+//     Without these rules, anyone who finds this file can read/write your DB.
+//  3. Enable Firebase App Check (https://firebase.google.com/docs/app-check)
+//     for additional protection against abuse.
+// ────────────────────────────────────────────────────────────────────────
+// ── Firebase init wrapped in try-catch so that if the SDK hasn't loaded
+// (CDN timeout, ad-blocker, etc.) the rest of the script—including the
+// login button wiring—still executes normally. ──────────────────────────
+var db = null;
+// Safe no-op Firebase ref proxy — used when Firebase fails to load
+// All db.ref(...).on/once/update/set/push/remove calls gracefully do nothing
+var _noopRef = (function() {
+  var noop = function() { return _noopRef; };
+  return { on:noop, once:function(ev,cb,eb){if(eb)eb(new Error('Firebase unavailable'));}, off:noop, update:function(d,cb){if(cb)cb(new Error('Firebase unavailable'));}, set:function(d,cb){if(cb)cb(new Error('Firebase unavailable'));}, push:function(d,cb){if(cb)cb(null,{key:'_noop'});return _noopRef;}, remove:function(cb){if(cb)cb(null);}, ref:noop, orderByChild:noop, equalTo:noop };
+})();
+function safeRef(path) { return db ? db.ref(path) : _noopRef; }
+try {
+  // Only call initializeApp if no app has been initialised yet
+  if (!firebase.apps || !firebase.apps.length) {
+    firebase.initializeApp({
+      apiKey:            "AIzaSyBVU8vEW29wDdV5r8cpxnPmrqBOMQkxrUM",
+      authDomain:        "kbstudiocrm.firebaseapp.com",
+      databaseURL:       "https://kbstudiocrm-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId:         "kbstudiocrm",
+      storageBucket:     "kbstudiocrm.firebasestorage.app",
+      messagingSenderId: "650778757936",
+      appId:             "1:650778757936:web:b715c0488bc5bd663a16f5",
+      measurementId:     "G-SJGMDMZK6V"
+    });
+  }
+  db = firebase.database();
+} catch(e) {
+  console.error('Firebase init failed:', e);
+  // db stays null — all db.ref() calls will gracefully fail/skip
+}
 // ── Firebase Storage not available on Spark plan ──────────────────
 // uploadToStorage always rejects so callers fall through to their .catch() handlers
 // which save compressed base64 directly to Realtime DB instead
@@ -3294,13 +3387,17 @@ var IMG_PRESET_QUOT  = { maxWidth: 1400, maxHeight: 1050, quality: 0.84, maxSize
 var IMG_PRESET_DEF   = { maxWidth: 1400, maxHeight: 1050, quality: 0.84, maxSizeKB: 110 }; // default images
 var IMG_PRESET_THUMB = { maxWidth:  400, maxHeight:  400, quality: 0.80, maxSizeKB:  40 }; // thumbnails
 
+// ⚠️  SECURITY: DEFAULT_USERS passwords are seed values for first-run Firebase initialisation only.
+// Once seeded, all authentication should happen via Firebase (crm_users node).
+// IMPORTANT: Change all passwords immediately after first login via the 🔑 Password button.
+// These fallback credentials should not be relied on in production.
 var DEFAULT_USERS=[
-  {id:'ketan',    name:'Ketan',    username:'ketan',    password:'ketan@kb123',   role:'superadmin', notes:'Owner'},
-  {id:'keshav',   name:'Keshav',   username:'keshav',   password:'keshav@kb123',  role:'admin',      notes:'Admin'},
-  {id:'ritesh',   name:'Ritesh',   username:'ritesh',   password:'ritesh@kb123',  role:'admin',      notes:'Admin'},
-  {id:'shivam',   name:'Shivam',   username:'shivam',   password:'shivam@kb123',  role:'postprod',   notes:'Post Production'},
-  {id:'shehnaaz', name:'Shehnaaz', username:'shehnaaz', password:'shehnaaz@kb123',role:'admin',      notes:'Admin'},
-  {id:'sales1',   name:'Sales',    username:'sales',    password:'sales@kb123',   role:'sales',      notes:'Sales Team'}
+  {id:'ketan',    name:'Ketan',    username:'ketan',    password:'ketan@kb123',   role:'superadmin', notes:'Owner — CHANGE PASSWORD IMMEDIATELY'},
+  {id:'keshav',   name:'Keshav',   username:'keshav',   password:'keshav@kb123',  role:'admin',      notes:'Admin — CHANGE PASSWORD IMMEDIATELY'},
+  {id:'ritesh',   name:'Ritesh',   username:'ritesh',   password:'ritesh@kb123',  role:'admin',      notes:'Admin — CHANGE PASSWORD IMMEDIATELY'},
+  {id:'shivam',   name:'Shivam',   username:'shivam',   password:'shivam@kb123',  role:'postprod',   notes:'Post Production — CHANGE PASSWORD IMMEDIATELY'},
+  {id:'shehnaaz', name:'Shehnaaz', username:'shehnaaz', password:'shehnaaz@kb123',role:'admin',      notes:'Admin — CHANGE PASSWORD IMMEDIATELY'},
+  {id:'sales1',   name:'Sales',    username:'sales',    password:'sales@kb123',   role:'sales',      notes:'Sales Team — CHANGE PASSWORD IMMEDIATELY'}
 ];
 var DEFAULT_ACCOUNTS=[{id:'acc1',name:'KB Studio Current Account',type:'current',number:'',notes:'Primary business account'},{id:'acc2',name:'Ketan Savings Account',type:'savings',number:'',notes:''},{id:'acc3',name:'Ritesh Savings Account',type:'savings',number:'',notes:''},{id:'acc4',name:'Keshav Savings Account',type:'savings',number:'',notes:''},{id:'acc5',name:'Shivam Savings Account',type:'savings',number:'',notes:''},{id:'acc6',name:'KB Studio UPI',type:'upi',number:'',notes:''},{id:'acc7',name:'Cash',type:'cash',number:'',notes:''}];
 var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight',label:'Highlight Video',hasDuration:true},{key:'longvideo',label:'Long Video / Full Film',hasDuration:true},{key:'reel',label:'Reels'},{key:'album',label:'Album',hasPhotos:true},{key:'frame',label:'Frame'},{key:'editedpics',label:'Edited Pictures'}];
@@ -3332,43 +3429,40 @@ function sv(i,v){var e=$(i);if(e)e.value=(v==null)?'':v;}
 function fmt(n){return '₹'+(parseInt(n)||0).toLocaleString('en-IN');}
 function tod(){return new Date().toISOString().split('T')[0];}
 
-// Global date formatter — always DD-MM-YYYY for display
+// Global date formatter — DD MMM YYYY (e.g. 13 Jun 2026)
+var _MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function fmtDate(str) {
   if (!str) return '—';
   // Handle timestamp numbers
   if (typeof str === 'number') {
     var d = new Date(str);
     if (isNaN(d)) return '—';
-    var dd = String(d.getDate()).padStart(2,'0');
-    var mm = String(d.getMonth()+1).padStart(2,'0');
-    var yyyy = d.getFullYear();
-    return dd + '-' + mm + '-' + yyyy;
+    return String(d.getDate()).padStart(2,'0') + ' ' + _MONTHS_SHORT[d.getMonth()] + ' ' + d.getFullYear();
   }
-  // Handle yyyy-mm-dd string (from HTML date inputs)
+  // Handle yyyy-mm-dd string (from HTML date inputs) — parse without UTC shift
   var m = String(str).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return m[3] + '-' + m[2] + '-' + m[1];
+  if (m) {
+    var mon = parseInt(m[2], 10) - 1;
+    return String(parseInt(m[3],10)).padStart(2,'0') + ' ' + _MONTHS_SHORT[mon] + ' ' + m[1];
+  }
   // Handle Date objects or other parseable strings
   try {
     var d2 = new Date(str);
     if (!isNaN(d2)) {
-      var dd2 = String(d2.getDate()).padStart(2,'0');
-      var mm2 = String(d2.getMonth()+1).padStart(2,'0');
-      return dd2 + '-' + mm2 + '-' + d2.getFullYear();
+      return String(d2.getDate()).padStart(2,'0') + ' ' + _MONTHS_SHORT[d2.getMonth()] + ' ' + d2.getFullYear();
     }
   } catch(e) {}
   return String(str);
 }
 
-// fmtDateTime — DD-MM-YYYY HH:MM
+// fmtDateTime — DD MMM YYYY HH:MM (e.g. 13 Jun 2026 14:30)
 function fmtDateTime(ts) {
   if (!ts) return '—';
   var d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
   if (isNaN(d)) return '—';
-  var dd = String(d.getDate()).padStart(2,'0');
-  var mm = String(d.getMonth()+1).padStart(2,'0');
-  var hh = String(d.getHours()).padStart(2,'0');
+  var hh  = String(d.getHours()).padStart(2,'0');
   var min = String(d.getMinutes()).padStart(2,'0');
-  return dd + '-' + mm + '-' + d.getFullYear() + ' ' + hh + ':' + min;
+  return String(d.getDate()).padStart(2,'0') + ' ' + _MONTHS_SHORT[d.getMonth()] + ' ' + d.getFullYear() + ' ' + hh + ':' + min;
 }
 function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d)-new Date())/86400000);}
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
@@ -3615,6 +3709,7 @@ function loadAll(){
         _invTermsCache=(crmSettings.inv_terms&&crmSettings.inv_terms.length)?crmSettings.inv_terms:null;
         _invPaymentTermsCache=(crmSettings.inv_payment_terms&&crmSettings.inv_payment_terms.length)?crmSettings.inv_payment_terms:null;
         ensureWhatsAppInSources();
+        setTimeout(function(){ if(typeof cleanBadEventDays==='function') cleanBadEventDays(); }, 2000);
         deduplicateEscalations();
         // One-time wipe — remove this line after first load
         if (!localStorage.getItem('esc_wiped_v1')) { wipeAllEscalations(); localStorage.setItem('esc_wiped_v1','1'); }
@@ -4165,7 +4260,7 @@ function renderArchiveDetails(a) {
   var payments = (a.payLedger||[]).map(function(e) {
     return '<tr><td style="padding:6px 10px">' + escHtml(e.stage||'—') + '</td>' +
       '<td style="padding:6px 10px;font-weight:700;color:#16a34a">₹' + fmtNum(parseInt(e.amount)||0) + '</td>' +
-      '<td style="padding:6px 10px;color:#888">' + escHtml(e.date||'—') + '</td>' +
+      '<td style="padding:6px 10px;color:#888">' + fmtDate(e.date||'') + '</td>' +
       '<td style="padding:6px 10px;color:#555">' + escHtml(e.account||'—') + '</td>' +
       '<td style="padding:6px 10px;color:#888">' + escHtml(e.recordedBy||'—') + '</td></tr>';
   }).join('');
@@ -4280,7 +4375,7 @@ function collectEventDays() {
     var notesEl = card.querySelector('.evd-notes');
     var date = dateEl ? dateEl.value : '';
     var type = typeEl ? typeEl.value.trim() : '';
-    if (!date && !type) return; // skip empty rows
+    if (!date || !type) return; // skip rows missing date OR type
     days.push({
       date:  date,
       type:  type,
@@ -5237,7 +5332,7 @@ function renderPostProd(){
         var overdue=daysLeft!==null&&daysLeft<=0;
         var urgent=daysLeft!==null&&daysLeft<=3&&!overdue;
         var deadlineColor=overdue?'#dc2626':urgent?'#d97706':'#1a1a1a';
-        var deadlineText=d.date?('<b style="color:'+deadlineColor+'">'+d.date+(daysLeft!==null?' ('+(overdue?'⚠️ OVERDUE':daysLeft+' days left')+')':'')+'</b>'):'<span style="color:#aaa">Not set</span>';
+        var deadlineText=d.date?('<b style="color:'+deadlineColor+'">'+fmtDate(d.date)+(daysLeft!==null?' ('+(overdue?'⚠️ OVERDUE':daysLeft+' days left')+')':'')+'</b>'):'<span style="color:#aaa">Not set</span>';
 
         var actionBtns='';
         if(d.status==='pending'){
@@ -6328,7 +6423,7 @@ $('btn-save-proj').addEventListener('click',function(){
   for(var i=0;i<rawRowCount;i++){var ph=$('rdr-ph-'+i),sz=$('rdr-sz-'+i),un=$('rdr-un-'+i),loc=$('rdr-loc-'+i),bk=$('rdr-bk-'+i);if(ph&&ph.value)raws.push({photographer:ph.value,size:sz?sz.value:'',unit:un?un.value:'GB',location:loc?loc.value:'',backup:bk?bk.value:'no'});}
   var state=gv('f-state');
   var region=gv('f-region')||getRegionForState(state);
-  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:collectShootDays(),dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays(),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now()};
+  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:collectShootDays(),dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now()};
   Object.assign(p,deliv);
   db.ref('crm_projects/'+id).set(p,function(err){
     _projSaving=false;
@@ -8667,8 +8762,10 @@ function renderPipeline() {
 // ═══ SHOOT CALENDAR ═══════════════════════════════════════════════════════════════
 var _calYear = new Date().getFullYear();
 var _calMonth = new Date().getMonth();
+var _calDay = new Date().getDate();
 var _calView = 'month';
 var _calWeekStart = null;
+var _calTypeFilter = null;
 
 function calGoToday() {
   var now = new Date();
@@ -8683,6 +8780,10 @@ function calNav(dir) {
     var ws = _calWeekStart ? new Date(_calWeekStart) : _getWeekStart(new Date());
     ws.setDate(ws.getDate() + dir * 7);
     _calWeekStart = ws;
+  } else if (_calView === 'day') {
+    var d = new Date(_calYear, _calMonth, _calDay);
+    d.setDate(d.getDate() + dir);
+    _calYear = d.getFullYear(); _calMonth = d.getMonth(); _calDay = d.getDate();
   } else {
     _calMonth += dir;
     if (_calMonth > 11) { _calMonth = 0; _calYear++; }
@@ -8693,11 +8794,30 @@ function calNav(dir) {
 
 function setCalView(v) {
   _calView = v;
-  var mb = document.getElementById('cal-btn-month');
-  var wb = document.getElementById('cal-btn-week');
-  if (mb) mb.classList.toggle('active', v === 'month');
-  if (wb) wb.classList.toggle('active', v === 'week');
+  ['month','week','day','agenda'].forEach(function(n) {
+    var b = document.getElementById('cal-btn-'+n); if (b) b.classList.toggle('active', v === n);
+  });
   if (v === 'week' && !_calWeekStart) _calWeekStart = _getWeekStart(new Date());
+  renderCalendar();
+}
+
+function calToggleType(type, el) {
+  if (!_calTypeFilter) {
+    _calTypeFilter = new Set([type]);
+    document.querySelectorAll('.cal-type-chip').forEach(function(c) { c.classList.toggle('active', c.dataset.type === type); });
+  } else if (_calTypeFilter.has(type) && _calTypeFilter.size === 1) {
+    calResetTypeFilter(); return;
+  } else {
+    _calTypeFilter.has(type) ? _calTypeFilter.delete(type) : _calTypeFilter.add(type);
+    if (el) el.classList.toggle('active', _calTypeFilter.has(type));
+    if (_calTypeFilter.size === 0) { calResetTypeFilter(); return; }
+  }
+  renderCalendar();
+}
+
+function calResetTypeFilter() {
+  _calTypeFilter = null;
+  document.querySelectorAll('.cal-type-chip').forEach(function(c) { c.classList.add('active'); });
   renderCalendar();
 }
 
@@ -8707,24 +8827,67 @@ function _getWeekStart(date) {
   return d;
 }
 
+
+// Force cleanup: wipe bad/empty eventDays from all Firebase projects
+// Runs on every login until confirmed clean (then sets localStorage flag)
+function cleanBadEventDays() {
+  // Reset flag to force re-run this version
+  localStorage.removeItem('evdays_v3_cleaned');
+  if (localStorage.getItem('evdays_v4_cleaned')) return;
+  var dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  var updates = {};
+  Object.values(projects).forEach(function(p) {
+    if (!p.id) return;
+    var orig = p.eventDays || [];
+    var cleaned = orig.filter(function(ed) {
+      return ed && ed.date && dateRe.test(ed.date) && ed.type && ed.type.trim();
+    });
+    if (cleaned.length !== orig.length) {
+      updates['crm_projects/' + p.id + '/eventDays'] = cleaned.length ? cleaned : null;
+      console.log('Cleaned eventDays for: ' + p.bride + ' & ' + p.groom + ' (' + orig.length + ' -> ' + cleaned.length + ')');
+    }
+  });
+  var keys = Object.keys(updates);
+  if (!keys.length) {
+    localStorage.setItem('evdays_v3_cleaned','1');
+    console.log('No bad eventDays found.');
+    return;
+  }
+  db.ref().update(updates, function(err) {
+    if (!err) {
+      localStorage.setItem('evdays_v3_cleaned','1');
+      console.log('Cleaned ' + keys.length + ' projects with bad eventDays.');
+      if (typeof renderCalendar === 'function') renderCalendar();
+    }
+  });
+}
+
 function _getCalEvents() {
   var regF = (document.getElementById('cal-region-f') || {value:''}).value;
   var events = [];
   pl().forEach(function(p) {
     if (regF && p.region !== regF) return;
-    if (p.eventDays && p.eventDays.length) {
-      p.eventDays.forEach(function(ev) {
-        if (!ev.date) return;
+    var dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    // Valid eventDays take priority
+    var validEventDays = (p.eventDays || []).filter(function(ev) {
+      return ev && ev.date && dateRe.test(ev.date) && ev.type && ev.type.trim();
+    });
+    if (validEventDays.length) {
+      // Project has explicit eventDays — use those
+      validEventDays.forEach(function(ev) {
         var rawType = (ev.type || ev.name || 'other').toLowerCase();
         var type = 'other';
         ['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty'].forEach(function(t){ if(rawType.indexOf(t)>-1) type=t; });
-        events.push({ date: ev.date, title: p.bride + ' & ' + p.groom, sub: ev.name || ev.type || '', type: type, proj: p });
+        if (_calTypeFilter && !_calTypeFilter.has(type)) return;
+        events.push({ date: ev.date, title: p.bride + ' & ' + p.groom, sub: ev.name || ev.type || '', type: type, proj: p, evDay: ev, isLegacy: false });
       });
-    } else if (p.date) {
+    } else if (p.date && dateRe.test(p.date)) {
+      // Fallback: project has no eventDays, show on p.date (legacy / not-yet-entered)
       var rawT = (p.type||'other').toLowerCase();
       var typeVal = 'other';
       ['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty'].forEach(function(t){ if(rawT.indexOf(t)>-1) typeVal=t; });
-      events.push({ date: p.date, title: p.bride + ' & ' + p.groom, sub: p.type || '', type: typeVal, proj: p });
+      if (_calTypeFilter && !_calTypeFilter.has(typeVal)) return;
+      events.push({ date: p.date, title: p.bride + ' & ' + p.groom, sub: p.type || '', type: typeVal, proj: p, evDay: null, isLegacy: true });
     }
   });
   return events;
@@ -8735,12 +8898,46 @@ function _chipClass(type) {
   return map[type] || 'chip-other';
 }
 
+function _chipDotColor(type) {
+  var map = {haldi:'#eab308',sangeet:'#ec4899',wedding:'#3b82f6',reception:'#22c55e',mehendi:'#10b981',prewedding:'#8b5cf6',engagement:'#f97316',afterparty:'#16a34a'};
+  return map[type] || '#94a3b8';
+}
+
+function _renderMonthSummary(events) {
+  var summary = document.getElementById('cal-month-summary');
+  if (!summary) return;
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var counts = {};
+  var yr = (_calView==='week'&&_calWeekStart) ? _calWeekStart.getFullYear() : _calYear;
+  var mo = (_calView==='week'&&_calWeekStart) ? _calWeekStart.getMonth() : _calMonth;
+  events.forEach(function(ev) { if(!ev.date)return; var pts=ev.date.split('-'); if(pts.length<2)return; var evYr=parseInt(pts[0]),evMo=parseInt(pts[1])-1; if(evYr===yr&&evMo===mo){counts[ev.type]=(counts[ev.type]||0)+1;} });
+  var total = Object.values(counts).reduce(function(a,b){return a+b;},0);
+  if (!total) { summary.style.display='none'; return; }
+  summary.style.display='flex';
+  var typeLabels={wedding:'Wedding',haldi:'Haldi',sangeet:'Sangeet',mehendi:'Mehendi',reception:'Reception',prewedding:'Pre-Wedding',engagement:'Engagement',afterparty:'After Party',other:'Other'};
+  var html='<span style="font-size:11px;color:#64748b;font-weight:700;margin-right:4px">'+months[mo]+' '+yr+':</span>';
+  html+='<span class="cal-summary-pill" style="background:#f1f5f9;color:#374151">'+total+' shoot'+(total!==1?'s':'')+'</span>';
+  Object.keys(counts).sort().forEach(function(t){html+='<span class="cal-summary-pill '+_chipClass(t)+'">'+typeLabels[t]+': '+counts[t]+'</span>';});
+  summary.innerHTML=html;
+}
+
+// ── Local date string helper — avoids UTC timezone shift from toISOString() ──
+// new Date(y,m,d).toISOString() converts to UTC, which for IST (UTC+5:30) shifts
+// the date string back to the PREVIOUS day, causing wrong shoots to appear.
+// Always use this function when building YYYY-MM-DD from local date components.
+function localDateStr(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
 function renderCalendar() {
   var container = document.getElementById('cal-grid-container'); if (!container) return;
   var headerLabel = document.getElementById('cal-header-label');
   var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   var dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var events = _getCalEvents();
+  _renderMonthSummary(events);
 
   if (_calView === 'week') {
     var ws = _calWeekStart ? new Date(_calWeekStart) : _getWeekStart(new Date());
@@ -8749,27 +8946,88 @@ function renderCalendar() {
     if (headerLabel) headerLabel.textContent = months[ws.getMonth()] + ' ' + ws.getDate() + ' – ' + (ws.getMonth()!==we.getMonth()?months[we.getMonth()]+' ':'') + we.getDate() + ', ' + we.getFullYear();
     var todayStr = new Date().toISOString().split('T')[0];
     var html = '<div class="cal-week-grid">';
-    html += '<div class="cal-week-dow" style="background:#f8f8f8;padding:8px 4px"></div>';
+    html += '<div class="cal-week-dow" style="background:#f4f6f8;padding:8px 4px"></div>';
     for (var d=0;d<7;d++) {
       var dd=new Date(ws);dd.setDate(ws.getDate()+d);
-      var ds=dd.toISOString().split('T')[0];
-      html+='<div class="cal-week-dow'+(ds===todayStr?' today-col':'')+'" style="text-align:center;font-size:11px;padding:6px 2px">'+dows[dd.getDay()]+'<br><b style="font-size:13px">'+dd.getDate()+'</b></div>';
+      var ds=localDateStr(dd);
+      var isWknd=(dd.getDay()===0||dd.getDay()===6);
+      html+='<div class="cal-week-dow'+(ds===todayStr?' today-col':'')+'" style="text-align:center;font-size:11px;padding:8px 2px'+(isWknd?';color:#9ca3af':'')+'">' + dows[dd.getDay()]+'<br><b style="font-size:15px'+(ds===todayStr?';background:#3b82f6;color:#fff;border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center':'')+'">'+ dd.getDate()+'</b></div>';
     }
     for (var h=7;h<=21;h++) {
       var ts=(h===12?'12 PM':h<12?h+' AM':(h-12)+' PM');
       html+='<div class="cal-week-time">'+ts+'</div>';
       for (var dc=0;dc<7;dc++) {
         var ddc=new Date(ws);ddc.setDate(ws.getDate()+dc);
-        var ddcStr=ddc.toISOString().split('T')[0];
+        var ddcStr=localDateStr(ddc);
         var isT=(ddcStr===todayStr);
         var dayEvts=(h===8)?events.filter(function(ev){return ev.date===ddcStr;}):[]; 
         html+='<div class="cal-week-cell'+(isT?' today-col':'')+'">';
-        dayEvts.forEach(function(ev){html+='<div class="cal-event-chip '+_chipClass(ev.type)+'" onclick="calShowEvent(event,'+ev.proj.id+')" style="cursor:pointer">'+ev.title+(ev.sub?' — '+ev.sub:'')+'</div>';});
+        dayEvts.forEach(function(ev){html+='<div class="cal-event-chip '+_chipClass(ev.type)+'" onclick="calShowEvent(event,'+ev.proj.id+',\''+ev.type+'\','+(ev.isLegacy?'true':'false')+')" style="cursor:pointer">'+(ev.isLegacy?'⚠️ ':'')+ev.title+(ev.sub?' — '+ev.sub:'')+'</div>';});
         html+='</div>';
       }
     }
     html+='</div>';
     container.innerHTML=html;
+  } else if (_calView === 'day') {
+    var dayDate = new Date(_calYear, _calMonth, _calDay);
+    if (headerLabel) headerLabel.textContent = dows[dayDate.getDay()] + ', ' + months[_calMonth] + ' ' + _calDay + ', ' + _calYear;
+    var dayStr = localDateStr(dayDate);
+    var dayEventsAll = events.filter(function(ev){return ev.date===dayStr;});
+    var typeLabels={wedding:'Wedding',haldi:'Haldi',sangeet:'Sangeet',mehendi:'Mehendi',reception:'Reception',prewedding:'Pre-Wedding',engagement:'Engagement',afterparty:'After Party',other:'Other'};
+    var html3 = '<div class="cal-day-view">';
+    html3 += '<div class="cal-day-header">' + dows[dayDate.getDay()] + ', ' + months[_calMonth] + ' ' + _calDay + ', ' + _calYear + ' &mdash; ' + dayEventsAll.length + ' event' + (dayEventsAll.length!==1?'s':'') + '</div>';
+    if (!dayEventsAll.length) {
+      html3 += '<div class="cal-day-empty">📅 No shoots scheduled for this day.</div>';
+    } else {
+      dayEventsAll.forEach(function(ev) {
+        html3 += '<div class="cal-day-event-row" onclick="calShowEvent(event,' + ev.proj.id + ',\'' + ev.type + '\',' + (ev.isLegacy?'true':'false') + ')">' +
+          '<div class="cal-day-event-dot" style="background:' + _chipDotColor(ev.type) + '"></div>' +
+          '<div style="flex:1">' +
+            '<div style="font-weight:700;font-size:13px;color:#1a1a1a">' + ev.title + '</div>' +
+            '<div style="font-size:11px;color:#888;margin-top:2px">' + (typeLabels[ev.type]||ev.type) + (ev.proj.city ? ' — ' + ev.proj.city : '') + (ev.proj.venue ? ' — ' + ev.proj.venue : '') + '</div>' +
+          '</div>' +
+          '<span class="cal-event-chip ' + _chipClass(ev.type) + '" style="display:inline-block;position:static">' + (typeLabels[ev.type]||ev.type) + '</span>' +
+        '</div>';
+      });
+    }
+    html3 += '</div>';
+    container.innerHTML = html3;
+  } else if (_calView === 'agenda') {
+    if (headerLabel) headerLabel.textContent = months[_calMonth] + ' ' + _calYear + ' Agenda';
+    var agStart = new Date(_calYear, _calMonth, 1);
+    var agEnd = new Date(_calYear, _calMonth+1, 0);
+    var agEvts = events.filter(function(ev) {
+      if (!ev.date) return false;
+      var pts = ev.date.split('-');
+      if (pts.length < 3) return false;
+      var evYr=parseInt(pts[0]), evMo=parseInt(pts[1])-1, evDy=parseInt(pts[2]);
+      var d = new Date(evYr, evMo, evDy);
+      return d >= agStart && d <= agEnd;
+    }).sort(function(a,b){
+      return a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
+    });
+    var typeLabels2={wedding:'Wedding',haldi:'Haldi',sangeet:'Sangeet',mehendi:'Mehendi',reception:'Reception',prewedding:'Pre-Wedding',engagement:'Engagement',afterparty:'After Party',other:'Other'};
+    var html4 = '<div class="cal-agenda">';
+    html4 += '<div class="cal-agenda-header">📋 ' + months[_calMonth] + ' ' + _calYear + ' — ' + agEvts.length + ' event' + (agEvts.length!==1?'s':'') + '</div>';
+    if (!agEvts.length) {
+      html4 += '<div class="cal-agenda-empty">No events this month.</div>';
+    } else {
+      agEvts.forEach(function(ev) {
+        var pts2 = ev.date.split('-');
+        var d = new Date(parseInt(pts2[0]), parseInt(pts2[1])-1, parseInt(pts2[2]));
+        var dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        html4 += '<div class="cal-agenda-item" onclick="calShowEvent(event,' + ev.proj.id + ',\'' + ev.type + '\',' + (ev.isLegacy?'true':'false') + ')">' +
+          '<div class="cal-agenda-date">' + dayNames[d.getDay()] + '<br><b style="font-size:14px">' + d.getDate() + '</b></div>' +
+          '<div style="flex:1">' +
+            '<div style="font-weight:700;font-size:13px">' + ev.title + '</div>' +
+            '<div style="font-size:11px;color:#888;margin-top:1px">' + (typeLabels2[ev.type]||ev.type) + (ev.proj.city ? ' — ' + ev.proj.city : '') + '</div>' +
+          '</div>' +
+          '<span class="cal-event-chip ' + _chipClass(ev.type) + '" style="display:inline-block;position:static;align-self:center">' + (typeLabels2[ev.type]||ev.type) + '</span>' +
+        '</div>';
+      });
+    }
+    html4 += '</div>';
+    container.innerHTML = html4;
   } else {
     if (headerLabel) headerLabel.textContent = months[_calMonth] + ' ' + _calYear;
     var firstDay=new Date(_calYear,_calMonth,1);
@@ -8780,31 +9038,39 @@ function renderCalendar() {
     dows.forEach(function(d){html2+='<div class="cal-dow">'+d+'</div>';});
     for (var i=0;i<startOffset;i++){
       var pd=new Date(_calYear,_calMonth,1-(startOffset-i));
-      var pdStr=pd.toISOString().split('T')[0];
+      var pdStr=localDateStr(pd);
       var pdEvts=events.filter(function(ev){return ev.date===pdStr;});
-      html2+='<div class="cal-cell other-month"><div class="cal-day-num">'+pd.getDate()+'</div>';
-      pdEvts.slice(0,2).forEach(function(ev){html2+='<div class="cal-event-chip '+_chipClass(ev.type)+'" onclick="calShowEvent(event,'+ev.proj.id+')" style="cursor:pointer">'+ev.title+'</div>';});
+      var isWknd2=(pd.getDay()===0||pd.getDay()===6);
+      html2+='<div class="cal-cell other-month'+(isWknd2?' weekend':'')+'"><div class="cal-day-num">'+pd.getDate()+'</div>';
+      pdEvts.slice(0,2).forEach(function(ev){html2+='<div class="cal-event-chip '+_chipClass(ev.type)+'" onclick="calShowEvent(event,'+ev.proj.id+',\''+ev.type+'\')" style="cursor:pointer">'+ev.title+'</div>';});
       if(pdEvts.length>2)html2+='<div class="cal-more">+'+(pdEvts.length-2)+' more</div>';
       html2+='</div>';
     }
     for (var day=1;day<=lastDay.getDate();day++){
       var dObj=new Date(_calYear,_calMonth,day);
-      var dStr=dObj.toISOString().split('T')[0];
+      var dStr=localDateStr(dObj);
       var isT3=(dStr===todayStr2);
+      var isWknd3=(dObj.getDay()===0||dObj.getDay()===6);
       var dayEvts2=events.filter(function(ev){return ev.date===dStr;});
-      html2+='<div class="cal-cell'+(isT3?' today':'')+'"><div class="cal-day-num">'+day+'</div>';
-      dayEvts2.slice(0,3).forEach(function(ev){html2+='<div class="cal-event-chip '+_chipClass(ev.type)+'" onclick="calShowEvent(event,'+ev.proj.id+')" style="cursor:pointer">'+ev.title+(ev.sub?' — '+ev.sub:'')+'</div>';});
-      if(dayEvts2.length>3)html2+='<div class="cal-more">+'+(dayEvts2.length-3)+' more</div>';
+      var hasEv=(dayEvts2.length>0);
+      html2+='<div class="cal-cell'+(isT3?' today':'')+(isWknd3?' weekend':'')+(hasEv?' has-events':'')+'" onclick="calDayClick(\''+dStr+'\')">';
+      html2+='<div style="display:flex;align-items:flex-start;justify-content:space-between">';
+      html2+='<div class="cal-day-num">'+day+'</div>';
+      if(hasEv)html2+='<div class="cal-day-count">'+dayEvts2.length+'</div>';
+      html2+='</div>';
+      dayEvts2.slice(0,3).forEach(function(ev){html2+='<div class="cal-event-chip '+_chipClass(ev.type)+'" onclick="calShowEvent(event,'+ev.proj.id+',\''+ev.type+'\','+(ev.isLegacy?'true':'false')+');event.stopPropagation()" style="cursor:pointer">'+(ev.isLegacy?'<span title="No event days set — showing main date" style="opacity:0.5;font-size:9px">⚠️</span> ':'')+ev.title+(ev.sub?' — '+ev.sub:'')+'</div>';});
+      if(dayEvts2.length>3)html2+='<div class="cal-more" onclick="calShowDayPopup(event,\''+dStr+'\');event.stopPropagation()">+'+(dayEvts2.length-3)+' more</div>';
       html2+='</div>';
     }
     var totalCells=startOffset+lastDay.getDate();
     var trailing=totalCells%7===0?0:7-(totalCells%7);
-    for (var t=1;t<=trailing;t++){
-      var td=new Date(_calYear,_calMonth+1,t);
-      var tdStr=td.toISOString().split('T')[0];
+    for (var t2=1;t2<=trailing;t2++){
+      var td=new Date(_calYear,_calMonth+1,t2);
+      var tdStr=localDateStr(td);
       var tdEvts=events.filter(function(ev){return ev.date===tdStr;});
-      html2+='<div class="cal-cell other-month"><div class="cal-day-num">'+t+'</div>';
-      tdEvts.slice(0,2).forEach(function(ev){html2+='<div class="cal-event-chip '+_chipClass(ev.type)+'" onclick="calShowEvent(event,'+ev.proj.id+')" style="cursor:pointer">'+ev.title+'</div>';});
+      var isWknd4=(td.getDay()===0||td.getDay()===6);
+      html2+='<div class="cal-cell other-month'+(isWknd4?' weekend':'')+'"><div class="cal-day-num">'+t2+'</div>';
+      tdEvts.slice(0,2).forEach(function(ev){html2+='<div class="cal-event-chip '+_chipClass(ev.type)+'" onclick="calShowEvent(event,'+ev.proj.id+',\''+ev.type+'\')" style="cursor:pointer">'+ev.title+'</div>';});
       if(tdEvts.length>2)html2+='<div class="cal-more">+'+(tdEvts.length-2)+' more</div>';
       html2+='</div>';
     }
@@ -8813,22 +9079,214 @@ function renderCalendar() {
   }
 }
 
-function calShowEvent(e,projId){
+function calDayClick(dateStr) {
+  var d = new Date(dateStr);
+  _calYear = d.getFullYear(); _calMonth = d.getMonth(); _calDay = d.getDate();
+  setCalView('day');
+}
+
+// ── Day overflow popup: shows ALL events for a date in a scrollable overlay ──
+function calShowDayPopup(e, dateStr) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  var old = document.getElementById('cal-day-popup'); if (old) old.remove();
+  var d = new Date(dateStr);
+  var months2=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var days2=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var dateLabel = days2[d.getDay()] + ', ' + d.getDate() + ' ' + months2[d.getMonth()] + ' ' + d.getFullYear();
+  var typeLabels={wedding:'Wedding',haldi:'Haldi',sangeet:'Sangeet',mehendi:'Mehendi',reception:'Reception',prewedding:'Pre-Wedding',engagement:'Engagement',afterparty:'After Party',other:'Other'};
+  var calEvents = _buildCalEventsForDate(dateStr);
+  var rows = calEvents.map(function(ev) {
+    var p = ev.proj;
+    var typeLabel = typeLabels[ev.type] || ev.type;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #f0f0f0;cursor:pointer" ' +
+      'onclick="closeCalDayPopup();calShowEvent({stopPropagation:function(){}},'+p.id+',\''+ev.type+'\','+(ev.isLegacy?'true':'false')+')" ' +
+      'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">' +
+      '<span class="cal-event-chip '+_chipClass(ev.type)+'" style="display:inline-block;position:static;flex-shrink:0;font-size:10px">'+typeLabel+'</span>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:700;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+ev.title+'</div>' +
+        '<div style="font-size:11px;color:#888;margin-top:1px">'+
+        (ev.evDay&&ev.evDay.time ? '🕐 '+ev.evDay.time+'  ' : '')+
+        (p.city ? '📍 '+p.city : '')+'</div>' +
+      '</div>' +
+      '<button class="btn btn-sm" style="font-size:11px;flex-shrink:0;padding:4px 10px" onclick="event.stopPropagation();closeCalDayPopup();openProject('+p.id+')">Open</button>' +
+    '</div>';
+  }).join('');
+  var popup = document.createElement('div');
+  popup.id = 'cal-day-popup';
+  popup.style.cssText = 'position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.45)';
+  popup.innerHTML =
+    '<div style="background:#fff;border-radius:14px;box-shadow:0 16px 56px rgba(0,0,0,.28);width:100%;max-width:420px;overflow:hidden;display:flex;flex-direction:column;max-height:80vh">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #f0f0f0;background:#fff;flex-shrink:0">' +
+        '<div>' +
+          '<div style="font-size:15px;font-weight:800;color:#1a1a1a">&#128197; '+dateLabel+'</div>' +
+          '<div style="font-size:12px;color:#888;margin-top:2px">'+calEvents.length+' shoot'+(calEvents.length!==1?'s':'')+' scheduled</div>' +
+        '</div>' +
+        '<button onclick="closeCalDayPopup()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#aaa;line-height:1;padding:4px">&times;</button>' +
+      '</div>' +
+      '<div style="overflow-y:auto;flex:1">' +
+        (rows || '<div style="padding:24px;text-align:center;color:#aaa;font-size:13px">No events for this date.</div>') +
+      '</div>' +
+      '<div style="padding:10px 16px;border-top:1px solid #f0f0f0;display:flex;gap:8px;flex-shrink:0">' +
+        '<button class="btn btn-sm" style="flex:1" onclick="closeCalDayPopup();calDayClick(\''+dateStr+'\')">&#128065; Switch to Day View</button>' +
+        '<button class="btn" style="flex:0;padding:8px 14px;font-size:12px" onclick="closeCalDayPopup()">Close</button>' +
+      '</div>' +
+    '</div>';
+  popup.addEventListener('click', function(ev){ if(ev.target===popup)closeCalDayPopup(); });
+  document.body.appendChild(popup);
+}
+
+function closeCalDayPopup() {
+  var p = document.getElementById('cal-day-popup'); if (p) p.remove();
+}
+
+function _buildCalEventsForDate(dateStr) {
+  var regionF = (document.getElementById('cal-region-f')||{}).value||'';
+  var typeMap={'Day Wedding':'wedding','Night Wedding':'wedding','Destination Wedding':'wedding','Pre-Wedding Shoot':'prewedding','Pre-Wedding':'prewedding','Engagement':'engagement','Mehendi':'mehendi','Sangeet':'sangeet','Haldi':'haldi','Reception':'reception','After Party':'afterparty'};
+  var evts=[];
+  pl().forEach(function(p){
+    if(regionF&&p.region!==regionF)return;
+    var _dateRe2 = /^\d{4}-\d{2}-\d{2}$/;
+    var validEDs = (p.eventDays||[]).filter(function(ed){ return ed&&ed.date&&_dateRe2.test(ed.date)&&ed.type&&ed.type.trim(); });
+    if (validEDs.length) {
+      validEDs.forEach(function(ed){
+        if(!ed.date||ed.date!==dateStr)return;
+        var rawType=(ed.type||'other').trim();
+        var t=typeMap[rawType]||rawType.toLowerCase().replace(/[^a-z]/g,'')||'other';
+        if(!['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty','other'].includes(t))t='other';
+        evts.push({date:ed.date,type:t,title:p.bride+' & '+p.groom,sub:ed.type||'',proj:p,evDay:ed,isLegacy:false});
+      });
+    } else if (p.date && _dateRe2.test(p.date) && p.date===dateStr) {
+      // Legacy fallback — project has no eventDays, falls back to p.date
+      var rawT2=(p.type||'other').trim();
+      var t2=typeMap[rawT2]||rawT2.toLowerCase().replace(/[^a-z]/g,'')||'other';
+      if(!['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty','other'].includes(t2))t2='other';
+      evts.push({date:p.date,type:t2,title:p.bride+' & '+p.groom,sub:p.type||'',proj:p,evDay:null,isLegacy:true});
+    }
+  });
+  return evts;
+}
+
+function calRemoveFromCalendar(projId, evType, isLegacy) {
+  var p = projects[projId]; if (!p) return;
+  var label = p.bride + ' & ' + p.groom;
+  if (!confirm('Remove "' + label + '" from the calendar?\n\n' +
+    (isLegacy
+      ? 'This will clear the main event date from this project. The project itself will NOT be deleted.'
+      : 'This will remove this specific event day (' + evType + ') from the project. The project itself will NOT be deleted.')
+  )) return;
+
+  document.getElementById('cal-popup').style.display = 'none';
+
+  if (isLegacy) {
+    // Clear p.date so it no longer falls back onto the calendar
+    db.ref('crm_projects/' + projId).update({ date: '' }, function(err) {
+      if (err) { showToast('❌ Error: ' + err.message); return; }
+      if (projects[projId]) projects[projId].date = '';
+      showToast('✅ Removed from calendar — event date cleared for ' + label);
+      renderCalendar();
+    });
+  } else {
+    // Remove the specific eventDay entry matching evType
+    var typeMap3 = {'Day Wedding':'wedding','Night Wedding':'wedding','Destination Wedding':'wedding','Pre-Wedding Shoot':'prewedding','Pre-Wedding':'prewedding','Engagement':'engagement','Mehendi':'mehendi','Sangeet':'sangeet','Haldi':'haldi','Reception':'reception','After Party':'afterparty'};
+    var newDays = (p.eventDays || []).filter(function(ed) {
+      if (!ed || !ed.type) return true;
+      var rawT = ed.type.trim();
+      var mapped = typeMap3[rawT] || rawT.toLowerCase().replace(/[^a-z]/g,'') || 'other';
+      return mapped !== evType;
+    });
+    db.ref('crm_projects/' + projId + '/eventDays').set(newDays.length ? newDays : null, function(err) {
+      if (err) { showToast('❌ Error: ' + err.message); return; }
+      if (projects[projId]) projects[projId].eventDays = newDays;
+      showToast('✅ Event day removed from calendar for ' + label);
+      renderCalendar();
+    });
+  }
+}
+
+function calShowEvent(e,projId,evType,isLegacy){
   e.stopPropagation();
   var p=projects[projId];if(!p)return;
   var popup=document.getElementById('cal-popup');if(!popup)return;
+  var typeLabels={wedding:'Wedding',haldi:'Haldi',sangeet:'Sangeet',mehendi:'Mehendi',reception:'Reception',prewedding:'Pre-Wedding',engagement:'Engagement',afterparty:'After Party',other:'Other'};
   var titleEl=document.getElementById('cal-popup-title');
+  var dateSubEl=document.getElementById('cal-popup-date-sub');
+  var typeBadgeEl=document.getElementById('cal-popup-type-badge');
   var bodyEl=document.getElementById('cal-popup-body');
   var openBtn=document.getElementById('cal-popup-open-btn');
+  var waBtn=document.getElementById('cal-popup-wa-btn');
+  var t=evType||'other';
+  if(typeBadgeEl){typeBadgeEl.className='cal-event-chip '+_chipClass(t);typeBadgeEl.textContent=typeLabels[t]||t;typeBadgeEl.style.cssText='display:inline-block;position:static;margin-bottom:4px';}
   if(titleEl)titleEl.textContent=p.bride+' & '+p.groom;
-  if(bodyEl)bodyEl.innerHTML='<div style="line-height:2"><div><b>📅 Event Date:</b> '+fmtDate(p.date)+'</div><div><b>📍 City:</b> '+(p.city||'—')+'</div><div><b>🏛️ Venue:</b> '+(p.venue||'—')+'</div><div><b>📦 Package:</b> '+(p.package||'—')+'</div><div><b>🔄 Stage:</b> '+(p.stage||'—')+'</div></div>';
+  if(dateSubEl)dateSubEl.textContent=fmtDate(p.date)+(p.city?' · '+p.city:'');
+  var bal=balDue?balDue(p):0;
+  // Find the specific eventDay for this event type to show its venue/time/notes
+  var evDayData = null;
+  var _typeMap2 = {'Day Wedding':'wedding','Night Wedding':'wedding','Destination Wedding':'wedding','Pre-Wedding Shoot':'prewedding','Pre-Wedding':'prewedding','Engagement':'engagement','Mehendi':'mehendi','Sangeet':'sangeet','Haldi':'haldi','Reception':'reception','After Party':'afterparty'};
+  (p.eventDays||[]).forEach(function(ed){
+    if(!ed||!ed.type)return;
+    var rawT=ed.type.trim();
+    var mapped=_typeMap2[rawT]||rawT.toLowerCase().replace(/[^a-z]/g,'')||'other';
+    if(!evDayData&&mapped===t)evDayData=ed;
+  });
+  var showVenue = (evDayData&&evDayData.venue) ? evDayData.venue : (p.venue||'—');
+  var showTime  = (evDayData&&evDayData.time)  ? evDayData.time  : '';
+  var showNotes = (evDayData&&evDayData.notes) ? evDayData.notes : '';
+  // Build team members row
+  var teamParts=[];
+  if(p.photographer) teamParts.push('📷 '+p.photographer);
+  if(p.videographer)  teamParts.push('🎥 '+p.videographer);
+  if(p.editor)        teamParts.push('✂️ '+p.editor);
+  if(p.coordinator)   teamParts.push('📋 '+p.coordinator);
+  if(p.drone)         teamParts.push('🚁 '+p.drone);
+  if(bodyEl)bodyEl.innerHTML=
+    '<div class="cal-popup-row">📍 <b>City:</b> '+(p.city||'—')+'</div>'+
+    '<div class="cal-popup-row">🏛️ <b>Venue:</b> '+showVenue+'</div>'+
+    (showTime?'<div class="cal-popup-row">🕐 <b>Time:</b> '+showTime+'</div>':'')+
+    '<div class="cal-popup-row">📦 <b>Package:</b> '+(p.package||'—')+'</div>'+
+    '<div class="cal-popup-row">🔄 <b>Stage:</b> '+(p.stage||'—')+'</div>'+
+    (p.phone?'<div class="cal-popup-row">📞 <b>Phone:</b> '+p.phone+'</div>':'')+
+    (teamParts.length?'<div class="cal-popup-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #f3f4f6">👥 <b>Team:</b><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">'+teamParts.map(function(m){return '<span style="background:#f1f5f9;border-radius:20px;padding:2px 8px;font-size:11px;color:#334155">'+m+'</span>';}).join('')+'</div></div>':'')+
+    (showNotes?'<div class="cal-popup-row">📝 <b>Notes:</b> '+showNotes+'</div>':'')+
+    (typeof balDue==='function'?'<div class="cal-popup-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #f3f4f6"><b>Balance Due:</b> <span style="font-weight:800;color:'+(bal>0?'#dc2626':'#16a34a')+'">'+(bal>0?fmt(bal):'Paid ✓')+'</span></div>':'');
+  // Store legacy flag on popup for delete button
+  popup.dataset.isLegacy = isLegacy ? '1' : '0';
+  popup.dataset.projId   = projId;
+  popup.dataset.evType   = evType||'';
+
+  // Add / update remove button
+  var existingDel = document.getElementById('cal-popup-del-btn');
+  if (!existingDel) {
+    var delBtn = document.createElement('button');
+    delBtn.id = 'cal-popup-del-btn';
+    delBtn.className = 'btn btn-sm';
+    delBtn.style.cssText = 'background:#fee2e2;color:#dc2626;border-color:#fecaca;font-size:11px';
+    delBtn.textContent = '🗑️ Remove from Calendar';
+    var footer = openBtn ? openBtn.parentNode : null;
+    if (footer) footer.insertBefore(delBtn, openBtn);
+  }
+  var delBtnEl = document.getElementById('cal-popup-del-btn');
+  if (delBtnEl) {
+    delBtnEl.onclick = function() {
+      calRemoveFromCalendar(
+        parseInt(popup.dataset.projId),
+        popup.dataset.evType,
+        popup.dataset.isLegacy === '1'
+      );
+    };
+  }
+
   if(openBtn)openBtn.onclick=function(){document.getElementById('cal-popup').style.display='none';openProject(projId);};
+  if(waBtn){
+    var waNum=(p.whatsapp||p.phone||'').replace(/[^0-9]/g,'');
+    var waLink=waNum?'https://wa.me/91'+(waNum.length===10?waNum:waNum.slice(-10)):'';
+    if(waLink){waBtn.style.display='';waBtn.onclick=function(){window.open(waLink,'_blank');};}else{waBtn.style.display='none';}
+  }
   var rect=e.target.getBoundingClientRect();
   popup.style.display='block';
   var top=rect.bottom+8;
   var left=rect.left;
-  if(top+280>window.innerHeight)top=rect.top-290;
-  if(left+330>window.innerWidth)left=window.innerWidth-340;
+  if(top+320>window.innerHeight)top=rect.top-320;
+  if(left+350>window.innerWidth)left=window.innerWidth-355;
   popup.style.top=top+'px';
   popup.style.left=Math.max(8,left)+'px';
 }
@@ -8996,6 +9454,8 @@ function doLogin() {
   if (errEl) errEl.style.display = 'none';
 
   function attemptLogin() {
+    // Always ensure DEFAULT_USERS are present as fallback
+    DEFAULT_USERS.forEach(function(u){ if(!users[u.id]) users[u.id]=u; });
     var match = null;
     Object.values(users).forEach(function(u) {
       if ((u.username || '').toLowerCase() === un && (u.password || '') === pw) match = u;
@@ -9034,16 +9494,34 @@ function doLogin() {
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Login →'; }
     }
   }
-  initUsers(function() { attemptLogin(); });
+  // If users object already has data (pre-loaded at startup), attempt immediately
+  // Otherwise wait for Firebase to load them first
+  if (Object.keys(users).length > 0) {
+    attemptLogin();
+  } else {
+    initUsers(function() { attemptLogin(); });
+  }
 }
 
-// Login button initial wiring — using onclick so patch block below fully overrides it
-var _lb = document.getElementById('login-btn');
-if (_lb) _lb.onclick = function() { doLogin(); };
-['login-user','login-pass'].forEach(function(id) {
-  var el = document.getElementById(id);
-  if (el) el.onkeydown = function(e) { if (e.key === 'Enter') doLogin(); };
-});
+// Login button wiring — set via onclick AND addEventListener for maximum compatibility
+function _wireLoginBtn() {
+  var _lb = document.getElementById('login-btn');
+  if (_lb) {
+    _lb.onclick = null; // clear any stale handler
+    _lb.onclick = function(e) { e.preventDefault(); doLogin(); };
+  }
+  ['login-user','login-pass'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.onkeydown = function(e) { if (e.key === 'Enter') doLogin(); };
+  });
+}
+_wireLoginBtn();
+// Also re-wire after DOM is fully ready (catches any timing edge cases)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _wireLoginBtn);
+} else {
+  _wireLoginBtn();
+}
 // Also allow Enter in change-pass fields
 ['cp-new','cp-confirm'].forEach(function(id) {
   var el = document.getElementById(id);
@@ -9461,7 +9939,7 @@ function printPayTabInvoice() {
   openInvoicePrint(data, showTerms, gv('ptinv-number'));
 }
 
-function escHtml(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escHtml(s){if(!s&&s!==0)return '';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 function invTabItemChg(i,k,v){_invItems[i][k]=v;updateInvoiceTabTotals();renderInvoiceTabPreview();}
 function addInvoiceItem(){_invItems.push({desc:'',qty:1,rate:0});renderInvoiceTabItems();renderInvoiceTabPreview();}
@@ -10175,9 +10653,12 @@ var QT_STATUS_BG = {
 function canApproveQuotations() {
   return CU && (CU.role === 'superadmin' || CU.role === 'admin');
 }
-function isSalesPerson() {
+// isSalesHead: true for sales head, admin, superadmin — NOT for salesperson role
+function isSalesHead() {
   return CU && (CU.role === 'sales' || CU.role === 'superadmin' || CU.role === 'admin') && CU.role !== 'salesperson';
 }
+// Keep legacy alias so any existing call-sites still work
+var isSalesPerson = isSalesHead;
 function submitForApproval(id, event) {
   if (event) event.stopPropagation();
   var q = quotations[id] || Object.values(quotations).find(function(r){ return r.id===id; });
@@ -13120,7 +13601,8 @@ function saveAsset() {
   if (!name) { showToast('⚠️ Asset name is required.'); return; }
   if (!cat)  { showToast('⚠️ Please select a category.'); return; }
 
-  var id = editAssetId || Date.now();
+  // Combine timestamp + random value to avoid collisions on batch imports
+  var id = editAssetId || (Date.now() + '_' + Math.random().toString(36).substring(2, 8));
   var existing = editAssetId ? (assets[editAssetId] || {}) : {};
   var asset = {
     id: id,
@@ -13454,6 +13936,56 @@ function dismissFbNotif(notifId) {
   renderEnhancedNotifPanel();
 }
 
+function markAllNotifsRead() {
+  // Mark all Firebase notifications as actioned (read) for this user
+  if (!_fbNotifs.length) { showToast('No notifications to mark.'); return; }
+  var updates = {};
+  _fbNotifs.forEach(function(n) {
+    if (!n.actioned) updates['crm_notifications/' + n.id + '/actioned'] = true;
+  });
+  if (Object.keys(updates).length) {
+    db.ref('/').update(updates, function() {
+      _fbNotifs = _fbNotifs.map(function(n) { return Object.assign({}, n, { actioned: true }); });
+      // Also clear local due-alerts dismissal map so they go away too
+      _dismissedDashAlerts = {};
+      var dueAlerts = (typeof getDueAlerts === 'function') ? getDueAlerts() : [];
+      dueAlerts.forEach(function(a) { _dismissedDashAlerts[a.p.id + a.type] = true; });
+      renderEnhancedNotifPanel();
+      showToast('✅ All notifications marked as read');
+    });
+  } else {
+    // Only due-alerts remain — dismiss them all locally
+    var dueAlerts = (typeof getDueAlerts === 'function') ? getDueAlerts() : [];
+    dueAlerts.forEach(function(a) { _dismissedDashAlerts[a.p.id + a.type] = true; });
+    renderEnhancedNotifPanel();
+    showToast('✅ All notifications marked as read');
+  }
+}
+
+function clearAllNotifs() {
+  if (!confirm('Clear all notifications? This cannot be undone.')) return;
+  // Dismiss all Firebase notifications in one batch write
+  var updates = {};
+  _fbNotifs.forEach(function(n) { updates['crm_notifications/' + n.id + '/dismissed'] = true; });
+  if (Object.keys(updates).length) {
+    db.ref('/').update(updates, function() {
+      _fbNotifs = [];
+      _dismissedDashAlerts = {};
+      // Also dismiss all due-alerts locally for this session
+      var dueAlerts = (typeof getDueAlerts === 'function') ? getDueAlerts() : [];
+      dueAlerts.forEach(function(a) { _dismissedDashAlerts[a.p.id + a.type] = true; });
+      renderEnhancedNotifPanel();
+      showToast('🗑️ All notifications cleared');
+    });
+  } else {
+    // Only local due-alerts — clear them
+    var dueAlerts = (typeof getDueAlerts === 'function') ? getDueAlerts() : [];
+    dueAlerts.forEach(function(a) { _dismissedDashAlerts[a.p.id + a.type] = true; });
+    renderEnhancedNotifPanel();
+    showToast('🗑️ All notifications cleared');
+  }
+}
+
 function markFbNotifActioned(notifId, actionLabel) {
   var update = {
     actioned: true,
@@ -13658,7 +14190,7 @@ quickChangeStatus = function(id, newStatus, event) {
   }
   _origQuickChangeStatus(id, newStatus, event);
 }
-});;
+});
 
 function showPaymentGate(quotId, q, event) {
   if (event) event.stopPropagation();
@@ -13741,7 +14273,7 @@ convertQuotToProject = function(overrideId) {
   }
   _origConvertQuotToProject(overrideId);
 }
-});;
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 // PHASE 6 — Integrate flags into project table, pipeline, post-prod
@@ -14289,8 +14821,12 @@ function renderEditorRevisionStats() {
 // ─────────────────────────────────────────────────────────────────
 function getClientPortalURL(projId) {
   var p = projects[projId]; if (!p) return '';
-  // Generate or reuse token stored on project
-  var token = p.portalToken || (projId + '_' + btoa(String(projId * 31337)).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12));
+  // Reuse stored token, or generate a cryptographically random one
+  var token = p.portalToken || (function() {
+    var arr = new Uint8Array(18);
+    window.crypto.getRandomValues(arr);
+    return Array.from(arr, function(b) { return b.toString(16).padStart(2,'0'); }).join('');
+  })();
   return window.location.origin + window.location.pathname + '?portal=' + token + '_' + projId;
 }
 
@@ -14300,7 +14836,10 @@ function copyClientPortalLink(projId) {
   // Save token to project if not already stored
   var p = projects[projId];
   if (!p.portalToken) {
-    var token = btoa(String(projId * 31337)).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+    // Generate and persist a cryptographically random token
+    var arr2 = new Uint8Array(18);
+    window.crypto.getRandomValues(arr2);
+    var token = Array.from(arr2, function(b) { return b.toString(16).padStart(2,'0'); }).join('');
     db.ref('crm_projects/' + projId + '/portalToken').set(token);
   }
   navigator.clipboard.writeText(url).then(function() { showToast('🔗 Client portal link copied!'); });
@@ -14364,11 +14903,11 @@ function renderClientPortal(container, p, projId) {
     var revCount = d.revisionCount || 0;
     return '<div style="background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:14px;margin-bottom:10px">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
-      '<div><div style="font-size:14px;font-weight:700">' + (d.name || d.type || 'Deliverable') + '</div>' +
-      '<div style="font-size:11px;color:#888;margin-top:2px">' + (d.category || '') + (d.specs ? ' · ' + d.specs : '') + '</div></div>' +
+      '<div><div style="font-size:14px;font-weight:700">' + escHtml(d.name || d.type || 'Deliverable') + '</div>' +
+      '<div style="font-size:11px;color:#888;margin-top:2px">' + escHtml(d.category || '') + (d.specs ? ' · ' + escHtml(d.specs) : '') + '</div></div>' +
       '<span style="font-size:11px;font-weight:700;color:' + statusColor + ';background:' + statusColor + '18;padding:4px 12px;border-radius:20px">' + statusLabel + '</span>' +
       '</div>' +
-      (d.link ? '<div style="margin-top:10px"><a href="' + d.link + '" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none">🔗 Open ' + (d.name || 'Delivery File') + ' ↗</a></div>' : '') +
+      (d.link ? '<div style="margin-top:10px"><a href="' + (d.link.startsWith('http')?d.link:'#') + '" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none">🔗 Open ' + (d.name || 'Delivery File') + ' ↗</a></div>' : '') +
       (revCount > 0 ? '<div style="font-size:11px;color:#d97706;margin-top:6px">🔄 ' + revCount + ' revision round' + (revCount > 1 ? 's' : '') + ' completed</div>' : '') +
       (ks === 'client_review' ? '<div style="margin-top:10px;display:flex;gap:8px">' +
         '<button onclick="clientApproveDeliverable(\'' + projId + '\',\'' + d.id + '\')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">✅ Approve</button>' +
@@ -14390,7 +14929,7 @@ function renderClientPortal(container, p, projId) {
     '<div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:rgba(255,255,255,.03);border-radius:50%"></div>' +
     '<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">' +
     '<div style="width:52px;height:52px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#1a1a1a;flex-shrink:0">KB</div>' +
-    '<div><div style="color:#fff;font-size:18px;font-weight:800">' + p.bride + ' & ' + p.groom + '</div>' +
+    '<div><div style="color:#fff;font-size:18px;font-weight:800">' + escHtml(p.bride) + ' & ' + escHtml(p.groom) + '</div>' +
     '<div style="color:#888;font-size:12px">Client Portal · KB Studio Productions</div></div>' +
     healthRingHTML(health, 44) +
     '</div>' +
@@ -15059,10 +15598,7 @@ function clearActivityLog() {
   });
 }
 
-function escHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+// escHtml defined earlier in this file
 
 // Auto-render when navigating to activitylog page; detach listener when leaving
 (function() {
@@ -15606,17 +16142,20 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
   // and btn-logout to remove the presence node on logout.
   var _presenceStarted = false;
 
-  var _origLoadAll = typeof loadAll === 'function' ? loadAll : null;
-  if (_origLoadAll) {
-    loadAll = function() {
-      _origLoadAll.apply(this, arguments);
-      if (!_presenceStarted) {
-        _presenceStarted = true;
-        // Give Firebase a moment to authenticate then start presence
-        setTimeout(initPresence, 600);
-      }
-    };
-  }
+  // Patch loadAll after all functions are defined so the reference is guaranteed
+  window.addEventListener('load', function() {
+    var _origLoadAll = typeof loadAll === 'function' ? loadAll : null;
+    if (_origLoadAll) {
+      loadAll = function() {
+        _origLoadAll.apply(this, arguments);
+        if (!_presenceStarted) {
+          _presenceStarted = true;
+          // Give Firebase a moment to authenticate then start presence
+          setTimeout(initPresence, 600);
+        }
+      };
+    }
+  });
 
   // Also patch logout buttons to cleanly remove presence
   function patchLogout() {
