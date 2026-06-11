@@ -561,6 +561,583 @@ input[type='date']::-webkit-datetime-edit-month-field,
 input[type='date']::-webkit-datetime-edit-year-field { color: #1a1a1a; }
 input[type='date']:empty:before,
 input[type='date'][value='']:before { content: 'DD MMM YYYY'; color: #aaa; }
+
+/* ═══════════════════════════════════════════════════════════════
+   KB STUDIO CRM — PREMIUM UI LAYER  v1.0
+   Elevates every surface with refined typography, micro-animations,
+   depth, and a high-end editorial feel without breaking any logic.
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Design tokens ── */
+:root {
+  --ink:        #0f0f0f;
+  --ink-2:      #3a3a3a;
+  --ink-3:      #6b6b6b;
+  --ink-4:      #a0a0a0;
+  --surface:    #ffffff;
+  --surface-2:  #f7f7f8;
+  --surface-3:  #f0f0f2;
+  --border:     #e8e8eb;
+  --border-2:   #d8d8dc;
+  --accent:     #1a1a1a;
+  --accent-2:   #2d2d2d;
+  --gold:       #c9a84c;
+  --gold-light: #f5ecd4;
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  14px;
+  --radius-xl:  18px;
+  --shadow-xs:  0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-sm:  0 2px 8px rgba(0,0,0,.07), 0 1px 3px rgba(0,0,0,.05);
+  --shadow-md:  0 4px 16px rgba(0,0,0,.09), 0 2px 6px rgba(0,0,0,.05);
+  --shadow-lg:  0 8px 32px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
+  --shadow-xl:  0 20px 60px rgba(0,0,0,.16), 0 4px 16px rgba(0,0,0,.08);
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --transition: 160ms cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Global body refinement ── */
+body {
+  background: #f2f2f4 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: .01em;
+}
+
+/* ════════════════════════════════════
+   TOPBAR — glassy, premium
+════════════════════════════════════ */
+.topbar {
+  background: rgba(15,15,15,.97) !important;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  box-shadow: 0 1px 0 rgba(255,255,255,.04), 0 4px 24px rgba(0,0,0,.35);
+}
+
+.kb-badge {
+  background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.8);
+  border-radius: 8px !important;
+}
+
+.kb-name .n1 {
+  font-family: var(--font-serif) !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  letter-spacing: .03em !important;
+  color: #fff !important;
+}
+.kb-name .n2 {
+  color: var(--gold) !important;
+  letter-spacing: .22em !important;
+  font-size: 8px !important;
+  font-weight: 700 !important;
+}
+
+.tb-role {
+  background: rgba(255,255,255,.1) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  color: rgba(255,255,255,.85) !important;
+  font-size: 10px !important;
+  letter-spacing: .06em !important;
+  border-radius: 20px !important;
+  backdrop-filter: blur(4px);
+}
+
+.tb-user { color: rgba(255,255,255,.45) !important; font-size: 11px !important; }
+
+/* ════════════════════════════════════
+   SIDEBAR — editorial dark
+════════════════════════════════════ */
+.sidebar {
+  background: #fafafa !important;
+  border-right: 1px solid var(--border) !important;
+  box-shadow: 2px 0 12px rgba(0,0,0,.04);
+}
+
+.sb-label {
+  font-size: 8.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: .18em !important;
+  color: #c0c0c8 !important;
+  padding: 12px 16px 3px !important;
+}
+
+.sb-item {
+  font-size: 12.5px !important;
+  color: #555 !important;
+  padding: 9px 14px 9px 16px !important;
+  border-radius: 0 !important;
+  border-left: 2px solid transparent;
+  transition: all var(--transition) !important;
+  letter-spacing: .01em;
+  gap: 9px !important;
+}
+.sb-item:hover {
+  background: #f0f0f2 !important;
+  color: #111 !important;
+  border-left-color: #ccc;
+}
+.sb-item.active {
+  background: #111 !important;
+  color: #fff !important;
+  border-left-color: var(--gold) !important;
+  font-weight: 700 !important;
+  letter-spacing: .01em;
+}
+
+/* ════════════════════════════════════
+   PAGE TITLES
+════════════════════════════════════ */
+.page-title {
+  font-family: var(--font-serif) !important;
+  font-size: 26px !important;
+  font-weight: 600 !important;
+  letter-spacing: -.01em !important;
+  color: var(--ink) !important;
+  margin-bottom: 2px !important;
+}
+.page-sub {
+  font-size: 12.5px !important;
+  color: var(--ink-4) !important;
+  letter-spacing: .01em !important;
+  margin-bottom: 18px !important;
+}
+
+/* ════════════════════════════════════
+   CARDS — elevated with subtle depth
+════════════════════════════════════ */
+.card {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-xs) !important;
+  transition: box-shadow var(--transition), transform var(--transition);
+  padding: 18px !important;
+}
+.card:hover {
+  box-shadow: var(--shadow-sm) !important;
+}
+.card-hdr {
+  border-bottom: 1px solid #f2f2f4 !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 14px !important;
+}
+.card-title {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: .04em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-2) !important;
+}
+
+/* ════════════════════════════════════
+   METRIC CARDS
+════════════════════════════════════ */
+.metric {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  padding: 16px !important;
+  box-shadow: var(--shadow-xs) !important;
+  transition: box-shadow var(--transition), transform var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+.metric::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--border);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.metric.red::before   { background: linear-gradient(90deg,#dc2626,#ef4444); }
+.metric.green::before { background: linear-gradient(90deg,#16a34a,#22c55e); }
+.metric.amber::before { background: linear-gradient(90deg,#d97706,#f59e0b); }
+.metric.blue::before  { background: linear-gradient(90deg,#1d4ed8,#3b82f6); }
+.metric.north::before { background: linear-gradient(90deg,#2563eb,#60a5fa); }
+.metric.south::before { background: linear-gradient(90deg,#d97706,#fbbf24); }
+/* Remove the old side border */
+.metric.red, .metric.green, .metric.amber,
+.metric.blue, .metric.north, .metric.south { border-left-width: 1px !important; }
+.metric:hover { box-shadow: var(--shadow-md) !important; transform: translateY(-1px); }
+
+.ml {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-4) !important;
+  margin-bottom: 6px !important;
+}
+.mv {
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  color: var(--ink) !important;
+  letter-spacing: -.02em !important;
+  line-height: 1 !important;
+}
+.ms { font-size: 10.5px !important; color: var(--ink-4) !important; margin-top: 4px !important; }
+
+/* ════════════════════════════════════
+   BUTTONS
+════════════════════════════════════ */
+.btn {
+  border-radius: var(--radius-sm) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  letter-spacing: .02em !important;
+  transition: all var(--transition) !important;
+  border: 1px solid var(--border-2) !important;
+  background: var(--surface) !important;
+  color: var(--ink-2) !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+.btn:hover {
+  background: var(--surface-2) !important;
+  border-color: #c8c8cc !important;
+  box-shadow: var(--shadow-sm) !important;
+  transform: translateY(-1px);
+}
+.btn:active { transform: translateY(0) !important; }
+
+.btn-primary {
+  background: var(--ink) !important;
+  color: #fff !important;
+  border-color: var(--ink) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2), 0 1px 3px rgba(0,0,0,.12) !important;
+}
+.btn-primary:hover {
+  background: var(--accent-2) !important;
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,.25) !important;
+}
+
+/* ════════════════════════════════════
+   FORM INPUTS
+════════════════════════════════════ */
+.fi {
+  border: 1px solid var(--border-2) !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  font-size: 13px !important;
+  transition: border-color var(--transition), box-shadow var(--transition) !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+.fi:focus {
+  border-color: #555 !important;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.07) !important;
+  outline: none !important;
+}
+.fl {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: .05em !important;
+  text-transform: uppercase !important;
+  color: var(--ink-3) !important;
+  margin-bottom: 5px !important;
+}
+
+/* ════════════════════════════════════
+   TABLES
+════════════════════════════════════ */
+.tbl th {
+  background: var(--surface-2) !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: .1em !important;
+  color: var(--ink-4) !important;
+  text-transform: uppercase !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.tbl td {
+  padding: 11px 14px !important;
+  border-bottom: 1px solid #f4f4f6 !important;
+  font-size: 13px !important;
+  color: var(--ink-2) !important;
+  vertical-align: middle !important;
+}
+.tbl tr:hover td { background: #f8f8fa !important; }
+
+/* ════════════════════════════════════
+   PIPELINE KANBAN
+════════════════════════════════════ */
+.pipe-col {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+.pipe-col-title {
+  font-size: 10px !important;
+  letter-spacing: .1em !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  color: var(--ink-3) !important;
+}
+.pipe-card {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--shadow-xs) !important;
+  transition: all var(--transition) !important;
+}
+.pipe-card:hover {
+  box-shadow: var(--shadow-md) !important;
+  transform: translateY(-2px);
+  border-color: #d0d0d4 !important;
+}
+
+/* ════════════════════════════════════
+   BADGES
+════════════════════════════════════ */
+.badge {
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: .06em !important;
+  text-transform: uppercase !important;
+  border-radius: 20px !important;
+  padding: 3px 9px !important;
+}
+
+/* ════════════════════════════════════
+   MODALS — floating, premium
+════════════════════════════════════ */
+.modal-overlay {
+  background: rgba(0,0,0,.45) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.modal {
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-xl) !important;
+  border: 1px solid rgba(255,255,255,.6);
+  animation: modalIn 200ms cubic-bezier(.34,1.15,.64,1) both;
+}
+@keyframes modalIn {
+  from { opacity:0; transform: scale(.97) translateY(8px); }
+  to   { opacity:1; transform: scale(1) translateY(0); }
+}
+.modal-hdr {
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+  padding: 18px 22px !important;
+}
+.modal-title {
+  font-family: var(--font-serif) !important;
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  letter-spacing: .01em !important;
+  color: var(--ink) !important;
+}
+.modal-foot {
+  border-top: 1px solid var(--border) !important;
+  padding: 14px 22px !important;
+  background: var(--surface-2) !important;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl) !important;
+}
+.modal-body { padding: 22px !important; }
+
+/* ════════════════════════════════════
+   TABS
+════════════════════════════════════ */
+.tabs { border-bottom: 1px solid var(--border) !important; }
+.tab-btn {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: .03em !important;
+  color: var(--ink-4) !important;
+  padding: 10px 13px !important;
+  transition: color var(--transition) !important;
+}
+.tab-btn.active {
+  color: var(--ink) !important;
+  border-bottom-color: var(--ink) !important;
+  font-weight: 800 !important;
+}
+.tab-btn:hover:not(.active) { color: var(--ink-2) !important; }
+
+/* ════════════════════════════════════
+   TOAST / SAVE NOTIFICATION
+════════════════════════════════════ */
+.save-toast {
+  background: var(--ink) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--shadow-lg) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: .01em !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  animation: toastIn 250ms cubic-bezier(.34,1.15,.64,1) both;
+}
+@keyframes toastIn {
+  from { opacity:0; transform: translateY(10px) scale(.97); }
+  to   { opacity:1; transform: translateY(0) scale(1); }
+}
+
+/* ════════════════════════════════════
+   SCROLLBARS — refined thin track
+════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d0d0d8; border-radius: 20px; }
+::-webkit-scrollbar-thumb:hover { background: #b0b0b8; }
+
+/* ════════════════════════════════════
+   REFCODE CHIP
+════════════════════════════════════ */
+.refcode {
+  background: #f0eefb !important;
+  color: #5b3fd4 !important;
+  border: 1px solid #ddd8f8 !important;
+  border-radius: 5px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: .08em !important;
+  padding: 2px 8px !important;
+}
+
+/* ════════════════════════════════════
+   LOGIN SCREEN — elevated
+════════════════════════════════════ */
+.login-screen {
+  background: linear-gradient(145deg, #0a0a0f 0%, #111118 40%, #0d0d15 100%) !important;
+  position: relative;
+  overflow: hidden;
+}
+.login-screen::before {
+  content: '';
+  position: absolute;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(201,168,76,.08) 0%, transparent 70%);
+  top: -100px; left: -100px;
+  pointer-events: none;
+}
+.login-screen::after {
+  content: '';
+  position: absolute;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(100,100,220,.06) 0%, transparent 70%);
+  bottom: -100px; right: -100px;
+  pointer-events: none;
+}
+.login-box {
+  border-radius: 20px !important;
+  box-shadow: var(--shadow-xl), 0 0 0 1px rgba(255,255,255,.06) !important;
+  padding: 40px 36px !important;
+  border: 1px solid rgba(255,255,255,.06) !important;
+  position: relative;
+  z-index: 1;
+  animation: loginBoxIn 400ms cubic-bezier(.34,1.1,.64,1) both;
+}
+@keyframes loginBoxIn {
+  from { opacity:0; transform: translateY(20px) scale(.98); }
+  to   { opacity:1; transform: translateY(0) scale(1); }
+}
+.login-input {
+  border: 1px solid var(--border-2) !important;
+  border-radius: 8px !important;
+  padding: 11px 14px !important;
+  font-size: 14px !important;
+  transition: all var(--transition) !important;
+  background: var(--surface-2) !important;
+}
+.login-input:focus {
+  border-color: #555 !important;
+  background: var(--surface) !important;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.07) !important;
+}
+.login-btn {
+  border-radius: 9px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  letter-spacing: .04em !important;
+  transition: all var(--transition) !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,.18) !important;
+}
+.login-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,.25) !important; }
+
+/* ════════════════════════════════════
+   TOOLBAR / SEARCH AREAS
+════════════════════════════════════ */
+.toolbar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 14px !important;
+  gap: 8px !important;
+}
+
+/* ════════════════════════════════════
+   INFO BANNERS
+════════════════════════════════════ */
+.info {
+  border-radius: var(--radius-md) !important;
+  font-size: 12.5px !important;
+  letter-spacing: .01em !important;
+}
+.info-blue  { background: #f0f5ff !important; color: #1e3a8a !important; border-color: #c7d7fd !important; }
+.info-green { background: #f0fdf6 !important; color: #14532d !important; border-color: #bbf7d0 !important; }
+.info-amber { background: #fffbf0 !important; color: #78350f !important; border-color: #fde68a !important; }
+
+/* ════════════════════════════════════
+   SECTION DIVIDERS
+════════════════════════════════════ */
+.section-divider {
+  font-size: 9px !important;
+  font-weight: 800 !important;
+  letter-spacing: .14em !important;
+  color: #c0c0c8 !important;
+  text-transform: uppercase !important;
+}
+
+/* ════════════════════════════════════
+   TEAM CARDS
+════════════════════════════════════ */
+.team-card {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow-xs) !important;
+  transition: all var(--transition) !important;
+}
+.team-card:hover {
+  box-shadow: var(--shadow-md) !important;
+  transform: translateY(-2px);
+}
+
+/* ════════════════════════════════════
+   PIPE KANBAN COUNT CHIP
+════════════════════════════════════ */
+.pipe-count {
+  background: var(--border) !important;
+  color: var(--ink-3) !important;
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  border-radius: 20px !important;
+}
+
+/* ════════════════════════════════════
+   PAGE FADE-IN ON NAVIGATION
+════════════════════════════════════ */
+.page.active {
+  animation: pageFadeIn 180ms ease both;
+}
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ════════════════════════════════════
+   SIDEBAR SECTION SEPARATORS
+════════════════════════════════════ */
+.sb-section { border-bottom: 1px solid #efefef !important; }
+
 </style>
 <script>
 // Prevent pinch-to-zoom on iOS (touchstart with 2+ touches)
@@ -583,7 +1160,7 @@ document.addEventListener('wheel', function(e) {
 </script>
 </head>
 <body>
-<div class="save-toast" id="save-toast"></div>
+<div class="save-toast" id="save-toast" style="display:none;align-items:center;gap:10px;bottom:24px;right:24px;padding:13px 22px;border-radius:12px;font-size:13px"></div>
 
 <!-- ══ Mobile Slide-in Drawer ══ -->
 <div id="mob-drawer-backdrop" onclick="mobDrawerClose()"></div>
@@ -662,9 +1239,11 @@ document.addEventListener('wheel', function(e) {
       </div>
       <div style="font-size:13px;color:#888;margin-top:4px">Business Management System</div>
     </div>
-    <input class="login-input" type="text" id="login-user" placeholder="Username" autocomplete="username" >
-    <input class="login-input" type="password" id="login-pass" placeholder="Password" autocomplete="current-password" >
-    <button class="login-btn" id="login-btn">Login →</button>
+    <form id="login-form" autocomplete="on" onsubmit="doLogin();return false;" style="margin:0">
+    <input class="login-input" type="text" id="login-user" name="username" placeholder="Username" autocomplete="username" >
+    <input class="login-input" type="password" id="login-pass" name="password" placeholder="Password" autocomplete="current-password" >
+    <button class="login-btn" id="login-btn" type="submit">Login →</button>
+    </form>
     <div style="display:flex;align-items:center;gap:10px;margin:12px 0">
       <div style="flex:1;height:1px;background:#e5e5e5"></div>
       <span style="font-size:11px;color:#aaa">or</span>
@@ -719,8 +1298,8 @@ document.addEventListener('wheel', function(e) {
       <button id="mob-menu-btn" onclick="mobDrawerOpen()" aria-label="Open menu">
         <span></span><span></span><span></span>
       </button>
-      <div class="kb-badge"><span>KB</span></div>
-      <div class="kb-name"><div class="n1">KB Studio</div><div class="n2">Productions</div></div>
+      <div class="kb-badge" style="background:linear-gradient(135deg,#fff 0%,#f0f0ee 100%);box-shadow:0 2px 8px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.9)"><span style="font-size:12px;font-weight:900;color:#1a1a1a;letter-spacing:-1.5px;font-family:'Cormorant Garamond',Georgia,serif">KB</span></div>
+      <div class="kb-name"><div class="n1" style="font-family:'Cormorant Garamond',Georgia,serif;font-size:15px;font-weight:600;letter-spacing:.04em">KB Studio</div><div class="n2" style="color:#c9a84c;letter-spacing:.22em;font-size:8px;font-weight:700">PRODUCTIONS</div></div>
     </div>
     <div class="tb-right">
       <div class="tb-role" id="tb-role"></div>
@@ -6094,27 +6673,271 @@ function deleteAllOrphaned(){
 
 // ═══ REPORTS ════════════════════════════════════════
 function renderReports(){
-  destroyCharts(repCharts);var allList=pl();var mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];var fmn=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  destroyCharts(repCharts);
+  var allList=pl();
+  var mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var fmn=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var CHART_COLORS=['#60a5fa','#34d399','#fbbf24','#f87171','#a78bfa','#38bdf8','#4ade80','#fb923c','#f472b6','#facc15','#818cf8','#6ee7b7'];
+
+  // ── Year dropdown population ──
   var yrSel=$('rep-year'),yf=yrSel?yrSel.value:'',mf=gv('rep-month'),rrf=gv('rep-region');
   if(yrSel){var allY={};allList.forEach(function(p){var d=p.bookdate||p.date;if(d){var y=d.split('-')[0];if(y)allY[y]=1;}});var dy=Object.keys(allY).sort(function(a,b){return b-a;});var co=Array.from(yrSel.options).slice(1).map(function(o){return o.value;});if(JSON.stringify(co)!==JSON.stringify(dy)){while(yrSel.options.length>1)yrSel.remove(1);dy.forEach(function(y){var o=document.createElement('option');o.value=y;o.textContent=y;yrSel.appendChild(o);});if(yf)yrSel.value=yf;}}
+
+  // ── Filter ──
   var list=allList.filter(function(p){var d=p.bookdate||p.date;var ok=true;if(yf&&(!d||d.split('-')[0]!==yf))ok=false;if(mf&&(!d||d.split('-')[1]!==mf))ok=false;if(rrf&&p.region!==rrf)ok=false;return ok;});
-  var fl='';if(yf||mf||rrf){var pp=[];if(mf)pp.push(fmn[parseInt(mf)-1]);if(yf)pp.push(yf);if(rrf)pp.push(rrf==='north'?'North Region':'South Region');fl='Showing: '+pp.join(' — ')+' ('+list.length+' bookings)';}var lel=$('rep-filter-label');if(lel)lel.textContent=fl;
-  var tR=list.reduce(function(a,p){return a+(parseInt(p.value)||0);},0);var tPd=list.reduce(function(a,p){return a+paidTotal(p);},0);var avg=list.length?Math.round(tR/list.length):0;
-  var states={},sources={},byMonth={};
-  list.forEach(function(p){var st=p.state||p.city||'Unknown';if(st)states[st]=(states[st]||0)+(parseInt(p.value)||0);if(p.source)sources[p.source]=(sources[p.source]||0)+1;var d=p.bookdate||p.date;if(!d)return;var pts=d.split('-');if(pts.length<2)return;var k=pts[0]+'-'+pts[1];var lb=mn[parseInt(pts[1])-1]+' '+pts[0];if(!byMonth[k])byMonth[k]={label:lb,count:0,rev:0,paid:0};byMonth[k].count++;byMonth[k].rev+=parseInt(p.value)||0;byMonth[k].paid+=paidTotal(p);});var mKeys=Object.keys(byMonth).sort();
-  var delivStats={};DELIV_ITEMS.forEach(function(item){delivStats[item.key]={label:item.label,p:0,d:0};list.forEach(function(p){var s=p['d_'+item.key+'_status']||'pending';if(s==='delivered')delivStats[item.key].d++;else delivStats[item.key].p++;});});
-  var northRev=list.filter(function(p){return p.region==='north';}).reduce(function(a,p){return a+(parseInt(p.value)||0);},0);var southRev=list.filter(function(p){return p.region==='south';}).reduce(function(a,p){return a+(parseInt(p.value)||0);},0);
-  $('rep-content').innerHTML=
-    '<div class="metrics"><div class="metric blue"><div class="ml">Bookings</div><div class="mv">'+list.length+'</div></div><div class="metric green"><div class="ml">Total Revenue</div><div class="mv">'+fmt(tR)+'</div></div><div class="metric green"><div class="ml">Avg Package</div><div class="mv">'+fmt(avg)+'</div></div><div class="metric amber"><div class="ml">Collection Rate</div><div class="mv">'+(tR>0?Math.round(tPd/tR*100):0)+'%</div></div><div class="metric north"><div class="ml">🔵 North Revenue</div><div class="mv">'+(northRev>=100000?'₹'+(northRev/100000).toFixed(1)+'L':fmt(northRev))+'</div></div><div class="metric south"><div class="ml">🟠 South Revenue</div><div class="mv">'+(southRev>=100000?'₹'+(southRev/100000).toFixed(1)+'L':fmt(southRev))+'</div></div></div>'+
-    '<div class="rep-chart-grid-2"><div class="card"><div class="card-hdr"><span class="card-title">📅 Revenue by Month</span></div><div class="chart-wrap"><canvas id="rep-month-chart"></canvas></div></div><div class="card"><div class="card-hdr"><span class="card-title">💰 Paid vs Pending</span></div><div class="chart-wrap"><canvas id="rep-pay-chart"></canvas></div></div></div>'+
-    '<div class="rep-chart-grid-3"><div class="card"><div class="card-hdr"><span class="card-title">🏙️ Revenue by State</span></div><div class="chart-wrap-sm"><canvas id="rep-state-chart"></canvas></div></div><div class="card"><div class="card-hdr"><span class="card-title">📣 Lead Sources</span></div><div class="chart-wrap-sm"><canvas id="rep-source-chart"></canvas></div></div><div class="card"><div class="card-hdr"><span class="card-title">🎬 Deliverables</span></div><div class="chart-wrap-sm"><canvas id="rep-deliv-chart"></canvas></div></div></div>'+
-    '<div class="card"><div class="card-hdr"><span class="card-title">👥 Client List</span><span style="font-size:12px;color:#888">'+list.length+' bookings</span></div><div class="mob-scroll"><table class="tbl"><thead><tr><th>Couple</th><th>Ref Code</th><th>Region</th><th>State</th><th>Booking Date</th><th>Package</th><th>Source</th></tr></thead><tbody>'+(list.length?list.slice().sort(function(a,b){return(b.bookdate||b.date||'').localeCompare(a.bookdate||a.date||'');}).map(function(p){return '<tr><td style="font-weight:600">'+p.bride+' & '+p.groom+'</td><td><span class="refcode" style="font-size:10px">'+(p.refcode||'—')+'</span></td><td>'+regionBadge(p.region)+'</td><td>'+(p.state||p.city||'—')+'</td><td>'+fmtDate(p.bookdate)+'</td><td style="font-weight:700;color:#16a34a">'+fmt(parseInt(p.value)||0)+'</td><td>'+(p.source||'—')+'</td></tr>';}).join(''):'<tr><td colspan="7" style="text-align:center;color:#aaa;padding:16px">No bookings found</td></tr>')+'</tbody></table></div></div>';
+  var fl='';if(yf||mf||rrf){var pp=[];if(mf)pp.push(fmn[parseInt(mf)-1]);if(yf)pp.push(yf);if(rrf)pp.push(rrf==='north'?'North Region':'South Region');fl='Showing: '+pp.join(' — ')+' ('+list.length+' bookings)';}
+  var lel=$('rep-filter-label');if(lel)lel.textContent=fl;
+
+  // ── Core Financials ──
+  var tR=list.reduce(function(a,p){return a+(parseInt(p.value)||0);},0);
+  var tDiscount=list.reduce(function(a,p){return a+(parseInt(p.discount)||0);},0);
+  var tNet=list.reduce(function(a,p){return a+netVal(p);},0);
+  var tPd=list.reduce(function(a,p){return a+paidTotal(p);},0);
+  var tBal=list.reduce(function(a,p){return a+Math.max(0,balDue(p));},0);
+  var avg=list.length?Math.round(tNet/list.length):0;
+  var collRate=tNet>0?Math.round(tPd/tNet*100):0;
+  var northList=list.filter(function(p){return p.region==='north';});
+  var southList=list.filter(function(p){return p.region==='south';});
+  var northRev=northList.reduce(function(a,p){return a+netVal(p);},0);
+  var southRev=southList.reduce(function(a,p){return a+netVal(p);},0);
+  var completeCount=list.filter(function(p){return p.stage==='complete';}).length;
+  var activeCount=list.filter(function(p){return p.stage!=='complete';}).length;
+
+  // ── Aggregations ──
+  var states={},sources={},byMonth={},byBookMonth={},stages={},eventTypes={},packages={},discountByMonth={};
+  var clientFlags={annoyed:0,not_responding:0,happy:0,none:0};
+
+  list.forEach(function(p){
+    // State revenue
+    var st=p.state||p.city||'Unknown';
+    if(st)states[st]=(states[st]||0)+netVal(p);
+
+    // Lead source count
+    if(p.source)sources[p.source]=(sources[p.source]||0)+1;
+
+    // Stage count
+    var stg=p.stage||'preprod';
+    stages[stg]=(stages[stg]||0)+1;
+
+    // Event type
+    if(p.type)eventTypes[p.type]=(eventTypes[p.type]||0)+1;
+
+    // Package
+    if(p.package)packages[p.package]=(packages[p.package]||0)+1;
+
+    // Client flag
+    var fl2=p.clientFlag||'none';
+    if(fl2==='annoyed')clientFlags.annoyed++;
+    else if(fl2==='not_responding')clientFlags.not_responding++;
+    else if(fl2==='happy')clientFlags.happy++;
+    else clientFlags.none++;
+
+    // By event month
+    var ed=p.date;
+    if(ed){var ep=ed.split('-');if(ep.length>=2){var ek=ep[0]+'-'+ep[1];var elb=mn[parseInt(ep[1])-1]+' '+ep[0];if(!byMonth[ek])byMonth[ek]={label:elb,count:0,rev:0,paid:0,discount:0};byMonth[ek].count++;byMonth[ek].rev+=netVal(p);byMonth[ek].paid+=paidTotal(p);byMonth[ek].discount+=parseInt(p.discount)||0;}}
+
+    // By booking month
+    var bd=p.bookdate;
+    if(bd){var bp=bd.split('-');if(bp.length>=2){var bk=bp[0]+'-'+bp[1];var blb=mn[parseInt(bp[1])-1]+' '+bp[0];if(!byBookMonth[bk])byBookMonth[bk]={label:blb,count:0,rev:0};byBookMonth[bk].count++;byBookMonth[bk].rev+=netVal(p);}}
+  });
+
+  var mKeys=Object.keys(byMonth).sort();
+  var bKeys=Object.keys(byBookMonth).sort();
+
+  // ── Deliverable stats ──
+  var delivStats={};
+  DELIV_ITEMS.forEach(function(item){
+    delivStats[item.key]={label:item.label,p:0,d:0,inprog:0};
+    list.forEach(function(p){
+      var s=p['d_'+item.key+'_status']||'pending';
+      if(s==='delivered')delivStats[item.key].d++;
+      else if(s==='in_progress'||s==='inprogress')delivStats[item.key].inprog++;
+      else delivStats[item.key].p++;
+    });
+  });
+
+  // ── Payment installment breakdown ──
+  var instCount={inst1:0,inst2:0,inst3:0,inst4:0,inst5:0};
+  list.forEach(function(p){
+    var n=(p.payLedger||[]).length;
+    if(n>=1)instCount.inst1++;
+    if(n>=2)instCount.inst2++;
+    if(n>=3)instCount.inst3++;
+    if(n>=4)instCount.inst4++;
+    if(n>=5)instCount.inst5++;
+  });
+
+  // ── Revenue brackets ──
+  var brackets={'Under ₹1L':0,'₹1L–2L':0,'₹2L–3L':0,'₹3L–5L':0,'Above ₹5L':0};
+  list.forEach(function(p){
+    var v=netVal(p);
+    if(v<100000)brackets['Under ₹1L']++;
+    else if(v<200000)brackets['₹1L–2L']++;
+    else if(v<300000)brackets['₹2L–3L']++;
+    else if(v<500000)brackets['₹3L–5L']++;
+    else brackets['Above ₹5L']++;
+  });
+
+  // ── Pre-wed count ──
+  var prewedYes=list.filter(function(p){return p.prewed&&p.prewed.trim()&&p.prewed.trim()!=='No'&&p.prewed.trim()!=='no'&&p.prewed.trim()!=='N/A';}).length;
+  var prewedNo=list.length-prewedYes;
+
+  // ── Brief submission rate ──
+  var briefDone=list.filter(function(p){return p.clientBrief&&p.clientBrief.submittedAt;}).length;
+  var briefPending=list.length-briefDone;
+
+  // ── Helper ──
+  function fmtL(v){return v>=100000?'₹'+(v/100000).toFixed(1)+'L':fmt(v);}
+
+  // ── Build HTML ──
+  var html='';
+
+  // KPI Metrics Row
+  html+='<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px">'+
+    '<div class="metric blue"><div class="ml">Total Bookings</div><div class="mv">'+list.length+'</div><div class="ms">'+activeCount+' active · '+completeCount+' complete</div></div>'+
+    '<div class="metric green"><div class="ml">Gross Revenue</div><div class="mv">'+fmtL(tR)+'</div><div class="ms">Before discounts</div></div>'+
+    '<div class="metric green"><div class="ml">Net Revenue</div><div class="mv">'+fmtL(tNet)+'</div><div class="ms">After ₹'+fmtL(tDiscount)+' disc.</div></div>'+
+    '<div class="metric green"><div class="ml">Total Collected</div><div class="mv">'+fmtL(tPd)+'</div><div class="ms">'+collRate+'% collection rate</div></div>'+
+    '<div class="metric red"><div class="ml">Outstanding</div><div class="mv">'+fmtL(tBal)+'</div><div class="ms">Balance pending</div></div>'+
+    '<div class="metric amber"><div class="ml">Avg Package</div><div class="mv">'+fmtL(avg)+'</div><div class="ms">Net per booking</div></div>'+
+    '<div class="metric north"><div class="ml">🔵 North</div><div class="mv">'+fmtL(northRev)+'</div><div class="ms">'+northList.length+' bookings</div></div>'+
+    '<div class="metric south"><div class="ml">🟠 South</div><div class="mv">'+fmtL(southRev)+'</div><div class="ms">'+southList.length+' bookings</div></div>'+
+  '</div>';
+
+  // Row 1: Revenue by Event Month + Bookings by Event Month
+  html+='<div class="rep-chart-grid-2">'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">📅 Net Revenue by Event Month</span></div><div class="chart-wrap"><canvas id="rep-month-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">📊 Bookings by Event Month</span></div><div class="chart-wrap"><canvas id="rep-bookcount-chart"></canvas></div></div>'+
+  '</div>';
+
+  // Row 2: Paid vs Pending + Booking Trend (by booking date)
+  html+='<div class="rep-chart-grid-2">'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">💰 Paid vs Outstanding by Month</span></div><div class="chart-wrap"><canvas id="rep-pay-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">📈 Booking Trend (by Booking Date)</span></div><div class="chart-wrap"><canvas id="rep-booktrend-chart"></canvas></div></div>'+
+  '</div>';
+
+  // Row 3: Stage Pipeline + Revenue by Region + Lead Sources
+  html+='<div class="rep-chart-grid-3">'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">🔄 Pipeline by Stage</span></div><div class="chart-wrap-sm"><canvas id="rep-stage-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">🗺️ North vs South Bookings</span></div><div class="chart-wrap-sm"><canvas id="rep-region-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">📣 Lead Sources</span></div><div class="chart-wrap-sm"><canvas id="rep-source-chart"></canvas></div></div>'+
+  '</div>';
+
+  // Row 4: Revenue by State + Event Types + Packages
+  html+='<div class="rep-chart-grid-3">'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">🏙️ Revenue by State / City</span></div><div class="chart-wrap-sm"><canvas id="rep-state-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">🎭 Event Types</span></div><div class="chart-wrap-sm"><canvas id="rep-eventtype-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">📦 Package Distribution</span></div><div class="chart-wrap-sm"><canvas id="rep-package-chart"></canvas></div></div>'+
+  '</div>';
+
+  // Row 5: Deliverables + Revenue Brackets + Client Flags
+  html+='<div class="rep-chart-grid-3">'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">🎬 Deliverable Status</span></div><div class="chart-wrap-sm"><canvas id="rep-deliv-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">💎 Revenue Brackets</span></div><div class="chart-wrap-sm"><canvas id="rep-bracket-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">🚦 Client Sentiment</span></div><div class="chart-wrap-sm"><canvas id="rep-flag-chart"></canvas></div></div>'+
+  '</div>';
+
+  // Row 6: Discount Impact + Pre-wed + Brief Submission
+  html+='<div class="rep-chart-grid-3">'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">🏷️ Discount Impact by Month</span></div><div class="chart-wrap-sm"><canvas id="rep-discount-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">📸 Pre-Wedding Shoots</span></div><div class="chart-wrap-sm"><canvas id="rep-prewed-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">📋 Client Brief Submission</span></div><div class="chart-wrap-sm"><canvas id="rep-brief-chart"></canvas></div></div>'+
+  '</div>';
+
+  // Row 7: Revenue per Booking (line) full width
+  html+='<div class="rep-chart-grid-2">'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">📉 Avg Revenue per Booking (Event Month)</span></div><div class="chart-wrap"><canvas id="rep-avgrev-chart"></canvas></div></div>'+
+    '<div class="card"><div class="card-hdr"><span class="card-title">🏆 Top States by Bookings Count</span></div><div class="chart-wrap"><canvas id="rep-statecount-chart"></canvas></div></div>'+
+  '</div>';
+
+  $('rep-content').innerHTML=html;
+
   setTimeout(function(){
-    var mc=$('rep-month-chart');if(mc)repCharts.month=new Chart(mc,{type:'bar',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Revenue',data:mKeys.map(function(k){return byMonth[k].rev;}),backgroundColor:'rgba(29,78,216,0.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:function(v){return v>=100000?'₹'+(v/100000).toFixed(1)+'L':'₹'+v.toLocaleString('en-IN');}}}}}});
-    var pc=$('rep-pay-chart');if(pc)repCharts.pay=new Chart(pc,{type:'bar',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Paid',data:mKeys.map(function(k){return byMonth[k].paid;}),backgroundColor:'rgba(22,163,74,0.7)',borderRadius:4},{label:'Pending',data:mKeys.map(function(k){return Math.max(0,byMonth[k].rev-byMonth[k].paid);}),backgroundColor:'rgba(220,38,38,0.6)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true}}}});
-    var stk=Object.keys(states).slice(0,10);var sc=$('rep-state-chart');if(sc&&stk.length)repCharts.state=new Chart(sc,{type:'doughnut',data:{labels:stk,datasets:[{data:stk.map(function(k){return states[k];}),backgroundColor:['#60a5fa','#34d399','#fbbf24','#f87171','#a78bfa','#38bdf8','#4ade80','#fb923c','#f472b6','#facc15']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
-    var sk=Object.keys(sources);var soc=$('rep-source-chart');if(soc&&sk.length)repCharts.src=new Chart(soc,{type:'pie',data:{labels:sk,datasets:[{data:sk.map(function(k){return sources[k];}),backgroundColor:['#818cf8','#38bdf8','#4ade80','#fb923c','#f472b6','#a3e635','#facc15']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});
-    var dc=$('rep-deliv-chart');if(dc)repCharts.deliv=new Chart(dc,{type:'bar',data:{labels:DELIV_ITEMS.map(function(i){return i.label;}),datasets:[{label:'Delivered',data:DELIV_ITEMS.map(function(i){return delivStats[i.key].d;}),backgroundColor:'rgba(22,163,74,0.7)'},{label:'Pending',data:DELIV_ITEMS.map(function(i){return delivStats[i.key].p;}),backgroundColor:'rgba(220,38,38,0.6)'}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},scales:{x:{stacked:true},y:{stacked:true,ticks:{font:{size:9}}}}}});
+    var rupeeTick={callback:function(v){return v>=100000?'₹'+(v/100000).toFixed(1)+'L':'₹'+v.toLocaleString('en-IN');}};
+    var legendSm={position:'bottom',labels:{font:{size:10},boxWidth:12}};
+
+    // 1. Net Revenue by Event Month
+    var mc=$('rep-month-chart');
+    if(mc&&mKeys.length)repCharts.month=new Chart(mc,{type:'bar',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Net Revenue',data:mKeys.map(function(k){return byMonth[k].rev;}),backgroundColor:'rgba(29,78,216,0.75)',borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:rupeeTick}}}});
+
+    // 2. Bookings count by event month
+    var bcc=$('rep-bookcount-chart');
+    if(bcc&&mKeys.length)repCharts.bookcount=new Chart(bcc,{type:'bar',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Bookings',data:mKeys.map(function(k){return byMonth[k].count;}),backgroundColor:'rgba(139,92,246,0.75)',borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}});
+
+    // 3. Paid vs Outstanding stacked
+    var pc=$('rep-pay-chart');
+    if(pc&&mKeys.length)repCharts.pay=new Chart(pc,{type:'bar',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Collected',data:mKeys.map(function(k){return byMonth[k].paid;}),backgroundColor:'rgba(22,163,74,0.78)',borderRadius:3},{label:'Outstanding',data:mKeys.map(function(k){return Math.max(0,byMonth[k].rev-byMonth[k].paid);}),backgroundColor:'rgba(220,38,38,0.65)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true,ticks:rupeeTick}},plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}});
+
+    // 4. Booking trend by booking date (line)
+    var btc=$('rep-booktrend-chart');
+    if(btc&&bKeys.length)repCharts.booktrend=new Chart(btc,{type:'line',data:{labels:bKeys.map(function(k){return byBookMonth[k].label;}),datasets:[{label:'Bookings',data:bKeys.map(function(k){return byBookMonth[k].count;}),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,0.12)',tension:0.4,fill:true,pointRadius:4},{label:'Revenue',data:bKeys.map(function(k){return byBookMonth[k].rev;}),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,0.08)',tension:0.4,fill:false,pointRadius:4,yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{beginAtZero:true,ticks:{stepSize:1},title:{display:true,text:'Bookings',font:{size:10}}},y1:{type:'linear',display:true,position:'right',ticks:rupeeTick,grid:{drawOnChartArea:false},title:{display:true,text:'Revenue',font:{size:10}}}}}});
+
+    // 5. Stage pipeline donut
+    var STAGE_LABELS={preprod:'Pre-Production',production:'Production',postprod:'Post-Production',delivery:'Delivery',payment:'Payment Pending',complete:'Complete'};
+    var stageKeys=Object.keys(stages);
+    var sgc=$('rep-stage-chart');
+    if(sgc&&stageKeys.length)repCharts.stage=new Chart(sgc,{type:'doughnut',data:{labels:stageKeys.map(function(k){return STAGE_LABELS[k]||k;}),datasets:[{data:stageKeys.map(function(k){return stages[k];}),backgroundColor:['#fbbf24','#60a5fa','#a78bfa','#34d399','#f87171','#6ee7b7']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendSm}}});
+
+    // 6. North vs South (bar)
+    var rgc=$('rep-region-chart');
+    if(rgc)repCharts.region=new Chart(rgc,{type:'bar',data:{labels:['🔵 North','🟠 South','No Region'],datasets:[{label:'Bookings',data:[northList.length,southList.length,list.filter(function(p){return !p.region;}).length],backgroundColor:['rgba(59,130,246,0.75)','rgba(249,115,22,0.75)','rgba(156,163,175,0.75)'],borderRadius:6},{label:'Net Revenue',data:[northRev,southRev,list.filter(function(p){return !p.region;}).reduce(function(a,p){return a+netVal(p);},0)],backgroundColor:['rgba(59,130,246,0.3)','rgba(249,115,22,0.3)','rgba(156,163,175,0.3)'],borderRadius:6,yAxisID:'y1'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{beginAtZero:true,ticks:{stepSize:1},title:{display:true,text:'Bookings',font:{size:10}}},y1:{type:'linear',display:true,position:'right',ticks:rupeeTick,grid:{drawOnChartArea:false}}}}});
+
+    // 7. Lead Sources pie
+    var sk=Object.keys(sources);
+    var soc=$('rep-source-chart');
+    if(soc&&sk.length)repCharts.src=new Chart(soc,{type:'pie',data:{labels:sk,datasets:[{data:sk.map(function(k){return sources[k];}),backgroundColor:CHART_COLORS}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendSm}}});
+
+    // 8. Revenue by state doughnut
+    var stk=Object.keys(states).sort(function(a,b){return states[b]-states[a];}).slice(0,10);
+    var sc=$('rep-state-chart');
+    if(sc&&stk.length)repCharts.state=new Chart(sc,{type:'doughnut',data:{labels:stk,datasets:[{data:stk.map(function(k){return states[k];}),backgroundColor:CHART_COLORS}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendSm}}});
+
+    // 9. Event Types bar
+    var etk=Object.keys(eventTypes);
+    var etc=$('rep-eventtype-chart');
+    if(etc&&etk.length)repCharts.eventtype=new Chart(etc,{type:'bar',data:{labels:etk,datasets:[{label:'Bookings',data:etk.map(function(k){return eventTypes[k];}),backgroundColor:CHART_COLORS,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}});
+
+    // 10. Package distribution bar
+    var pk=Object.keys(packages);
+    var pkc=$('rep-package-chart');
+    if(pkc&&pk.length)repCharts.pkg=new Chart(pkc,{type:'bar',data:{labels:pk,datasets:[{label:'Bookings',data:pk.map(function(k){return packages[k];}),backgroundColor:CHART_COLORS,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1}}}}});
+
+    // 11. Deliverables stacked horizontal
+    var dc=$('rep-deliv-chart');
+    if(dc)repCharts.deliv=new Chart(dc,{type:'bar',data:{labels:DELIV_ITEMS.map(function(i){return i.label;}),datasets:[{label:'Delivered',data:DELIV_ITEMS.map(function(i){return delivStats[i.key].d;}),backgroundColor:'rgba(22,163,74,0.78)'},{label:'In Progress',data:DELIV_ITEMS.map(function(i){return delivStats[i.key].inprog;}),backgroundColor:'rgba(245,158,11,0.78)'},{label:'Pending',data:DELIV_ITEMS.map(function(i){return delivStats[i.key].p;}),backgroundColor:'rgba(220,38,38,0.65)'}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},scales:{x:{stacked:true},y:{stacked:true,ticks:{font:{size:9}}}}}});
+
+    // 12. Revenue brackets donut
+    var brk=Object.keys(brackets).filter(function(k){return brackets[k]>0;});
+    var brkc=$('rep-bracket-chart');
+    if(brkc&&brk.length)repCharts.bracket=new Chart(brkc,{type:'doughnut',data:{labels:brk,datasets:[{data:brk.map(function(k){return brackets[k];}),backgroundColor:['#6ee7b7','#34d399','#fbbf24','#f87171','#a78bfa']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendSm}}});
+
+    // 13. Client sentiment/flag
+    var flgc=$('rep-flag-chart');
+    if(flgc)repCharts.flag=new Chart(flgc,{type:'doughnut',data:{labels:['😤 Annoyed','📵 Not Responding','😊 Happy/Normal'],datasets:[{data:[clientFlags.annoyed,clientFlags.not_responding,clientFlags.happy+clientFlags.none],backgroundColor:['#ef4444','#f97316','#22c55e']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendSm}}});
+
+    // 14. Discount by month line
+    var dicc=$('rep-discount-chart');
+    if(dicc&&mKeys.length)repCharts.discount=new Chart(dicc,{type:'bar',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Gross Revenue',data:mKeys.map(function(k){return byMonth[k].rev+(byMonth[k].discount||0);}),backgroundColor:'rgba(59,130,246,0.4)',borderRadius:3},{label:'Discounts Given',data:mKeys.map(function(k){return byMonth[k].discount||0;}),backgroundColor:'rgba(239,68,68,0.7)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{ticks:rupeeTick}}}});
+
+    // 15. Pre-wed donut
+    var pwc=$('rep-prewed-chart');
+    if(pwc)repCharts.prewed=new Chart(pwc,{type:'doughnut',data:{labels:['With Pre-Wed','Without Pre-Wed'],datasets:[{data:[prewedYes,prewedNo],backgroundColor:['#818cf8','#e5e7eb']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendSm}}});
+
+    // 16. Brief submission donut
+    var bfc=$('rep-brief-chart');
+    if(bfc)repCharts.brief=new Chart(bfc,{type:'doughnut',data:{labels:['Brief Submitted','Pending'],datasets:[{data:[briefDone,briefPending],backgroundColor:['#34d399','#fca5a5']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendSm}}});
+
+    // 17. Avg revenue per booking per month (line)
+    var arc=$('rep-avgrev-chart');
+    if(arc&&mKeys.length)repCharts.avgrev=new Chart(arc,{type:'line',data:{labels:mKeys.map(function(k){return byMonth[k].label;}),datasets:[{label:'Avg Rev / Booking',data:mKeys.map(function(k){return byMonth[k].count>0?Math.round(byMonth[k].rev/byMonth[k].count):0;}),borderColor:'#a855f7',backgroundColor:'rgba(168,85,247,0.1)',tension:0.4,fill:true,pointRadius:5,pointBackgroundColor:'#a855f7'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:rupeeTick}}}});
+
+    // 18. Top states by bookings count (horizontal bar)
+    var stateCountMap={};
+    list.forEach(function(p){var s=p.state||p.city||'Unknown';stateCountMap[s]=(stateCountMap[s]||0)+1;});
+    var topStates=Object.keys(stateCountMap).sort(function(a,b){return stateCountMap[b]-stateCountMap[a];}).slice(0,10);
+    var scc=$('rep-statecount-chart');
+    if(scc&&topStates.length)repCharts.statecount=new Chart(scc,{type:'bar',data:{labels:topStates,datasets:[{label:'Bookings',data:topStates.map(function(k){return stateCountMap[k];}),backgroundColor:CHART_COLORS,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1}}}}});
+
   },150);
 }
 
@@ -11667,14 +12490,13 @@ var DEFAULT_TIMELINE_PRESETS = {
   wedding: {
     label: '💍 Wedding',
     milestones: [
-      { label: 'Raw Data Delivery',          days: 3,  unit: 'days',   from: 'event',    desc: 'All raw files transferred to hard drive' },
-      { label: 'Teaser / Short Film',         days: 7,  unit: 'days',   from: 'event',    desc: 'Social media teaser ready to share' },
-      { label: 'Highlight Film',              days: 30, unit: 'days',   from: 'event',    desc: 'Highlight edit delivered for review' },
-      { label: 'Traditional Video',           days: 45, unit: 'days',   from: 'event',    desc: 'Full traditional coverage edit' },
-      { label: 'Edited Photo Gallery',        days: 21, unit: 'days',   from: 'event',    desc: 'Culled & colour-graded photos delivered' },
-      { label: 'Wedding Film',                days: 90, unit: 'days',   from: 'event',    desc: 'Cinematic full-length film' },
-      { label: 'Album Design Approval',       days: 45, unit: 'days',   from: 'event',    desc: 'Album layout sent for client approval' },
-      { label: 'Final Album Dispatch',        days: 30, unit: 'days',   from: 'approval', desc: 'After design approval received' }
+      { label: 'Raw Data Delivery',          days: 3,  unit: 'days',   from: 'event',     desc: 'All raw files transferred to hard drive' },
+      { label: 'Wedding Teaser',             days: 15, unit: 'days',   from: 'raw_data',  desc: '1.5–2 min story teaser, ready to share' },
+      { label: 'Wedding Film',               days: 10, unit: 'days',   from: 'teaser',    desc: '7–8 min cinematic highlight film' },
+      { label: 'Traditional Video',          days: 45, unit: 'days',   from: 'raw_data',  desc: 'Full-length video for each event (20–30 min)' },
+      { label: 'Edited Photo Gallery',       days: 15, unit: 'days',   from: 'selection', desc: '600 edited pictures as per client selection' },
+      { label: 'Album Design Approval',      days: 45, unit: 'days',   from: 'event',     desc: 'Album layout sent for client approval' },
+      { label: 'Final Album Dispatch',       days: 30, unit: 'days',   from: 'approval',  desc: 'After design approval received' }
     ]
   },
   prewedding: {
@@ -11756,8 +12578,17 @@ function renderTimelineRows() {
         '<input class="fi" type="number" value="' + (m.days||0) + '" min="0" style="font-size:12px;width:65px" oninput="quotTimeline[' + i + '].days=parseInt(this.value)||0"></div>' +
       '<div style="flex:2;min-width:110px"><label style="font-size:10px;font-weight:700;color:#888;display:block;margin-bottom:3px">FROM</label>' +
         '<select class="fi" style="font-size:12px" onchange="quotTimeline[' + i + '].from=this.value">' +
-          ['event','shoot','approval','booking'].map(function(v) {
-            return '<option value="' + v + '"' + (m.from===v?' selected':'') + '>' + v.charAt(0).toUpperCase()+v.slice(1) + ' Date</option>';
+          [
+            {v:'event',    label:'Event Date'},
+            {v:'shoot',    label:'Shoot Date'},
+            {v:'raw_data', label:'Raw Data Delivery'},
+            {v:'teaser',   label:'Teaser Delivery'},
+            {v:'film',     label:'Wedding Film Delivery'},
+            {v:'selection',label:'Client Photo Selection'},
+            {v:'approval', label:'Client Approval'},
+            {v:'booking',  label:'Booking Date'}
+          ].map(function(o) {
+            return '<option value="' + o.v + '"' + (m.from===o.v?' selected':'') + '>' + o.label + '</option>';
           }).join('') +
         '</select></div>' +
       '<div style="flex:3;min-width:120px"><label style="font-size:10px;font-weight:700;color:#888;display:block;margin-bottom:3px">DESCRIPTION</label>' +
@@ -11812,8 +12643,9 @@ function renderDeliveryTimelineSettings(container) {
       '</div>' +
       '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
         (p.milestones||[]).map(function(m) {
+          var fromLabel = {event:'event date',shoot:'shoot date',raw_data:'raw data delivery',teaser:'teaser delivery',film:'film delivery',selection:'client selection',approval:'client approval',booking:'booking date'}[m.from] || (m.from || 'event');
           return '<span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 10px;font-size:11px;color:#374151">' +
-            escHtml(m.label||'') + ' — ' + (m.days||0) + ' days from ' + (m.from||'event') + '</span>';
+            escHtml(m.label||'') + ' — ' + (m.days||0) + ' days after ' + fromLabel + '</span>';
         }).join('') +
       '</div>' +
     '</div>';
@@ -11844,10 +12676,14 @@ function openEditTimelinePreset(key) {
         '<input class="fi" value="'+escHtml(m.label||'')+'" placeholder="Milestone label" style="font-size:12px;padding:6px 8px" oninput="_tlRows['+i+'].label=this.value">' +
         '<input class="fi" type="number" value="'+(m.days||0)+'" min="0" style="font-size:12px;padding:6px 8px;text-align:center" oninput="_tlRows['+i+'].days=parseInt(this.value)||0">' +
         '<select class="fi" style="font-size:12px;padding:6px 8px" onchange="_tlRows['+i+'].from=this.value">' +
-          '<option value="event"'+(m.from==='event'?' selected':'')+'>from event</option>' +
-          '<option value="shoot"'+(m.from==='shoot'?' selected':'')+'>from shoot</option>' +
-          '<option value="approval"'+(m.from==='approval'?' selected':'')+'>from approval</option>' +
-          '<option value="booking"'+(m.from==='booking'?' selected':'')+'>from booking</option>' +
+          '<option value="event"'+(m.from==='event'?' selected':'')+'>Event Date</option>' +
+          '<option value="shoot"'+(m.from==='shoot'?' selected':'')+'>Shoot Date</option>' +
+          '<option value="raw_data"'+(m.from==='raw_data'?' selected':'')+'>Raw Data Delivery</option>' +
+          '<option value="teaser"'+(m.from==='teaser'?' selected':'')+'>Teaser Delivery</option>' +
+          '<option value="film"'+(m.from==='film'?' selected':'')+'>Wedding Film Delivery</option>' +
+          '<option value="selection"'+(m.from==='selection'?' selected':'')+'>Client Photo Selection</option>' +
+          '<option value="approval"'+(m.from==='approval'?' selected':'')+'>Client Approval</option>' +
+          '<option value="booking"'+(m.from==='booking'?' selected':'')+'>Booking Date</option>' +
         '</select>' +
         '<input class="fi" value="'+escHtml(m.desc||'')+'" placeholder="Description (optional)" style="font-size:12px;padding:6px 8px" oninput="_tlRows['+i+'].desc=this.value">' +
         '<button onclick="_tlRows.splice('+i+',1);_tlRebuild()" style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:4px 6px;cursor:pointer;font-size:13px;font-family:inherit;line-height:1">✕</button>' +
@@ -12804,7 +13640,16 @@ function buildQuotPDFDom(q) {
         '</div>' +
         '<div style="flex:1;padding-bottom:4px">' +
           '<div style="font-size:13px;font-weight:700">' + escHtml(m.label||'') + '</div>' +
-          '<div style="font-size:11px;opacity:0.65;margin-top:2px">Within <strong>' + (m.days||0) + ' days</strong> from ' + (m.from||'event') + ' date' +
+          '<div style="font-size:11px;opacity:0.65;margin-top:2px">Within <strong>' + (m.days||0) + ' days</strong> after ' + ({
+            event:     'event date',
+            shoot:     'shoot date',
+            raw_data:  'raw data delivery',
+            teaser:    'teaser delivery',
+            film:      'wedding film delivery',
+            selection: 'client photo selection',
+            approval:  'client approval',
+            booking:   'booking date'
+          }[m.from] || (m.from || 'event') + ' date') +
             (m.desc ? ' — ' + escHtml(m.desc) : '') + '</div>' +
         '</div>' +
       '</div>';
@@ -13918,8 +14763,16 @@ function loadAndRenderNotifications() {
     var all = [];
     snap.forEach(function(c) { all.push(c.val()); });
     // Filter: show if forRoles includes this user's role, and not dismissed by this user
+    // Auto-dismiss ghost notifications (no title + no body) from Firebase
+    all.forEach(function(n) {
+      if (!n.dismissed && !n.title && !n.body && n.id) {
+        db.ref('crm_notifications/' + n.id + '/dismissed').set(true);
+      }
+    });
     _fbNotifs = all.filter(function(n) {
       if (n.dismissed) return false;
+      // Skip ghost notifications with no meaningful content
+      if (!n.title && !n.body) return false;
       var roles = n.forRoles || [];
       return roles.indexOf(role) !== -1 || roles.length === 0;
     }).reverse(); // newest first
