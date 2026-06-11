@@ -10442,6 +10442,7 @@ db.ref('crm_escalations').orderByChild('resolved').equalTo(false).once('value', 
         '<td style="padding:9px 12px;display:flex;gap:6px">' +
           (waLink ? '<a href="' + waLink + '" target="_blank" style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;text-decoration:none;display:inline-block">📲 WhatsApp</a>' : '') +
           '<button onclick="resolveEscalation(\'' + k + '\')" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#16a34a;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">✓ Resolved</button>' +
+          (CU && CU.role === 'superadmin' ? '<button onclick="deleteEscalation(\'' + k + '\')" style="background:#fff1f2;border:1px solid #fecdd3;color:#dc2626;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Delete</button>' : '') +
         '</td>' +
       '</tr>';
     }).join('');
@@ -10473,6 +10474,15 @@ function resolveEscalation(key) {
   if (!confirm('Mark this escalation as resolved?')) return;
   db.ref('crm_escalations/' + key).update({ resolved: true, resolvedAt: Date.now(), resolvedBy: CU ? (CU.name||CU.username) : '' }, function() {
     showToast('✅ Escalation resolved!');
+    renderSalesEscalations();
+  });
+}
+
+function deleteEscalation(key) {
+  if (!(CU && CU.role === 'superadmin')) { showToast('Only Super Admin can delete escalations.'); return; }
+  if (!confirm('Permanently delete this escalation entry? This cannot be undone.')) return;
+  db.ref('crm_escalations/' + key).remove(function() {
+    showToast('Escalation deleted.');
     renderSalesEscalations();
   });
 }
