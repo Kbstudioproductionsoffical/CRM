@@ -2178,6 +2178,19 @@ document.addEventListener('wheel', function(e) {
           <div id="quot-custom-pay-total" style="font-size:11px;color:#888;margin-top:6px"></div>
         </div>
         <div class="fr"><label class="fl">Additional Pricing Notes</label><textarea class="fi" id="qf-price-notes" rows="2" placeholder="e.g. Outstation travel charges extra, drone subject to availability…"></textarea></div>
+
+        <!-- Additional Services Rate Card -->
+        <div style="margin-top:18px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:8px">➕ Additional Services (Per Day / Add-on Charges)</div>
+          <div style="font-size:12px;color:#64748b;margin-bottom:10px">These appear as a dedicated page in the quotation PDF. Edit or remove as needed.</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <span style="flex:2;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Service Name</span>
+            <span style="flex:2;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Rate</span>
+            <span style="flex:1.5;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Note</span>
+            <span style="width:28px"></span>
+          </div>
+          <div id="qf-addl-services-list"></div>
+        </div>
       </div>
 
       <!-- Tab 5: Terms & Conditions -->
@@ -4124,7 +4137,7 @@ document.body.addEventListener('click', function(e) {
     if (pane) pane.classList.add('active');
     if (tabBtn.getAttribute('data-tab') === 'qt-preview') renderQuotPreview();
     if (tabBtn.getAttribute('data-tab') === 'qt-timeline') { initTimelineTab(); renderTimelineRows(); }
-    if (tabBtn.getAttribute('data-tab') === 'qt-pricing') onQuotPayTermsChange();
+    if (tabBtn.getAttribute('data-tab') === 'qt-pricing') { onQuotPayTermsChange(); renderAddlServices(); }
   }
 });
 
@@ -12001,6 +12014,7 @@ function openNewQuotation() {
   editQuotId = null;
   quotDays = [];
   quotDeliverables = [];
+  quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES)); renderAddlServices();
   clearQuotForm();
   fillSel('qf-source', 'sources', DEFAULT_SOURCES, '');
   document.getElementById('quot-modal-title').textContent = 'New Quotation';
@@ -12053,6 +12067,7 @@ function openEditQuotation(id) {
   sv2('qf-value', q.value); sv2('qf-discount', q.discount);
   sv2('qf-gst', q.gst || 'excluded'); sv2('qf-currency', q.currency || 'INR');
   sv2('qf-payterms', q.payterms || '30-50-10-5-5'); sv2('qf-price-notes', q.priceNotes);
+  quotAddlServices = JSON.parse(JSON.stringify(q.addlServices || DEFAULT_ADDL_SERVICES)); renderAddlServices();
   onQuotPayTermsChange();
   if (q.payterms === 'custom' && Array.isArray(q.paytermsCustom) && q.paytermsCustom.length) {
     loadQuotCustomPayRows(q.paytermsCustom);
@@ -12779,7 +12794,7 @@ var QD_PRESETS = [
   { id:'prewed-teaser',     cat:'🎬 Video', label:'Pre-Wedding Teaser',    detail:'2–3 Min',    icon:'🎞️', durations:['1–2 Min','2–3 Min','3–5 Min','Custom'] },
   { id:'highlight-film',    cat:'🎬 Video', label:'Highlight Film',        detail:'5–7 Min',    icon:'🎬', durations:['3–5 Min','5–7 Min','7–10 Min','Custom'] },
   { id:'wedding-film',      cat:'🎬 Video', label:'Wedding Film',          detail:'20–30 Min',  icon:'🎥', durations:['15–20 Min','20–30 Min','30–45 Min','Custom'] },
-  { id:'trad-video',        cat:'🎬 Video', label:'Traditional Video',     detail:'Full Coverage', icon:'📹', durations:['Half Day','Full Coverage','Multi-Day','Custom'] },
+  { id:'trad-video',        cat:'🎬 Video', label:'Traditional Video',     detail:'Full Coverage', icon:'📹', durations:['Half Day','Full Coverage','Multi-Day','Custom'], hasPerEvent:true },
   { id:'short-reels',       cat:'🎬 Video', label:'Short Reels',           detail:'4 Reels',    icon:'📱', durations:['2 Reels','3 Reels','4 Reels','6 Reels','Custom'], isCount:true },
   // ── Photos ──
   { id:'edited-gallery',    cat:'📸 Photos', label:'Edited Photo Gallery', detail:'500 Photos', icon:'🖼️', durations:['300 Photos','400 Photos','500 Photos','600 Photos','Custom'], isCount:true },
@@ -12800,12 +12815,39 @@ var quotDeliverables = []; // [{id, label, detail, icon, note}]
 // ── Terms & Conditions ────────────────────────────────────────────
 var PRESET_TERMS = [
   { id: 'pt_close',       text: 'Client must close this project within 6 months maximum, failing which the final payment must be cleared.' },
+  { id: 'pt_hard_drive',  text: 'Client must provide a 1–2 TB hard drive for raw data transfer, to be given before or on the event day.' },
   { id: 'pt_food',        text: 'Food for the team will be managed by the client.' },
   { id: 'pt_prewed_all',  text: 'For Pre-Wedding shoots: travel, stay, and food will be managed by the client.' },
   { id: 'pt_prewed_tf',   text: 'For Pre-Wedding shoots: travel and food will be managed by the client.' },
-  { id: 'pt_wed_food',    text: 'For the Wedding: food and stay for the team will be managed by the client.' }
+  { id: 'pt_wed_food',    text: 'For the Wedding: food and stay for the team will be managed by the client.' },
+  { id: 'pt_gallery',     text: 'Online secure gallery link is valid for 1 month and is for photo selection and guest viewing only.' }
 ];
 var quotTerms = { preset: {}, custom: [] }; // preset: {id: true/false}, custom: [{id, text}]
+
+// ── Additional / Add-on Services ──────────────────────────────────
+var DEFAULT_ADDL_SERVICES = [
+  { name:'Phonographer',                  rate:'₹10,000 per day',       note:'2–3 reels' },
+  { name:'Cinematographer for Reels',     rate:'₹15,000–20,000 per day',note:'2–3 reels' },
+  { name:'Drone',                         rate:'₹8,000–10,000 per day', note:'6–8 hrs' },
+  { name:'YouTube Live Streaming',        rate:'₹15,000–20,000 per day',note:'' },
+  { name:'LED Screen with Camera',        rate:'₹15,000–20,000',        note:'' },
+  { name:'Extra Album',                   rate:'₹5,000–10,000',         note:'100–250 Photos' }
+];
+var quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES));
+
+function renderAddlServices() {
+  var wrap = document.getElementById('qf-addl-services-list');
+  if (!wrap) return;
+  wrap.innerHTML = quotAddlServices.map(function(s, i) {
+    return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">' +
+      '<input value="' + escHtml(s.name) + '" onchange="quotAddlServices[' + i + '].name=this.value" placeholder="Service name" style="flex:2;font-size:12px;padding:5px 8px;border:1px solid #d1d5db;border-radius:7px;font-family:inherit">' +
+      '<input value="' + escHtml(s.rate) + '" onchange="quotAddlServices[' + i + '].rate=this.value" placeholder="Rate" style="flex:2;font-size:12px;padding:5px 8px;border:1px solid #d1d5db;border-radius:7px;font-family:inherit">' +
+      '<input value="' + escHtml(s.note) + '" onchange="quotAddlServices[' + i + '].note=this.value" placeholder="Note (optional)" style="flex:1.5;font-size:12px;padding:5px 8px;border:1px solid #d1d5db;border-radius:7px;font-family:inherit">' +
+      '<button onclick="quotAddlServices.splice(' + i + ',1);renderAddlServices()" title="Remove" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:15px;padding:2px 5px;flex-shrink:0">✕</button>' +
+    '</div>';
+  }).join('') +
+  '<button onclick="quotAddlServices.push({name:\'\',rate:\'\',note:\'\'});renderAddlServices()" style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:7px;padding:5px 14px;font-size:11px;font-weight:600;cursor:pointer;color:#475569;font-family:inherit;margin-top:2px">+ Add Service</button>';
+}
 
 function renderQuotTerms() {
   var presetEl = document.getElementById('quot-preset-terms');
@@ -12994,7 +13036,8 @@ function qdRenderList() {
     var durationOptions = preset ? preset.durations : ['Custom'];
     var isAlbum = preset && preset.hasSizes;
     var isFrame = preset && preset.hasQty && !preset.hasSizes;
-    // Build extra fields for albums/frames
+    var isPerEvent = preset && preset.hasPerEvent;
+    // Build extra fields for albums/frames/per-event
     var extraFields = '';
     if (isAlbum) {
       var qtyOnChange = "qdUpdateField(" + i + ",'qty',this.value)";
@@ -13018,14 +13061,20 @@ function qdRenderList() {
             return '<option value="'+s+'"'+(d.size===s?' selected':'')+'>'+s+'</option>';
           }).join('') +
         '</select>';
+    } else if (isPerEvent) {
+      var peOnChange = "qdUpdateField(" + i + ",'perEvent',this.value)";
+      extraFields +=
+        '<label style="font-size:11px;color:#64748b;font-weight:600;margin-right:2px">Events:</label>' +
+        '<input type="number" min="1" max="20" value="' + (d.perEvent||1) + '" oninput="' + peOnChange + '" onchange="' + peOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;width:52px;font-family:inherit" title="Number of events" placeholder="# events">' +
+        '<span style="font-size:11px;color:#94a3b8">× full video per event</span>';
     }
     return '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;display:flex;align-items:flex-start;gap:10px">' +
       '<span style="font-size:20px;flex-shrink:0;margin-top:2px">' + (d.icon||'📦') + '</span>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:13px;font-weight:600;color:#1a1a1a;margin-bottom:6px">' + d.label + '</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
-          // Quantity/detail selector (qty for albums, duration for videos)
-          (isAlbum || isFrame ? extraFields :
+          // Quantity/detail selector (qty for albums, duration for videos, per-event for trad-video)
+          (isAlbum || isFrame || isPerEvent ? extraFields :
             '<select onchange="qdUpdateDetail(' + i + ',this.value)" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;background:#f8fafc;color:#374151;font-family:inherit;cursor:pointer">' +
             durationOptions.map(function(opt){
               return '<option value="' + opt + '"' + (d.detail===opt?' selected':'') + '>' + opt + '</option>';
@@ -13077,6 +13126,11 @@ function qdUpdateField(i, field, val) {
       ? (qty === 1 ? ' Frame' : ' Frames')
       : (qty === 1 ? ' Album' : ' Albums');
     d.detail       = qty + unit + size;
+    d.customDetail = d.detail;
+  }
+  if (preset && preset.hasPerEvent && field === 'perEvent') {
+    var pe = parseInt(d.perEvent, 10) || 1;
+    d.detail = pe + (pe === 1 ? ' Event' : ' Events') + ' — Full Coverage';
     d.customDetail = d.detail;
   }
   qdRenderList();
@@ -13224,6 +13278,7 @@ function saveQuotation(silent) {
     payterms: gv2('qf-payterms') || '30-50-10-5-5',
     paytermsCustom: (gv2('qf-payterms') === 'custom') ? getQuotCustomPayTerms() : [],
     priceNotes: gv2('qf-price-notes'),
+    addlServices: JSON.parse(JSON.stringify(quotAddlServices)),
     timeline: JSON.parse(JSON.stringify(quotTimeline)),
     terms: collectQuotTerms(),
     // coverImageUrl / aboutImageUrl = Firebase Storage URL (new, lightweight)
@@ -13478,6 +13533,7 @@ function collectQuotData() {
     paytermsCustom: (gv2('qf-payterms') === 'custom') ? getQuotCustomPayTerms() : (savedQ ? savedQ.paytermsCustom : []),
     timeline: JSON.parse(JSON.stringify(quotTimeline)),
     priceNotes: gv2('qf-price-notes') || (savedQ ? savedQ.priceNotes : '') || '',
+    addlServices: JSON.parse(JSON.stringify(quotAddlServices)),
     terms: collectQuotTerms()
   };
 }
@@ -14192,7 +14248,43 @@ function buildQuotPDFDom(q) {
     '</div>';
   }
 
-  return cover + aboutPage + crewPage + delivPage + pricePage + termsPage;
+  // ══════════════════════════════════════════════════════════════
+  // ADDITIONAL SERVICES PAGE — only rendered if any services defined
+  // ══════════════════════════════════════════════════════════════
+  var addlServicesPage = '';
+  var svcList = (q.addlServices || []).filter(function(s){ return s.name && s.name.trim(); });
+  if (svcList.length) {
+    addlServicesPage = '<div class="qpdf-page" style="' + S.page + '">' +
+      pageHeader('Additional Services', clientName) +
+      '<div style="flex:1;overflow:hidden;">' +
+      accentLine +
+      '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin-bottom:14px;font-family:Arial,sans-serif">Add-On Service Charges</div>' +
+      '<div style="font-size:12px;color:#666;margin-bottom:20px;font-family:Arial,sans-serif">The following services are available as optional add-ons. Charges are per day unless stated otherwise.</div>' +
+      // Header row
+      '<div style="display:flex;gap:0;background:' + T.dayHdrBg + ';color:#fff;border-radius:6px 6px 0 0;padding:10px 16px;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;font-family:Arial,sans-serif">' +
+        '<div style="flex:2">Service</div>' +
+        '<div style="flex:2">Charge</div>' +
+        '<div style="flex:1.5">Notes</div>' +
+      '</div>' +
+      svcList.map(function(s, idx) {
+        var bg = idx % 2 === 0
+          ? (isNoir ? 'rgba(255,255,255,0.03)' : '#faf8f4')
+          : (isNoir ? 'rgba(255,255,255,0.06)' : '#fff');
+        return '<div style="display:flex;gap:0;padding:12px 16px;background:' + bg + ';border-bottom:1px solid ' + (isNoir ? 'rgba(201,169,110,0.12)' : '#ede6da') + ';font-family:Arial,sans-serif">' +
+          '<div style="flex:2;font-size:13px;font-weight:600;color:' + (isNoir ? '#e8d5b0' : '#2c2418') + '">' + escHtml(s.name) + '</div>' +
+          '<div style="flex:2;font-size:13px;font-weight:700;color:' + T.coverAccent + '">' + escHtml(s.rate) + '</div>' +
+          '<div style="flex:1.5;font-size:11px;color:#888">' + escHtml(s.note || '') + '</div>' +
+        '</div>';
+      }).join('') +
+      '<div style="margin-top:20px;background:' + (isNoir ? 'rgba(201,169,110,0.06)' : 'rgba(138,115,85,0.04)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.2)' : '#d4c8b4') + ';border-radius:6px;padding:12px 16px;font-size:11px;color:#888;font-family:Arial,sans-serif">' +
+        'All additional services are subject to availability and must be confirmed at the time of booking. Charges are exclusive of GST unless stated.' +
+      '</div>' +
+      '</div>' +
+      pageFooter('Additional Services  ·  ' + clientName, (_pgTerms ? _pgTerms + 1 : _pgPrice + 1)) +
+    '</div>';
+  }
+
+  return cover + aboutPage + crewPage + delivPage + pricePage + termsPage + addlServicesPage;
 }
 </script>
 
