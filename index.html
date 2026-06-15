@@ -549,10 +549,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .chip-afterparty{background:#f0fdf4;color:#15803d}
 .chip-other{background:#f1f5f9;color:#475569}
 /* Event days in project modal */
-.evday-card{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px;margin-bottom:10px;position:relative}
-.evday-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07)}
-.evday-remove{position:absolute;top:10px;right:10px;background:none;border:none;font-size:18px;color:#ccc;cursor:pointer;line-height:1;padding:0}
-.evday-remove:hover{color:#dc2626}
+.evday-card{background:#fff;border:1px solid #bae6fd;border-radius:12px;padding:16px;margin-bottom:14px;position:relative;border-left:4px solid #0369a1}
+.evday-card:hover{box-shadow:0 3px 14px rgba(3,105,161,.1)}
+.evday-remove{background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;font-size:11px;cursor:pointer;padding:4px 10px;font-weight:700;font-family:inherit}
+.evday-remove:hover{background:#fecaca}
 /* Date input: show DD MMM YYYY format hint */
 input[type='date'] { letter-spacing: 0.5px; }
 input[type='date']::-webkit-datetime-edit-text { color: #aaa; }
@@ -1468,23 +1468,55 @@ document.addEventListener('wheel', function(e) {
     </div>
 
     <div id="page-team" class="page">
-      <div class="page-title">Team Management</div>
-      <div class="page-sub">Full profiles of your production team.</div>
-      <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="btn btn-primary" id="btn-add-team">+ Add Member</button>
-        <input type="text" class="fi" id="team-search" placeholder="Search name, role, city…" style="max-width:220px">
-        <select class="fi" id="team-role-f" style="max-width:160px"><option value="">All Roles</option><option>Photographer</option><option>Videographer</option><option>Editor</option><option>Coordinator</option><option>Drone Operator</option><option>Assistant</option><option>Other</option></select>
-        <select class="fi" id="team-region-f" style="max-width:140px"><option value="">All Regions</option><option value="north">🔵 North</option><option value="south">🟠 South</option></select>
-        <div style="display:flex;gap:4px;margin-left:auto">
-          <button class="btn-view active" id="tv-profile" onclick="setTeamView('profile')">👤 Profile</button>
-          <button class="btn-view" id="tv-salary" onclick="setTeamView('salary')">💰 Salary</button>
-          <button class="btn-view" id="tv-bank" onclick="setTeamView('bank')">🏦 Bank/UPI</button>
-          <button class="btn-view" id="tv-contact" onclick="setTeamView('contact')">📞 Contact</button>
-          <button class="btn-view" id="tv-hr" onclick="setTeamView('hr')">📅 HR</button>
-        </div>
-        <select class="fi" id="team-sort" style="max-width:160px" onchange="renderTeam()"><option value="name">Sort: Name A–Z</option><option value="salary_desc">Sort: Salary High–Low</option><option value="salary_asc">Sort: Salary Low–High</option><option value="joining">Sort: Joining Date</option></select>
+      <div class="page-title">Team &amp; Freelancers</div>
+      <div class="page-sub">Manage your full-time team and freelancer pool.</div>
+
+      <!-- ── Team / Freelancer toggle ── -->
+      <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;width:fit-content">
+        <button id="team-tab-btn" onclick="switchTeamTab('team')" style="padding:9px 22px;font-size:13px;font-weight:700;background:#1a1a1a;color:#fff;border:none;cursor:pointer">👥 Team Members</button>
+        <button id="freelancer-tab-btn" onclick="switchTeamTab('freelancer')" style="padding:9px 22px;font-size:13px;font-weight:700;background:#fff;color:#64748b;border:none;cursor:pointer">🎯 Freelancers</button>
       </div>
-      <div id="team-grid"></div>
+
+      <!-- ── TEAM MEMBER SECTION ── -->
+      <div id="team-section">
+        <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary" id="btn-add-team">+ Add Team Member</button>
+          <input type="text" class="fi" id="team-search" placeholder="Search name, role, city…" style="max-width:220px">
+          <select class="fi" id="team-role-f" style="max-width:160px"><option value="">All Roles</option><option>Photographer</option><option>Videographer</option><option>Editor</option><option>Coordinator</option><option>Drone Operator</option><option>Assistant</option><option>Other</option></select>
+          <select class="fi" id="team-region-f" style="max-width:140px"><option value="">All Regions</option><option value="north">🔵 North</option><option value="south">🟠 South</option></select>
+          <div style="display:flex;gap:4px;margin-left:auto">
+            <button class="btn-view active" id="tv-profile" onclick="setTeamView('profile')">👤 Profile</button>
+            <button class="btn-view" id="tv-salary" onclick="setTeamView('salary')">💰 Salary</button>
+            <button class="btn-view" id="tv-bank" onclick="setTeamView('bank')">🏦 Bank/UPI</button>
+            <button class="btn-view" id="tv-contact" onclick="setTeamView('contact')">📞 Contact</button>
+            <button class="btn-view" id="tv-hr" onclick="setTeamView('hr')">📅 HR</button>
+          </div>
+          <select class="fi" id="team-sort" style="max-width:160px" onchange="renderTeam()"><option value="name">Sort: Name A–Z</option><option value="salary_desc">Sort: Salary High–Low</option><option value="salary_asc">Sort: Salary Low–High</option><option value="joining">Sort: Joining Date</option></select>
+        </div>
+        <div id="team-grid"></div>
+      </div>
+
+      <!-- ── FREELANCER SECTION ── -->
+      <div id="freelancer-section" style="display:none">
+        <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary" id="btn-add-freelancer" onclick="openAddFreelancer()">+ Add Freelancer</button>
+          <input type="text" class="fi" id="freelancer-search" placeholder="Search name, skill, city…" style="max-width:220px" oninput="renderFreelancers()">
+          <select class="fi" id="freelancer-role-f" style="max-width:160px" onchange="renderFreelancers()">
+            <option value="">All Roles</option>
+            <option>Photographer</option><option>Videographer</option><option>Editor</option>
+            <option>Drone Operator</option><option>Phonographer</option><option>Assistant</option>
+            <option>Coordinator</option><option>Makeup Artist</option><option>Other</option>
+          </select>
+          <select class="fi" id="freelancer-avail-f" style="max-width:150px" onchange="renderFreelancers()">
+            <option value="">All Availability</option>
+            <option value="available">✅ Available</option>
+            <option value="busy">🔴 Currently Busy</option>
+            <option value="inactive">⚫ Inactive</option>
+          </select>
+          <span id="freelancer-count" style="font-size:12px;color:#888;margin-left:4px"></span>
+        </div>
+        <div id="freelancer-grid"></div>
+      </div>
     </div>
 
     <div id="page-referral" class="page">
@@ -1864,14 +1896,24 @@ document.addEventListener('wheel', function(e) {
 
       <!-- Responses Tab -->
       <div id="ob-responses-tab" style="display:none">
-        <div class="toolbar">
-          <input type="text" class="fi" placeholder="Search name, couple…" id="ob-resp-search" oninput="renderObResponses()">
+        <div class="toolbar" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          <input type="text" class="fi" placeholder="Search name, couple…" id="ob-resp-search" oninput="renderObResponses()" style="flex:2;min-width:180px">
           <select class="fi" id="ob-resp-filter" style="flex:0;width:auto" onchange="renderObResponses()">
             <option value="">All Projects</option>
             <option value="filled">✅ Form Filled</option>
             <option value="pending">⏳ Awaiting Response</option>
+            <option value="not_sent">📤 Link Not Sent Yet</option>
           </select>
+          <select class="fi" id="ob-fy-filter" style="flex:0;width:auto" onchange="renderObResponses()">
+            <option value="">All Years</option>
+            <option value="fy2526">FY 2025-26 (Apr 25 – Mar 26)</option>
+            <option value="fy2627">FY 2026-27 (Apr 26 – Mar 27)</option>
+            <option value="fy2425">FY 2024-25 (Apr 24 – Mar 25)</option>
+          </select>
+          <button class="btn btn-sm" onclick="selectAllObClients()" style="font-size:11px">☑ Select All</button>
+          <button class="btn btn-sm btn-primary" onclick="bulkCopyObLinks()" style="font-size:11px">📋 Copy Selected Links</button>
         </div>
+        <div id="ob-bulk-status" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:10px"></div>
         <div id="ob-responses-table"></div>
       </div>
 
@@ -2323,9 +2365,8 @@ document.addEventListener('wheel', function(e) {
     <div class="modal-body">
       <div class="tabs">
         <button class="tab-btn active" data-tab="t-details">📋 Details</button>
-        <button class="tab-btn" data-tab="t-eventdays">📅 Event Days</button>
+        <button class="tab-btn" data-tab="t-production">🎬 Production Plan</button>
         <button class="tab-btn" data-tab="t-stage">🔄 Stage</button>
-        <button class="tab-btn" data-tab="t-team2">👥 Team</button>
         <button class="tab-btn" data-tab="t-deliv">📦 Deliverables</button>
         <button class="tab-btn" data-tab="t-brief">📋 Client Brief</button>
         <button class="tab-btn" data-tab="t-raw">💾 Raw Data</button>
@@ -2389,17 +2430,30 @@ document.addEventListener('wheel', function(e) {
         <div class="fg"><div class="fr"><label class="fl">Instagram Handle</label><input class="fi" id="f-instagram" placeholder="@couplename"></div><div class="fr"><label class="fl">General Notes</label><textarea class="fi" id="f-general-notes" rows="2"></textarea></div></div>
       </div>
 
-      <div id="t-eventdays" class="tab-pane">
-        <div class="info info-blue" style="margin-bottom:14px">
-          📅 Add each event day for this project (Haldi, Sangeet, Wedding, Reception, After Party, etc.). These appear on the global <strong>Shoot Calendar</strong>.
+      <div id="t-production" class="tab-pane">
+
+        <!-- ══ HIDDEN LEGACY FIELDS (kept for save compatibility) ══ -->
+        <div style="display:none">
+          <select id="f-photographer"><option value="">-- Select --</option></select>
+          <select id="f-videographer"><option value="">-- Select --</option></select>
+          <select id="f-editor"><option value="">-- Select --</option></select>
+          <select id="f-coordinator"><option value="">-- Select --</option></select>
+          <select id="f-drone"><option value="">-- None --</option></select>
+          <textarea id="f-team-notes"></textarea>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <div style="font-size:13px;font-weight:700;color:#555">Event Days</div>
+
+        <!-- ══ EVENT DAYS & DAY-WISE PRODUCTION PLAN ══ -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#1a1a1a">📅 Event Days &amp; Production Plan</div>
+            <div style="font-size:11px;color:#888;margin-top:2px">Each day auto-appears on the Shoot Calendar with its team. Set production level per day.</div>
+          </div>
           <button class="btn btn-primary btn-sm" onclick="addEventDay()">+ Add Event Day</button>
         </div>
         <div id="evday-container">
-          <div class="empty" id="evday-empty">No event days added yet. Click "+ Add Event Day" to begin.</div>
+          <div class="empty" id="evday-empty">No event days yet. Click "+ Add Event Day" to plan your shoot schedule.</div>
         </div>
+
       </div>
 
       <div id="t-stage" class="tab-pane">
@@ -2414,12 +2468,7 @@ document.addEventListener('wheel', function(e) {
         <div style="padding-top:12px;border-top:1px solid #f0f0f0"><button class="btn-danger" id="btn-delete-proj" style="display:none">🗑️ Delete Project</button></div>
       </div>
 
-      <div id="t-team2" class="tab-pane">
-        <div class="fg"><div class="fr"><label class="fl">Lead Photographer</label><select class="fi" id="f-photographer"><option value="">-- Select --</option></select></div><div class="fr"><label class="fl">Lead Videographer</label><select class="fi" id="f-videographer"><option value="">-- Select --</option></select></div></div>
-        <div class="fg"><div class="fr"><label class="fl">Editor</label><select class="fi" id="f-editor"><option value="">-- Select --</option></select></div><div class="fr"><label class="fl">Coordinator</label><select class="fi" id="f-coordinator"><option value="">-- Select --</option></select></div></div>
-        <div class="fr"><label class="fl">Drone Operator</label><select class="fi" id="f-drone"><option value="">-- None --</option></select></div>
-        <div class="fr"><label class="fl">Team Notes</label><textarea class="fi" id="f-team-notes" rows="2"></textarea></div>
-      </div>
+
 
       <div id="t-deliv" class="tab-pane">
         <div class="info info-blue">Add custom deliverables for this project. Each has its own specs, editor assignment, and drive link.</div>
@@ -2877,6 +2926,70 @@ document.addEventListener('wheel', function(e) {
   </div>
 </div>
 
+<!-- FREELANCER MODAL -->
+<div class="modal-overlay" id="freelancer-modal">
+  <div class="modal modal-lg">
+    <div class="modal-hdr">
+      <div class="modal-title" id="freelancer-modal-title">Add Freelancer</div>
+      <button class="modal-close" data-close="freelancer-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="info info-blue" style="margin-bottom:14px">
+        🎯 Freelancers are hired per-event. They appear in all Production Plan team dropdowns alongside your full-time team, marked with a <b>🎯</b> badge.
+      </div>
+      <!-- Basic Info -->
+      <div class="section-divider">Basic Information</div>
+      <div class="fg"><div class="fr"><label class="fl">Full Name *</label><input class="fi" id="fl-name" placeholder="e.g. Rohit Verma"></div><div class="fr"><label class="fl">Nickname / Short Name</label><input class="fi" id="fl-nickname" placeholder="e.g. Roh"></div></div>
+      <div class="fg3"><div class="fr"><label class="fl">Primary Phone *</label><input class="fi" id="fl-phone" placeholder="9876543210"></div><div class="fr"><label class="fl">WhatsApp</label><input class="fi" id="fl-whatsapp" placeholder="9876543210"></div><div class="fr"><label class="fl">Email</label><input class="fi" type="email" id="fl-email" placeholder="rohit@email.com"></div></div>
+      <!-- Professional -->
+      <div class="section-divider" style="margin-top:8px">Professional Profile</div>
+      <div class="fg3">
+        <div class="fr"><label class="fl">Role / Skill *</label>
+          <select class="fi" id="fl-role">
+            <option>Photographer</option><option>Videographer</option><option>Drone Operator</option>
+            <option>Phonographer</option><option>Editor</option><option>Assistant</option>
+            <option>Coordinator</option><option>Makeup Artist</option><option>Other</option>
+          </select>
+        </div>
+        <div class="fr"><label class="fl">Based in City</label><input class="fi" id="fl-city" placeholder="e.g. Delhi, Jaipur…"></div>
+        <div class="fr"><label class="fl">Availability</label>
+          <select class="fi" id="fl-availability">
+            <option value="available">✅ Available</option>
+            <option value="busy">🔴 Currently Busy</option>
+            <option value="inactive">⚫ Inactive / Retired</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg3">
+        <div class="fr"><label class="fl">Experience (years)</label><input class="fi" type="number" id="fl-exp" placeholder="e.g. 4" min="0"></div>
+        <div class="fr"><label class="fl">Per Event Rate (₹)</label><input class="fi" type="number" id="fl-rate" placeholder="e.g. 5000"></div>
+        <div class="fr"><label class="fl">Rating (1–5 ⭐)</label>
+          <select class="fi" id="fl-rating">
+            <option value="">Not rated</option>
+            <option value="5">⭐⭐⭐⭐⭐ Excellent</option>
+            <option value="4">⭐⭐⭐⭐ Very Good</option>
+            <option value="3">⭐⭐⭐ Good</option>
+            <option value="2">⭐⭐ Average</option>
+            <option value="1">⭐ Below Average</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><div class="fr"><label class="fl">Specialisation / Skills</label><input class="fi" id="fl-skills" placeholder="e.g. Candid, Drone, Reels, Color Grading"></div><div class="fr"><label class="fl">Equipment Owned</label><input class="fi" id="fl-equipment" placeholder="e.g. Sony A7IV, DJI Mini 3 Pro"></div></div>
+      <!-- Payment -->
+      <div class="section-divider" style="margin-top:8px">Payment Details</div>
+      <div class="fg3"><div class="fr"><label class="fl">UPI ID</label><input class="fi" id="fl-upi" placeholder="e.g. rohit@okaxis"></div><div class="fr"><label class="fl">Bank Account</label><input class="fi" id="fl-bankaccount" placeholder="Account number"></div><div class="fr"><label class="fl">IFSC Code</label><input class="fi" id="fl-ifsc" placeholder="e.g. HDFC0001234"></div></div>
+      <!-- Notes -->
+      <div class="section-divider" style="margin-top:8px">Notes &amp; Tags</div>
+      <div class="fr"><label class="fl">Internal Notes</label><textarea class="fi" id="fl-notes" rows="2" placeholder="e.g. Very reliable for pre-wedding shoots. Brings own lighting."></textarea></div>
+      <div class="fg"><div class="fr"><label class="fl">ID Proof</label><input class="fi" id="fl-idproof" placeholder="e.g. Aadhar: 1234-5678-9012"></div><div class="fr"><label class="fl">Referred By</label><input class="fi" id="fl-referredby" placeholder="e.g. Vikram Sharma (Team)"></div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="freelancer-modal">Cancel</button>
+      <button class="btn btn-primary" id="btn-save-freelancer">💾 Save Freelancer</button>
+    </div>
+  </div>
+</div>
+
 <!-- USER MODAL -->
 <div class="modal-overlay" id="user-modal">
   <div class="modal" style="max-width:580px">
@@ -2899,7 +3012,7 @@ document.addEventListener('wheel', function(e) {
             <option value="intern">🔑 Intern — Full view, no delete or payments</option>
             <option value="admin">🔧 Admin — Projects, team, referrals</option>
             <option value="accounts">💰 Accounts — Payments &amp; finance only</option>
-            <option value="postprod">🎬 Post Production — Deliverables &amp; briefs</option>
+            <option value="postprod">🎬 Post Production In-Charge — Full pipeline access, no financials</option>
             <option value="editor">✂️ Editor — Own deliverables only</option>
             <option value="sales">💼 Sales Head — Full access + escalations + quotations</option>
             <option value="salesperson">🧑‍💼 Sales Person — Quotations &amp; leads only</option>
@@ -3351,29 +3464,132 @@ function copyObWAMsg() {
 }
 
 // ═══ ONBOARDING RESPONSES TABLE ══════════════════════
+function getObFYRange(fy) {
+  var ranges = {
+    'fy2425': { start: new Date('2024-04-01'), end: new Date('2025-03-31T23:59:59') },
+    'fy2526': { start: new Date('2025-04-01'), end: new Date('2026-03-31T23:59:59') },
+    'fy2627': { start: new Date('2026-04-01'), end: new Date('2027-03-31T23:59:59') }
+  };
+  return ranges[fy] || null;
+}
+
 function renderObResponses() {
-  var q = (document.getElementById('ob-resp-search') || {value:''}).value.toLowerCase();
+  var q    = (document.getElementById('ob-resp-search') || {value:''}).value.toLowerCase();
   var filt = (document.getElementById('ob-resp-filter') || {value:''}).value;
+  var fy   = (document.getElementById('ob-fy-filter')   || {value:''}).value;
+  var fyRange = fy ? getObFYRange(fy) : null;
+
   var list = pl().filter(function(p) {
-    if (filt === 'filled' && !(p.clientOnboarding && p.clientOnboarding.submittedAt)) return false;
-    if (filt === 'pending' && (p.clientOnboarding && p.clientOnboarding.submittedAt)) return false;
-    if (q) { var hay = ((p.bride||'')+(p.groom||'')+(p.phone||'')).toLowerCase(); if (!hay.includes(q)) return false; }
+    var filled  = p.clientOnboarding && p.clientOnboarding.submittedAt;
+    var sent    = p.obLinkSentAt || (p.clientOnboarding && p.clientOnboarding.submittedAt);
+
+    if (filt === 'filled'   && !filled) return false;
+    if (filt === 'pending'  && filled)  return false;
+    if (filt === 'not_sent' && sent)    return false;
+
+    // Financial year filter — check booking date first, fall back to createdAt
+    if (fyRange) {
+      var bookTs = p.bookdate ? new Date(p.bookdate).getTime() :
+                  p.createdAt ? p.createdAt :
+                  p.updatedAt ? p.updatedAt : 0;
+      var bookDate = new Date(bookTs);
+      if (bookDate < fyRange.start || bookDate > fyRange.end) return false;
+    }
+
+    if (q) {
+      var hay = ((p.bride||'')+(p.groom||'')+(p.phone||'')+(p.city||'')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
     return true;
-  }).sort(function(a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+  }).sort(function(a, b) {
+    // Sort by booking date desc (newest first)
+    var aTs = a.bookdate ? new Date(a.bookdate).getTime() : (a.createdAt || a.updatedAt || 0);
+    var bTs = b.bookdate ? new Date(b.bookdate).getTime() : (b.createdAt || b.updatedAt || 0);
+    return bTs - aTs;
+  });
+
   var el = document.getElementById('ob-responses-table'); if (!el) return;
-  if (!list.length) { el.innerHTML = '<div class="empty">No projects match the filter.</div>'; return; }
-  el.innerHTML = '<div class="mob-scroll"><table class="tbl"><thead><tr><th>Couple</th><th>Event Date</th><th>City</th><th>Onboarding</th><th>Submitted</th><th></th></tr></thead><tbody>' +
+
+  // Summary bar
+  var filled  = list.filter(function(p){ return p.clientOnboarding && p.clientOnboarding.submittedAt; }).length;
+  var pending = list.length - filled;
+  var summaryHTML = '<div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;font-size:13px">' +
+    '<span style="color:#555"><strong>' + list.length + '</strong> clients</span>' +
+    '<span style="color:#16a34a">✅ <strong>' + filled + '</strong> filled</span>' +
+    '<span style="color:#d97706">⏳ <strong>' + pending + '</strong> pending</span>' +
+    (fyRange ? '<span style="background:#e0f2fe;color:#0369a1;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600">' + fy.toUpperCase().replace('FY','FY ').replace(/(\d{2})(\d{2})/,'$1-$2') + '</span>' : '') +
+  '</div>';
+
+  if (!list.length) {
+    el.innerHTML = summaryHTML + '<div class="empty">No projects match the filter.</div>';
+    return;
+  }
+
+  el.innerHTML = summaryHTML +
+    '<div class="mob-scroll"><table class="tbl"><thead><tr>' +
+      '<th style="width:32px"><input type="checkbox" id="ob-select-all" onchange="toggleAllObSelect(this)"></th>' +
+      '<th>Couple</th><th>Booked On</th><th>Event Date</th><th>City</th><th>Onboarding</th><th>Submitted</th><th>Actions</th>' +
+    '</tr></thead><tbody>' +
     list.map(function(p) {
-      var filled = p.clientOnboarding && p.clientOnboarding.submittedAt;
+      var filled2 = p.clientOnboarding && p.clientOnboarding.submittedAt;
+      var bookTs  = p.bookdate ? new Date(p.bookdate).getTime() : (p.createdAt || 0);
+      var bookStr = bookTs ? fmtDate(new Date(bookTs)) : '—';
       return '<tr>' +
-        '<td><div style="font-weight:700">' + p.bride + ' & ' + p.groom + '</div><div style="font-size:11px;color:#888">' + (fieldVisible('phone') ? (p.phone || '') : (p.phone ? MASK_TEXT : '')) + '</div></td>' +
-        '<td>' + (p.date || '—') + '</td>' +
-        '<td>' + (p.city || '—') + '</td>' +
-        '<td>' + (filled ? '<span class="badge b-green">✅ Filled</span>' : '<span class="badge b-amber">⏳ Pending</span>') + '</td>' +
-        '<td style="font-size:11px;color:#888">' + (filled ? fmtDate(p.clientOnboarding.submittedAt) : '—') + '</td>' +
-        '<td>' + (filled ? '<button class="btn btn-sm" onclick="viewObResponse(' + p.id + ')">View</button>' : '<button class="btn btn-sm" onclick="copyObLink(' + p.id + ')">Copy Link</button>') + '</td>' +
+        '<td><input type="checkbox" class="ob-row-check" value="' + p.id + '"></td>' +
+        '<td><div style="font-weight:700">' + escHtml(p.bride + ' & ' + p.groom) + '</div>' +
+          '<div style="font-size:11px;color:#888">' + (fieldVisible('phone') ? (p.phone||'') : (p.phone ? MASK_TEXT : '')) + '</div></td>' +
+        '<td style="font-size:12px;color:#1d4ed8;font-weight:600">' + bookStr + '</td>' +
+        '<td>' + fmtDate(p.date) + '</td>' +
+        '<td>' + (p.city||'—') + '</td>' +
+        '<td>' + (filled2 ? '<span class="badge b-green">✅ Filled</span>' : '<span class="badge b-amber">⏳ Pending</span>') + '</td>' +
+        '<td style="font-size:11px;color:#888">' + (filled2 ? fmtDate(p.clientOnboarding.submittedAt) : '—') + '</td>' +
+        '<td style="display:flex;gap:6px;flex-wrap:wrap">' +
+          (filled2 ? '<button class="btn btn-sm" onclick="viewObResponse(' + p.id + ')">👁 View</button>' : '') +
+          '<button class="btn btn-sm" onclick="copyObLink(' + p.id + ')" title="Copy onboarding link">📋 Copy Link</button>' +
+          (!filled2 ? '<button class="btn btn-sm" style="background:#25D366;color:#fff;border:none" onclick="waObLink(' + p.id + ')">📲 WhatsApp</button>' : '') +
+        '</td>' +
       '</tr>';
     }).join('') + '</tbody></table></div>';
+}
+
+function toggleAllObSelect(cb) {
+  document.querySelectorAll('.ob-row-check').forEach(function(c){ c.checked = cb.checked; });
+}
+
+function selectAllObClients() {
+  var allCb = document.getElementById('ob-select-all');
+  if (allCb) { allCb.checked = true; toggleAllObSelect(allCb); }
+}
+
+function bulkCopyObLinks() {
+  var checked = Array.from(document.querySelectorAll('.ob-row-check:checked')).map(function(c){ return c.value; });
+  if (!checked.length) { showToast('Select at least one client first.'); return; }
+  var links = checked.map(function(id) {
+    var p = projects[id]; if (!p) return '';
+    return (p.bride||'') + ' & ' + (p.groom||'') + ': ' + getObURL(parseInt(id));
+  }).filter(Boolean).join('\n');
+  navigator.clipboard.writeText(links).then(function() {
+    var statusEl = document.getElementById('ob-bulk-status');
+    if (statusEl) {
+      statusEl.style.display = '';
+      statusEl.innerHTML = '✅ <strong>' + checked.length + ' links copied</strong> to clipboard — paste into WhatsApp or email.';
+      setTimeout(function(){ statusEl.style.display = 'none'; }, 4000);
+    }
+    showToast('📋 ' + checked.length + ' links copied!');
+  });
+}
+
+function waObLink(id) {
+  var p = projects[id]; if (!p) return;
+  var fn = p.bride ? p.bride.split(' ')[0] : 'there';
+  var url = getObURL(id);
+  var msg = 'Hi ' + fn + '! 🎉\n\nWelcome to KB Studio Productions! We\'re thrilled to be capturing your special moments.\n\nPlease fill in your onboarding form so we can personalise your experience:\n\n' + url + '\n\nFeel free to reach out for any queries!\n\n— KB Studio Team';
+  var phone = (p.phone||'').replace(/[^0-9]/g,'');
+  var num = phone.length === 10 ? '91' + phone : phone;
+  if (num) window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+  else { navigator.clipboard.writeText(msg); showToast('📋 Message copied — no phone found'); }
+  // Mark link as sent
+  db.ref('crm_projects/' + id + '/obLinkSentAt').set(Date.now());
 }
 
 function copyObLink(id) {
@@ -4011,7 +4227,7 @@ function getPayTerms(p){
   return base;
 }
 
-var CU=null,projects={},teamData={},users={},referral={},accounts={},crmSettings={};
+var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
 var dashCharts={},repCharts={},pipeRegionFilter='all',teamViewMode='profile';
 
@@ -4059,7 +4275,7 @@ function fmtDateTime(ts) {
 function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d)-new Date())/86400000);}
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
-function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Production',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
+function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Prod In-Charge',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
 function avatarColor(name){var c=['#1d4ed8','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46'];var h=0;for(var i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length];}
 function stageBadge(s){var m={preprod:['b-preprod','Pre-Prod'],production:['b-prod','Production'],postprod:['b-postprod','Post-Prod'],delivery:['b-delivery','Delivery'],payment:['b-payment','Pay Pending'],complete:['b-complete','Complete']};var v=m[s]||['b-gray',s];return '<span class="badge '+v[0]+'">'+v[1]+'</span>';}
 function regionBadge(r){return r==='north'?'<span class="badge b-north">🔵 North</span>':r==='south'?'<span class="badge b-south">🟠 South</span>':'';}
@@ -4284,7 +4500,7 @@ function loadAll(){
       db.ref('crm_accounts').once('value')
     ]).then(function(snaps){
       crmSettings = snaps[0].val()||{};
-      teamData    = snaps[1].val()||{};
+      teamData       = snaps[1].val()||{};
       referral    = snaps[2].val()||{};
       accounts    = snaps[3].val()||{};
       if(!Object.keys(accounts).length){var o={};DEFAULT_ACCOUNTS.forEach(function(a){o[a.id]=a;});db.ref('crm_accounts').set(o);}
@@ -4306,7 +4522,8 @@ function loadAll(){
         // One-time wipe — remove this line after first load
         if (!localStorage.getItem('esc_wiped_v1')) { wipeAllEscalations(); localStorage.setItem('esc_wiped_v1','1'); }
       });
-      db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};});
+      db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
+      db.ref('crm_freelancers').on('value',function(snap){freelancerData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
       db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
       db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
       db.ref('crm_users').on('value',function(snap){var fb=snap.val()||{};DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});users=fb;});
@@ -4922,27 +5139,170 @@ function addEventDay(data) {
   var container = document.getElementById('evday-container'); if (!container) return;
   var empty = document.getElementById('evday-empty'); if (empty) empty.style.display = 'none';
   data = data || {};
-  var id = 'evday-' + Date.now() + '-' + evDayCount;
+  var dayNum = evDayCount;
+
+  // Build combined team + freelancer option HTML
+  function _teamOpts(selected) {
+    var opts = '<option value="">— None —</option>';
+    // ── Full-time Team (sorted) ──
+    var members = Object.values(teamData || {}).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+    if (members.length) {
+      opts += '<optgroup label="👥 Team Members">';
+      members.forEach(function(t){
+        var sel = (selected && (t.id === selected || t.name === selected)) ? ' selected' : '';
+        opts += '<option value="' + t.id + '"' + sel + '>' + (t.name||'') + (t.city ? ' · ' + t.city : '') + '</option>';
+      });
+      opts += '</optgroup>';
+    }
+    // ── Freelancers (sorted, available first) ──
+    var fls = Object.values(freelancerData || {}).sort(function(a,b){
+      var aA = a.availability==='available' ? 0 : 1;
+      var bA = b.availability==='available' ? 0 : 1;
+      if (aA !== bA) return aA - bA;
+      return (a.name||'').localeCompare(b.name||'');
+    });
+    if (fls.length) {
+      opts += '<optgroup label="🎯 Freelancers">';
+      fls.forEach(function(f){
+        var sel = (selected && (f.id === selected || f.name === selected)) ? ' selected' : '';
+        var avail = f.availability === 'busy' ? ' 🔴' : f.availability === 'inactive' ? ' ⚫' : '';
+        opts += '<option value="' + f.id + '"' + sel + '>🎯 ' + (f.name||'') + (f.city ? ' · ' + f.city : '') + avail + '</option>';
+      });
+      opts += '</optgroup>';
+    }
+    return opts;
+  }
+
+  var allOpts = function(sel){ return _teamOpts(sel); };
+
+  // Saved multi-slot data
+  var d = data || {};
+
   var card = document.createElement('div');
   card.className = 'evday-card';
-  card.dataset.evid = id;
+  card.dataset.daynum = dayNum;
+
+  var prodLevelOptions = ['Standard','Premium','Luxury','Destination','Custom'].map(function(l){
+    return '<option value="' + l + '"' + (d.prodLevel === l ? ' selected' : '') + '>' + l + '</option>';
+  }).join('');
+
+  var eventTypeOptions = [
+    'Wedding','Sangeet','Haldi','Mehendi','Reception','Engagement',
+    'Pre-Wedding Shoot','Cocktail Night','After Party','Tilak',
+    'Godh Bharai / Baby Shower','Roka','Birthday','Corporate Event',
+    'Maternity Shoot','Fashion Shoot','Other'
+  ].map(function(t){ return '<option value="'+t+'"'+(d.type===t?' selected':'')+'>'+t+'</option>'; }).join('');
+
   card.innerHTML =
-    '<button class="evday-remove" onclick="removeEventDay(this)" title="Remove">✕</button>' +
-    '<div class="fg3" style="margin-bottom:8px">' +
-      '<div class="fr"><label class="fl">Date *</label><input class="fi evd-date" type="date" style="font-size:12px;padding:7px 10px"></div>' +
-      '<div class="fr"><label class="fl">Event Type *</label><input class="fi evd-type" type="text" placeholder="e.g. Wedding, Sangeet, Haldi…" style="font-size:12px;padding:7px 10px"></div>' +
-      '<div class="fr"><label class="fl">Venue</label><input class="fi evd-venue" type="text" placeholder="Venue name" style="font-size:12px;padding:7px 10px"></div>' +
+    // ── Header ──
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
+        '<span style="background:#0369a1;color:#fff;font-size:11px;font-weight:800;padding:3px 12px;border-radius:20px">📅 Day ' + dayNum + '</span>' +
+        '<span class="evday-typename" style="font-size:12px;color:#64748b;font-style:italic"></span>' +
+      '</div>' +
+      '<button class="evday-remove" onclick="removeEventDay(this)" title="Remove">✕ Remove</button>' +
     '</div>' +
-    '<div class="fg" style="margin-bottom:0">' +
-      '<div class="fr"><label class="fl">Start Time</label><input class="fi evd-time" type="time" style="font-size:12px;padding:7px 10px"></div>' +
-      '<div class="fr"><label class="fl">Notes</label><input class="fi evd-notes" type="text" placeholder="Any special notes…" style="font-size:12px;padding:7px 10px"></div>' +
-    '</div>';
+
+    // ── Row 1: Date / Type / Venue / Production Level ──
+    '<div style="display:grid;grid-template-columns:140px 1fr 1fr 130px;gap:8px;margin-bottom:10px">' +
+      '<div>' +
+        '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Date *</label>' +
+        '<input class="fi evd-date" type="date" style="padding:7px 10px;font-size:12px">' +
+      '</div>' +
+      '<div>' +
+        '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Event Type *</label>' +
+        '<select class="fi evd-type" style="padding:7px 10px;font-size:12px"><option value="">— Select —</option>' + eventTypeOptions + '</select>' +
+      '</div>' +
+      '<div>' +
+        '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Venue / Location</label>' +
+        '<input class="fi evd-venue" type="text" placeholder="Hotel / Venue name" style="padding:7px 10px;font-size:12px">' +
+      '</div>' +
+      '<div>' +
+        '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Production Level</label>' +
+        '<select class="fi evd-prodlevel" style="padding:7px 10px;font-size:12px">' + prodLevelOptions + '</select>' +
+      '</div>' +
+    '</div>' +
+
+    // ── Row 2: Times + Notes ──
+    '<div style="display:grid;grid-template-columns:110px 110px 110px 1fr;gap:8px;margin-bottom:12px">' +
+      '<div>' +
+        '<label style="font-size:10px;font-weight:700;color:#c2410c;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">📣 Call Time</label>' +
+        '<input class="fi evd-calltime" type="time" style="padding:7px 10px;font-size:12px">' +
+      '</div>' +
+      '<div>' +
+        '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Event Start</label>' +
+        '<input class="fi evd-time" type="time" style="padding:7px 10px;font-size:12px">' +
+      '</div>' +
+      '<div>' +
+        '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Event End</label>' +
+        '<input class="fi evd-endtime" type="time" style="padding:7px 10px;font-size:12px">' +
+      '</div>' +
+      '<div>' +
+        '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Day Notes / Instructions</label>' +
+        '<input class="fi evd-notes" type="text" placeholder="Shot priorities, dress code, special instructions…" style="padding:7px 10px;font-size:12px">' +
+      '</div>' +
+    '</div>' +
+
+    // ── Day Team Assignment ──
+    '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+        '<div style="font-size:10px;font-weight:800;color:#0369a1;text-transform:uppercase;letter-spacing:.07em">👥 Day Team Assignment</div>' +
+        '<button onclick="openAddFreelancer()" style="background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:3px 10px;font-size:10px;font-weight:700;cursor:pointer">+ New Freelancer</button>' +
+      '</div>' +
+
+      // Photographers row (4 slots)
+      '<div style="margin-bottom:8px">' +
+        '<div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">📷 Photographers (up to 4)</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px">' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">Lead Photo</label><select class="fi evd-ph1" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayPh1) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">2nd Photographer</label><select class="fi evd-ph2" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayPh2) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">3rd Photographer</label><select class="fi evd-ph3" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayPh3) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">4th Photographer</label><select class="fi evd-ph4" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayPh4) + '</select></div>' +
+        '</div>' +
+      '</div>' +
+
+      // Videographers row (4 slots)
+      '<div style="margin-bottom:8px">' +
+        '<div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🎥 Videographers (up to 4)</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px">' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">Lead Video</label><select class="fi evd-vid1" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayVid1) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">2nd Videographer</label><select class="fi evd-vid2" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayVid2) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">3rd Videographer</label><select class="fi evd-vid3" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayVid3) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">4th Videographer</label><select class="fi evd-vid4" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayVid4) + '</select></div>' +
+        '</div>' +
+      '</div>' +
+
+      // Other roles row
+      '<div>' +
+        '<div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🎯 Other Crew</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:6px">' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">🚁 Drone Operator</label><select class="fi evd-drone" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayDrone) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">🎙️ Phonographer</label><select class="fi evd-phono" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayPhono) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">📋 Coordinator</label><select class="fi evd-coord" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayCoord) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">🤝 Assistant 1</label><select class="fi evd-asst1" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayAsst1) + '</select></div>' +
+          '<div><label style="font-size:10px;color:#9ca3af;display:block;margin-bottom:2px">🤝 Assistant 2</label><select class="fi evd-asst2" style="font-size:11px;padding:5px 6px">' + allOpts(d.dayAsst2) + '</select></div>' +
+        '</div>' +
+      '</div>' +
+
+    '</div>'; // end team box
+
   container.appendChild(card);
-  if (data.date)  card.querySelector('.evd-date').value  = data.date;
-  if (data.type)  card.querySelector('.evd-type').value  = data.type;
-  if (data.venue) card.querySelector('.evd-venue').value = data.venue;
-  if (data.time)  card.querySelector('.evd-time').value  = data.time;
-  if (data.notes) card.querySelector('.evd-notes').value = data.notes;
+
+  // Restore saved values
+  function sv2(cls, val) { var el = card.querySelector(cls); if (el && val) el.value = val; }
+  sv2('.evd-date',      d.date);
+  sv2('.evd-venue',     d.venue);
+  sv2('.evd-calltime',  d.callTime);
+  sv2('.evd-time',      d.time);
+  sv2('.evd-endtime',   d.endTime);
+  sv2('.evd-notes',     d.notes);
+  sv2('.evd-prodlevel', d.prodLevel);
+
+  // Update the inline type label when type changes
+  var typeEl = card.querySelector('.evd-type');
+  var typeLabel = card.querySelector('.evday-typename');
+  function updateTypeLabel() { if (typeLabel) typeLabel.textContent = typeEl && typeEl.value ? '— ' + typeEl.value : ''; }
+  if (typeEl) { typeEl.addEventListener('change', updateTypeLabel); updateTypeLabel(); }
 }
 
 function removeEventDay(btn) {
@@ -4960,20 +5320,46 @@ function collectEventDays() {
   var days = [];
   var cards = document.querySelectorAll('#evday-container .evday-card');
   cards.forEach(function(card) {
-    var dateEl  = card.querySelector('.evd-date');
-    var typeEl  = card.querySelector('.evd-type');
-    var venueEl = card.querySelector('.evd-venue');
-    var timeEl  = card.querySelector('.evd-time');
-    var notesEl = card.querySelector('.evd-notes');
-    var date = dateEl ? dateEl.value : '';
-    var type = typeEl ? typeEl.value.trim() : '';
-    if (!date || !type) return; // skip rows missing date OR type
+    var gv = function(cls) { var el = card.querySelector(cls); return el ? (el.value || '').trim() : ''; };
+    var date = gv('.evd-date');
+    var type = gv('.evd-type');
+    if (!date || !type) return;
+    // Resolve ID → name from teamData or freelancerData
+    function _name(id) {
+      if (!id) return '';
+      var tm = (teamData && teamData[id]) || (freelancerData && freelancerData[id]);
+      return tm ? tm.name : id;
+    }
     days.push({
-      date:  date,
-      type:  type,
-      venue: venueEl ? venueEl.value.trim() : '',
-      time:  timeEl  ? timeEl.value  : '',
-      notes: notesEl ? notesEl.value.trim() : ''
+      date:      date,
+      type:      type,
+      venue:     gv('.evd-venue'),
+      prodLevel: gv('.evd-prodlevel') || 'Standard',
+      callTime:  gv('.evd-calltime'),
+      time:      gv('.evd-time'),
+      endTime:   gv('.evd-endtime'),
+      notes:     gv('.evd-notes'),
+      // Photographers x4
+      dayPh1: gv('.evd-ph1'), dayPh1Name: _name(gv('.evd-ph1')),
+      dayPh2: gv('.evd-ph2'), dayPh2Name: _name(gv('.evd-ph2')),
+      dayPh3: gv('.evd-ph3'), dayPh3Name: _name(gv('.evd-ph3')),
+      dayPh4: gv('.evd-ph4'), dayPh4Name: _name(gv('.evd-ph4')),
+      // Videographers x4
+      dayVid1: gv('.evd-vid1'), dayVid1Name: _name(gv('.evd-vid1')),
+      dayVid2: gv('.evd-vid2'), dayVid2Name: _name(gv('.evd-vid2')),
+      dayVid3: gv('.evd-vid3'), dayVid3Name: _name(gv('.evd-vid3')),
+      dayVid4: gv('.evd-vid4'), dayVid4Name: _name(gv('.evd-vid4')),
+      // Other crew
+      dayDrone: gv('.evd-drone'), dayDroneName: _name(gv('.evd-drone')),
+      dayPhono: gv('.evd-phono'), dayPhonoName: _name(gv('.evd-phono')),
+      dayCoord: gv('.evd-coord'), dayCoordName: _name(gv('.evd-coord')),
+      dayAsst1: gv('.evd-asst1'), dayAsst1Name: _name(gv('.evd-asst1')),
+      dayAsst2: gv('.evd-asst2'), dayAsst2Name: _name(gv('.evd-asst2')),
+      // Legacy compat fields (for calendar popup fallback)
+      dayPhotographer: gv('.evd-ph1'), dayPhotographerName: _name(gv('.evd-ph1')),
+      dayVideographer: gv('.evd-vid1'), dayVideographerName: _name(gv('.evd-vid1')),
+      dayCoordinator:  gv('.evd-coord'), dayCoordinatorName: _name(gv('.evd-coord')),
+      dayDroneLegacy:  gv('.evd-drone'), dayDroneLegacyName: _name(gv('.evd-drone'))
     });
   });
   return days;
@@ -5983,7 +6369,19 @@ function renderPostProd(){
   }
   // ── END EDITOR ROLE VIEW ──────────────────────────────────────────────────
 
-  var list=pl();
+  // ── POST PROD IN-CHARGE: Update page header ──────────────────────────────
+  if (CU && CU.role === 'postprod') {
+    var ptEl = document.querySelector('.page-title');
+    var psEl = document.querySelector('.page-sub');
+    if (ptEl) ptEl.textContent = '🎬 Post Production In-Charge';
+    if (psEl) psEl.textContent = 'Full pipeline view — clients sorted by event date (First Come, First Out).';
+  }
+
+  // FIFO: sort projects by event date ascending (earliest event = first served)
+  var list=pl().slice().sort(function(a,b){
+    var da=a.date||'9999-99-99', db=b.date||'9999-99-99';
+    return da.localeCompare(db);
+  });
   var allItems=[];
   list.forEach(function(p){
     (p.customDelivs||[]).forEach(function(d){
@@ -6033,14 +6431,19 @@ function renderPostProd(){
     });
     html+='</div></div>';
     // Projects table
-    html+='<div class="card"><div class="card-hdr"><span class="card-title">All Projects — Deliverable Status</span></div>';
-    html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Couple</th><th>City</th><th>Brief</th><th>Items</th><th>Pending</th><th>Editing</th><th>Review</th><th>Done</th><th></th></tr></thead><tbody>';
+    html+='<div class="card"><div class="card-hdr"><span class="card-title">📋 Post-Production Queue — First Come, First Out</span><span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-weight:700">📅 Sorted by Event Date</span></div>';
+    html+='<div class="info info-blue" style="margin-bottom:12px">📌 Queue order is based on <b>event date</b> — earliest event is served first. All projects in Post-Production stage appear here.</div>';
+    html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th style="width:36px">#</th><th>Couple</th><th>Event Date</th><th>City</th><th>Brief</th><th>Items</th><th>Pending</th><th>Editing</th><th>Review</th><th>Done</th><th></th></tr></thead><tbody>';
+    var _qNum=0;
     list.forEach(function(p){
       var pd=p.customDelivs||[];if(!pd.length)return;
+      _qNum++;
       var hasBrief=!!(p.clientBrief&&p.clientBrief.submittedAt);
       var del=pd.filter(function(d){return d.status==='delivered';}).length;
       var pct=pd.length?Math.round(del/pd.length*100):0;
-      html+='<tr><td><div style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</div></td>';
+      html+='<tr><td style="text-align:center;font-weight:800;color:#0369a1;font-size:13px">'+_qNum+'</td>';
+      html+='<td><div style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</div></td>';
+      html+='<td style="font-size:12px;font-weight:700;color:#0369a1">'+fmtDate(p.date)+'</td>';
       html+='<td style="font-size:12px">'+(p.city||'—')+'</td>';
       html+='<td style="text-align:center">'+(hasBrief?'<span style="color:#10b981;font-weight:700;font-size:16px">✅</span>':'<span style="color:#f59e0b;font-weight:700;font-size:16px">⏳</span>')+'</td>';
       html+='<td style="text-align:center;font-weight:700">'+pd.length+'</td>';
@@ -6055,13 +6458,16 @@ function renderPostProd(){
   } else if(tab==='step1'){
     html+='<div class="info info-amber" style="margin-bottom:14px">⏳ These projects need client brief before editing can start. Send the brief link to the client.</div>';
     var need=list.filter(function(p){return!(p.clientBrief&&p.clientBrief.submittedAt)&&p.customDelivs&&p.customDelivs.length;});
+    // already FIFO sorted by event date from list
     if(!need.length){html+='<div class="empty">🎉 All projects with deliverables have received client brief!</div>';}
     else{
-      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Couple</th><th>City</th><th>Event Date</th><th>Deliverables</th><th>Send Brief</th><th></th></tr></thead><tbody>';
-      need.forEach(function(p){
+      html+='<div class="info info-amber" style="margin-bottom:10px">📅 Sorted by event date — earliest event first.</div>';
+      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>#</th><th>Couple</th><th>City</th><th>Event Date</th><th>Deliverables</th><th>Send Brief</th><th></th></tr></thead><tbody>';
+      var _s1n=0;
+      need.forEach(function(p){_s1n++;
         var url=window.location.origin+window.location.pathname+'?brief='+p.id;
         var waNum=(fieldVisible('phone') || fieldVisible('whatsapp')) ? (p.whatsapp||p.phone||'').replace(/[^0-9]/g,'') : '';
-        html+='<tr><td style="font-weight:700">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
+        html+='<tr><td style="text-align:center;font-weight:800;color:#0369a1">'+_s1n+'</td><td style="font-weight:700">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td style="font-weight:700;color:#0369a1">'+fmtDate(p.date)+'</td>';
         html+='<td><span class="badge b-blue">'+(p.customDelivs||[]).length+' items</span></td>';
         html+='<td style="display:flex;gap:5px;flex-wrap:wrap">'+
           '<button class="btn btn-sm pp-copy-brief" data-url="'+url+'" style="font-size:11px">📋 Copy Link</button>'+
@@ -6073,8 +6479,9 @@ function renderPostProd(){
     }
 
   } else if(tab==='step2'){
-    html+='<div class="info info-blue" style="margin-bottom:14px">👤 Client brief received. Assign an editor and set a deadline for each deliverable.</div>';
+    html+='<div class="info info-blue" style="margin-bottom:14px">👤 Client brief received. Assign an editor and set a deadline. <b>📅 Sorted by event date — earliest first (FIFO).</b></div>';
     var ready=allItems.filter(function(i){return i.briefDone&&!i.d.editorId&&i.d.status==='pending';});
+    // FIFO: already sorted by event date from allItems
     if(!ready.length){html+='<div class="empty">✅ All ready deliverables have editors assigned!</div>';}
     else{
       var editors=Object.values(teamData).filter(function(t){
@@ -6105,7 +6512,8 @@ function renderPostProd(){
     if(!editing.length){html+='<div class="empty">No deliverables currently in editing.</div>';}
     else{
       html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Revision Notes</th><th>Deadline</th><th>Days Left</th><th>Drive Link</th><th>Action</th></tr></thead><tbody>';
-      editing.sort(function(a,b){return(a.d.date||'9999').localeCompare(b.d.date||'9999');}).forEach(function(item){
+      // Sort: first by event date (FIFO), then by deliverable deadline
+      editing.sort(function(a,b){var ed=(a.p.date||'9999').localeCompare(b.p.date||'9999');return ed!==0?ed:(a.d.date||'9999').localeCompare(b.d.date||'9999');}).forEach(function(item){
         var d=item.d;var days=d.date?daysUntil(d.date):null;var urgent=days!==null&&days<=3;
         var edName=d.editorId&&teamData[d.editorId]?teamData[d.editorId].name:(d.editorId||'Unassigned');
         var revCount=d.revisionCount||0;
@@ -6962,7 +7370,7 @@ function onUserRoleChange(){
     intern:'Full visibility across all pages. Can edit projects, view financials and reports. Cannot delete projects, cannot record or delete payments, cannot access Settings or Users.',
     admin:'Access to projects, team, referrals, reports, and settings. Cannot delete projects or manage users.',
     accounts:'Full project access — can create and edit projects, upload documents, manage all tabs, record payments, and view reports. Cannot delete projects or manage users.',
-    postprod:'Access to dashboard, post production, and WhatsApp. Can manage deliverables and briefs.',
+    postprod:'Post Production In-Charge — Full access to the Post-Production pipeline. Can view ALL post-prod clients (sorted FIFO by event date), assign editors, manage deliverables, review briefs, and update statuses. Cannot see financials, phone numbers, or other confidential client details.',
     editor:'Limited to their own assigned deliverables via Editor Portal. No general CRM access.',
     referral:'Access to referral section and WhatsApp only.',
     datamanager:'Access to projects only. Can update project data, manage docs, notes & briefs, and approve raw data to move projects to Post-Production.',
@@ -8057,6 +8465,165 @@ function openEditTeam(id){var t=teamData[id];if(!t)return;editTeamId=id;$('team-
   openModal('team-modal');}
 $('btn-save-team').addEventListener('click',function(){var name=gv('tm-name').trim();if(!name){alert('Enter full name.');return;}var id=editTeamId||('tm_'+Date.now());var data={id:id,name:name,nickname:gv('tm-nickname'),phone:gv('tm-phone'),phone2:gv('tm-phone2'),whatsapp:gv('tm-whatsapp'),email:gv('tm-email'),emergency:gv('tm-emergency'),address:gv('tm-address'),role:gv('tm-role'),region:gv('tm-region'),city:gv('tm-city'),emptype:gv('tm-emptype'),exp:gv('tm-exp'),joining:gv('tm-joining'),salary:gv('tm-salary'),perday:gv('tm-perday'),skills:gv('tm-skills'),equipment:gv('tm-equipment'),bankname:gv('tm-bankname'),bankbranch:gv('tm-bankbranch'),bankaccount:gv('tm-bankaccount'),ifsc:gv('tm-ifsc'),upi:gv('tm-upi'),notes:gv('tm-notes'),idproof:gv('tm-idproof')};db.ref('crm_team/'+id).set(data,function(err){if(err){alert('Error: '+err.message);return;}closeModal('team-modal');showToast('✅ Team member saved!');});});
 function deleteTeam(id){if(!confirm('Remove this team member?'))return;db.ref('crm_team/'+id).remove(function(){showToast('Removed.');});}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FREELANCER MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+var _currentTeamTab = 'team';
+var _editFreelancerId = null;
+
+function switchTeamTab(tab) {
+  _currentTeamTab = tab;
+  var teamBtn = document.getElementById('team-tab-btn');
+  var flBtn   = document.getElementById('freelancer-tab-btn');
+  var teamSec = document.getElementById('team-section');
+  var flSec   = document.getElementById('freelancer-section');
+  if (!teamSec || !flSec) return;
+  if (tab === 'team') {
+    teamSec.style.display = ''; flSec.style.display = 'none';
+    if (teamBtn) { teamBtn.style.background='#1a1a1a'; teamBtn.style.color='#fff'; }
+    if (flBtn)   { flBtn.style.background='#fff'; flBtn.style.color='#64748b'; }
+    renderTeam();
+  } else {
+    teamSec.style.display = 'none'; flSec.style.display = '';
+    if (flBtn)   { flBtn.style.background='#1a1a1a'; flBtn.style.color='#fff'; }
+    if (teamBtn) { teamBtn.style.background='#fff'; teamBtn.style.color='#64748b'; }
+    renderFreelancers();
+  }
+}
+
+function renderFreelancers() {
+  var grid = document.getElementById('freelancer-grid'); if (!grid) return;
+  var q    = ((document.getElementById('freelancer-search')||{}).value||'').toLowerCase();
+  var rolF = ((document.getElementById('freelancer-role-f')||{}).value||'');
+  var avF  = ((document.getElementById('freelancer-avail-f')||{}).value||'');
+
+  var list = Object.values(freelancerData).filter(function(f) {
+    var match = (f.name+' '+(f.role||'')+' '+(f.city||'')+' '+(f.skills||'')).toLowerCase().includes(q);
+    if (rolF && f.role !== rolF) return false;
+    if (avF  && f.availability !== avF) return false;
+    return match;
+  }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+
+  var countEl = document.getElementById('freelancer-count');
+  if (countEl) countEl.textContent = list.length + ' freelancer' + (list.length!==1?'s':'') + ' found';
+
+  // Count how many times each freelancer has been hired (from eventDays)
+  var hireCounts = {};
+  Object.values(projects||{}).forEach(function(p) {
+    (p.eventDays||[]).forEach(function(ed) {
+      ['dayPh1','dayPh2','dayPh3','dayPh4','dayVid1','dayVid2','dayVid3','dayVid4','dayDrone','dayPhono','dayCoord','dayAsst1','dayAsst2'].forEach(function(k) {
+        if (ed[k]) hireCounts[ed[k]] = (hireCounts[ed[k]]||0) + 1;
+      });
+    });
+  });
+
+  var availColors = {available:'#d1fae5',busy:'#fee2e2',inactive:'#f3f4f6'};
+  var availLabels = {available:'✅ Available',busy:'🔴 Busy',inactive:'⚫ Inactive'};
+  var starStr = function(r) { return r ? '★'.repeat(parseInt(r))+'☆'.repeat(5-parseInt(r)) : '—'; };
+
+  var showDel = CU && (CU.role==='superadmin'||CU.role==='admin');
+
+  if (!list.length) {
+    grid.innerHTML = '<div class="empty">No freelancers found. Add your first freelancer above.</div>';
+    return;
+  }
+
+  grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px">' +
+    list.map(function(f) {
+      var col = avatarColor(f.name);
+      var initials = (f.name||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().substring(0,2);
+      var hireCount = hireCounts[f.id] || 0;
+      var avail = f.availability || 'available';
+      return '<div class="team-card" style="border-left:4px solid '+(avail==='available'?'#10b981':avail==='busy'?'#ef4444':'#9ca3af')+'">' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #f0f0f0">' +
+          '<div class="u-avatar" style="background:'+col+';width:44px;height:44px;font-size:16px;flex-shrink:0">'+initials+'</div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.name+(f.nickname?' <span style="font-size:11px;color:#888">('+f.nickname+')</span>':'')+'</div>' +
+            '<div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">' +
+              '<span class="badge b-blue">'+f.role+'</span>' +
+              '<span style="background:'+(availColors[avail]||'#f3f4f6')+';border-radius:20px;padding:1px 8px;font-size:10px;font-weight:700">'+availLabels[avail]+'</span>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:4px;flex-shrink:0">' +
+            '<button class="btn btn-sm" onclick="openEditFreelancer(\''+f.id+'\')">Edit</button>' +
+            (showDel ? '<button class="btn-danger" onclick="deleteFreelancer(\''+f.id+'\')">✕</button>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;font-size:12px">' +
+          (f.city ? '<div>📍 '+f.city+'</div>' : '<div></div>') +
+          (f.exp  ? '<div>⭐ '+f.exp+' yrs exp</div>' : '<div></div>') +
+          (f.phone? '<div>📞 '+f.phone+'</div>' : '<div></div>') +
+          (f.rate ? '<div>💰 ₹'+parseInt(f.rate).toLocaleString('en-IN')+'/event</div>' : '<div></div>') +
+          (f.rating ? '<div style="color:#f59e0b;font-size:11px">'+starStr(f.rating)+'</div>' : '<div></div>') +
+          '<div style="color:#1d4ed8;font-weight:700">🎯 '+hireCount+' event'+(hireCount!==1?'s':'')+' done</div>' +
+          (f.skills ? '<div style="grid-column:1/-1;color:#555">🎨 '+f.skills+'</div>' : '') +
+          (f.notes  ? '<div style="grid-column:1/-1;color:#888;font-style:italic;font-size:11px">'+f.notes+'</div>' : '') +
+        '</div>' +
+        (f.upi ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;font-size:11px;color:#6d28d9;font-family:monospace">UPI: '+f.upi+'</div>' : '') +
+      '</div>';
+    }).join('') +
+  '</div>';
+}
+
+function openAddFreelancer(prefill) {
+  _editFreelancerId = null;
+  var modal_title = document.getElementById('freelancer-modal-title');
+  if (modal_title) modal_title.textContent = 'Add Freelancer';
+  ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby'].forEach(function(i){sv(i,'');});
+  sv('fl-role','Photographer'); sv('fl-availability','available'); sv('fl-rating','');
+  if (prefill) {
+    if (prefill.name) sv('fl-name', prefill.name);
+    if (prefill.role) sv('fl-role', prefill.role);
+    if (prefill.phone) sv('fl-phone', prefill.phone);
+  }
+  openModal('freelancer-modal');
+}
+
+function openEditFreelancer(id) {
+  var f = freelancerData[id]; if (!f) return;
+  _editFreelancerId = id;
+  var modal_title = document.getElementById('freelancer-modal-title');
+  if (modal_title) modal_title.textContent = 'Edit — ' + f.name;
+  ['name','nickname','phone','whatsapp','email','city','exp','rate','skills','equipment','upi','bankaccount','ifsc','notes','idproof','referredby'].forEach(function(k){sv('fl-'+k, f[k]||'');});
+  sv('fl-role', f.role||'Photographer');
+  sv('fl-availability', f.availability||'available');
+  sv('fl-rating', f.rating||'');
+  openModal('freelancer-modal');
+}
+
+function deleteFreelancer(id) {
+  var f = freelancerData[id]; if (!f) return;
+  if (!confirm('Remove freelancer "' + f.name + '"?\nThis cannot be undone.')) return;
+  db.ref('crm_freelancers/'+id).remove(function(){ showToast('Freelancer removed.'); });
+}
+
+// Save freelancer
+document.addEventListener('DOMContentLoaded', function() {
+  var saveBtn = document.getElementById('btn-save-freelancer');
+  if (saveBtn) saveBtn.addEventListener('click', function() {
+    var name = gv('fl-name').trim();
+    if (!name) { alert('Enter freelancer name.'); return; }
+    var id = _editFreelancerId || ('fl_' + Date.now());
+    var data = {
+      id: id, name: name, nickname: gv('fl-nickname'), phone: gv('fl-phone'),
+      whatsapp: gv('fl-whatsapp'), email: gv('fl-email'), city: gv('fl-city'),
+      role: gv('fl-role'), availability: gv('fl-availability'), exp: gv('fl-exp'),
+      rate: gv('fl-rate'), rating: gv('fl-rating'), skills: gv('fl-skills'),
+      equipment: gv('fl-equipment'), upi: gv('fl-upi'), bankaccount: gv('fl-bankaccount'),
+      ifsc: gv('fl-ifsc'), notes: gv('fl-notes'), idproof: gv('fl-idproof'),
+      referredby: gv('fl-referredby'), isFreelancer: true,
+      createdAt: (_editFreelancerId && freelancerData[_editFreelancerId] && freelancerData[_editFreelancerId].createdAt) || Date.now(),
+      updatedAt: Date.now()
+    };
+    db.ref('crm_freelancers/'+id).set(data, function(err) {
+      if (err) { alert('Error: ' + err.message); return; }
+      closeModal('freelancer-modal');
+      showToast('✅ Freelancer saved!');
+      renderFreelancers();
+    });
+  });
+});
 $('team-search').addEventListener('input',renderTeam);$('team-role-f').addEventListener('change',renderTeam);$('team-region-f').addEventListener('change',renderTeam);
 
 // ═══ USER / ACCOUNT MODALS ════════════════════════════
@@ -8606,13 +9173,14 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   postprod: {
-    pages: ['dashboard','postprod','whatsapp'],
+    pages: ['dashboard','postprod','team','whatsapp'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
-    canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief','t-raw','t-team2'],
+    canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief','t-raw','t-production'],
     canManageSettings:false, canExport:false,
-    canSeeContactDetails:false
+    canSeeContactDetails:false,
+    canAssignEditors:true, canManagePostProd:true
   },
   accounts: {
     pages: ['dashboard','pipeline','projects','postprod','payments','reports','invoice','calendar','users'],
@@ -8862,7 +9430,7 @@ function renderPage(name) {
   else if (name === 'postprod') renderPostProd();
   else if (name === 'priority') renderPriorityPage();
   else if (name === 'payments') renderPayments();
-  else if (name === 'team') renderTeam();
+  else if (name === 'team') { if (_currentTeamTab === 'freelancer') { switchTeamTab('freelancer'); } else { switchTeamTab('team'); } }
   else if (name === 'referral') renderReferral();
   else if (name === 'whatsapp') { populateWASel(); renderWA(); }
   else if (name === 'reports') renderReports();
@@ -9715,7 +10283,8 @@ function _getCalEvents() {
         var type = 'other';
         ['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty'].forEach(function(t){ if(rawType.indexOf(t)>-1) type=t; });
         if (_calTypeFilter && !_calTypeFilter.has(type)) return;
-        events.push({ date: ev.date, title: p.bride + ' & ' + p.groom, sub: ev.name || ev.type || '', type: type, proj: p, evDay: ev, isLegacy: false });
+        events.push({ date: ev.date, title: p.bride + ' & ' + p.groom, sub: ev.name || ev.type || '', type: type, proj: p, evDay: ev, isLegacy: false,
+          prodLevel: ev.prodLevel || '', callTime: ev.callTime || '', startTime: ev.time || '' });
       });
     } else if (p.date && dateRe.test(p.date)) {
       // Fallback: project has no eventDays, show on p.date (legacy / not-yet-entered)
@@ -9816,13 +10385,46 @@ function renderCalendar() {
       html3 += '<div class="cal-day-empty">📅 No shoots scheduled for this day.</div>';
     } else {
       dayEventsAll.forEach(function(ev) {
+        var _evd = ev.evDay || {};
+        var _callT = _evd.callTime || '';
+        var _startT = _evd.time || '';
+        var _prodLv = _evd.prodLevel || '';
+        var _dayVenue = _evd.venue || ev.proj.venue || '';
+        var _prodColors = {Standard:'#475569',Premium:'#1d4ed8',Luxury:'#7c3aed',Destination:'#0891b2',Custom:'#b45309'};
+        var _prodBg    = {Standard:'#f1f5f9',Premium:'#dbeafe',Luxury:'#ede9fe',Destination:'#e0f2fe',Custom:'#fef3c7'};
+        // Day team snippet
+        function _rn(id, fallback) { var tm=(teamData&&teamData[id])||(freelancerData&&freelancerData[id]); return tm?(tm.isFreelancer?'🎯 '+tm.name:tm.name):(fallback||''); }
+        var dayTeamSnip = [];
+        // New multi-slot crew
+        [['dayPh1','dayPh1Name'],['dayPh2','dayPh2Name'],['dayPh3','dayPh3Name'],['dayPh4','dayPh4Name']].forEach(function(pair){
+          var n=_rn(_evd[pair[0]],_evd[pair[1]]); if(n) dayTeamSnip.push('📷 '+n);
+        });
+        [['dayVid1','dayVid1Name'],['dayVid2','dayVid2Name'],['dayVid3','dayVid3Name'],['dayVid4','dayVid4Name']].forEach(function(pair){
+          var n=_rn(_evd[pair[0]],_evd[pair[1]]); if(n) dayTeamSnip.push('🎥 '+n);
+        });
+        var _drn2=_rn(_evd.dayDrone,_evd.dayDroneName); if(_drn2) dayTeamSnip.push('🚁 '+_drn2);
+        var _phn2=_rn(_evd.dayPhono,_evd.dayPhonoName); if(_phn2) dayTeamSnip.push('🎙️ '+_phn2);
+        var _crd2=_rn(_evd.dayCoord,_evd.dayCoordName); if(_crd2) dayTeamSnip.push('📋 '+_crd2);
+        // Fallback to legacy
+        if (!dayTeamSnip.length) {
+          var _lph=_rn(_evd.dayPhotographer,_evd.dayPhotographerName); if(_lph) dayTeamSnip.push('📷 '+_lph);
+          var _lv=_rn(_evd.dayVideographer,_evd.dayVideographerName); if(_lv) dayTeamSnip.push('🎥 '+_lv);
+        }
         html3 += '<div class="cal-day-event-row" onclick="calShowEvent(event,' + ev.proj.id + ',\'' + ev.type + '\',' + (ev.isLegacy?'true':'false') + ')">' +
           '<div class="cal-day-event-dot" style="background:' + _chipDotColor(ev.type) + '"></div>' +
           '<div style="flex:1">' +
-            '<div style="font-weight:700;font-size:13px;color:#1a1a1a">' + ev.title + '</div>' +
-            '<div style="font-size:11px;color:#888;margin-top:2px">' + (typeLabels[ev.type]||ev.type) + (ev.proj.city ? ' — ' + ev.proj.city : '') + (ev.proj.venue ? ' — ' + ev.proj.venue : '') + '</div>' +
+            '<div style="font-weight:700;font-size:13px;color:#1a1a1a;display:flex;align-items:center;gap:6px">' + ev.title +
+              (_prodLv && _prodLv !== 'Standard' ? '<span style="background:'+(_prodBg[_prodLv]||'#f1f5f9')+';color:'+(_prodColors[_prodLv]||'#475569')+';font-size:10px;padding:1px 7px;border-radius:10px;font-weight:600">'+_prodLv+'</span>' : '') +
+            '</div>' +
+            '<div style="font-size:11px;color:#888;margin-top:2px;display:flex;gap:10px;flex-wrap:wrap">' +
+              '<span>' + (typeLabels[ev.type]||ev.type) + '</span>' +
+              (_dayVenue ? '<span>🏛️ ' + _dayVenue + '</span>' : '') +
+              (_callT ? '<span style="color:#c2410c;font-weight:600">📣 Call: ' + _callT + '</span>' : '') +
+              (_startT ? '<span>🕐 ' + _startT + '</span>' : '') +
+            '</div>' +
+            (dayTeamSnip.length ? '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">' + dayTeamSnip.map(function(m){return '<span style="background:#f1f5f9;border-radius:20px;padding:1px 7px;font-size:10px;color:#334155">'+m+'</span>';}).join('') + '</div>' : '') +
           '</div>' +
-          '<span class="cal-event-chip ' + _chipClass(ev.type) + '" style="display:inline-block;position:static">' + (typeLabels[ev.type]||ev.type) + '</span>' +
+          '<span class="cal-event-chip ' + _chipClass(ev.type) + '" style="display:inline-block;position:static;align-self:flex-start">' + (typeLabels[ev.type]||ev.type) + '</span>' +
         '</div>';
       });
     }
@@ -10064,25 +10666,76 @@ function calShowEvent(e,projId,evType,isLegacy){
     var mapped=_typeMap2[rawT]||rawT.toLowerCase().replace(/[^a-z]/g,'')||'other';
     if(!evDayData&&mapped===t)evDayData=ed;
   });
-  var showVenue = (evDayData&&evDayData.venue) ? evDayData.venue : (p.venue||'—');
-  var showTime  = (evDayData&&evDayData.time)  ? evDayData.time  : '';
-  var showNotes = (evDayData&&evDayData.notes) ? evDayData.notes : '';
-  // Build team members row
-  var teamParts=[];
-  if(p.photographer) teamParts.push('📷 '+p.photographer);
-  if(p.videographer)  teamParts.push('🎥 '+p.videographer);
-  if(p.editor)        teamParts.push('✂️ '+p.editor);
-  if(p.coordinator)   teamParts.push('📋 '+p.coordinator);
-  if(p.drone)         teamParts.push('🚁 '+p.drone);
+  var showVenue    = (evDayData&&evDayData.venue)    ? evDayData.venue    : (p.venue||'—');
+  var showTime     = (evDayData&&evDayData.time)     ? evDayData.time     : '';
+  var showEndTime  = (evDayData&&evDayData.endTime)  ? evDayData.endTime  : '';
+  var showCallTime = (evDayData&&evDayData.callTime) ? evDayData.callTime : '';
+  var showNotes    = (evDayData&&evDayData.notes)    ? evDayData.notes    : '';
+  var showProdLvl  = (evDayData&&evDayData.prodLevel)? evDayData.prodLevel: '';
+  // Build day-specific team from new multi-slot fields
+  function _rn(id, fallback) {
+    if (!id) return fallback || '';
+    var tm = (teamData && teamData[id]) || (freelancerData && freelancerData[id]);
+    return tm ? (tm.isFreelancer ? '🎯 '+tm.name : tm.name) : (fallback || id);
+  }
+  var dayTeamParts = [];
+  if (evDayData) {
+    var ed = evDayData;
+    // Photographers
+    [['dayPh1','dayPh1Name'],['dayPh2','dayPh2Name'],['dayPh3','dayPh3Name'],['dayPh4','dayPh4Name']].forEach(function(pair,i){
+      var n = _rn(ed[pair[0]], ed[pair[1]]);
+      if (n) dayTeamParts.push('📷' + (i===0?' ':' '+(i+1)+':') + ' ' + n);
+    });
+    // Videographers
+    [['dayVid1','dayVid1Name'],['dayVid2','dayVid2Name'],['dayVid3','dayVid3Name'],['dayVid4','dayVid4Name']].forEach(function(pair,i){
+      var n = _rn(ed[pair[0]], ed[pair[1]]);
+      if (n) dayTeamParts.push('🎥' + (i===0?' ':' '+(i+1)+':') + ' ' + n);
+    });
+    // Other crew
+    var _drn  = _rn(ed.dayDrone, ed.dayDroneName);
+    var _phn  = _rn(ed.dayPhono, ed.dayPhonoName);
+    var _crd  = _rn(ed.dayCoord, ed.dayCoordName);
+    var _as1  = _rn(ed.dayAsst1, ed.dayAsst1Name);
+    var _as2  = _rn(ed.dayAsst2, ed.dayAsst2Name);
+    if (_drn) dayTeamParts.push('🚁 ' + _drn);
+    if (_phn) dayTeamParts.push('🎙️ ' + _phn);
+    if (_crd) dayTeamParts.push('📋 ' + _crd);
+    if (_as1) dayTeamParts.push('🤝 ' + _as1);
+    if (_as2) dayTeamParts.push('🤝 ' + _as2);
+    // Fallback to legacy fields if multi-slot not filled
+    if (!dayTeamParts.length) {
+      var _lph  = _rn(ed.dayPhotographer, ed.dayPhotographerName);
+      var _lvid = _rn(ed.dayVideographer, ed.dayVideographerName);
+      var _lcrd = _rn(ed.dayCoordinator,  ed.dayCoordinatorName);
+      var _ldrn = _rn(ed.dayDrone || ed.dayDroneLegacy, ed.dayDroneName || ed.dayDroneLegacyName);
+      if (_lph)  dayTeamParts.push('📷 ' + _lph);
+      if (_lvid) dayTeamParts.push('🎥 ' + _lvid);
+      if (_lcrd) dayTeamParts.push('📋 ' + _lcrd);
+      if (_ldrn) dayTeamParts.push('🚁 ' + _ldrn);
+    }
+  }
+  var allTeamParts = dayTeamParts;
+  var prodLvlColors = {Standard:'#475569',Premium:'#1d4ed8',Luxury:'#7c3aed',Destination:'#0891b2',Custom:'#b45309'};
+  var prodLvlBg    = {Standard:'#f1f5f9',Premium:'#dbeafe',Luxury:'#ede9fe',Destination:'#e0f2fe',Custom:'#fef3c7'};
   if(bodyEl)bodyEl.innerHTML=
+    // Schedule info
+    (showProdLvl?'<div class="cal-popup-row" style="margin-bottom:6px"><span style="background:'+( prodLvlBg[showProdLvl]||'#f1f5f9')+';color:'+(prodLvlColors[showProdLvl]||'#475569')+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">⭐ '+showProdLvl+' Production</span></div>':'')+
     '<div class="cal-popup-row">📍 <b>City:</b> '+(p.city||'—')+'</div>'+
     '<div class="cal-popup-row">🏛️ <b>Venue:</b> '+showVenue+'</div>'+
-    (showTime?'<div class="cal-popup-row">🕐 <b>Time:</b> '+showTime+'</div>':'')+
+    (showCallTime?'<div class="cal-popup-row" style="background:#fff7ed;border-radius:6px;padding:5px 10px;margin:4px 0">📣 <b>Call Time:</b> <span style="color:#c2410c;font-weight:700">'+showCallTime+'</span></div>':'')+
+    (showTime?'<div class="cal-popup-row">🕐 <b>Event Start:</b> '+showTime+(showEndTime?' &nbsp;→&nbsp; '+showEndTime:'')+'</div>':'')+
     '<div class="cal-popup-row">📦 <b>Package:</b> '+(p.package||'—')+'</div>'+
     '<div class="cal-popup-row">🔄 <b>Stage:</b> '+(p.stage||'—')+'</div>'+
     (p.phone?'<div class="cal-popup-row">📞 <b>Phone:</b> '+p.phone+'</div>':'')+
-    (teamParts.length?'<div class="cal-popup-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #f3f4f6">👥 <b>Team:</b><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">'+teamParts.map(function(m){return '<span style="background:#f1f5f9;border-radius:20px;padding:2px 8px;font-size:11px;color:#334155">'+m+'</span>';}).join('')+'</div></div>':'')+
-    (showNotes?'<div class="cal-popup-row">📝 <b>Notes:</b> '+showNotes+'</div>':'')+
+    // Team section
+    (allTeamParts.length?
+      '<div class="cal-popup-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #f3f4f6">'+
+        '<b>👥 Day Team'+(dayTeamParts.length?' <span style="font-size:10px;color:#10b981">(day-specific)</span>':' <span style="font-size:10px;color:#888">(project default)</span>')+':</b>'+
+        '<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">'+
+          allTeamParts.map(function(m){return '<span style="background:#f1f5f9;border-radius:20px;padding:2px 8px;font-size:11px;color:#334155">'+m+'</span>';}).join('')+
+        '</div>'+
+      '</div>':'')+
+    (showNotes?'<div class="cal-popup-row" style="background:#fffbeb;border-radius:6px;padding:5px 10px;margin-top:4px">📝 <b>Notes:</b> '+showNotes+'</div>':'')+
     (typeof balDue==='function'?'<div class="cal-popup-row" style="margin-top:6px;padding-top:6px;border-top:1px solid #f3f4f6"><b>Balance Due:</b> <span style="font-weight:800;color:'+(bal>0?'#dc2626':'#16a34a')+'">'+(bal>0?fmt(bal):'Paid ✓')+'</span></div>':'');
   // Store legacy flag on popup for delete button
   popup.dataset.isLegacy = isLegacy ? '1' : '0';
