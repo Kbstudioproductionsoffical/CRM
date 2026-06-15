@@ -4271,6 +4271,15 @@ function fmtDateTime(ts) {
   var min = String(d.getMinutes()).padStart(2,'0');
   return String(d.getDate()).padStart(2,'0') + ' ' + _MONTHS_SHORT[d.getMonth()] + ' ' + d.getFullYear() + ' ' + hh + ':' + min;
 }
+// fmtTime — HH:MM AM/PM (always consistent, no locale dependency)
+function fmtTime(ts) {
+  if (!ts) return '';
+  var d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+  if (isNaN(d)) return '';
+  var h = d.getHours(), m = d.getMinutes(), ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ' ' + ampm;
+}
 function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d)-new Date())/86400000);}
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
@@ -12196,7 +12205,7 @@ function renderApprovalQueue() {
           '<div style="flex:1">' +
             '<div style="font-weight:700;font-size:13px">' + (q.bride||'?') + (q.groom?' & '+q.groom:'') + '</div>' +
             '<div style="font-size:11px;color:#6b7280;margin-top:2px">' + (q.city||'—') + ' · ' + (q.salesperson||'—') + ' · ' + (net>0?fmt(net):'No value') + '</div>' +
-            '<div style="font-size:11px;color:#7c3aed;margin-top:3px">Submitted by <b>' + (q.approvalSubmittedBy||'—') + '</b>' + (q.approvalSubmittedAt ? ' · ' + new Date(q.approvalSubmittedAt).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '') + '</div>' +
+            '<div style="font-size:11px;color:#7c3aed;margin-top:3px">Submitted by <b>' + (q.approvalSubmittedBy||'—') + '</b>' + (q.approvalSubmittedAt ? ' · ' + fmtDateTime(q.approvalSubmittedAt) : '') + '</div>' +
           '</div>' +
           '<div style="display:flex;gap:6px;flex-shrink:0">' +
             '<button onclick="openEditQuotation(\'' + q.id + '\')" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid #7c3aed;background:#fff;color:#7c3aed;cursor:pointer;font-weight:700;font-family:inherit">👁️ Review & Edit</button>' +
@@ -12734,7 +12743,7 @@ function openEditQuotation(id) {
   setTimeout(function(){ qdLoadFromData(q.deliverables, q.quotDeliverables); }, 300);
   loadQuotTerms(q.terms || null);
   document.getElementById('quot-modal-title').textContent = (q.bride||'') + (q.groom ? ' & ' + q.groom : '') + ' — Quotation';
-  document.getElementById('quot-modal-sub').textContent = 'Last saved: ' + (q.savedAt ? new Date(q.savedAt).toLocaleString('en-IN') : '—');
+  document.getElementById('quot-modal-sub').textContent = 'Last saved: ' + (q.savedAt ? fmtDateTime(q.savedAt) : '—');
   var cvtBtn = document.getElementById('btn-quot-convert-project');
   if (cvtBtn) cvtBtn.style.display = q.status === 'won' ? '' : 'none';
   _loadQuotImages(q);
@@ -13964,7 +13973,7 @@ function saveQuotation(silent) {
     if (!editQuotId) editQuotId = ref.key;
     // Update sub-title
     var sub = document.getElementById('quot-modal-sub');
-    if (sub) sub.textContent = 'Last saved: ' + new Date(data.savedAt).toLocaleString('en-IN');
+    if (sub) sub.textContent = 'Last saved: ' + fmtDateTime(data.savedAt);
   });
 }
 
@@ -15644,7 +15653,7 @@ function renderEnhancedNotifPanel() {
         escalation: '#dc2626'
       }[n.type] || '#6b7280';
       var actionedBg = n.actioned ? 'background:#f0fdf4;' : '';
-      var timeStr = n.createdAt ? new Date(n.createdAt).toLocaleString('en-IN', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      var timeStr = n.createdAt ? fmtDateTime(n.createdAt) : '';
       html += '<div style="padding:12px 16px;border-bottom:1px solid #f5f5f5;' + actionedBg + '">' +
         '<div style="display:flex;align-items:flex-start;gap:10px">' +
           '<div style="font-size:20px;flex-shrink:0;margin-top:1px">' + (n.icon||'🔔') + '</div>' +
@@ -16152,7 +16161,7 @@ function getSparklineData() {
   var months = [];
   for (var i = 5; i >= 0; i--) {
     var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i);
-    months.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleString('en-IN', { month: 'short' }) });
+    months.push({ year: d.getFullYear(), month: d.getMonth(), label: _MONTHS_SHORT[d.getMonth()] });
   }
   return months.map(function(m) {
     var total = 0;
@@ -17141,7 +17150,11 @@ function renderAlBatch(filtered, list, reset) {
     var ts = l.ts || l.timestamp || l.createdAt || l.time || null;
     var dateObj = ts ? new Date(typeof ts === 'string' && ts.indexOf('-') > 0 ? ts : Number(ts)) : null;
     var dateStr = fmtDate(dateObj);
-    var timeStr = (dateObj && !isNaN(dateObj)) ? dateObj.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', hour12:true }) : '';
+    var timeStr = (dateObj && !isNaN(dateObj)) ? (function(d){
+    var h=d.getHours(),m=d.getMinutes(),ampm=h>=12?'PM':'AM';
+    h=h%12||12;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' '+ampm;
+  })(dateObj) : '';
 
     // ── User name — handle missing/empty user ──
     var userName = l.user || l.by || l.userName || l.createdBy || l.updatedBy || '';
@@ -17826,6 +17839,41 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
   _ob.observe(document.body, { subtree: true, childList: true });
   _patchLogout();
 
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// BROWSER DATE INPUT COMPATIBILITY
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  // Test if browser natively supports <input type="date">
+  var testInput = document.createElement('input');
+  testInput.setAttribute('type', 'date');
+  testInput.setAttribute('value', '2026-01-20');
+  var nativeDate = testInput.type === 'date' && testInput.value === '2026-01-20';
+
+  if (!nativeDate) {
+    // Safari old / unsupported browser — add placeholders and a banner
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('input[type="date"]').forEach(function(el) {
+        if (!el.placeholder) el.placeholder = 'YYYY-MM-DD';
+        el.title = 'Enter date as YYYY-MM-DD (e.g. 2026-06-15)';
+      });
+    });
+
+    // Show a one-time warning banner
+    var warned = sessionStorage.getItem('_dateWarnShown');
+    if (!warned) {
+      sessionStorage.setItem('_dateWarnShown', '1');
+      document.addEventListener('DOMContentLoaded', function() {
+        var banner = document.createElement('div');
+        banner.id = 'date-compat-banner';
+        banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:10px;font-size:12px;z-index:9999;max-width:460px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.3);display:flex;gap:10px;align-items:center';
+        banner.innerHTML = '<span>⚠️ Your browser may show dates as <b>YYYY-MM-DD</b> in form fields. Please update Chrome or Safari for the best experience.</span><button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;flex-shrink:0">Got it</button>';
+        document.body.appendChild(banner);
+        setTimeout(function() { var b = document.getElementById('date-compat-banner'); if (b) b.remove(); }, 8000);
+      });
+    }
+  }
 })();
 
 
