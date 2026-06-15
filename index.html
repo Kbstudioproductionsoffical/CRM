@@ -10919,6 +10919,7 @@ function doGoogleLogin() {
           setTimeout(function(){ var u = document.getElementById('login-user'); if(u) u.focus(); }, 100);
         };
         loadAll();
+        if (typeof window._initPresence === 'function') window._initPresence();
       } else {
         firebase.auth().signOut();
         var err = document.getElementById('login-err');
@@ -10978,6 +10979,7 @@ function doLogin() {
         setTimeout(function(){ var u = document.getElementById('login-user'); if(u) u.focus(); }, 100);
       };
       loadAll();
+      if (typeof window._initPresence === 'function') window._initPresence();
     } else {
       if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Incorrect username or password.'; }
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Login →'; }
@@ -17609,183 +17611,215 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
 // ══════════════════════════════════════════════════════════════════
 // LIVE PRESENCE SYSTEM
 // Tracks who is currently active in the CRM using Firebase RTDB
-// presence protocol (/.info/connected + onDisconnect).
 // ══════════════════════════════════════════════════════════════════
+// PRESENCE SYSTEM — Firebase Realtime Online Indicator
+// ══════════════════════════════════════════════════════════════════
+(function () {
+  'use strict';
 
-(function() {
+  // ── State ──────────────────────────────────────────────────────
+  var _myRef         = null;   // Firebase ref for this session's node
+  var _connRef       = null;   // .info/connected ref
+  var _listenerRef   = null;   // crm_presence listener ref
+  var _started       = false;
+  var _panelOpen     = false;
+  var _heartbeatTmr  = null;
+  var _myUid         = null;
+  var _mySessionKey  = null;   // unique per browser tab
 
-  var _presenceRef   = null;  // this user's own presence node
-  var _presencePanel = false; // panel open state
-
-  // ── Initialize presence for the current user ──────────────────
-  // Call this once after CU is set and Firebase is ready.
+  // ── Called once after CU is set and db is ready ───────────────
   function initPresence() {
-    if (!db || !CU) return;
+    if (!window.db || !window.CU) return;
+    if (_started) return;
+    _started = true;
 
-    var uid      = CU.id || CU.username || 'unknown';
-    var userRef  = db.ref('crm_presence/' + uid);
-    _presenceRef = userRef;
+    _myUid        = CU.id || CU.username || ('anon_' + Date.now());
+    _mySessionKey = _myUid + '_' + Date.now(); // unique per tab session
+    _myRef        = db.ref('crm_presence/' + _mySessionKey);
 
-    var connRef  = db.ref('.info/connected');
-    connRef.on('value', function(snap) {
-      if (!snap.val()) return; // not connected yet
+    // ── Step 1: React to Firebase connection state ──────────────
+    _connRef = db.ref('.info/connected');
+    _connRef.on('value', function (snap) {
+      if (!snap.val()) return; // disconnected — Firebase will auto-remove via onDisconnect
 
-      // Write presence on connect; auto-remove on disconnect
-      userRef.onDisconnect().remove();
-      userRef.set({
-        name:     CU.name     || CU.username || 'Unknown',
-        role:     CU.role     || 'user',
-        joinedAt: Date.now()
-      });
+      // Register onDisconnect BEFORE writing (critical order)
+      _myRef.onDisconnect().remove();
+
+      // Write this user's presence
+      _writePresence();
     });
 
-    // ── Listen to ALL presence entries to update indicator ──────
-    db.ref('crm_presence').on('value', function(snap) {
+    // ── Step 2: Listen to the full presence list ────────────────
+    _listenerRef = db.ref('crm_presence');
+    _listenerRef.on('value', function (snap) {
       var online = [];
-      snap.forEach(function(c) {
-        var v = c.val();
-        if (v) online.push(Object.assign({ uid: c.key }, v));
+      snap.forEach(function (child) {
+        var v = child.val();
+        if (v && v.uid) online.push(v);
       });
-      renderPresenceIndicator(online);
+      _renderIndicator(online);
+    });
+
+    // ── Step 3: Heartbeat every 90s — keeps joinedAt fresh ──────
+    _heartbeatTmr = setInterval(function () {
+      if (_myRef && window.CU) _writePresence();
+    }, 90000);
+
+    // ── Step 4: Page visibility — refresh on tab focus ──────────
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible' && _myRef && window.CU) {
+        _myRef.onDisconnect().remove();
+        _writePresence();
+      }
+    });
+  }
+
+  function _writePresence() {
+    if (!_myRef || !window.CU) return;
+    _myRef.set({
+      uid:      _myUid,
+      name:     CU.name || CU.username || 'Unknown',
+      role:     CU.role || 'user',
+      joinedAt: Date.now()
     });
   }
 
   // ── Render the topbar pill + panel list ─────────────────────
-  function renderPresenceIndicator(online) {
+  function _renderIndicator(online) {
     var indicator = document.getElementById('presence-indicator');
     var countEl   = document.getElementById('presence-count');
     var listEl    = document.getElementById('presence-list');
-    if (!indicator) return;
+    if (!indicator || !window.CU) return;
 
-    // Only superadmin and intern are allowed to see who's online
-    var allowedRoles = ['superadmin', 'intern'];
-    if (!CU || allowedRoles.indexOf(CU.role) === -1) {
+    // Roles allowed to see presence
+    var allowedRoles = ['superadmin', 'intern', 'admin'];
+    if (allowedRoles.indexOf(CU.role) === -1) {
       indicator.style.display = 'none';
       return;
     }
 
-    var count = online.length;
+    // Deduplicate by uid — keep the freshest entry per user
+    var byUid = {};
+    online.forEach(function (u) {
+      if (!byUid[u.uid] || u.joinedAt > byUid[u.uid].joinedAt) {
+        byUid[u.uid] = u;
+      }
+    });
+    var deduped = Object.values(byUid);
+
+    var count = deduped.length;
     indicator.style.display = 'flex';
     if (countEl) countEl.textContent = count + ' online';
 
-    if (listEl) {
-      if (!count) {
-        listEl.innerHTML = '<div style="text-align:center;padding:16px;color:#aaa;font-size:12px">No one online right now</div>';
-      } else {
-        // Sort: current user first, then others alphabetically
-        var myUid = CU ? (CU.id || CU.username) : '';
-        online.sort(function(a, b) {
-          if (a.uid === myUid) return -1;
-          if (b.uid === myUid) return 1;
-          return (a.name || '').localeCompare(b.name || '');
-        });
-        listEl.innerHTML = online.map(function(u) {
-          var isMe  = u.uid === myUid;
-          var initl = (u.name || '?').charAt(0).toUpperCase();
-          var color = avatarColor ? avatarColor(u.name) : '#6d28d9';
-          var since = u.joinedAt ? _presenceSince(u.joinedAt) : '';
-          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #f8f8f8">' +
-            '<div style="position:relative;flex-shrink:0">' +
-              '<div style="width:32px;height:32px;border-radius:50%;background:' + color + ';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">' + initl + '</div>' +
-              '<div style="position:absolute;bottom:0;right:0;width:9px;height:9px;background:#22c55e;border-radius:50%;border:2px solid #fff"></div>' +
-            '</div>' +
-            '<div style="flex:1;min-width:0">' +
-              '<div style="font-size:13px;font-weight:700;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
-                escHtml(u.name || u.uid) + (isMe ? ' <span style="font-size:10px;color:#6d28d9;font-weight:600">(you)</span>' : '') +
-              '</div>' +
-              '<div style="font-size:11px;color:#888">' + escHtml(roleLabel ? roleLabel(u.role) : (u.role || '')) + (since ? ' · ' + since : '') + '</div>' +
-            '</div>' +
-          '</div>';
-        }).join('');
-      }
+    if (!listEl) return;
+    if (!count) {
+      listEl.innerHTML = '<div style="text-align:center;padding:16px;color:#aaa;font-size:12px">No one online right now</div>';
+      return;
     }
+
+    // Sort: me first, then alphabetically
+    deduped.sort(function (a, b) {
+      if (a.uid === _myUid) return -1;
+      if (b.uid === _myUid) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    listEl.innerHTML = deduped.map(function (u) {
+      var isMe   = u.uid === _myUid;
+      var initl  = (u.name || '?').charAt(0).toUpperCase();
+      var color  = typeof avatarColor === 'function' ? avatarColor(u.name) : '#6d28d9';
+      var since  = u.joinedAt ? _since(u.joinedAt) : '';
+      var rlabel = typeof roleLabel === 'function' ? roleLabel(u.role) : (u.role || '');
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #f8f8f8">' +
+        '<div style="position:relative;flex-shrink:0">' +
+          '<div style="width:32px;height:32px;border-radius:50%;background:' + color + ';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff">' + initl + '</div>' +
+          '<div style="position:absolute;bottom:0;right:0;width:9px;height:9px;background:#22c55e;border-radius:50%;border:2px solid #fff"></div>' +
+        '</div>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:13px;font-weight:700;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' +
+            (typeof escHtml === 'function' ? escHtml(u.name || u.uid) : (u.name || u.uid)) +
+            (isMe ? ' <span style="font-size:10px;color:#6d28d9;font-weight:600">(you)</span>' : '') +
+          '</div>' +
+          '<div style="font-size:11px;color:#888">' + rlabel + (since ? ' · ' + since : '') + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
   }
 
-  // ── Human-readable "X min ago" since joined ──────────────────
-  function _presenceSince(ts) {
+  function _since(ts) {
     var diff = Math.floor((Date.now() - ts) / 1000);
-    if (diff < 60)  return 'just now';
+    if (diff < 10)   return 'just now';
+    if (diff < 60)   return diff + 's ago';
     if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
     return Math.floor(diff / 3600) + 'h ago';
   }
 
-  // ── Toggle presence panel open/close ─────────────────────────
-  window.togglePresencePanel = function() {
+  // ── Panel toggle ─────────────────────────────────────────────
+  window.togglePresencePanel = function () {
     var panel = document.getElementById('presence-panel');
     if (!panel) return;
-    _presencePanel = !_presencePanel;
-    panel.style.display = _presencePanel ? 'block' : 'none';
-    if (_presencePanel) {
-      // Close panel on outside click
-      setTimeout(function() {
-        document.addEventListener('click', _closePanelOutside);
+    _panelOpen = !_panelOpen;
+    panel.style.display = _panelOpen ? 'block' : 'none';
+    if (_panelOpen) {
+      setTimeout(function () {
+        document.addEventListener('click', _outsideClick);
       }, 10);
     } else {
-      document.removeEventListener('click', _closePanelOutside);
+      document.removeEventListener('click', _outsideClick);
     }
   };
 
-  function _closePanelOutside(e) {
-    var panel     = document.getElementById('presence-panel');
-    var indicator = document.getElementById('presence-indicator');
-    if (panel && !panel.contains(e.target) && indicator && !indicator.contains(e.target)) {
+  function _outsideClick(e) {
+    var panel = document.getElementById('presence-panel');
+    var pill  = document.getElementById('presence-indicator');
+    if (panel && !panel.contains(e.target) && pill && !pill.contains(e.target)) {
       panel.style.display = 'none';
-      _presencePanel = false;
-      document.removeEventListener('click', _closePanelOutside);
+      _panelOpen = false;
+      document.removeEventListener('click', _outsideClick);
     }
   }
 
-  // ── Hook into login / logout to start/stop presence ──────────
-  // We patch loadAll (called after login) to start presence,
-  // and btn-logout to remove the presence node on logout.
-  var _presenceStarted = false;
+  // ── Stop presence (on logout) ────────────────────────────────
+  function stopPresence() {
+    _started = false;
+    if (_heartbeatTmr) { clearInterval(_heartbeatTmr); _heartbeatTmr = null; }
+    if (_connRef)      { _connRef.off(); _connRef = null; }
+    if (_listenerRef)  { _listenerRef.off(); _listenerRef = null; }
+    if (_myRef)        { try { _myRef.remove(); } catch (e) {} _myRef = null; }
+    var ind = document.getElementById('presence-indicator');
+    var pan = document.getElementById('presence-panel');
+    if (ind) ind.style.display = 'none';
+    if (pan) pan.style.display = 'none';
+    _panelOpen = false;
+  }
 
-  // Patch loadAll after all functions are defined so the reference is guaranteed
-  window.addEventListener('load', function() {
-    var _origLoadAll = typeof loadAll === 'function' ? loadAll : null;
-    if (_origLoadAll) {
-      loadAll = function() {
-        _origLoadAll.apply(this, arguments);
-        if (!_presenceStarted) {
-          _presenceStarted = true;
-          // Give Firebase a moment to authenticate then start presence
-          setTimeout(initPresence, 600);
-        }
-      };
-    }
-  });
+  // ── Hook: expose initPresence so doLogin / doGoogleLogin can call it ─
+  window._initPresence = function () {
+    // Reset so it can be re-initialized on re-login
+    if (_started) stopPresence();
+    _started = false;
+    setTimeout(initPresence, 400);
+  };
 
-  // Also patch logout buttons to cleanly remove presence
-  function patchLogout() {
-    var logoutBtn = document.getElementById('btn-logout');
-    if (!logoutBtn) return;
-    var _origLogout = logoutBtn.onclick;
-    logoutBtn.onclick = function() {
-      _presenceStarted = false;
-      if (_presenceRef) {
-        try { _presenceRef.remove(); } catch(e) {}
-        _presenceRef = null;
-      }
-      var panel = document.getElementById('presence-panel');
-      if (panel) panel.style.display = 'none';
-      var indicator = document.getElementById('presence-indicator');
-      if (indicator) indicator.style.display = 'none';
-      if (_origLogout) _origLogout.call(this);
+  // ── Hook: patch logout buttons to stop presence cleanly ─────
+  function _patchLogout() {
+    var btn = document.getElementById('btn-logout');
+    if (!btn || btn._presencePatched) return;
+    btn._presencePatched = true;
+    var orig = btn.onclick;
+    btn.onclick = function (e) {
+      stopPresence();
+      if (orig) orig.call(this, e);
     };
   }
 
-  // Patch logout button once DOM is ready (it's wired after login in doLogin/doGoogleLogin)
-  // We observe login to catch when the button gets its handler
-  var _logoutPatched = false;
-  var _logoutOb = new MutationObserver(function() {
-    if (!_logoutPatched && document.getElementById('btn-logout')) {
-      patchLogout();
-      _logoutPatched = true;
-    }
+  // Observe DOM for logout button (it appears after login)
+  var _ob = new MutationObserver(function () {
+    var btn = document.getElementById('btn-logout');
+    if (btn && !btn._presencePatched) { _patchLogout(); }
   });
-  _logoutOb.observe(document.body, { subtree: true, childList: true });
-  // Also try immediately in case already rendered
-  patchLogout();
+  _ob.observe(document.body, { subtree: true, childList: true });
+  _patchLogout();
 
 })();
 
