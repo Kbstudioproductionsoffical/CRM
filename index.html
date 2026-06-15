@@ -2350,8 +2350,7 @@ document.addEventListener('wheel', function(e) {
         <div id="quot-approval-banner" style="display:none;font-size:12px;padding:5px 10px;border-radius:6px;font-weight:600"></div>
       </div>
       <button class="btn" data-close="quot-modal">Cancel</button>
-      <button class="btn" id="btn-quot-download-pdf" onclick="downloadQuotationPDF()" style="background:#d4af37;color:#1a1a1a;border-color:#d4af37;font-weight:800;font-size:13px">⬇️ Download PDF</button>
-      <button class="btn btn-primary" id="btn-save-quot">💾 Save Quotation</button>
+      <button class="btn btn-primary" id="btn-save-quot" style="font-size:13px;padding:9px 22px">💾 Save &amp; Download PDF</button>
     </div>
   </div>
 </div>
@@ -4209,7 +4208,7 @@ var DEFAULT_USERS=[
 ];
 var DEFAULT_ACCOUNTS=[{id:'acc1',name:'KB Studio Current Account',type:'current',number:'',notes:'Primary business account'},{id:'acc2',name:'Ketan Savings Account',type:'savings',number:'',notes:''},{id:'acc3',name:'Ritesh Savings Account',type:'savings',number:'',notes:''},{id:'acc4',name:'Keshav Savings Account',type:'savings',number:'',notes:''},{id:'acc5',name:'Shivam Savings Account',type:'savings',number:'',notes:''},{id:'acc6',name:'KB Studio UPI',type:'upi',number:'',notes:''},{id:'acc7',name:'Cash',type:'cash',number:'',notes:''}];
 var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight',label:'Highlight Video',hasDuration:true},{key:'longvideo',label:'Long Video / Full Film',hasDuration:true},{key:'reel',label:'Reels'},{key:'album',label:'Album',hasPhotos:true},{key:'frame',label:'Frame'},{key:'editedpics',label:'Edited Pictures'}];
-var PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'30% Advance',pct:30,desc:'On booking'},{key:'p50',label:'50% On Event',pct:50,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p5a',label:'5% Final Pt.1',pct:5,desc:'Final delivery 1'},{key:'p5b',label:'5% Final Pt.2',pct:5,desc:'Final delivery 2'}],'30-50-10-10':[{key:'p30',label:'30% Advance',pct:30,desc:'On booking'},{key:'p50',label:'50% On Event',pct:50,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p10b',label:'10% Final',pct:10,desc:'Final delivery'}],'20-60-10-10':[{key:'p20',label:'20% Advance',pct:20,desc:'On booking'},{key:'p60',label:'60% On Event',pct:60,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p10b',label:'10% Final',pct:10,desc:'Final delivery'}],'50-50':[{key:'p50a',label:'50% Advance',pct:50,desc:'On booking'},{key:'p50b',label:'50% Final',pct:50,desc:'Final delivery'}]};
+var PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'30% Advance',pct:30,desc:'On booking'},{key:'p50',label:'50% On Event',pct:50,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p5a',label:'5% After Teaser & Highlight',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'5% After Final Delivery',pct:5,desc:'After final delivery'}],'30-50-10-10':[{key:'p30',label:'30% Advance',pct:30,desc:'On booking'},{key:'p50',label:'50% On Event',pct:50,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p10b',label:'10% Final',pct:10,desc:'Final delivery'}],'20-60-10-10':[{key:'p20',label:'20% Advance',pct:20,desc:'On booking'},{key:'p60',label:'60% On Event',pct:60,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p10b',label:'10% Final',pct:10,desc:'Final delivery'}],'50-50':[{key:'p50a',label:'50% Advance',pct:50,desc:'On booking'},{key:'p50b',label:'50% Final',pct:50,desc:'Final delivery'}]};
 function getPayTerms(p){
   var base;
   if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length) base=p.customPayTerms;
@@ -4367,7 +4366,7 @@ document.body.addEventListener('click', function(e) {
     _quotSaving = true;
     _bsq.disabled = true;
     var origText = _bsq.textContent;
-    _bsq.textContent = 'Saving…';
+    _bsq.textContent = 'Saving & Downloading…';
     // Wrap saveQuotation to restore button on completion
     var origSet = db.ref.bind(db);
     saveQuotation();
@@ -13445,15 +13444,15 @@ function openNewTimelinePreset() {
 // ══════════════════════════════════════════════════════════════════
 var QD_PRESETS = [
   // ── Video ──
-  { id:'wedding-teaser',    cat:'🎬 Video', label:'Wedding Teaser',       detail:'2–3 Min',    icon:'🎞️', durations:['90 sec','2–3 Min','3–5 Min','Custom'] },
-  { id:'prewed-teaser',     cat:'🎬 Video', label:'Pre-Wedding Teaser',    detail:'2–3 Min',    icon:'🎞️', durations:['1–2 Min','2–3 Min','3–5 Min','Custom'] },
+  { id:'wedding-teaser',    cat:'🎬 Video', label:'Wedding Teaser',       detail:'1.5–2 Min',  icon:'🎞️', durations:['1.5 Min','1.5–2 Min','2–3 Min','3–4 Min','4–5 Min','Custom'] },
+  { id:'prewed-teaser',     cat:'🎬 Video', label:'Pre-Wedding Teaser',    detail:'1.5–2 Min',  icon:'🎞️', durations:['1.5 Min','1.5–2 Min','2–3 Min','3–4 Min','4–5 Min','Custom'] },
   { id:'highlight-film',    cat:'🎬 Video', label:'Highlight Film',        detail:'5–7 Min',    icon:'🎬', durations:['3–5 Min','5–7 Min','7–10 Min','Custom'] },
   { id:'wedding-film',      cat:'🎬 Video', label:'Wedding Film',          detail:'20–30 Min',  icon:'🎥', durations:['15–20 Min','20–30 Min','30–45 Min','Custom'] },
   { id:'trad-video',        cat:'🎬 Video', label:'Traditional Video',     detail:'Full Coverage', icon:'📹', durations:['Half Day','Full Coverage','Multi-Day','Custom'], hasPerEvent:true },
   { id:'short-reels',       cat:'🎬 Video', label:'Short Reels',           detail:'4 Reels',    icon:'📱', durations:['2 Reels','3 Reels','4 Reels','6 Reels','Custom'], isCount:true },
   // ── Photos ──
   { id:'edited-gallery',    cat:'📸 Photos', label:'Edited Photo Gallery', detail:'500 Photos', icon:'🖼️', durations:['300 Photos','400 Photos','500 Photos','600 Photos','Custom'], isCount:true },
-  { id:'online-gallery',    cat:'📸 Photos', label:'Online Gallery Portal', detail:'Included',  icon:'🔗', durations:['Included'] },
+  { id:'online-gallery',    cat:'📸 Photos', label:'Face Recognition Secure Gallery', detail:'Included',  icon:'🔗', durations:['Included'] },
   // ── Albums ──
   { id:'wedding-album',     cat:'📔 Albums', label:'Wedding Album',        detail:'1 Album',    icon:'📖', durations:['1 Album','2 Albums','3 Albums','Custom'], hasQty:true, hasSizes:true },
   { id:'prewed-album',      cat:'📔 Albums', label:'Pre-Wedding Album',    detail:'1 Album',    icon:'📗', durations:['1 Album','2 Albums','Custom'], hasQty:true, hasSizes:true },
@@ -13875,7 +13874,7 @@ function qdLoadFromData(deliverables, customDelivsArr) {
       { field:'reels',       id:'short-reels',     icon:'📱', label:'Short Reels' },
       { field:'tradVideo',   id:'trad-video',      icon:'📹', label:'Traditional Video' },
       { field:'pics',        id:'edited-gallery',  icon:'🖼️', label:'Edited Photo Gallery' },
-      { field:'gallery',     id:'online-gallery',  icon:'🔗', label:'Online Gallery Portal' },
+      { field:'gallery',     id:'online-gallery',  icon:'🔗', label:'Face Recognition Secure Gallery' },
       { field:'album',       id:'wedding-album',   icon:'📖', label:'Wedding Album' },
       { field:'prewedAlbum', id:'prewed-album',    icon:'📗', label:'Pre-Wedding Album' },
       { field:'frames',      id:'photo-frames',    icon:'🖼', label:'Photo Frames / Prints' },
@@ -13951,9 +13950,15 @@ function saveQuotation(silent) {
   ref.set(data, function(err) {
     // Restore save button immediately
     var btn = document.getElementById('btn-save-quot');
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Save Quotation'; }
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Save & Download PDF'; }
     if (err) { if (!silent) showToast('❌ Error saving: ' + err.message); return; }
-    if (!silent) showToast('✅ Quotation saved!');
+    if (!silent) {
+      showToast('✅ Quotation saved!');
+      // Auto-download PDF after successful save
+      setTimeout(function() {
+        if (typeof downloadQuotationPDF === 'function') downloadQuotationPDF();
+      }, 400);
+    }
     var cvtBtn = document.getElementById('btn-quot-convert-project');
     if (cvtBtn) cvtBtn.style.display = data.status === 'won' ? '' : 'none';
     if (!editQuotId) editQuotId = ref.key;
@@ -14739,14 +14744,14 @@ function buildQuotPDFDom(q) {
 
       // ── Build subtitle (small caps below label) ──
       var subMap = {
-        'wedding-teaser':  '2–3 Min · Social Ready',
-        'prewed-teaser':   '2–3 Min · Pre-Wedding',
+        'wedding-teaser':  '1.5–2 Min',
+        'prewed-teaser':   '1.5–2 Min',
         'wedding-film':    '15–20 Min · Feature Length',
         'highlight-film':  '5–7 Min · Cinematic Edit',
         'short-reels':     'Vertical · Curated Cuts',
         'trad-video':      'Full Ceremony Coverage',
         'edited-gallery':  '300–500 High-Res Images',
-        'online-gallery':  'Private Delivery Portal',
+        'online-gallery':  'Face Recognition Secure Gallery',
         'wedding-album':   'Premium Add-On',
         'prewed-album':    'Printed Keepsake',
         'photo-frames':    'Archival Prints',
