@@ -17846,38 +17846,210 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
 })();
 
 // ══════════════════════════════════════════════════════════════════
-// BROWSER DATE INPUT COMPATIBILITY
+// UNIVERSAL DD/MM/YYYY DATE INPUT (locale-independent)
+// Overlays every <input type="date"> with a custom DD/MM/YYYY text
+// field + calendar popup, so the displayed format is identical for
+// every user regardless of OS/browser language or region settings.
+// The original native input is kept (hidden) and stays in sync, so
+// all existing code using .value / onchange / getElementById etc.
+// continues to work unchanged (value remains ISO YYYY-MM-DD).
 // ══════════════════════════════════════════════════════════════════
 (function() {
-  // Test if browser natively supports <input type="date">
-  var testInput = document.createElement('input');
-  testInput.setAttribute('type', 'date');
-  testInput.setAttribute('value', '2026-01-20');
-  var nativeDate = testInput.type === 'date' && testInput.value === '2026-01-20';
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  if (!nativeDate) {
-    // Safari old / unsupported browser — add placeholders and a banner
-    document.addEventListener('DOMContentLoaded', function() {
-      document.querySelectorAll('input[type="date"]').forEach(function(el) {
-        if (!el.placeholder) el.placeholder = 'YYYY-MM-DD';
-        el.title = 'Enter date as YYYY-MM-DD (e.g. 2026-06-15)';
+  function pad(n){ return (n<10?'0':'')+n; }
+  function isoToDMY(iso){
+    if(!iso) return '';
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if(!m) return '';
+    return m[3]+'/'+m[2]+'/'+m[1];
+  }
+  function dmyToIso(dmy){
+    var m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec((dmy||'').trim());
+    if(!m) return '';
+    var d=+m[1], mo=+m[2], y=+m[3];
+    if(mo<1||mo>12||d<1||d>31) return '';
+    return y+'-'+pad(mo)+'-'+pad(d);
+  }
+
+  function buildCalendar(wrap, hidden, display){
+    var cal = document.createElement('div');
+    cal.className = 'dmy-cal';
+    cal.style.cssText = 'position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:10px;z-index:10000;width:240px;font-size:12px;display:none;color:#1a1a1a';
+
+    var view = { y: 0, m: 0 };
+
+    function render(){
+      cal.innerHTML = '';
+      var head = document.createElement('div');
+      head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
+      var prev = document.createElement('button');
+      prev.textContent = '‹';
+      prev.type = 'button';
+      prev.style.cssText = 'border:none;background:none;cursor:pointer;font-size:16px;padding:2px 8px;border-radius:6px';
+      var next = document.createElement('button');
+      next.textContent = '›';
+      next.type = 'button';
+      next.style.cssText = prev.style.cssText;
+      var label = document.createElement('div');
+      label.textContent = MONTHS[view.m] + ' ' + view.y;
+      label.style.cssText = 'font-weight:600';
+      prev.onclick = function(e){ e.preventDefault(); e.stopPropagation(); view.m--; if(view.m<0){view.m=11;view.y--;} render(); };
+      next.onclick = function(e){ e.preventDefault(); e.stopPropagation(); view.m++; if(view.m>11){view.m=0;view.y++;} render(); };
+      head.appendChild(prev); head.appendChild(label); head.appendChild(next);
+      cal.appendChild(head);
+
+      var grid = document.createElement('div');
+      grid.style.cssText = 'display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center';
+      ['S','M','T','W','T','F','S'].forEach(function(d){
+        var c = document.createElement('div');
+        c.textContent = d;
+        c.style.cssText = 'font-size:10px;color:#999;padding:4px 0;font-weight:600';
+        grid.appendChild(c);
       });
+      var first = new Date(view.y, view.m, 1).getDay();
+      var days = new Date(view.y, view.m+1, 0).getDate();
+      var curIso = hidden.value;
+      for(var i=0;i<first;i++){ var blank=document.createElement('div'); grid.appendChild(blank); }
+      for(var d=1; d<=days; d++){
+        var cell = document.createElement('button');
+        cell.type='button';
+        cell.textContent = d;
+        var thisIso = view.y+'-'+pad(view.m+1)+'-'+pad(d);
+        var isSel = curIso === thisIso;
+        cell.style.cssText = 'border:none;background:'+(isSel?'#1a1a1a':'transparent')+';color:'+(isSel?'#fff':'#333')+';cursor:pointer;padding:6px 0;border-radius:6px;font-size:12px';
+        cell.onmouseenter = function(){ if(this.style.background==='transparent') this.style.background='#f0f0f0'; };
+        cell.onmouseleave = function(){ var iso2=view.y+'-'+pad(view.m+1)+'-'+pad(this.textContent); if(iso2!==curIso) this.style.background='transparent'; };
+        (function(dd){
+          cell.onclick = function(e){
+            e.preventDefault(); e.stopPropagation();
+            var iso = view.y+'-'+pad(view.m+1)+'-'+pad(dd);
+            hidden.value = iso;
+            display.value = isoToDMY(iso);
+            hidden.dispatchEvent(new Event('input', {bubbles:true}));
+            hidden.dispatchEvent(new Event('change', {bubbles:true}));
+            cal.style.display = 'none';
+          };
+        })(d);
+        grid.appendChild(cell);
+      }
+      cal.appendChild(grid);
+
+      var today = document.createElement('button');
+      today.type='button';
+      today.textContent = 'Today';
+      today.style.cssText = 'margin-top:8px;width:100%;border:none;background:#f5f5f5;padding:6px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600';
+      today.onclick = function(e){
+        e.preventDefault(); e.stopPropagation();
+        var now = new Date();
+        var iso = now.getFullYear()+'-'+pad(now.getMonth()+1)+'-'+pad(now.getDate());
+        hidden.value = iso;
+        display.value = isoToDMY(iso);
+        hidden.dispatchEvent(new Event('input', {bubbles:true}));
+        hidden.dispatchEvent(new Event('change', {bubbles:true}));
+        cal.style.display = 'none';
+      };
+      cal.appendChild(today);
+    }
+
+    cal.open = function(){
+      var base = hidden.value ? new Date(hidden.value) : new Date();
+      if(isNaN(base.getTime())) base = new Date();
+      view.y = base.getFullYear();
+      view.m = base.getMonth();
+      render();
+      cal.style.display = 'block';
+    };
+
+    wrap.appendChild(cal);
+    return cal;
+  }
+
+  function wrapInput(orig){
+    if(orig._dmyWrapped) return;
+    orig._dmyWrapped = true;
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:inline-block;width:100%';
+
+    var display = document.createElement('input');
+    display.type = 'text';
+    display.className = orig.className;
+    display.placeholder = 'DD/MM/YYYY';
+    display.maxLength = 10;
+    display.style.cssText = orig.style.cssText || '';
+    if(orig.style.width) display.style.width = orig.style.width;
+    display.style.width = '100%';
+    if(orig.disabled) display.disabled = true;
+
+    orig.parentNode.insertBefore(wrap, orig);
+    wrap.appendChild(display);
+    wrap.appendChild(orig);
+
+    orig.style.position = 'absolute';
+    orig.style.opacity = '0';
+    orig.style.width = '1px';
+    orig.style.height = '1px';
+    orig.style.pointerEvents = 'none';
+    orig.style.left = '-9999px';
+    orig.tabIndex = -1;
+
+    display.value = isoToDMY(orig.value);
+
+    var cal = buildCalendar(wrap, orig, display);
+
+    display.addEventListener('focus', function(){ cal.open(); });
+    display.addEventListener('click', function(){ cal.open(); });
+
+    display.addEventListener('input', function(){
+      var v = display.value.replace(/[^\d]/g,'');
+      if(v.length>=5) v = v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4,8);
+      else if(v.length>=3) v = v.slice(0,2)+'/'+v.slice(2,4);
+      display.value = v;
+      var iso = dmyToIso(v);
+      if(iso){
+        orig.value = iso;
+        orig.dispatchEvent(new Event('input', {bubbles:true}));
+      }
     });
 
-    // Show a one-time warning banner
-    var warned = sessionStorage.getItem('_dateWarnShown');
-    if (!warned) {
-      sessionStorage.setItem('_dateWarnShown', '1');
-      document.addEventListener('DOMContentLoaded', function() {
-        var banner = document.createElement('div');
-        banner.id = 'date-compat-banner';
-        banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:10px;font-size:12px;z-index:9999;max-width:460px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.3);display:flex;gap:10px;align-items:center';
-        banner.innerHTML = '<span>⚠️ Your browser may show dates as <b>YYYY-MM-DD</b> in form fields. Please update Chrome or Safari for the best experience.</span><button onclick="this.parentElement.remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;flex-shrink:0">Got it</button>';
-        document.body.appendChild(banner);
-        setTimeout(function() { var b = document.getElementById('date-compat-banner'); if (b) b.remove(); }, 8000);
-      });
-    }
+    display.addEventListener('change', function(){
+      var iso = dmyToIso(display.value);
+      if(iso){
+        orig.value = iso;
+        display.value = isoToDMY(iso);
+        orig.dispatchEvent(new Event('change', {bubbles:true}));
+      } else if(display.value === ''){
+        orig.value = '';
+        orig.dispatchEvent(new Event('change', {bubbles:true}));
+      } else {
+        display.value = isoToDMY(orig.value);
+      }
+    });
+
+    document.addEventListener('click', function(e){
+      if(!wrap.contains(e.target)) cal.style.display = 'none';
+    });
+
+    // Keep display in sync if code elsewhere sets orig.value directly
+    var lastVal = orig.value;
+    setInterval(function(){
+      if(orig.value !== lastVal){
+        lastVal = orig.value;
+        display.value = isoToDMY(orig.value);
+      }
+    }, 400);
   }
+
+  function scan(){
+    document.querySelectorAll('input[type="date"]').forEach(wrapInput);
+  }
+
+  document.addEventListener('DOMContentLoaded', scan);
+  // Catch dynamically-rendered date inputs (modals, list rows, etc.)
+  var mo = new MutationObserver(function(){ scan(); });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
+  scan();
 })();
 
 
