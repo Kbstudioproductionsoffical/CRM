@@ -1790,6 +1790,8 @@ document.addEventListener('wheel', function(e) {
           <button class="btn-view" id="cal-btn-day" onclick="setCalView('day')">Day</button>
           <button class="btn-view" id="cal-btn-agenda" onclick="setCalView('agenda')">Agenda</button>
         </div>
+        <button class="cal-nav-btn" id="cal-btn-sync-legacy" onclick="syncLegacyCalendarShoots()" style="background:#fef9c3;color:#854d0e;border-color:#fde68a;font-size:12px;display:none">⚠️ Sync into Production Plan</button>
+        <button class="cal-nav-btn" id="cal-btn-dedupe-eventdays" onclick="dedupeAllEventDays()" style="background:#fee2e2;color:#991b1b;border-color:#fecaca;font-size:12px;display:none">🧹 Remove duplicate shoots</button>
         <select class="fi" id="cal-region-f" style="flex:0;width:auto;max-width:150px" onchange="renderCalendar()">
           <option value="">All Regions</option>
           <option value="north">🔵 North</option>
@@ -1832,6 +1834,7 @@ document.addEventListener('wheel', function(e) {
       <div class="cal-popup-body" id="cal-popup-body"></div>
       <div class="cal-popup-actions">
         <button class="btn btn-primary btn-sm" id="cal-popup-open-btn" style="flex:1">Open Project</button>
+        <button class="btn btn-sm" id="cal-popup-datalog-btn" style="background:#0369a1;color:#fff;border:none">🗂️ Data Log</button>
         <button class="btn btn-sm" id="cal-popup-wa-btn" style="background:#25D366;color:#fff;border:none">WhatsApp</button>
       </div>
     </div>
@@ -4229,7 +4232,7 @@ function $(i){return document.getElementById(i);}
 function gv(i){var e=$(i);return e?e.value:'';}
 function sv(i,v){var e=$(i);if(e)e.value=(v==null)?'':v;}
 function fmt(n){return '₹'+(parseInt(n)||0).toLocaleString('en-IN');}
-function tod(){return new Date().toISOString().split('T')[0];}
+function tod(){return localDateStr(new Date());}
 
 // Global date formatter — DD MMM YYYY (e.g. 13 Jun 2026)
 var _MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -4520,7 +4523,6 @@ function loadAll(){
         _invTermsCache=(crmSettings.inv_terms&&crmSettings.inv_terms.length)?crmSettings.inv_terms:null;
         _invPaymentTermsCache=(crmSettings.inv_payment_terms&&crmSettings.inv_payment_terms.length)?crmSettings.inv_payment_terms:null;
         ensureWhatsAppInSources();
-        setTimeout(function(){ if(typeof cleanBadEventDays==='function') cleanBadEventDays(); }, 2000);
         deduplicateEscalations();
         // One-time wipe — remove this line after first load
         if (!localStorage.getItem('esc_wiped_v1')) { wipeAllEscalations(); localStorage.setItem('esc_wiped_v1','1'); }
@@ -5292,7 +5294,27 @@ function addEventDay(data) {
 
   // Restore saved values
   function sv2(cls, val) { var el = card.querySelector(cls); if (el && val) el.value = val; }
-  sv2('.evd-date',      d.date);
+  // For the date field: always set the ISO value on the actual
+  // input[type="date"], regardless of whether the DMY wrapper has already
+  // run. If a wrapper exists, also sync its visible DD/MM/YYYY display.
+  var dateInputEl = card.querySelector('input.evd-date[type="date"]') || card.querySelector('.evd-date');
+  function applyEventDayDate() {
+    if (!dateInputEl || !d.date) return;
+    dateInputEl.value = d.date;
+    dateInputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    // If a DMY wrapper has already wrapped this input, sync its display directly too
+    var wrap = dateInputEl.closest('div');
+    if (wrap) {
+      var display = wrap.querySelector('input[type="text"].evd-date');
+      if (display && typeof isoToDMY === 'function') display.value = isoToDMY(d.date);
+    }
+  }
+  applyEventDayDate();
+  // Re-apply shortly after, in case the MutationObserver wraps the input
+  // just after this card is inserted (race with the global date-wrapper script)
+  setTimeout(applyEventDayDate, 60);
+  setTimeout(applyEventDayDate, 300);
+
   sv2('.evd-venue',     d.venue);
   sv2('.evd-calltime',  d.callTime);
   sv2('.evd-time',      d.time);
@@ -5322,10 +5344,22 @@ function collectEventDays() {
   var days = [];
   var cards = document.querySelectorAll('#evday-container .evday-card');
   cards.forEach(function(card) {
-    var gv = function(cls) { var el = card.querySelector(cls); return el ? (el.value || '').trim() : ''; };
-    var date = gv('.evd-date');
+    // For date: the DMY wrapper hides the original input off-screen but it still holds the ISO value
+    // Use the hidden ISO input (original input[type=date]) directly
+    var gv = function(cls) {
+      var el = card.querySelector(cls);
+      if (!el) return '';
+      return (el.value || '').trim();
+    };
+    // For date: the DMY wrapper inserts a visible text input AND keeps the
+    // original input[type=date] (both share the .evd-date class). The
+    // visible one holds "DD/MM/YYYY"; the original hidden one holds the
+    // real ISO "YYYY-MM-DD" value used everywhere else. Always read the
+    // ISO value from the actual <input type="date">.
+    var dateInputEl = card.querySelector('input.evd-date[type="date"]') || card.querySelector('.evd-date');
+    var date = dateInputEl ? (dateInputEl.value || '').trim() : '';
     var type = gv('.evd-type');
-    if (!date || !type) return;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !type) return;
     // Resolve ID → name from teamData or freelancerData
     function _name(id) {
       if (!id) return '';
@@ -6074,7 +6108,7 @@ function cycleDelivStatus(idx){
   var cur=customDelivs[idx].status||'pending';
   var next=states[(states.indexOf(cur)+1)%states.length];
   customDelivs[idx].status=next;
-  if(next==='delivered'&&!customDelivs[idx].date)customDelivs[idx].date=new Date().toISOString().split('T')[0];
+  if(next==='delivered'&&!customDelivs[idx].date)customDelivs[idx].date=tod();
   renderDelivRows();
   if(next==='delivered'){var d=customDelivs[idx];var p=editProjId?projects[editProjId]:null;if(p)showDeliveredWAPopup(d,p);}
 }
@@ -6640,12 +6674,12 @@ function refreshEditorFilter(){
 function buildEditorStats(){
   var sel=document.getElementById('pp-editor-filter');
   var filterVal=sel?sel.value:'all';
-  var now=new Date();var todayStr=now.toISOString().split('T')[0];
+  var now=new Date();var todayStr=localDateStr(now);
   var fromDate='',toDate='';
   if(filterVal==='thismonth'){fromDate=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-01';toDate=todayStr;}
-  else if(filterVal==='lastmonth'){var lm=new Date(now.getFullYear(),now.getMonth()-1,1);var lme=new Date(now.getFullYear(),now.getMonth(),0);fromDate=lm.getFullYear()+'-'+String(lm.getMonth()+1).padStart(2,'0')+'-01';toDate=lme.toISOString().split('T')[0];}
-  else if(filterVal==='last15'){var d15=new Date(now);d15.setDate(d15.getDate()-15);fromDate=d15.toISOString().split('T')[0];toDate=todayStr;}
-  else if(filterVal==='last7'){var d7=new Date(now);d7.setDate(d7.getDate()-7);fromDate=d7.toISOString().split('T')[0];toDate=todayStr;}
+  else if(filterVal==='lastmonth'){var lm=new Date(now.getFullYear(),now.getMonth()-1,1);var lme=new Date(now.getFullYear(),now.getMonth(),0);fromDate=lm.getFullYear()+'-'+String(lm.getMonth()+1).padStart(2,'0')+'-01';toDate=localDateStr(lme);}
+  else if(filterVal==='last15'){var d15=new Date(now);d15.setDate(d15.getDate()-15);fromDate=localDateStr(d15);toDate=todayStr;}
+  else if(filterVal==='last7'){var d7=new Date(now);d7.setDate(d7.getDate()-7);fromDate=localDateStr(d7);toDate=todayStr;}
   else if(filterVal==='custom'){fromDate=document.getElementById('pp-date-from')?document.getElementById('pp-date-from').value:'';toDate=document.getElementById('pp-date-to')?document.getElementById('pp-date-to').value:'';}
 
   var allItems2=[];
@@ -8717,7 +8751,7 @@ function dateRangeFromQuickRange(range) {
   // Returns { from:'YYYY-MM-DD', to:'YYYY-MM-DD' } or null for "All"
   if (!range) return null;
   var now = new Date();
-  var today = now.toISOString().split('T')[0];
+  var today = localDateStr(now);
   if (range === 'cfy') return indiaFYRange(currentIndiaFY());
   if (range === 'lfy') {
     var cfy = currentIndiaFY();
@@ -8727,7 +8761,7 @@ function dateRangeFromQuickRange(range) {
   var months = range === '1m' ? 1 : range === '3m' ? 3 : 6;
   var from = new Date(now);
   from.setMonth(from.getMonth() - months);
-  return { from: from.toISOString().split('T')[0], to: today };
+  return { from: localDateStr(from), to: today };
 }
 
 function inDateRange(dateStr, range) {
@@ -9145,7 +9179,7 @@ function editorSaveLink(projId, delivId) {
 
 function editorUpdateStatus(projId, delivId, status) {
   var updates = { status: status };
-  if (status === 'delivered') updates.date = new Date().toISOString().split('T')[0];
+  if (status === 'delivered') updates.date = tod();
   ppSaveDeliv(projId, delivId, updates);
 }
 
@@ -10245,38 +10279,180 @@ function _getWeekStart(date) {
 
 
 // Force cleanup: wipe bad/empty eventDays from all Firebase projects
-// Runs on every login until confirmed clean (then sets localStorage flag)
-function cleanBadEventDays() {
-  // Reset flag to force re-run this version
-  localStorage.removeItem('evdays_v3_cleaned');
-  if (localStorage.getItem('evdays_v4_cleaned')) return;
+// DISABLED: this function used to scan all projects on every login and
+// DELETE (set to null) any project's eventDays if even a single entry had a
+// ── Sync legacy calendar shoots into Production Plan ──
+// Finds projects that currently show on the calendar via the old fallback
+// (using p.date directly, marked with ⚠️) because they have no eventDays
+// entries yet, and creates a proper eventDays entry for each — so they
+// appear in the Production Plan tab, can have crew assigned, and sync to
+// the Data Manager's Data Log like any other shoot.
+// This is a one-time, manually-triggered, additive migration:
+//  - It never deletes or overwrites existing eventDays.
+//  - It only touches projects that have a valid p.date and NO eventDays.
+function findLegacyCalendarShoots() {
   var dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  return pl().filter(function(p) {
+    var hasValidEventDays = (p.eventDays || []).some(function(ev) {
+      return ev && ev.date && dateRe.test(ev.date) && ev.type && ev.type.trim();
+    });
+    return !hasValidEventDays && p.date && dateRe.test(p.date);
+  });
+}
+
+// Remove duplicate eventDays entries (same date + type + venue) for a single project's array
+function _dedupeEventDaysArr(arr) {
+  var seen = {};
+  return (arr || []).filter(function(ev) {
+    if (!ev || !ev.date || !ev.type) return true; // keep malformed entries as-is, don't touch
+    var key = ev.date + '|' + ev.type.trim().toLowerCase() + '|' + (ev.venue || '').trim().toLowerCase();
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+var _legacySyncInProgress = false;
+
+function syncLegacyCalendarShoots() {
+  if (_legacySyncInProgress) return; // guard against double-clicks
+  var legacy = findLegacyCalendarShoots();
+  if (!legacy.length) {
+    showToast('✅ Nothing to sync — all calendar shoots already have a Production Plan entry.');
+    return;
+  }
+  var preview = legacy.slice(0, 8).map(function(p) {
+    return '• ' + p.bride + ' & ' + p.groom + ' — ' + fmtDate(p.date) + (p.type ? ' (' + p.type + ')' : '');
+  }).join('\n') + (legacy.length > 8 ? '\n…and ' + (legacy.length - 8) + ' more' : '');
+
+  if (!confirm(
+    'This will create a Production Plan event day for ' + legacy.length + ' project(s) currently shown on the calendar with ⚠️ (legacy date, no Production Plan entry):\n\n' +
+    preview +
+    '\n\nEach will get one event day using its existing date, event type and venue. Existing Production Plan entries are never changed. Continue?'
+  )) return;
+
+  _legacySyncInProgress = true;
+  var btn = document.getElementById('cal-btn-sync-legacy');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+
+  // Re-fetch the latest data directly from Firebase right before writing,
+  // to avoid acting on a stale local cache (prevents double-adding the
+  // same event day if this is somehow triggered twice in quick succession).
+  db.ref('crm_projects').once('value', function(snap) {
+    var fresh = snap.val() || {};
+    var updates = {};
+    var syncedCount = 0;
+
+    legacy.forEach(function(p) {
+      var freshP = fresh[p.id] || p;
+      var dateRe = /^\d{4}-\d{2}-\d{2}$/;
+      var existing = freshP.eventDays || [];
+      var alreadyHasValid = existing.some(function(ev) {
+        return ev && ev.date && dateRe.test(ev.date) && ev.type && ev.type.trim();
+      });
+      if (alreadyHasValid) return; // already synced (e.g. by a prior click) — skip
+
+      var newDay = {
+        date: p.date,
+        type: p.type && p.type.trim() ? p.type : 'Day Wedding',
+        venue: p.venue || ''
+      };
+      var combined = _dedupeEventDaysArr(existing.concat([newDay]));
+      updates['crm_projects/' + p.id + '/eventDays'] = combined;
+      syncedCount++;
+    });
+
+    if (!syncedCount) {
+      _legacySyncInProgress = false;
+      if (btn) btn.disabled = false;
+      showToast('✅ Nothing to sync — all calendar shoots already have a Production Plan entry.');
+      updateLegacySyncButton();
+      return;
+    }
+
+    db.ref().update(updates, function(err) {
+      _legacySyncInProgress = false;
+      if (btn) btn.disabled = false;
+      if (err) { showToast('❌ Sync failed: ' + err.message); return; }
+      Object.keys(updates).forEach(function(path) {
+        var pid = path.split('/')[1];
+        if (projects[pid]) projects[pid].eventDays = updates[path];
+      });
+      showToast('✅ Synced ' + syncedCount + ' shoot(s) into Production Plan.');
+      renderCalendar();
+      updateLegacySyncButton();
+    });
+  });
+}
+
+// One-time cleanup: scan all projects for literal duplicate eventDays
+// entries (same date+type+venue appearing more than once) and remove the
+// extras. Safe to run multiple times — it's idempotent and only removes
+// exact duplicates, never legitimate distinct event days.
+function dedupeAllEventDays() {
   var updates = {};
+  var affected = [];
   Object.values(projects).forEach(function(p) {
     if (!p.id) return;
     var orig = p.eventDays || [];
-    var cleaned = orig.filter(function(ed) {
-      return ed && ed.date && dateRe.test(ed.date) && ed.type && ed.type.trim();
-    });
+    var cleaned = _dedupeEventDaysArr(orig);
     if (cleaned.length !== orig.length) {
-      updates['crm_projects/' + p.id + '/eventDays'] = cleaned.length ? cleaned : null;
-      console.log('Cleaned eventDays for: ' + p.bride + ' & ' + p.groom + ' (' + orig.length + ' -> ' + cleaned.length + ')');
+      updates['crm_projects/' + p.id + '/eventDays'] = cleaned;
+      affected.push(p.bride + ' & ' + p.groom + ' (' + orig.length + ' → ' + cleaned.length + ')');
     }
   });
-  var keys = Object.keys(updates);
-  if (!keys.length) {
-    localStorage.setItem('evdays_v3_cleaned','1');
-    console.log('No bad eventDays found.');
+  if (!affected.length) {
+    showToast('✅ No duplicate event days found.');
     return;
   }
+  if (!confirm('Found duplicate Production Plan entries for ' + affected.length + ' project(s):\n\n' + affected.join('\n') + '\n\nRemove the duplicates? Each unique event day is kept once.')) return;
   db.ref().update(updates, function(err) {
-    if (!err) {
-      localStorage.setItem('evdays_v3_cleaned','1');
-      console.log('Cleaned ' + keys.length + ' projects with bad eventDays.');
-      if (typeof renderCalendar === 'function') renderCalendar();
-    }
+    if (err) { showToast('❌ Cleanup failed: ' + err.message); return; }
+    Object.keys(updates).forEach(function(path) {
+      var pid = path.split('/')[1];
+      if (projects[pid]) projects[pid].eventDays = updates[path];
+    });
+    showToast('✅ Removed duplicates from ' + affected.length + ' project(s).');
+    renderCalendar();
+    updateLegacySyncButton();
   });
 }
+
+function updateLegacySyncButton() {
+  var btn = document.getElementById('cal-btn-sync-legacy');
+  var dedupeBtn = document.getElementById('cal-btn-dedupe-eventdays');
+  var canSync = CU && (CU.role === 'superadmin' || CU.role === 'admin');
+
+  if (btn) {
+    if (!canSync) {
+      btn.style.display = 'none';
+    } else if (!_legacySyncInProgress) {
+      var count = findLegacyCalendarShoots().length;
+      if (count > 0) {
+        btn.style.display = '';
+        btn.disabled = false;
+        btn.textContent = '⚠️ Sync ' + count + ' shoot(s) into Production Plan';
+      } else {
+        btn.style.display = 'none';
+      }
+    }
+  }
+
+  if (dedupeBtn) {
+    if (!canSync) {
+      dedupeBtn.style.display = 'none';
+    } else {
+      var dupCount = 0;
+      Object.values(projects).forEach(function(p) {
+        var orig = p.eventDays || [];
+        if (_dedupeEventDaysArr(orig).length !== orig.length) dupCount++;
+      });
+      dedupeBtn.style.display = dupCount > 0 ? '' : 'none';
+      if (dupCount > 0) dedupeBtn.textContent = '🧹 Remove duplicate shoots (' + dupCount + ')';
+    }
+  }
+}
+
 
 function _getCalEvents() {
   var regF = (document.getElementById('cal-region-f') || {value:''}).value;
@@ -10287,6 +10463,15 @@ function _getCalEvents() {
     // Valid eventDays take priority
     var validEventDays = (p.eventDays || []).filter(function(ev) {
       return ev && ev.date && dateRe.test(ev.date) && ev.type && ev.type.trim();
+    });
+    // Dedupe identical entries (same date + type + venue) so the calendar
+    // never shows the same shoot twice if the underlying array has dupes
+    var seenKeys = {};
+    validEventDays = validEventDays.filter(function(ev) {
+      var key = ev.date + '|' + ev.type.trim().toLowerCase() + '|' + (ev.venue || '').trim().toLowerCase();
+      if (seenKeys[key]) return false;
+      seenKeys[key] = true;
+      return true;
     });
     if (validEventDays.length) {
       // Project has explicit eventDays — use those
@@ -10355,13 +10540,14 @@ function renderCalendar() {
   var dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var events = _getCalEvents();
   _renderMonthSummary(events);
+  updateLegacySyncButton();
 
   if (_calView === 'week') {
     var ws = _calWeekStart ? new Date(_calWeekStart) : _getWeekStart(new Date());
     _calWeekStart = ws;
     var we = new Date(ws); we.setDate(we.getDate() + 6);
     if (headerLabel) headerLabel.textContent = months[ws.getMonth()] + ' ' + ws.getDate() + ' – ' + (ws.getMonth()!==we.getMonth()?months[we.getMonth()]+' ':'') + we.getDate() + ', ' + we.getFullYear();
-    var todayStr = new Date().toISOString().split('T')[0];
+    var todayStr = localDateStr(new Date());
     var html = '<div class="cal-week-grid">';
     html += '<div class="cal-week-dow" style="background:#f4f6f8;padding:8px 4px"></div>';
     for (var d=0;d<7;d++) {
@@ -10483,7 +10669,7 @@ function renderCalendar() {
     var firstDay=new Date(_calYear,_calMonth,1);
     var lastDay=new Date(_calYear,_calMonth+1,0);
     var startOffset=firstDay.getDay();
-    var todayStr2=new Date().toISOString().split('T')[0];
+    var todayStr2=localDateStr(new Date());
     var html2='<div class="cal-grid">';
     dows.forEach(function(d){html2+='<div class="cal-dow">'+d+'</div>';});
     for (var i=0;i<startOffset;i++){
@@ -10776,7 +10962,18 @@ function calShowEvent(e,projId,evType,isLegacy){
     };
   }
 
-  if(openBtn)openBtn.onclick=function(){document.getElementById('cal-popup').style.display='none';openProject(projId);};
+  if(openBtn)openBtn.onclick=function(){
+    document.getElementById('cal-popup').style.display='none';
+    // If current user is datamanager role, open directly to Data Log tab
+    var targetTab = (CU && CU.role === 'datamanager') ? 't-datalog' : 't-production';
+    openProject(projId, targetTab);
+  };
+  var dataLogBtn = document.getElementById('cal-popup-datalog-btn');
+  if(dataLogBtn){
+    dataLogBtn.onclick=function(){document.getElementById('cal-popup').style.display='none';openProject(projId,'t-datalog');};
+    // Only show for roles that can access datalog
+    dataLogBtn.style.display = (CU && (CU.role==='superadmin'||CU.role==='admin'||CU.role==='datamanager')) ? '' : 'none';
+  }
   if(waBtn){
     var waNum=(p.whatsapp||p.phone||'').replace(/[^0-9]/g,'');
     var waLink=waNum?'https://wa.me/91'+(waNum.length===10?waNum:waNum.slice(-10)):'';
@@ -15831,7 +16028,7 @@ function showPaymentGate(quotId, q, event) {
           '<div><label class="fl">Payment Mode</label><select class="fi" id="pg-mode"><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Mixed</option></select></div>' +
         '</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
-          '<div><label class="fl">Date *</label><input class="fi" type="date" id="pg-date" value="' + new Date().toISOString().split('T')[0] + '"></div>' +
+          '<div><label class="fl">Date *</label><input class="fi" type="date" id="pg-date" value="' + tod() + '"></div>' +
           '<div><label class="fl">Transaction / UTR No.</label><input class="fi" id="pg-ref" placeholder="Optional"></div>' +
         '</div>' +
         '<div><label class="fl">Note</label><input class="fi" id="pg-note" placeholder="e.g. Advance booking amount"></div>' +
@@ -17871,6 +18068,9 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
     if(mo<1||mo>12||d<1||d>31) return '';
     return y+'-'+pad(mo)+'-'+pad(d);
   }
+  // Expose globally for use outside this IIFE (e.g. renderEventDays restoration)
+  window.isoToDMY = isoToDMY;
+  window.dmyToIso = dmyToIso;
 
   function buildCalendar(wrap, hidden, display){
     var cal = document.createElement('div');
@@ -17969,8 +18169,22 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
     if(orig._dmyWrapped) return;
     orig._dmyWrapped = true;
 
+    // Only take over sizing from the original input's INLINE styles
+    // (e.g. toolbar filters with style="flex:0;width:130px"). Inputs
+    // without inline width/flex (the common .fi form-field case, which
+    // relies on CSS width:100%) keep the wrapper at width:100% as before,
+    // so they stay responsive in form grids.
+    var origWidth = orig.style.width || '';
+    var origFlex = orig.style.flex || '';
+    var origFlexShrink = orig.style.flexShrink || '';
+    var origMargin = orig.style.margin || '';
+
     var wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative;display:inline-block;width:100%';
+    wrap.style.cssText = 'position:relative;display:inline-block;vertical-align:middle';
+    wrap.style.width = origWidth || '100%';
+    if (origFlex) wrap.style.flex = origFlex;
+    if (origFlexShrink) wrap.style.flexShrink = origFlexShrink;
+    if (origMargin) wrap.style.margin = origMargin;
 
     var display = document.createElement('input');
     display.type = 'text';
@@ -17978,12 +18192,13 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
     display.placeholder = 'DD/MM/YYYY';
     display.maxLength = 10;
     display.style.cssText = orig.style.cssText || '';
-    if(orig.style.width) display.style.width = orig.style.width;
     display.style.width = '100%';
+    display.style.flex = '';
     if(orig.disabled) display.disabled = true;
 
     orig.parentNode.insertBefore(wrap, orig);
     wrap.appendChild(display);
+
     wrap.appendChild(orig);
 
     orig.style.position = 'absolute';
@@ -17992,6 +18207,8 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
     orig.style.height = '1px';
     orig.style.pointerEvents = 'none';
     orig.style.left = '-9999px';
+    orig.style.flex = '';
+    orig.style.margin = '0';
     orig.tabIndex = -1;
 
     display.value = isoToDMY(orig.value);
@@ -18038,7 +18255,7 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
         lastVal = orig.value;
         display.value = isoToDMY(orig.value);
       }
-    }, 400);
+    }, 100);
   }
 
   function scan(){
