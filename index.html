@@ -2639,21 +2639,16 @@ document.addEventListener('wheel', function(e) {
       <div id="t-datalog" class="tab-pane">
         <div id="datalog-approval-status" style="margin-bottom:10px"></div>
 
-        <!-- Shoot Days Section -->
+        <!-- Shoot Days Section (Auto-synced from Production Plan / Event Days) -->
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:16px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <div style="font-size:13px;font-weight:700;color:#1a1a1a">📅 Shoot Days & Crew</div>
-            <button class="btn btn-sm btn-primary" id="btn-add-shootday">+ Add Shoot Day</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <div style="font-size:13px;font-weight:700;color:#1a1a1a">📅 Shoot Days &amp; Crew</div>
+            <div style="font-size:10px;color:#94a3b8;font-style:italic">🔄 Synced from Production Plan</div>
           </div>
-          <div style="display:grid;grid-template-columns:110px 1fr 1fr 1fr 70px;gap:6px;padding:4px 0;margin-bottom:6px;border-bottom:1px solid #e2e8f0">
-            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Date</div>
-            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Shoot Type</div>
-            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Photographers Going</div>
-            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Videographers Going</div>
-            <div></div>
-          </div>
+          <div style="font-size:11px;color:#888;margin-bottom:12px">These days &amp; team assignments are set in the Production Plan tab. To change a date, venue or crew member, edit it there.</div>
           <div id="shootday-rows"></div>
         </div>
+
 
         <!-- Data Entries Section -->
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:16px">
@@ -5126,7 +5121,6 @@ function restoreFromArchive(projId) {
 
 
 // ═══ DATA MANAGER LOG TAB ═══════════════════════════════════════════════════
-var shootDayCount = 0;
 var dataEntryCount = 0;
 
 // ─── EVENT DAYS (Tab: 📅 Event Days) ─────────────────────────────────────────
@@ -5373,22 +5367,46 @@ function collectEventDays() {
   return days;
 }
 
-function addShootDay(data) {
-  var i = shootDayCount++;
-  data = data || {};
-  var row = document.createElement('div');
-  row.id = 'sdr-row-' + i;
-  row.style.cssText = 'display:grid;grid-template-columns:110px 1fr 1fr 1fr 70px;gap:6px;align-items:center;padding:7px 0;border-bottom:1px dashed #f0f0f0';
-  row.innerHTML = '<input id="sdr-date-'+i+'" type="date" class="fi" style="padding:6px 8px;font-size:12px">'
-    + '<input id="sdr-type-'+i+'" type="text" class="fi" style="padding:6px 8px;font-size:12px" placeholder="e.g. Wedding Day 1">'
-    + '<input id="sdr-ph-'+i+'" type="text" class="fi" style="padding:6px 8px;font-size:12px" placeholder="Names, comma separated">'
-    + '<input id="sdr-vid-'+i+'" type="text" class="fi" style="padding:6px 8px;font-size:12px" placeholder="Names, comma separated">'
-    + '<button class="btn-danger" style="padding:5px 8px;font-size:11px" onclick="document.getElementById(&quot;sdr-row-'+i+'&quot;).remove()">✕</button>';
-  document.getElementById('shootday-rows').appendChild(row);
-  if (data.date) document.getElementById('sdr-date-'+i).value = data.date;
-  if (data.type) document.getElementById('sdr-type-'+i).value = data.type;
-  if (data.photographers) document.getElementById('sdr-ph-'+i).value = data.photographers;
-  if (data.videographers) document.getElementById('sdr-vid-'+i).value = data.videographers;
+// Render a read-only summary of shoot days, auto-derived from Production Plan eventDays
+function renderShootDaysFromEventDays(eventDays) {
+  var container = document.getElementById('shootday-rows'); if (!container) return;
+  container.innerHTML = '';
+  var days = (eventDays || []).filter(function(ed){ return ed && ed.date && ed.type; });
+  if (!days.length) {
+    container.innerHTML = '<div class="empty" style="padding:10px 0">No event days set yet. Add them in the Production Plan tab — they\'ll appear here automatically.</div>';
+    return;
+  }
+  // Sort by date
+  days = days.slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  // Header row
+  var header = document.createElement('div');
+  header.style.cssText = 'display:grid;grid-template-columns:110px 1fr 1fr 1fr;gap:6px;padding:4px 0;margin-bottom:6px;border-bottom:1px solid #e2e8f0';
+  header.innerHTML =
+    '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Date</div>' +
+    '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Shoot Type / Venue</div>' +
+    '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Photographers</div>' +
+    '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Videographers</div>';
+  container.appendChild(header);
+
+  days.forEach(function(d) {
+    var phNames = [d.dayPh1Name, d.dayPh2Name, d.dayPh3Name, d.dayPh4Name].filter(Boolean).join(', ') || '—';
+    var vidNames = [d.dayVid1Name, d.dayVid2Name, d.dayVid3Name, d.dayVid4Name].filter(Boolean).join(', ') || '—';
+    var otherCrew = [];
+    if (d.dayDroneName) otherCrew.push('🚁 ' + d.dayDroneName);
+    if (d.dayPhonoName) otherCrew.push('🎙️ ' + d.dayPhonoName);
+    if (d.dayCoordName) otherCrew.push('📋 ' + d.dayCoordName);
+    if (d.dayAsst1Name) otherCrew.push('🤝 ' + d.dayAsst1Name);
+    if (d.dayAsst2Name) otherCrew.push('🤝 ' + d.dayAsst2Name);
+    var typeVenue = (d.type || '') + (d.venue ? ' · ' + d.venue : '');
+    var row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:110px 1fr 1fr 1fr;gap:6px;align-items:start;padding:8px 0;border-bottom:1px dashed #f0f0f0;font-size:12px';
+    row.innerHTML =
+      '<div style="font-weight:700;color:#1a1a1a">' + fmtDate(d.date) + '</div>' +
+      '<div>' + typeVenue + (otherCrew.length ? '<div style="font-size:10px;color:#94a3b8;margin-top:3px">' + otherCrew.join(' · ') + '</div>' : '') + '</div>' +
+      '<div>' + phNames + '</div>' +
+      '<div>' + vidNames + '</div>';
+    container.appendChild(row);
+  });
 }
 
 function addDataEntry(data) {
@@ -5434,11 +5452,10 @@ function recalcDataTotal() {
 }
 
 function loadDataLog(p) {
-  shootDayCount = 0; dataEntryCount = 0;
-  var sr = document.getElementById('shootday-rows'); if (sr) sr.innerHTML = '';
+  dataEntryCount = 0;
   var dr = document.getElementById('dataentry-rows'); if (dr) dr.innerHTML = '';
   var notes = document.getElementById('f-datalog-notes'); if (notes) notes.value = p.dataLogNotes || '';
-  (p.shootDays || []).forEach(function(d) { addShootDay(d); });
+  renderShootDaysFromEventDays(p.eventDays);
   (p.dataEntries || []).forEach(function(d) { addDataEntry(d); });
   // Load HD fields into DM HD section
   var hdOwner = document.getElementById('dm-hd-owner'); if (hdOwner) hdOwner.value = p.d_hd_owner || '';
@@ -5449,17 +5466,6 @@ function loadDataLog(p) {
   renderDataLogApprovalStatus();
 }
 
-function collectShootDays() {
-  var days = [];
-  for (var i = 0; i < shootDayCount; i++) {
-    var dateEl = document.getElementById('sdr-date-'+i);
-    var typeEl = document.getElementById('sdr-type-'+i);
-    var rowEl  = document.getElementById('sdr-row-'+i);
-    if (!dateEl || !rowEl || !rowEl.parentNode) continue;
-    days.push({ date: dateEl.value, type: (typeEl?typeEl.value:''), photographers: (document.getElementById('sdr-ph-'+i)||{}).value||'', videographers: (document.getElementById('sdr-vid-'+i)||{}).value||'' });
-  }
-  return days;
-}
 
 function collectDataEntries() {
   var entries = [];
@@ -5479,7 +5485,6 @@ function saveDataLogOnly() {
   var hdDateEl   = document.getElementById('dm-hd-date');
   var hdNotesEl  = document.getElementById('dm-hd-notes');
   var upd = {
-    shootDays:    collectShootDays(),
     dataEntries:  collectDataEntries(),
     dataLogNotes: (document.getElementById('f-datalog-notes') || {}).value || '',
     // HD fields — written to same keys used by t-deliv so all roles see the same data
@@ -7622,7 +7627,7 @@ $('btn-new-proj').addEventListener('click',function(){
   $('region-hint').style.display='none';
   populateStateDropdown('f-state','');
   $('btn-delete-proj').style.display='none';
-  buildDelivRows({});rawRowCount=0;$('raw-rows').innerHTML='';shootDayCount=0;dataEntryCount=0;var _sdr=document.getElementById('shootday-rows');if(_sdr)_sdr.innerHTML='';var _der=document.getElementById('dataentry-rows');if(_der)_der.innerHTML='';
+  buildDelivRows({});rawRowCount=0;$('raw-rows').innerHTML='';dataEntryCount=0;renderShootDaysFromEventDays([]);var _der=document.getElementById('dataentry-rows');if(_der)_der.innerHTML='';
   populateTeamDrops(null);renderStageTL();
   $('pay-ledger').innerHTML='';$('docs-list').innerHTML='';$('t-pay-summary').innerHTML='';
   populateProjectDropdowns(null);renderEventDays([]);
@@ -7675,7 +7680,7 @@ $('btn-save-proj').addEventListener('click',function(){
   for(var i=0;i<rawRowCount;i++){var ph=$('rdr-ph-'+i),sz=$('rdr-sz-'+i),un=$('rdr-un-'+i),loc=$('rdr-loc-'+i),bk=$('rdr-bk-'+i);if(ph&&ph.value)raws.push({photographer:ph.value,size:sz?sz.value:'',unit:un?un.value:'GB',location:loc?loc.value:'',backup:bk?bk.value:'no'});}
   var state=gv('f-state');
   var region=gv('f-region')||getRegionForState(state);
-  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:collectShootDays(),dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now()};
+  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:ex.shootDays||[],dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now()};
   Object.assign(p,deliv);
   db.ref('crm_projects/'+id).set(p,function(err){
     _projSaving=false;
@@ -8379,7 +8384,6 @@ function onDelivChange(key){var s=$('d-'+key+'-status');if(s&&s.value==='deliver
 
 // ═══ RAW DATA ════════════════════════════════════════
 var _braw=$('btn-add-raw-row');if(_braw)_braw.addEventListener('click',addRawRow);
-var _bsd=document.getElementById('btn-add-shootday');if(_bsd)_bsd.addEventListener('click',function(){addShootDay();});
 var _bde=document.getElementById('btn-add-dataentry');if(_bde)_bde.addEventListener('click',function(){addDataEntry();});
 function addRawRow(){var i=rawRowCount++;var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 70px 55px 1fr 95px 70px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px dashed #f0f0f0';row.innerHTML='<input id="rdr-ph-'+i+'" type="text" class="fi" style="padding:6px 8px;font-size:12px" placeholder="Photographer name"><input id="rdr-sz-'+i+'" type="number" class="fi" style="padding:6px 8px;font-size:12px;text-align:center" placeholder="Size"><select id="rdr-un-'+i+'" class="fi" style="padding:6px 4px;font-size:12px"><option value="GB">GB</option><option value="TB">TB</option></select><input id="rdr-loc-'+i+'" type="text" class="fi" style="padding:6px 8px;font-size:12px" placeholder="NAS / HD1 / Cloud"><select id="rdr-bk-'+i+'" class="fi" style="padding:6px 4px;font-size:12px"><option value="no">❌ No Backup</option><option value="yes">✅ Backed Up</option></select><button class="btn-danger" onclick="this.parentElement.remove()">Remove</button>';$('raw-rows').appendChild(row);}
 function loadRawRows(p){rawRowCount=0;$('raw-rows').innerHTML='';var rows=p.rawRows||[];rows.forEach(function(){addRawRow();});rows.forEach(function(row,i){sv('rdr-ph-'+i,row.photographer);sv('rdr-sz-'+i,row.size);sv('rdr-un-'+i,row.unit||'GB');sv('rdr-loc-'+i,row.location);sv('rdr-bk-'+i,row.backup||'no');});}
@@ -9748,7 +9752,7 @@ function openProject(id, tabId) {
   onRegionChange();
   setTimeout(function() { sv('f-state', p.state || ''); updateRegionHint(); }, 50);
   setTimeout(updatePayPresetPreview, 60);
-  buildDelivRows(p); renderBriefTab(p); loadRawRows(p); loadDataLog(p); populateTeamDrops(p); renderStageTL(); setTimeout(renderStageLog,100); setTimeout(renderRawApprovalStatus,100); setTimeout(renderDataLogApprovalStatus,100);
+  buildDelivRows(p); renderBriefTab(p); loadRawRows(p); renderEventDays(p.eventDays); loadDataLog(p); populateTeamDrops(p); renderStageTL(); setTimeout(renderStageLog,100); setTimeout(renderRawApprovalStatus,100); setTimeout(renderDataLogApprovalStatus,100);
 
   // Jump to target tab
   var targetTab = tabId || (allowed ? allowed[0] : 't-details');
