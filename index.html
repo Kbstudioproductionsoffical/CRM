@@ -1636,11 +1636,18 @@ document.addEventListener('wheel', function(e) {
       <div class="page-title">🩺 Data Health Check</div>
       <div class="page-sub" id="hc-sub">Click any tile to see exactly which clients have that issue and fix them inline.</div>
 
-      <!-- Summary tiles -->
+      <!-- Tab switcher -->
+      <div style="display:flex;gap:2px;border-bottom:2px solid #e5e5e5;margin-bottom:16px">
+        <button class="tab-btn active" id="hc-tab-issues-btn" onclick="hcSwitchTab('issues')">🔍 Issues &amp; Gaps</button>
+        <button class="tab-btn" id="hc-tab-dupes-btn" onclick="hcSwitchTab('dupes')">👯 Duplicates</button>
+        <button class="btn btn-sm" onclick="renderHealthCheck()" style="margin-left:auto;align-self:center">🔄 Refresh</button>
+      </div>
+
+      <!-- Summary tiles (issues only) -->
       <div id="hc-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-bottom:20px"></div>
 
       <!-- Active filter heading + back button -->
-      <div id="hc-filter-bar" style="display:none;margin-bottom:14px;display:none;align-items:center;gap:10px">
+      <div id="hc-filter-bar" style="display:none;margin-bottom:14px;align-items:center;gap:10px">
         <button class="btn btn-sm" onclick="hcShowAll()">← All Issues</button>
         <span id="hc-filter-label" style="font-size:14px;font-weight:700"></span>
         <span id="hc-filter-count" style="font-size:12px;color:#888"></span>
@@ -1654,14 +1661,13 @@ document.addEventListener('wheel', function(e) {
           <option value="preprod">Pre-Production</option>
           <option value="production">Production</option>
           <option value="postprod">Post-Production</option>
-          <option value="delivery">Delivery</option>
-          <option value="payment">Payment Pending</option>
+          <option value="delivered">Delivered</option>
+          <option value="paypending">Payment Pending</option>
           <option value="complete">Complete</option>
         </select>
-        <button class="btn btn-sm" onclick="renderHealthCheck()" style="margin-left:auto">🔄 Refresh</button>
       </div>
 
-      <!-- Client list -->
+      <!-- Client list / duplicates -->
       <div id="hc-list"></div>
     </div>
 
@@ -4258,7 +4264,7 @@ function getPayTerms(p){
   return base;
 }
 
-var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={};
+var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
 var dashCharts={},repCharts={},pipeRegionFilter='all',teamViewMode='profile';
 
@@ -4539,12 +4545,14 @@ function loadAll(){
       db.ref('crm_settings').once('value'),
       db.ref('crm_team').once('value'),
       db.ref('crm_referral').once('value'),
-      db.ref('crm_accounts').once('value')
+      db.ref('crm_accounts').once('value'),
+      db.ref('crm_dupe_confirmed').once('value')
     ]).then(function(snaps){
       crmSettings = snaps[0].val()||{};
       teamData       = snaps[1].val()||{};
       referral    = snaps[2].val()||{};
       accounts    = snaps[3].val()||{};
+      dupeConfirmed = snaps[4].val()||{};
       if(!Object.keys(accounts).length){var o={};DEFAULT_ACCOUNTS.forEach(function(a){o[a.id]=a;});db.ref('crm_accounts').set(o);}
       // Load field visibility rules
       loadFieldVisibility();
@@ -4559,14 +4567,15 @@ function loadAll(){
         _invTermsCache=(crmSettings.inv_terms&&crmSettings.inv_terms.length)?crmSettings.inv_terms:null;
         _invPaymentTermsCache=(crmSettings.inv_payment_terms&&crmSettings.inv_payment_terms.length)?crmSettings.inv_payment_terms:null;
         ensureWhatsAppInSources();
-        deduplicateEscalations();
+        if (typeof deduplicateEscalations === 'function') deduplicateEscalations();
         // One-time wipe — remove this line after first load
         if (!localStorage.getItem('esc_wiped_v1')) { wipeAllEscalations(); localStorage.setItem('esc_wiped_v1','1'); }
       });
       db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
-      db.ref('crm_freelancers').on('value',function(snap){freelancerData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
+      db.ref('crm_freelancers').on('value',function(snap){freelancerData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();if(typeof renderFreelancers==='function')renderFreelancers();});
       db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
       db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
+      db.ref('crm_dupe_confirmed').on('value',function(snap){dupeConfirmed=snap.val()||{};if(_hcTab==='dupes')renderHealthCheck();});
       db.ref('crm_users').on('value',function(snap){var fb=snap.val()||{};DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});users=fb;});
 
       // ── Step 4: Non-critical stuff last ──
@@ -4585,6 +4594,7 @@ function loadAll(){
     db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};});
     db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
     db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
+    db.ref('crm_dupe_confirmed').on('value',function(snap){dupeConfirmed=snap.val()||{};if(_hcTab==='dupes')renderHealthCheck();});
     db.ref('crm_users').on('value',function(snap){var fb=snap.val()||{};DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});users=fb;});
   });
 }
@@ -8890,11 +8900,20 @@ document.addEventListener('DOMContentLoaded', function() {
       createdAt: (_editFreelancerId && freelancerData[_editFreelancerId] && freelancerData[_editFreelancerId].createdAt) || Date.now(),
       updatedAt: Date.now()
     };
+    // Optimistic update — add to local cache immediately so the list
+    // reflects the new/edited freelancer before Firebase round-trip completes
+    var previousData = freelancerData[id] || null;
+    freelancerData[id] = data;
+    closeModal('freelancer-modal');
+    showToast('✅ Freelancer saved!');
+    renderFreelancers();
     db.ref('crm_freelancers/'+id).set(data, function(err) {
-      if (err) { alert('Error: ' + err.message); return; }
-      closeModal('freelancer-modal');
-      showToast('✅ Freelancer saved!');
-      renderFreelancers();
+      if (err) {
+        // Roll back optimistic update on failure
+        if (previousData) { freelancerData[id] = previousData; } else { delete freelancerData[id]; }
+        renderFreelancers();
+        alert('Error saving freelancer: ' + err.message);
+      }
     });
   });
 });
@@ -9450,42 +9469,70 @@ var HC_CHECKS = [
     type: 'payment', key: 'complete_with_balance',
     label: 'Marked Complete but balance still due', icon: '🚨', severity: 'critical',
     test: function(p){ return p.stage==='complete' && netVal(p)>0 && balDue(p)>0; },
-    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#991b1b">Balance ₹'+fmt(balDue(p))+' — move back to Payment Pending or collect payment first.</span>'; }
+    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#991b1b">Balance ₹'+fmt(balDue(p))+' still due — collect payment or revert stage.</span>'; }
   },
   {
     type: 'payment', key: 'excess_payment',
     label: 'Excess payment received', icon: '⚠️', severity: 'high',
     test: function(p){ return netVal(p)>0 && paidTotal(p) > netVal(p); },
-    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#c2410c">Over-received by ₹'+fmt(paidTotal(p)-netVal(p))+'. Verify contract value or refund.</span>'; }
+    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#c2410c">Over-received by ₹'+fmt(paidTotal(p)-netVal(p))+'. Verify contract value or issue refund.</span>'; }
   },
   {
     type: 'payment', key: 'no_advance',
-    label: 'No advance recorded (project past Pre-Prod)', icon: '💰', severity: 'high',
+    label: 'No advance recorded (past Pre-Prod)', icon: '💰', severity: 'high',
     test: function(p){ return netVal(p)>0 && paidTotal(p)===0 && p.stage!=='preprod'; },
     field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open Payments Tab</button>'; }
   },
-
-  // ── DELIVERABLES ─────────────────────────────────────────────────
   {
-    type: 'deliverables', key: 'no_deliverables',
-    label: 'No deliverables added', icon: '📦', severity: 'medium',
-    test: function(p){ return !(p.customDelivs && p.customDelivs.length > 0); },
-    field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Deliverables Tab</button>'; }
+    type: 'payment', key: 'value_zero',
+    label: 'Contract value is ₹0', icon: '🔴', severity: 'critical',
+    test: function(p){ return typeof p.value !== 'undefined' && parseInt(p.value) === 0; },
+    field: 'value',
+    inputHtml: function(p){ return '<input type="number" placeholder="Enter contract value ₹" class="hc-inline-input" data-field="value" data-id="'+p.id+'" value="0" min="0">'; }
+  },
+  {
+    type: 'payment', key: 'postprod_balance',
+    label: 'Balance due but in POST-PROD/Delivered', icon: '📛', severity: 'high',
+    test: function(p){ return (p.stage==='postprod'||p.stage==='delivered') && balDue(p)>0; },
+    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#c2410c">₹'+fmt(balDue(p))+' pending. Chase payment before delivery.</span>'; }
   },
 
-  // ── ZONE / REGION ────────────────────────────────────────────────
+  // ── DATES ─────────────────────────────────────────────────────────
   {
-    type: 'region', key: 'no_region',
-    label: 'No zone/region set', icon: '📍', severity: 'high',
-    test: function(p){ return !p.region || p.region.trim() === ''; },
-    field: 'region',
-    inputHtml: function(p){
-      return '<select class="hc-inline-input" data-field="region" data-id="'+p.id+'">'
-        +'<option value="">-- Select Zone --</option>'
-        +'<option value="north"'+(p.region==='north'?' selected':'')+'>🔵 North — Delhi</option>'
-        +'<option value="south"'+(p.region==='south'?' selected':'')+'>🟠 South — Mumbai</option>'
-        +'</select>';
-    }
+    type: 'eventdate', key: 'no_event_date',
+    label: 'No event date set', icon: '📅', severity: 'high',
+    test: function(p){ return !firstEventDate(p) && !p.date; },
+    field: 'date',
+    inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="date" data-id="'+p.id+'" value="'+(p.date||'')+'">'; }
+  },
+  {
+    type: 'bookdate', key: 'no_booking_date',
+    label: 'No booking date recorded', icon: '🗓️', severity: 'medium',
+    test: function(p){ return !p.bookdate || p.bookdate.trim() === ''; },
+    field: 'bookdate',
+    inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="bookdate" data-id="'+p.id+'" value="'+(p.bookdate||'')+'">'; }
+  },
+  {
+    type: 'overdue', key: 'event_past_preprod',
+    label: 'Event date passed but still PRE-PROD', icon: '⏰', severity: 'critical',
+    test: function(p){
+      var ed = firstEventDate(p)||p.date;
+      if (!ed) return false;
+      return new Date(ed) < new Date() && p.stage === 'preprod';
+    },
+    field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Update Stage</button>'; }
+  },
+  {
+    type: 'overdue', key: 'no_delivery_6m',
+    label: 'Event 6+ months ago — no delivery date set', icon: '📬', severity: 'high',
+    test: function(p){
+      var ed = firstEventDate(p)||p.date;
+      if (!ed || p.deliveryDate) return false;
+      var diffMs = Date.now() - new Date(ed).getTime();
+      return diffMs > 180*24*60*60*1000 && p.stage !== 'complete';
+    },
+    field: 'deliveryDate',
+    inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="deliveryDate" data-id="'+p.id+'" value="'+(p.deliveryDate||'')+'">'; }
   },
 
   // ── CONTACT ──────────────────────────────────────────────────────
@@ -9510,14 +9557,49 @@ var HC_CHECKS = [
     field: 'email',
     inputHtml: function(p){ return '<input type="email" placeholder="Email address" class="hc-inline-input" data-field="email" data-id="'+p.id+'" value="'+(p.email||'')+'">'; }
   },
-
-  // ── EVENT DATE ───────────────────────────────────────────────────
   {
-    type: 'eventdate', key: 'no_event_date',
-    label: 'No event date set', icon: '📅', severity: 'high',
-    test: function(p){ return !firstEventDate(p); },
-    field: 'date',
-    inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="date" data-id="'+p.id+'" value="'+(p.date||'')+'">'; }
+    type: 'location', key: 'no_city',
+    label: 'No city entered', icon: '🏙️', severity: 'medium',
+    test: function(p){ return !p.city || p.city.trim() === ''; },
+    field: 'city',
+    inputHtml: function(p){ return '<input type="text" placeholder="City name" class="hc-inline-input" data-field="city" data-id="'+p.id+'" value="'+(p.city||'')+'">'; }
+  },
+  {
+    type: 'location', key: 'no_state',
+    label: 'No state entered', icon: '🗺️', severity: 'low',
+    test: function(p){ return !p.state || p.state.trim() === ''; },
+    field: 'state',
+    inputHtml: function(p){ return '<input type="text" placeholder="State name" class="hc-inline-input" data-field="state" data-id="'+p.id+'" value="'+(p.state||'')+'">'; }
+  },
+
+  // ── REGION ───────────────────────────────────────────────────────
+  {
+    type: 'region', key: 'no_region',
+    label: 'No zone/region set', icon: '📍', severity: 'high',
+    test: function(p){ return !p.region || p.region.trim() === ''; },
+    field: 'region',
+    inputHtml: function(p){
+      return '<select class="hc-inline-input" data-field="region" data-id="'+p.id+'">'
+        +'<option value="">-- Select Zone --</option>'
+        +'<option value="north"'+(p.region==='north'?' selected':'')+'>🔵 North — Delhi</option>'
+        +'<option value="south"'+(p.region==='south'?' selected':'')+'>🟠 South — Mumbai</option>'
+        +'</select>';
+    }
+  },
+
+  // ── SOURCE ───────────────────────────────────────────────────────
+  {
+    type: 'source', key: 'no_source',
+    label: 'No lead source recorded', icon: '🔍', severity: 'medium',
+    test: function(p){ return !p.source || p.source.trim() === ''; },
+    field: 'source',
+    inputHtml: function(p){
+      var sources = getSettingList('sources', ['Instagram','Google','Referral','Wedding Portal','Walk-in','Other']);
+      return '<select class="hc-inline-input" data-field="source" data-id="'+p.id+'">'
+        +'<option value="">-- Select Source --</option>'
+        + sources.map(function(s){ return '<option value="'+s+'"'+(p.source===s?' selected':'')+'>'+s+'</option>'; }).join('')
+        +'</select>';
+    }
   },
 
   // ── PACKAGE / TYPE ───────────────────────────────────────────────
@@ -9548,6 +9630,15 @@ var HC_CHECKS = [
     }
   },
 
+  // ── REF CODE ─────────────────────────────────────────────────────
+  {
+    type: 'refcode', key: 'no_refcode',
+    label: 'No reference code generated', icon: '🔑', severity: 'medium',
+    test: function(p){ return !p.refcode || p.refcode.trim() === ''; },
+    field: null,
+    inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Generate Ref Code</button>'; }
+  },
+
   // ── TEAM ─────────────────────────────────────────────────────────
   {
     type: 'team', key: 'no_photographer',
@@ -9574,19 +9665,46 @@ var HC_CHECKS = [
         + members.map(function(t){ return '<option value="'+t.name+'"'+(p.videographer===t.name?' selected':'')+'>'+t.name+'</option>'; }).join('')
         +'</select>';
     }
+  },
+
+  // ── DELIVERABLES ─────────────────────────────────────────────────
+  {
+    type: 'deliverables', key: 'no_deliverables',
+    label: 'No deliverables added', icon: '📦', severity: 'medium',
+    test: function(p){ return !(p.customDelivs && p.customDelivs.length > 0); },
+    field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Deliverables Tab</button>'; }
+  },
+
+  // ── DRIVE LINK ───────────────────────────────────────────────────
+  {
+    type: 'drivelink', key: 'no_drivelink',
+    label: 'No Drive link for POST-PROD+ project', icon: '☁️', severity: 'medium',
+    test: function(p){
+      return (!p.drivelink || p.drivelink.trim() === '') &&
+             (p.stage === 'postprod' || p.stage === 'delivered' || p.stage === 'complete');
+    },
+    field: 'drivelink',
+    inputHtml: function(p){ return '<input type="url" placeholder="Google Drive link" class="hc-inline-input" data-field="drivelink" data-id="'+p.id+'" value="'+(p.drivelink||'')+'">'; }
   }
 ];
 
-// ── Tile config (groups checks into tiles) ────────────────────────
+// ── Tile config ───────────────────────────────────────────────────
 var HC_TILES = [
-  { type:'__clean',      label:'Clean Records',     icon:'✅', color:'#16a34a' },
-  { type:'payment',      label:'Payment Issues',     icon:'💳', color:'#dc2626' },
-  { type:'deliverables', label:'No Deliverables',    icon:'📦', color:'#d97706' },
-  { type:'region',       label:'No Zone',            icon:'📍', color:'#2563eb' },
-  { type:'contact',      label:'Contact Incomplete', icon:'📞', color:'#dc2626' },
-  { type:'eventdate',    label:'No Event Date',      icon:'📅', color:'#d97706' },
-  { type:'package',      label:'No Package/Type',    icon:'📋', color:'#7c3aed' },
-  { type:'team',         label:'No Team Assigned',   icon:'👥', color:'#0891b2' }
+  { type:'__clean',      label:'Clean Records',       icon:'✅', color:'#16a34a' },
+  { type:'payment',      label:'Payment Issues',       icon:'💳', color:'#dc2626' },
+  { type:'overdue',      label:'Overdue / Delayed',    icon:'⏰', color:'#dc2626' },
+  { type:'bookdate',     label:'No Booking Date',      icon:'🗓️', color:'#d97706' },
+  { type:'eventdate',    label:'No Event Date',        icon:'📅', color:'#d97706' },
+  { type:'location',     label:'No City / State',      icon:'🏙️', color:'#2563eb' },
+  { type:'region',       label:'No Zone',              icon:'📍', color:'#2563eb' },
+  { type:'contact',      label:'Contact Incomplete',   icon:'📞', color:'#7c3aed' },
+  { type:'source',       label:'No Lead Source',       icon:'🔍', color:'#0891b2' },
+  { type:'package',      label:'No Package/Type',      icon:'📋', color:'#7c3aed' },
+  { type:'refcode',      label:'No Ref Code',          icon:'🔑', color:'#6b7280' },
+  { type:'team',         label:'No Team Assigned',     icon:'👥', color:'#0891b2' },
+  { type:'deliverables', label:'No Deliverables',      icon:'📦', color:'#d97706' },
+  { type:'drivelink',    label:'No Drive Link',        icon:'☁️', color:'#6b7280' },
+  { type:'__dupes',      label:'Duplicates',           icon:'👯', color:'#dc2626' }
 ];
 
 // ── Get all failing checks for one project ────────────────────────
@@ -9606,7 +9724,246 @@ function hcCountByType() {
     });
   });
   counts['__clean'] = clean;
+  // Count duplicate pairs
+  var dupes = hcFindDuplicates();
+  counts['__dupes'] = dupes.byPhone.length + dupes.byName.length;
   return counts;
+}
+
+// ── Pair-key helper — stable regardless of argument order ─────────
+function hcPairKey(a, b) {
+  var x = parseInt(a, 10), y = parseInt(b, 10);
+  return x < y ? (x + '_' + y) : (y + '_' + x);
+}
+
+// ── Every 2-record combination within a group ──────────────────────
+function hcGroupPairKeys(group) {
+  var keys = [];
+  for (var i = 0; i < group.length; i++) {
+    for (var j = i + 1; j < group.length; j++) {
+      keys.push(hcPairKey(group[i].id, group[j].id));
+    }
+  }
+  return keys;
+}
+
+// ── True only once every relationship in this exact group has been
+//    explicitly confirmed as "not a duplicate" already ─────────────
+function hcGroupFullyConfirmed(group) {
+  if (group.length < 2) return true;
+  return hcGroupPairKeys(group).every(function(k) { return !!dupeConfirmed[k]; });
+}
+
+// ── Find duplicate projects ────────────────────────────────────────
+// Groups already confirmed as "not a duplicate" (every pairwise
+// relationship inside them approved) are excluded automatically.
+// If a brand-new client later shares that same name/phone, the group
+// changes and will be re-checked — only the exact approved pairing is
+// ever skipped.
+function hcFindDuplicates() {
+  var all = pl();
+  var byPhone = [], byName = [];
+
+  // Phone duplicates
+  var phoneMap = {};
+  all.forEach(function(p) {
+    var ph = (p.phone||'').replace(/\D/g,'');
+    if (!ph || ph.length < 8) return;
+    if (!phoneMap[ph]) phoneMap[ph] = [];
+    phoneMap[ph].push(p);
+  });
+  Object.values(phoneMap).forEach(function(group) {
+    if (group.length > 1 && !hcGroupFullyConfirmed(group)) byPhone.push(group);
+  });
+
+  // Name duplicates (bride name match)
+  var nameMap = {};
+  all.forEach(function(p) {
+    var nm = (p.bride||'').trim().toLowerCase();
+    if (!nm) return;
+    if (!nameMap[nm]) nameMap[nm] = [];
+    nameMap[nm].push(p);
+  });
+  Object.values(nameMap).forEach(function(group) {
+    if (group.length > 1 && !hcGroupFullyConfirmed(group)) byName.push(group);
+  });
+
+  return { byPhone: byPhone, byName: byName };
+}
+
+// ── Mark every relationship in a displayed group as confirmed-       
+//    different (genuine, separate clients) — persists to Firebase so
+//    it never shows up as a duplicate alert again. Does NOT touch,
+//    merge, or delete any client data. ──────────────────────────────
+function hcConfirmNotDuplicate(group, type, matchValue) {
+  if (!group || group.length < 2) return;
+  var label = type === 'phone' ? 'phone number' : 'name';
+  if (!confirm('Confirm these are ' + group.length + ' different, genuine clients — not duplicates?\n\nThey will stop appearing together in this Duplicates list. (If a new client with the same ' + label + ' is added later, it will still be checked as usual.)')) return;
+
+  var updates = {};
+  hcGroupPairKeys(group).forEach(function(key) {
+    var pair = key.split('_');
+    updates['crm_dupe_confirmed/' + key] = {
+      ids: [parseInt(pair[0], 10), parseInt(pair[1], 10)],
+      type: type,
+      matchValue: matchValue,
+      confirmedBy: (CU && (CU.name || CU.username)) || 'Unknown',
+      confirmedAt: Date.now()
+    };
+  });
+
+  db.ref().update(updates, function(err) {
+    if (err) { showToast('❌ Could not save: ' + err.message); return; }
+    Object.keys(updates).forEach(function(k) {
+      dupeConfirmed[k.replace('crm_dupe_confirmed/', '')] = updates[k];
+    });
+    showToast('✅ Marked as different clients — won\'t show as duplicates again');
+    renderHealthCheck();
+  });
+}
+
+// ── Undo a single confirmed-different pair (puts it back under review)
+function hcUndoConfirmedPair(key) {
+  db.ref('crm_dupe_confirmed/' + key).remove(function(err) {
+    if (err) { showToast('❌ Could not undo: ' + err.message); return; }
+    delete dupeConfirmed[key];
+    showToast('↩️ Restored to duplicate check');
+    renderHealthCheck();
+  });
+}
+
+// ── Expand/collapse the "previously confirmed" management panel ────
+function hcToggleConfirmedPanel() {
+  var panel = document.getElementById('hc-confirmed-panel');
+  var arrow = document.getElementById('hc-confirmed-arrow');
+  if (!panel) return;
+  var isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.textContent = isOpen ? 'Manage ▾' : 'Hide ▴';
+}
+
+// ── Render duplicates section ──────────────────────────────────────
+function renderDuplicates(container) {
+  var dupes = hcFindDuplicates();
+  var confirmedKeys = Object.keys(dupeConfirmed);
+  var html = '';
+
+  // Management bar listing every previously-confirmed "not a duplicate" pair
+  if (confirmedKeys.length) {
+    html += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;margin-bottom:14px;overflow:hidden">'
+      + '<div style="padding:10px 16px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="hcToggleConfirmedPanel()">'
+        + '<span style="font-size:12px;font-weight:700;color:#166534">✅ ' + confirmedKeys.length + ' pair' + (confirmedKeys.length > 1 ? 's' : '') + ' confirmed as not duplicates</span>'
+        + '<span style="font-size:11px;color:#16a34a;margin-left:auto" id="hc-confirmed-arrow">Manage ▾</span>'
+      + '</div>'
+      + '<div id="hc-confirmed-panel" style="display:none;padding:0 16px 12px;border-top:1px solid #bbf7d0">';
+    confirmedKeys.forEach(function(key) {
+      var rec = dupeConfirmed[key];
+      var ids = rec.ids || key.split('_').map(function(x) { return parseInt(x, 10); });
+      var pA = projects[ids[0]], pB = projects[ids[1]];
+      var nameA = pA ? (pA.bride + ' & ' + pA.groom) : 'Deleted client';
+      var nameB = pB ? (pB.bride + ' & ' + pB.groom) : 'Deleted client';
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #ecfdf5;flex-wrap:wrap">'
+        + '<div style="flex:1;min-width:220px;font-size:12px"><b>' + nameA + '</b> vs <b>' + nameB + '</b>'
+          + '<div style="color:#888;font-size:11px;margin-top:1px">Confirmed by ' + (rec.confirmedBy || '—') + (rec.confirmedAt ? (' · ' + new Date(rec.confirmedAt).toLocaleDateString()) : '') + '</div>'
+        + '</div>'
+        + '<button class="btn btn-sm hc-undo-confirm-btn" data-key="' + key + '" style="font-size:11px;padding:4px 10px">↩️ Undo</button>'
+      + '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  if (!dupes.byPhone.length && !dupes.byName.length) {
+    html += '<div style="text-align:center;padding:40px;color:#aaa"><div style="font-size:36px;margin-bottom:10px">✅</div><div style="font-size:14px;font-weight:700;color:#555">No duplicates found!</div><div style="font-size:12px;margin-top:4px">All phone numbers and names are unique — or already confirmed as different.</div></div>';
+    container.innerHTML = html;
+    bindDuplicateListEvents(container);
+    return;
+  }
+
+  function dupCard(group, matchLabel, matchValue, type) {
+    var idsCsv = group.map(function(p) { return p.id; }).join(',');
+    var cardHtml = '<div style="background:#fff;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:10px;margin-bottom:12px;overflow:hidden">';
+    cardHtml += '<div style="background:#fef2f2;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #fecaca;flex-wrap:wrap">'
+      +'<span style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase">👯 '+matchLabel+'</span>'
+      +'<span style="font-size:12px;color:#dc2626;font-weight:700">'+matchValue+'</span>'
+      +'<span style="font-size:11px;color:#888;margin-left:auto">'+group.length+' records found</span>'
+      +'<button class="btn btn-sm hc-confirm-notdupe-btn" data-ids="'+idsCsv+'" data-type="'+type+'" data-value="'+encodeURIComponent(matchValue)+'" style="font-size:11px;padding:4px 10px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;cursor:pointer;font-weight:600" title="These are different, genuine clients">✅ Not a Duplicate</button>'
+      +'</div>';
+    cardHtml += '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">';
+    group.forEach(function(p) {
+      var fd = firstEventDate(p)||p.date||'—';
+      cardHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;flex-wrap:wrap">'
+        +'<div style="flex:1;min-width:200px">'
+          +'<div style="font-size:13px;font-weight:700">'+p.bride+' &amp; '+p.groom+'</div>'
+          +'<div style="font-size:11px;color:#888;margin-top:2px">'
+            +(p.refcode?'<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">'+p.refcode+'</span>':'')
+            +(p.city?p.city+' · ':'')+fd
+          +'</div>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
+          +stageBadge(p.stage)
+          +'<span style="font-size:12px;font-weight:700;color:#1a1a1a">₹'+fmt(netVal(p))+'</span>'
+          +'<button class="btn btn-primary btn-sm" onclick="openProject('+p.id+')" style="font-size:11px;padding:4px 10px">Open</button>'
+          +'<button class="btn btn-sm hc-del-dupe-btn" data-id="'+p.id+'" data-name="'+encodeURIComponent(p.bride+' & '+p.groom)+'" style="font-size:11px;padding:4px 10px;background:#fef2f2;color:#dc2626;border-color:#fecaca;border:1px solid #fecaca;border-radius:6px;cursor:pointer">🗑️ Delete</button>'
+        +'</div>'
+        +'</div>';
+    });
+    cardHtml += '</div></div>';
+    return cardHtml;
+  }
+
+  if (dupes.byPhone.length) {
+    html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">📞 Same Phone Number</div>';
+    dupes.byPhone.forEach(function(group) {
+      var ph = group[0].phone||'';
+      html += dupCard(group, 'Duplicate Phone', ph, 'phone');
+    });
+  }
+
+  if (dupes.byName.length) {
+    html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 10px">👤 Same Bride Name</div>';
+    dupes.byName.forEach(function(group) {
+      html += dupCard(group, 'Duplicate Name', group[0].bride, 'name');
+    });
+  }
+
+  container.innerHTML = html;
+  bindDuplicateListEvents(container);
+}
+
+// ── Bind click handlers for delete / approve / undo controls ───────
+function bindDuplicateListEvents(container) {
+  container.querySelectorAll('.hc-del-dupe-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      hcDeleteDupe(parseInt(this.getAttribute('data-id')), decodeURIComponent(this.getAttribute('data-name')));
+    });
+  });
+  container.querySelectorAll('.hc-confirm-notdupe-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var ids = this.getAttribute('data-ids').split(',').map(function(x) { return parseInt(x, 10); });
+      var group = ids.map(function(id) { return projects[id]; }).filter(Boolean);
+      var type = this.getAttribute('data-type');
+      var value = decodeURIComponent(this.getAttribute('data-value'));
+      hcConfirmNotDuplicate(group, type, value);
+    });
+  });
+  container.querySelectorAll('.hc-undo-confirm-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      hcUndoConfirmedPair(this.getAttribute('data-key'));
+    });
+  });
+}
+
+// ── Delete a duplicate project ─────────────────────────────────────
+function hcDeleteDupe(id, name) {
+  if (!CU || CU.role !== 'superadmin') { alert('Only Super Admin can delete projects.'); return; }
+  if (!confirm('PERMANENTLY DELETE "'+name+'"?\n\nThis cannot be undone.')) return;
+  var p = projects[id];
+  db.ref('crm_projects/'+id).remove(function() {
+    var refMatch = p ? Object.values(referral).find(function(c){ return c.projectId===id||c.refcode===p.refcode; }) : null;
+    if (refMatch) db.ref('crm_referral/'+refMatch.id).remove();
+    showToast('🗑️ Deleted '+name);
+    renderHealthCheck();
+  });
 }
 
 // ── Save a single field directly to Firebase ─────────────────────
@@ -9648,6 +10005,18 @@ function hcBindInlineEdits() {
   });
 }
 
+// ── Switch HC tabs ────────────────────────────────────────────────
+function hcSwitchTab(tab) {
+  _hcTab = tab;
+  _hcActiveType = '';
+  // Update tab button styles
+  var issBtn = document.getElementById('hc-tab-issues-btn');
+  var dupBtn = document.getElementById('hc-tab-dupes-btn');
+  if (issBtn) issBtn.classList.toggle('active', tab === 'issues');
+  if (dupBtn) dupBtn.classList.toggle('active', tab === 'dupes');
+  renderHealthCheck();
+}
+
 // ── Show all tiles (reset filter) ─────────────────────────────────
 function hcShowAll() {
   _hcActiveType = '';
@@ -9660,7 +10029,28 @@ function hcApplyStageFilter() {
 }
 
 // ── Main render ───────────────────────────────────────────────────
+var _hcTab = 'issues'; // 'issues' or 'dupes'
+
 function renderHealthCheck() {
+  // If duplicates tab is active, render that instead
+  if (_hcTab === 'dupes') {
+    var listEl2 = document.getElementById('hc-list');
+    var subEl2  = document.getElementById('hc-sub');
+    var summaryEl2 = document.getElementById('hc-summary');
+    if (summaryEl2) summaryEl2.innerHTML = '';
+    var fb = document.getElementById('hc-filter-bar');
+    if (fb) fb.style.display = 'none';
+    var sw = document.getElementById('hc-stage-wrap');
+    if (sw) sw.style.display = 'none';
+    var dupes = hcFindDuplicates();
+    var total = dupes.byPhone.length + dupes.byName.length;
+    if (subEl2) subEl2.textContent = total ? total + ' duplicate group(s) found. Open to review, mark "Not a Duplicate" if they\'re genuinely different clients, or delete the extra record.' : 'No duplicates found!';
+    if (listEl2) renderDuplicates(listEl2);
+    return;
+  }
+  // Restore stage wrap visibility
+  var sw2 = document.getElementById('hc-stage-wrap');
+  if (sw2) sw2.style.display = 'flex';
   var summaryEl = document.getElementById('hc-summary');
   var listEl    = document.getElementById('hc-list');
   var subEl     = document.getElementById('hc-sub');
@@ -9695,6 +10085,7 @@ function renderHealthCheck() {
     var t = el.getAttribute('data-hc-tile');
     if (t === '__clean') return;
     el.addEventListener('click', function() {
+      if (t === '__dupes') { hcSwitchTab('dupes'); return; }
       _hcActiveType = (_hcActiveType === t) ? '' : t;
       renderHealthCheck();
     });
@@ -9859,7 +10250,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard','pipeline','projects','postprod','whatsapp','onboarding','calendar','priority'],
+    pages: ['dashboard','pipeline','projects','postprod','whatsapp','onboarding','calendar','priority','team'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
