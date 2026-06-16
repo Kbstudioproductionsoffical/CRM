@@ -4469,13 +4469,15 @@ function attachProjectListeners() {
 
   // child_added fires once per existing project on first load, then for new ones
   db.ref('crm_projects').on('child_added', function(snap) {
-    projects[snap.key] = snap.val();
+    var _pd = snap.val(); if (_pd && !_pd.id) _pd.id = snap.key;
+    projects[snap.key] = _pd;
     refresh();
     setTimeout(runDateAutoOnce, 1200);
   });
   // child_changed fires only for the ONE project that was updated
   db.ref('crm_projects').on('child_changed', function(snap) {
-    projects[snap.key] = snap.val();
+    var _pd = snap.val(); if (_pd && !_pd.id) _pd.id = snap.key;
+    projects[snap.key] = _pd;
     refresh();
     // Check editor assignment notifications (was a separate listener — merged here)
     var p = snap.val();
@@ -7908,8 +7910,8 @@ $('btn-save-proj').addEventListener('click',function(){
   });
 });
 function autoLinkReferral(p){var ex=Object.values(referral).find(function(c){return c.projectId===p.id||c.refcode===p.refcode;});if(ex)return;var id=Date.now();db.ref('crm_referral/'+id).set({id:id,name:p.bride+(p.groom?' & '+p.groom:''),phone:p.phone||'',city:p.city||p.state||'',booking:netVal(p)||0,code:p.refcode,projectId:p.id,points:0,history:[],createdAt:tod()});}
-$('btn-delete-proj').addEventListener('click',function(){if(!editProjId||CU.role!=='superadmin')return;var p=projects[editProjId];if(!p)return;if(!confirm('PERMANENTLY DELETE "'+p.bride+' & '+p.groom+'"?\n\nThis cannot be undone.'))return;db.ref('crm_projects/'+editProjId).remove(function(){closeModal('proj-modal');showToast('🗑️ Project deleted.');});});
-function deleteProjDirect(id){if(CU.role!=='superadmin'){alert('Only Super Admin can delete.');return;}var p=projects[id];if(!p)return;if(!confirm('PERMANENTLY DELETE "'+p.bride+' & '+p.groom+'"?'))return;db.ref('crm_projects/'+id).remove(function(){showToast('🗑️ Deleted.');});}
+// btn-delete-proj listener and deleteProjDirect defined in activity log section below
+
 
 // ═══════════════════════════════════════════════════════════════════
 // PHASE 5 — TRANSACTION FEED + DUPLICATE DETECTION
@@ -8309,7 +8311,7 @@ document.addEventListener('change', function(e){
     updatePEPreview();
   }
   if(e.target && e.target.id==='rp-stage'){
-    var rpClientId=parseInt(gv('rp-client')); if(!rpClientId)return;
+    var rpClientId=gv('rp-client'); if(!rpClientId)return; var _rpP=projects[rpClientId]||projects[parseInt(rpClientId)]||{};
     var rp=projects[rpClientId]; if(!rp)return;
     var sk2=e.target.value;
     var terms2=getPayTerms(rp);
@@ -8395,7 +8397,7 @@ $('btn-save-pay-entry').addEventListener('click',function(){
     var firstAlloc=splits[0];
     if(firstAlloc){
       var sk=firstAlloc.key;
-      var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||(sk||'').toLowerCase().includes('advance'));
+      var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
       var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk||(e.splitAllocation&&e.splitAllocation.some(function(a){return a.stage===sk;}));}).length===0;
       if(isAdv&&noExisting&&date&&(!p.bookdate||p.bookdate===''))upd.bookdate=date;
     }
@@ -8419,7 +8421,7 @@ $('btn-save-pay-entry').addEventListener('click',function(){
     var ledger=(p.payLedger||[]).concat([entry]);
     var upd={payLedger:ledger};
     if(entry.due)upd['pay_'+sk+'_due']=entry.due;
-    var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||(sk||'').toLowerCase().includes('advance'));
+    var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
     var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
     if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate===''))upd.bookdate=entry.date;
     db.ref('crm_projects/'+editProjId).update(upd,function(err){
@@ -8434,9 +8436,9 @@ $('btn-save-pay-entry').addEventListener('click',function(){
 });
 function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
 
-$('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().map(function(p){return '<option value="'+p.id+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');$('rp-client-info').style.display='none';openModal('rp-modal');});
+$('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');}).map(function(p){var pid=p.id||Object.keys(projects).find(function(k){return projects[k]===p;});return '<option value="'+pid+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');$('rp-client-info').style.display='none';openModal('rp-modal');});
 $('rp-client').addEventListener('change',function(){
-  var id=parseInt(this.value);var p=projects[id];var info=$('rp-client-info');
+  var id=this.value;var p=projects[id]||projects[parseInt(id)];var info=$('rp-client-info');
   if(!p){info.style.display='none';return;}
   info.style.display='block';
   var net=netVal(p);var paid=paidTotal(p);var bal=balDue(p);
@@ -8457,7 +8459,7 @@ $('rp-client').addEventListener('change',function(){
     }
   }
 });
-$('btn-save-rp').addEventListener('click',function(){var id=parseInt(gv('rp-client'));var p=projects[id];if(!p){alert('Select a client.');return;}var amt=parseInt(gv('rp-amount'))||0;if(!amt){alert('Enter amount.');return;}var sk=gv('rp-stage');var payDate=gv('rp-date');var entry={stage:sk,amount:amt,date:payDate,mode:gv('rp-mode'),account:gv('rp-account'),ref:gv('rp-ref'),due:gv('rp-due'),notes:gv('rp-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};var ledger=(p.payLedger||[]).concat([entry]);var upd={payLedger:ledger};if(entry.due)upd['pay_'+sk+'_due']=entry.due;
+$('btn-save-rp').addEventListener('click',function(){var _rpRaw=gv('rp-client');var id=_rpRaw;var p=projects[id]||projects[parseInt(id)];if(!p){alert('Select a client.');return;}id=p.id||id;var amt=parseInt(gv('rp-amount'))||0;if(!amt){alert('Enter amount.');return;}var sk=gv('rp-stage');var payDate=gv('rp-date');var entry={stage:sk,amount:amt,date:payDate,mode:gv('rp-mode'),account:gv('rp-account'),ref:gv('rp-ref'),due:gv('rp-due'),notes:gv('rp-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};var ledger=(p.payLedger||[]).concat([entry]);var upd={payLedger:ledger};if(entry.due)upd['pay_'+sk+'_due']=entry.due;
 // AUTO-FILL BOOKING DATE from first advance payment
 var isAdvance=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
 var existingAdvance=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
@@ -14885,17 +14887,19 @@ function convertQuotToProject(overrideId) {
   var initials = ((q.bride||'X').substring(0,1) + (q.groom||'Y').substring(0,1)).toUpperCase();
   projData.refcode = initials + '-' + Date.now().toString().slice(-6);
 
-  var newRef = db.ref('crm_projects').push();
-  newRef.set(projData, function(err) {
+  // Use a timestamp-based numeric ID (consistent with all other projects in this CRM)
+  var newProjId = Date.now();
+  projData.id = newProjId;
+  db.ref('crm_projects/' + newProjId).set(projData, function(err) {
     if (err) { showToast('❌ Error: ' + err.message); return; }
     // Mark quotation as converted
-    db.ref('crm_quotations/' + id).update({ convertedToProject: true, projectId: newRef.key, convertedAt: Date.now() });
-    showToast('🚀 Project created successfully! Ref: ' + projData.refcode);
+    db.ref('crm_quotations/' + id).update({ convertedToProject: true, projectId: newProjId, convertedAt: Date.now() });
+    projects[newProjId] = projData;
+    showToast('🚀 Project created! Ref: ' + projData.refcode);
     closeModal('quot-modal');
-    // Navigate to project
     setTimeout(function() {
       navTo('projects');
-      setTimeout(function() { openProject(newRef.key); }, 800);
+      setTimeout(function() { openProject(newProjId); }, 800);
     }, 500);
   });
 }
@@ -18167,14 +18171,22 @@ function clearActivityLog() {
   var btn = document.getElementById('btn-delete-proj');
   if (!btn) return;
   btn.addEventListener('click', function() {
-    var p = editProjId ? projects[editProjId] : null;
+    if (!editProjId || !CU || CU.role !== 'superadmin') return;
+    var p = projects[editProjId];
     if (!p) return;
-    setTimeout(function() {
-      logActivity('project', 'Project Deleted',
-        (p.bride + (p.groom ? ' & ' + p.groom : '')) + ' [' + (p.refcode || 'no ref') + '] — ' + (p.city || '') + ' · ₹' + (p.value || 0),
-        { refcode: p.refcode, value: p.value });
-    }, 200);
-  }, true);
+    if (!confirm('PERMANENTLY DELETE "' + p.bride + ' & ' + p.groom + '"?\n\nThis cannot be undone.')) return;
+    // Log before remove (capture data while still available)
+    logActivity('project', 'Project Deleted',
+      (p.bride + (p.groom ? ' & ' + p.groom : '')) + ' [' + (p.refcode || 'no ref') + '] — ' + (p.city || '') + ' · ₹' + (p.value || 0),
+      { refcode: p.refcode, value: p.value });
+    // Remove referral entry if exists
+    var refMatch = Object.values(referral).find(function(c) { return c.projectId === editProjId || c.refcode === p.refcode; });
+    db.ref('crm_projects/' + editProjId).remove(function() {
+      if (refMatch) db.ref('crm_referral/' + refMatch.id).remove();
+      closeModal('proj-modal');
+      showToast('🗑️ Project deleted.');
+    });
+  });
 })();
 
 // ── 4. PAYMENT RECORDED ──────────────────────────────────────────
