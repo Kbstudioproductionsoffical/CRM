@@ -1632,6 +1632,39 @@ document.addEventListener('wheel', function(e) {
     <!-- ══════════════════════════════════════════
          PRIORITY CLIENTS PAGE
     ══════════════════════════════════════════ -->
+    <div id="page-healthcheck" class="page">
+      <div class="page-title">🩺 Data Health Check</div>
+      <div class="page-sub" id="hc-sub">Click any tile to see exactly which clients have that issue and fix them inline.</div>
+
+      <!-- Summary tiles -->
+      <div id="hc-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-bottom:20px"></div>
+
+      <!-- Active filter heading + back button -->
+      <div id="hc-filter-bar" style="display:none;margin-bottom:14px;display:none;align-items:center;gap:10px">
+        <button class="btn btn-sm" onclick="hcShowAll()">← All Issues</button>
+        <span id="hc-filter-label" style="font-size:14px;font-weight:700"></span>
+        <span id="hc-filter-count" style="font-size:12px;color:#888"></span>
+      </div>
+
+      <!-- Stage filter -->
+      <div id="hc-stage-wrap" style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;font-weight:700;color:#888">STAGE:</span>
+        <select class="fi" id="hc-stage-filter" style="flex:0;width:auto;font-size:12px" onchange="hcApplyStageFilter()">
+          <option value="">All Stages</option>
+          <option value="preprod">Pre-Production</option>
+          <option value="production">Production</option>
+          <option value="postprod">Post-Production</option>
+          <option value="delivery">Delivery</option>
+          <option value="payment">Payment Pending</option>
+          <option value="complete">Complete</option>
+        </select>
+        <button class="btn btn-sm" onclick="renderHealthCheck()" style="margin-left:auto">🔄 Refresh</button>
+      </div>
+
+      <!-- Client list -->
+      <div id="hc-list"></div>
+    </div>
+
     <div id="page-priority" class="page">
       <div class="page-title">🚨 Priority Clients</div>
       <div class="page-sub">VIP, annoyed, and non-responsive clients needing immediate attention across all departments.</div>
@@ -2461,6 +2494,7 @@ document.addEventListener('wheel', function(e) {
       <div id="t-stage" class="tab-pane">
         <div class="fr"><label class="fl">Current Stage *</label><select class="fi" id="f-stage"><option value="preprod">📋 Pre-Production</option><option value="production">🎬 Production</option><option value="postprod">🎞️ Post-Production</option><option value="delivery">📦 Delivery</option><option value="payment">💳 Payment Pending</option><option value="complete">✅ Complete</option></select></div>
         <div id="stage-tl" style="margin:14px 0;overflow-x:auto"></div>
+        <div id="pipeline-action-block" style="margin-bottom:14px"></div>
         <div class="fr"><label class="fl">Stage Notes</label><textarea class="fi" id="f-stage-notes" rows="3"></textarea></div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f0">
           <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:10px">Stage Change History</div>
@@ -4383,7 +4417,7 @@ document.body.addEventListener('click', function(e) {
 })();
 
 document.querySelectorAll('.tab-btn').forEach(function(btn){
-  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage')renderStageTL();if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);}if(target==='t-docs')renderDocsList();});
+  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);}if(target==='t-docs')renderDocsList();});
 });
 
 function initUsers(cb){
@@ -4552,7 +4586,23 @@ function loadAll(){
     db.ref('crm_users').on('value',function(snap){var fb=snap.val()||{};DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});users=fb;});
   });
 }
-var _dateAutoRan=false;function runDateAutoOnce(){if(!_dateAutoRan&&Object.keys(projects).length){_dateAutoRan=true;runDateAutomations();}}
+var _dateAutoRan=false;function runDateAutoOnce(){if(!_dateAutoRan&&Object.keys(projects).length){_dateAutoRan=true;runDateAutomations();runIntegrityCheck();}}
+
+// ── Integrity Check: run on login to catch pipeline violations in existing data ──
+function runIntegrityCheck(){
+  pl().forEach(function(p){
+    // Violation: project is 'complete' but has an outstanding balance
+    if(p.stage==='complete'&&netVal(p)>0&&balDue(p)>0){
+      db.ref('crm_projects/'+p.id).update({stage:'payment',updatedAt:Date.now()},function(err){
+        if(!err){
+          logStageChange(p.id,'complete','payment','Integrity fix: balance ₹'+fmt(balDue(p))+' still outstanding','System');
+          showToast('⚠️ Integrity: '+p.bride+' & '+p.groom+' moved back to Payment Pending (₹'+fmt(balDue(p))+' due).');
+          if(typeof renderPipeline==='function')renderPipeline();
+        }
+      });
+    }
+  });
+}
 
 // ═══ SETTINGS ════════════════════════════════════════════════════════════════
 
@@ -4561,14 +4611,32 @@ var STAGE_ORDER = ['preprod','production','postprod','delivery','payment','compl
 function stageRank(s){var i=STAGE_ORDER.indexOf(s||'preprod');return i===-1?0:i;}
 function stageLabel(s){return{preprod:'Pre-Production',production:'Production',postprod:'Post-Production',delivery:'Delivery',payment:'Payment Pending',complete:'Complete'}[s]||s;}
 
+// ── Helper: get the earliest event date across all eventDays (or fallback to p.date) ──
+function firstEventDate(p){
+  var evDays=(p.eventDays||[]).filter(function(ev){return ev&&ev.date&&/^\d{4}-\d{2}-\d{2}$/.test(ev.date);});
+  if(evDays.length){
+    evDays.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});
+    return evDays[0].date;
+  }
+  return p.date||null;
+}
+
+// ── Core: advance stage — but NEVER bypass a gate ──
 function autoAdvanceStage(projId,targetStage,reason){
   var p=projects[projId];if(!p)return;
   var cur=p.stage||'preprod';
   if(stageRank(cur)>=stageRank(targetStage))return;
+
+  // GATE: Nothing reaches 'complete' unless all payments are cleared
+  if(targetStage==='complete'&&netVal(p)>0&&balDue(p)>0){
+    showToast('⚠️ '+p.bride+' & '+p.groom+': balance ₹'+fmt(balDue(p))+' still due — cannot move to Complete.');
+    return;
+  }
+
   db.ref('crm_projects/'+projId).update({stage:targetStage,updatedAt:Date.now()},function(err){
     if(!err){
       logStageChange(projId, cur, targetStage, reason, 'Auto');
-      showToast('Pipeline: '+p.bride+' & '+p.groom+' moved to '+stageLabel(targetStage)+' ('+reason+')');
+      showToast('📦 Pipeline: '+p.bride+' & '+p.groom+' → '+stageLabel(targetStage)+' ('+reason+')');
       if(targetStage==='complete'){firePaymentClosedNotification(projId,p,'Auto');}
       if(typeof renderPipeline==='function')renderPipeline();
       if(typeof renderDashboard==='function')renderDashboard();
@@ -4611,19 +4679,74 @@ function renderStageLog() {
   }).join('');
 }
 
-// Rule 6: All payments received -> Complete
+// Rule 6: All payments received → Payment Pending stays until accounts confirms Complete.
+// Accounts/superadmin must call confirmAllPaymentsReceived() to move to Complete.
 function runPaymentAutomations(projId){
   var p=projects[projId];if(!p)return;
-  if(netVal(p)>0&&balDue(p)<=0){autoAdvanceStage(projId,'complete','All payments received');}
+  // Safety net: if project is already 'complete' but has balance, push back to payment
+  if(netVal(p)>0&&balDue(p)>0&&p.stage==='complete'){
+    db.ref('crm_projects/'+projId).update({stage:'payment',updatedAt:Date.now()},function(err){
+      if(!err){
+        logStageChange(projId,'complete','payment','Balance still outstanding — moved back by system','Auto');
+        showToast('\u26a0\ufe0f '+p.bride+' & '+p.groom+' has balance \u20b9'+fmt(balDue(p))+' outstanding — moved back to Payment Pending.');
+        if(typeof renderPipeline==='function')renderPipeline();
+      }
+    });
+    return;
+  }
+  // All paid but waiting for accounts confirmation
+  if(netVal(p)>0&&balDue(p)<=0&&p.stage==='payment'){
+    showToast('\u2705 '+p.bride+' & '+p.groom+': all payments received! Accounts team must confirm to mark Complete.');
+  }
 }
 
-// Rule 5: All deliverables delivered -> Payment pending
+// Only accounts / superadmin can lock a project as Complete
+function confirmAllPaymentsReceived(projId){
+  var p=projects[projId];if(!p)return;
+  if(!CU||(CU.role!=='accounts'&&CU.role!=='superadmin')){
+    showToast('\U0001f512 Only the Accounts team can confirm project completion.');return;
+  }
+  if(netVal(p)>0&&balDue(p)>0){
+    alert('Cannot mark as Complete \u2014 \u20b9'+fmt(balDue(p))+' balance is still due for '+p.bride+' & '+p.groom+'.');return;
+  }
+  if(!confirm('Confirm ALL payments received for '+p.bride+' & '+p.groom+' and mark project as COMPLETE?\n\nThis action will be logged.'))return;
+  autoAdvanceStage(projId,'complete','All payments confirmed by '+(CU.name||CU.username));
+}
+
+// Rule 5: All deliverables marked 'delivered' by Post-Prod team → moves to Delivery stage
+// (Post-Prod In-Charge must then confirm delivery via confirmDeliveryToClient() to move to Payment Pending)
 function runDeliverableAutomations(projId){
   var p=projects[projId];if(!p)return;
   var delivs=p.customDelivs||[];if(!delivs.length)return;
   if(delivs.every(function(d){return d.status==='delivered';})){
-    autoAdvanceStage(projId,'payment','All deliverables delivered');
+    autoAdvanceStage(projId,'delivery','All deliverables ready for delivery');
   }
+}
+
+// Post-Prod In-Charge confirms physical/digital delivery to client → moves to Payment Pending
+function confirmDeliveryToClient(projId){
+  var p=projects[projId];if(!p)return;
+  if(!CU||(CU.role!=='postprod'&&CU.role!=='superadmin'&&CU.role!=='admin')){
+    showToast('\U0001f512 Only Post-Prod In-Charge can confirm client delivery.');return;
+  }
+  if(p.stage!=='delivery'){
+    showToast('\u26a0\ufe0f Project must be in Delivery stage first.');return;
+  }
+  var delivs=p.customDelivs||[];
+  if(delivs.length&&!delivs.every(function(d){return d.status==='delivered';})){
+    alert('Not all deliverables are marked as delivered yet. Please mark all deliverables as delivered before confirming.');return;
+  }
+  if(!confirm('Confirm that ALL deliverables have been handed over to '+p.bride+' & '+p.groom+'?\n\nThis will move the project to Payment Pending.'))return;
+  var reason='Delivery confirmed by '+(CU.name||CU.username);
+  db.ref('crm_projects/'+projId).update({deliveryConfirmedBy:CU.name||CU.username,deliveryConfirmedAt:Date.now(),stage:'payment',updatedAt:Date.now()},function(err){
+    if(!err){
+      logStageChange(projId,'delivery','payment',reason,CU.name||CU.username);
+      showToast('\ud83d\udce6 Delivery confirmed! '+p.bride+' & '+p.groom+' moved to Payment Pending.');
+      if(typeof renderPipeline==='function')renderPipeline();
+      if(typeof renderDashboard==='function')renderDashboard();
+      if(editProjId===projId)renderStageLog();
+    }
+  });
 }
 
 // Rule 4: Client brief submitted -> Post-production
@@ -5577,15 +5700,17 @@ function renderDataLogApprovalStatus() {
   }
 }
 
-// Rule 2: 30 days before event -> Production (runs on login)
+// Rule 2: 30 days before FIRST event date → move Pre-Production to Production (runs on login)
+// Uses the earliest eventDays entry; falls back to p.date for legacy projects.
 function runDateAutomations(){
   var today=new Date();today.setHours(0,0,0,0);
   pl().forEach(function(p){
-    if(!p.date)return;
-    var evDate=new Date(p.date);if(isNaN(evDate))return;
+    var fd=firstEventDate(p);
+    if(!fd)return;
+    var evDate=new Date(fd);if(isNaN(evDate))return;
     var daysToEvent=Math.ceil((evDate-today)/86400000);
     if(daysToEvent<=30&&daysToEvent>=0&&p.stage==='preprod'){
-      autoAdvanceStage(p.id,'production','Event in '+daysToEvent+' days');
+      autoAdvanceStage(p.id,'production','First event in '+daysToEvent+' days');
     }
   });
 }
@@ -7688,6 +7813,49 @@ $('btn-new-proj').addEventListener('click',function(){
 // openProject is defined below (full role-aware version)
 
 
+// ── Strict pipeline gate: validate any manual stage change before saving ──
+function validateManualStageChange(currentStage, newStage, p){
+  // No change — always fine
+  if(currentStage===newStage)return null;
+  var isSA=CU&&CU.role==='superadmin';
+  // Superadmin can move freely (with warnings)
+  if(isSA)return null;
+
+  var role=CU?CU.role:'';
+
+  // Rule: Pre-Production → Production: only auto (30-day rule) or superadmin
+  if(newStage==='production'&&currentStage==='preprod'){
+    if(role!=='admin')return 'Production stage is set automatically when the first event is 30 days away. Only Super Admin can override.';
+  }
+  // Rule: Moving BACK is never allowed except by superadmin
+  if(STAGE_ORDER.indexOf(newStage)<STAGE_ORDER.indexOf(currentStage)){
+    return 'Moving a project backward in the pipeline is not permitted. Contact Super Admin if a correction is needed.';
+  }
+  // Rule: Cannot skip stages
+  if(STAGE_ORDER.indexOf(newStage)>STAGE_ORDER.indexOf(currentStage)+1){
+    return 'You cannot skip pipeline stages. Project must move through each stage in order.';
+  }
+  // Rule: postprod → delivery requires data manager approval
+  if(newStage==='postprod'&&currentStage==='production'){
+    return 'Post-Production stage is set automatically once the Data Manager approves the data log.';
+  }
+  // Rule: delivery stage is set automatically when all deliverables are marked delivered
+  if(newStage==='delivery'&&currentStage==='postprod'){
+    if(role!=='admin'&&role!=='postprod')return 'Delivery stage is set automatically when all deliverables are marked as delivered.';
+  }
+  // Rule: payment stage is set by Post-Prod In-Charge confirming delivery
+  if(newStage==='payment'&&currentStage==='delivery'){
+    return 'Payment Pending stage is set when Post-Prod In-Charge confirms delivery to the client. Use the "Confirm Delivery" button.';
+  }
+  // Rule: complete requires zero balance and accounts confirmation
+  if(newStage==='complete'){
+    var bal=p?balDue(p):1;
+    if(bal>0)return 'Cannot mark as Complete — ₹'+fmt(bal)+' balance is still outstanding. Collect all payments first.';
+    if(role!=='accounts'&&role!=='superadmin')return 'Only the Accounts team can confirm project completion. Please ask Accounts to use the "Confirm All Payments" button.';
+  }
+  return null;
+}
+
 var _projSaving = false;
 $('btn-save-proj').addEventListener('click',function(){
   if(_projSaving)return;
@@ -7698,6 +7866,14 @@ $('btn-save-proj').addEventListener('click',function(){
   var safeWhatsapp = fieldVisible('whatsapp') ? gv('f-whatsapp') : (ex2.whatsapp || '');
   var safeEmail    = fieldVisible('email')    ? gv('f-email')    : (ex2.email    || '');
   if(!bride||!groom){alert('Enter bride and groom names.');return;}
+  // ── Strict pipeline gate ──
+  var _exForStage=editProjId?(projects[editProjId]||{}):{};
+  var _exStageNow=_exForStage.stage||'preprod';
+  var _newStageNow=gv('f-stage');
+  if(_newStageNow!==_exStageNow){
+    var _stageErr=validateManualStageChange(_exStageNow,_newStageNow,_exForStage);
+    if(_stageErr){alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);return;}
+  }
   _projSaving=true;
   var saveBtn=document.getElementById('btn-save-proj');
   if(saveBtn){saveBtn.disabled=true;saveBtn.textContent='Saving…';}
@@ -8431,6 +8607,56 @@ function renderStageTL(){var stages=['preprod','production','postprod','delivery
 
 // ═══ WA STAGE SUGGESTION POPUP ══════════════════════════════════════════════
 var _waPopupNum = '';
+
+// ── Render contextual pipeline action buttons in the Stage tab ──
+function renderPipelineActionBlock(){
+  var el=document.getElementById('pipeline-action-block');if(!el)return;
+  var p=editProjId?projects[editProjId]:null;if(!p){el.innerHTML='';return;}
+  var stage=p.stage||'preprod';
+  var role=CU?CU.role:'';
+  var isSA=role==='superadmin';
+  var html='';
+  // DELIVERY stage: Post-Prod In-Charge confirms delivery to client
+  if(stage==='delivery'&&(isSA||role==='postprod'||role==='admin')){
+    var delivs=p.customDelivs||[];
+    var allDelivered=delivs.length&&delivs.every(function(d){return d.status==='delivered';});
+    if(allDelivered){
+      html+='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:8px">'+
+        '<div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:6px">\u2705 All deliverables are ready</div>'+
+        '<div style="font-size:12px;color:#166534;margin-bottom:10px">Confirm all deliverables have been handed over to the client to move to Payment Pending.</div>'+
+        '<button class="btn btn-primary" style="background:#15803d;border-color:#15803d;font-size:12px" onclick="confirmDeliveryToClient('+p.id+')">\ud83d\udce6 Confirm Delivery to Client \u2192 Payment Pending</button>'+
+        '</div>';
+    } else {
+      html+='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;margin-bottom:8px">'+
+        '<div style="font-size:12px;color:#92400e">\u23f3 Mark all deliverables as <b>Delivered</b> in the Deliverables tab before confirming client delivery.</div>'+
+        '</div>';
+    }
+  }
+  // PAYMENT PENDING stage: Accounts confirms all payments
+  if(stage==='payment'&&(isSA||role==='accounts')){
+    var bal=balDue(p);
+    if(bal<=0){
+      html+='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:8px">'+
+        '<div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:6px">\u2705 All payments received \u2014 balance is zero</div>'+
+        '<div style="font-size:12px;color:#166534;margin-bottom:10px">Verify and confirm all payments collected to close this project as Complete.</div>'+
+        '<button class="btn btn-primary" style="background:#15803d;border-color:#15803d;font-size:12px" onclick="confirmAllPaymentsReceived('+p.id+')">\ud83d\udcb3 Confirm All Payments Received \u2192 Complete</button>'+
+        '</div>';
+    } else {
+      html+='<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 16px;margin-bottom:8px">'+
+        '<div style="font-size:12px;font-weight:700;color:#991b1b;margin-bottom:4px">\u26a0\ufe0f Balance Outstanding: \u20b9'+fmt(bal)+'</div>'+
+        '<div style="font-size:12px;color:#991b1b">Cannot mark Complete until full balance is collected and confirmed.</div>'+
+        '</div>';
+    }
+  }
+  // COMPLETE stage
+  if(stage==='complete'){
+    html+='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:700;color:#15803d">\u2705 Project Complete \u2014 all payments confirmed by Accounts</div>'+
+      '</div>';
+  }
+  el.innerHTML=html;
+}
+
 var _waPopupMsg = '';
 
 function getStageWATemplate(p,toStage){
@@ -9192,10 +9418,430 @@ function editorMarkReview(projId, delivId) {
 }
 
 
+
+// ══════════════════════════════════════════════════════════════════
+// 🩺 DATA HEALTH CHECK PAGE
+// ══════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════
+// 🩺  DATA HEALTH CHECK  — precise per-field issue detection
+//     with inline save (no modal needed for simple fields)
+// ══════════════════════════════════════════════════════════════════
+
+var _hcActiveType  = '';   // which tile is selected
+var _hcStageFilter = '';   // stage dropdown value
+
+// ── Issue definitions ─────────────────────────────────────────────
+// Each check returns null (ok) or an issue object.
+// field: the Firebase field key to patch directly
+// inputHtml: inline control shown in the card when this tile is active
+var HC_CHECKS = [
+  // ── PAYMENT ──────────────────────────────────────────────────────
+  {
+    type: 'payment', key: 'no_value',
+    label: 'No contract value set', icon: '💳', severity: 'critical',
+    test: function(p){ return !p.value || parseInt(p.value) <= 0; },
+    field: 'value',
+    inputHtml: function(p){ return '<input type="number" placeholder="Contract value ₹" class="hc-inline-input" data-field="value" data-id="'+p.id+'" value="'+(p.value||'')+'" min="0">'; }
+  },
+  {
+    type: 'payment', key: 'complete_with_balance',
+    label: 'Marked Complete but balance still due', icon: '🚨', severity: 'critical',
+    test: function(p){ return p.stage==='complete' && netVal(p)>0 && balDue(p)>0; },
+    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#991b1b">Balance ₹'+fmt(balDue(p))+' — move back to Payment Pending or collect payment first.</span>'; }
+  },
+  {
+    type: 'payment', key: 'excess_payment',
+    label: 'Excess payment received', icon: '⚠️', severity: 'high',
+    test: function(p){ return netVal(p)>0 && paidTotal(p) > netVal(p); },
+    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#c2410c">Over-received by ₹'+fmt(paidTotal(p)-netVal(p))+'. Verify contract value or refund.</span>'; }
+  },
+  {
+    type: 'payment', key: 'no_advance',
+    label: 'No advance recorded (project past Pre-Prod)', icon: '💰', severity: 'high',
+    test: function(p){ return netVal(p)>0 && paidTotal(p)===0 && p.stage!=='preprod'; },
+    field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open Payments Tab</button>'; }
+  },
+
+  // ── DELIVERABLES ─────────────────────────────────────────────────
+  {
+    type: 'deliverables', key: 'no_deliverables',
+    label: 'No deliverables added', icon: '📦', severity: 'medium',
+    test: function(p){ return !(p.customDelivs && p.customDelivs.length > 0); },
+    field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Deliverables Tab</button>'; }
+  },
+
+  // ── ZONE / REGION ────────────────────────────────────────────────
+  {
+    type: 'region', key: 'no_region',
+    label: 'No zone/region set', icon: '📍', severity: 'high',
+    test: function(p){ return !p.region || p.region.trim() === ''; },
+    field: 'region',
+    inputHtml: function(p){
+      return '<select class="hc-inline-input" data-field="region" data-id="'+p.id+'">'
+        +'<option value="">-- Select Zone --</option>'
+        +'<option value="north"'+(p.region==='north'?' selected':'')+'>🔵 North — Delhi</option>'
+        +'<option value="south"'+(p.region==='south'?' selected':'')+'>🟠 South — Mumbai</option>'
+        +'</select>';
+    }
+  },
+
+  // ── CONTACT ──────────────────────────────────────────────────────
+  {
+    type: 'contact', key: 'no_phone',
+    label: 'Phone number missing', icon: '📞', severity: 'high',
+    test: function(p){ return !p.phone || p.phone.trim() === ''; },
+    field: 'phone',
+    inputHtml: function(p){ return '<input type="tel" placeholder="Phone number" class="hc-inline-input" data-field="phone" data-id="'+p.id+'" value="'+(p.phone||'')+'">'; }
+  },
+  {
+    type: 'contact', key: 'no_whatsapp',
+    label: 'WhatsApp number missing', icon: '📱', severity: 'medium',
+    test: function(p){ return !p.whatsapp || p.whatsapp.trim() === ''; },
+    field: 'whatsapp',
+    inputHtml: function(p){ return '<input type="tel" placeholder="WhatsApp number" class="hc-inline-input" data-field="whatsapp" data-id="'+p.id+'" value="'+(p.whatsapp||'')+'">'; }
+  },
+  {
+    type: 'contact', key: 'no_email',
+    label: 'Email address missing', icon: '📧', severity: 'low',
+    test: function(p){ return !p.email || p.email.trim() === ''; },
+    field: 'email',
+    inputHtml: function(p){ return '<input type="email" placeholder="Email address" class="hc-inline-input" data-field="email" data-id="'+p.id+'" value="'+(p.email||'')+'">'; }
+  },
+
+  // ── EVENT DATE ───────────────────────────────────────────────────
+  {
+    type: 'eventdate', key: 'no_event_date',
+    label: 'No event date set', icon: '📅', severity: 'high',
+    test: function(p){ return !firstEventDate(p); },
+    field: 'date',
+    inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="date" data-id="'+p.id+'" value="'+(p.date||'')+'">'; }
+  },
+
+  // ── PACKAGE / TYPE ───────────────────────────────────────────────
+  {
+    type: 'package', key: 'no_package',
+    label: 'No package selected', icon: '📋', severity: 'medium',
+    test: function(p){ return !p.package || p.package.trim() === ''; },
+    field: 'package',
+    inputHtml: function(p){
+      var pkgs = getSettingList('packages', DEFAULT_PACKAGES);
+      return '<select class="hc-inline-input" data-field="package" data-id="'+p.id+'">'
+        +'<option value="">-- Select Package --</option>'
+        + pkgs.map(function(pk){ return '<option value="'+pk+'"'+(p.package===pk?' selected':'')+'>'+pk+'</option>'; }).join('')
+        +'</select>';
+    }
+  },
+  {
+    type: 'package', key: 'no_type',
+    label: 'No event type selected', icon: '🎪', severity: 'medium',
+    test: function(p){ return !p.type || p.type.trim() === ''; },
+    field: 'type',
+    inputHtml: function(p){
+      var types = getSettingList('eventTypes', DEFAULT_EVENT_TYPES);
+      return '<select class="hc-inline-input" data-field="type" data-id="'+p.id+'">'
+        +'<option value="">-- Select Event Type --</option>'
+        + types.map(function(t){ return '<option value="'+t+'"'+(p.type===t?' selected':'')+'>'+t+'</option>'; }).join('')
+        +'</select>';
+    }
+  },
+
+  // ── TEAM ─────────────────────────────────────────────────────────
+  {
+    type: 'team', key: 'no_photographer',
+    label: 'No photographer assigned', icon: '📷', severity: 'high',
+    test: function(p){ return !p.photographer || p.photographer.trim() === ''; },
+    field: 'photographer',
+    inputHtml: function(p){
+      var members = Object.values(teamData).filter(function(t){ return t.role==='Photographer'||t.role==='Other'; });
+      return '<select class="hc-inline-input" data-field="photographer" data-id="'+p.id+'">'
+        +'<option value="">-- Select Photographer --</option>'
+        + members.map(function(t){ return '<option value="'+t.name+'"'+(p.photographer===t.name?' selected':'')+'>'+t.name+'</option>'; }).join('')
+        +'</select>';
+    }
+  },
+  {
+    type: 'team', key: 'no_videographer',
+    label: 'No videographer assigned', icon: '🎥', severity: 'medium',
+    test: function(p){ return !p.videographer || p.videographer.trim() === ''; },
+    field: 'videographer',
+    inputHtml: function(p){
+      var members = Object.values(teamData).filter(function(t){ return t.role==='Videographer'||t.role==='Other'; });
+      return '<select class="hc-inline-input" data-field="videographer" data-id="'+p.id+'">'
+        +'<option value="">-- Select Videographer --</option>'
+        + members.map(function(t){ return '<option value="'+t.name+'"'+(p.videographer===t.name?' selected':'')+'>'+t.name+'</option>'; }).join('')
+        +'</select>';
+    }
+  }
+];
+
+// ── Tile config (groups checks into tiles) ────────────────────────
+var HC_TILES = [
+  { type:'__clean',      label:'Clean Records',     icon:'✅', color:'#16a34a' },
+  { type:'payment',      label:'Payment Issues',     icon:'💳', color:'#dc2626' },
+  { type:'deliverables', label:'No Deliverables',    icon:'📦', color:'#d97706' },
+  { type:'region',       label:'No Zone',            icon:'📍', color:'#2563eb' },
+  { type:'contact',      label:'Contact Incomplete', icon:'📞', color:'#dc2626' },
+  { type:'eventdate',    label:'No Event Date',      icon:'📅', color:'#d97706' },
+  { type:'package',      label:'No Package/Type',    icon:'📋', color:'#7c3aed' },
+  { type:'team',         label:'No Team Assigned',   icon:'👥', color:'#0891b2' }
+];
+
+// ── Get all failing checks for one project ────────────────────────
+function hcGetFailures(p) {
+  return HC_CHECKS.filter(function(chk){ return chk.test(p); });
+}
+
+// ── Count unique clients failing each type ────────────────────────
+function hcCountByType() {
+  var counts = {}, clean = 0;
+  pl().forEach(function(p) {
+    var failures = hcGetFailures(p);
+    if (!failures.length) { clean++; return; }
+    var seen = {};
+    failures.forEach(function(chk) {
+      if (!seen[chk.type]) { seen[chk.type] = true; counts[chk.type] = (counts[chk.type]||0) + 1; }
+    });
+  });
+  counts['__clean'] = clean;
+  return counts;
+}
+
+// ── Save a single field directly to Firebase ─────────────────────
+function hcSaveField(projId, field, value) {
+  var p = projects[projId]; if (!p) return;
+  var upd = {}; upd[field] = value; upd.updatedAt = Date.now();
+  db.ref('crm_projects/'+projId).update(upd, function(err) {
+    if (err) { showToast('❌ Save failed: '+err.message); return; }
+    projects[projId][field] = value;
+    showToast('✅ Saved — '+p.bride+' & '+p.groom);
+    // Re-render tiles to update counts (debounced)
+    clearTimeout(hcSaveField._t);
+    hcSaveField._t = setTimeout(function(){ renderHealthCheck(); }, 600);
+  });
+}
+
+// ── Attach inline-edit listeners to rendered controls ────────────
+function hcBindInlineEdits() {
+  document.querySelectorAll('.hc-inline-input').forEach(function(el) {
+    if (el._hcBound) return;
+    el._hcBound = true;
+    var field = el.getAttribute('data-field');
+    var id    = parseInt(el.getAttribute('data-id'));
+    if (!field || !id) return;
+
+    if (el.tagName === 'SELECT') {
+      el.addEventListener('change', function() {
+        if (this.value) hcSaveField(id, field, this.value);
+      });
+    } else {
+      el.addEventListener('blur', function() {
+        var v = this.value.trim();
+        if (v !== (projects[id]||{})[field]||'') hcSaveField(id, field, v);
+      });
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+      });
+    }
+  });
+}
+
+// ── Show all tiles (reset filter) ─────────────────────────────────
+function hcShowAll() {
+  _hcActiveType = '';
+  renderHealthCheck();
+}
+
+function hcApplyStageFilter() {
+  _hcStageFilter = (document.getElementById('hc-stage-filter')||{value:''}).value;
+  renderHealthCheck();
+}
+
+// ── Main render ───────────────────────────────────────────────────
+function renderHealthCheck() {
+  var summaryEl = document.getElementById('hc-summary');
+  var listEl    = document.getElementById('hc-list');
+  var subEl     = document.getElementById('hc-sub');
+  var filterBar = document.getElementById('hc-filter-bar');
+  var filterLbl = document.getElementById('hc-filter-label');
+  var filterCnt = document.getElementById('hc-filter-count');
+  if (!summaryEl || !listEl) return;
+
+  _hcStageFilter = (document.getElementById('hc-stage-filter')||{value:''}).value;
+
+  var counts = hcCountByType();
+
+  // ── Render summary tiles ─────────────────────────────────────────
+  summaryEl.innerHTML = HC_TILES.map(function(tile) {
+    var cnt   = counts[tile.type] || 0;
+    var isClean = tile.type === '__clean';
+    var active  = _hcActiveType === tile.type;
+    var borderTop = active ? '3px solid '+tile.color : '3px solid '+(cnt===0&&!isClean?'#e5e5e5':tile.color);
+    var bg = active ? tile.color : '#fff';
+    var textColor = active ? '#fff' : (cnt===0 ? '#aaa' : '#1a1a1a');
+    var countColor = active ? '#fff' : (cnt===0 ? '#aaa' : tile.color);
+    var cursor = isClean ? 'default' : 'pointer';
+    return '<div data-hc-tile="'+tile.type+'" style="background:'+bg+';border:1px solid '+(active?tile.color:'#e5e5e5')+';border-top:'+borderTop+';border-radius:10px;padding:14px 12px;cursor:'+cursor+';transition:all .15s;user-select:none">'
+      +'<div style="font-size:10px;font-weight:700;color:'+(active?'rgba(255,255,255,.8)':'#888')+';text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">'+tile.icon+' '+tile.label+'</div>'
+      +'<div style="font-size:28px;font-weight:800;color:'+countColor+';line-height:1">'+cnt+'</div>'
+      +'<div style="font-size:10px;color:'+(active?'rgba(255,255,255,.7)':'#aaa')+';margin-top:3px">clients</div>'
+      +'</div>';
+  }).join('');
+
+  // Bind tile clicks
+  summaryEl.querySelectorAll('[data-hc-tile]').forEach(function(el) {
+    var t = el.getAttribute('data-hc-tile');
+    if (t === '__clean') return;
+    el.addEventListener('click', function() {
+      _hcActiveType = (_hcActiveType === t) ? '' : t;
+      renderHealthCheck();
+    });
+  });
+
+  // ── Filter bar ────────────────────────────────────────────────────
+  if (filterBar) {
+    if (_hcActiveType) {
+      filterBar.style.display = 'flex';
+      var activeTile = HC_TILES.find(function(t){ return t.type === _hcActiveType; });
+      if (filterLbl) filterLbl.textContent = (activeTile ? activeTile.icon+' '+activeTile.label : _hcActiveType);
+    } else {
+      filterBar.style.display = 'none';
+    }
+  }
+
+  // ── Build project rows ────────────────────────────────────────────
+  var allProjects = pl();
+  var rows = [];
+
+  allProjects.forEach(function(p) {
+    if (_hcStageFilter && p.stage !== _hcStageFilter) return;
+    var failures = hcGetFailures(p);
+    if (!failures.length) return;
+
+    // If a tile is active, only show projects with that type of failure
+    var relevantFailures = _hcActiveType
+      ? failures.filter(function(f){ return f.type === _hcActiveType; })
+      : failures;
+
+    if (!relevantFailures.length) return;
+    rows.push({ p: p, failures: relevantFailures });
+  });
+
+  // Sort: critical first, then high, then by count
+  var sevRank = { critical:0, high:1, medium:2, low:3 };
+  rows.sort(function(a, b) {
+    var aMin = Math.min.apply(null, a.failures.map(function(f){ return sevRank[f.severity]||3; }));
+    var bMin = Math.min.apply(null, b.failures.map(function(f){ return sevRank[f.severity]||3; }));
+    if (aMin !== bMin) return aMin - bMin;
+    return b.failures.length - a.failures.length;
+  });
+
+  // Update sub-heading
+  var activeTileLabel = _hcActiveType ? (HC_TILES.find(function(t){return t.type===_hcActiveType;})||{}).label : '';
+  if (subEl) {
+    if (!rows.length) {
+      subEl.textContent = _hcActiveType ? 'No clients with "'+activeTileLabel+'" issues. 🎉' : 'All records are clean!';
+    } else {
+      subEl.textContent = rows.length + ' client'+(rows.length>1?'s':'')+' need attention'
+        + (_hcActiveType ? ' · '+activeTileLabel : '')
+        + (_hcStageFilter ? ' · '+_hcStageFilter : '')
+        + '. Click a field below to fix it directly.';
+    }
+  }
+  if (filterCnt) filterCnt.textContent = rows.length ? '('+rows.length+' clients)' : '';
+
+  // ── Severity badge colours ────────────────────────────────────────
+  var sevColors = {
+    critical: { bg:'#fef2f2', text:'#991b1b', border:'#fecaca' },
+    high:     { bg:'#fff7ed', text:'#c2410c', border:'#fed7aa' },
+    medium:   { bg:'#fefce8', text:'#854d0e', border:'#fde68a' },
+    low:      { bg:'#f0f9ff', text:'#0369a1', border:'#bae6fd' }
+  };
+
+  // ── Render client cards ───────────────────────────────────────────
+  if (!rows.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:52px 20px;color:#aaa">'
+      +'<div style="font-size:40px;margin-bottom:12px">✅</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#555;margin-bottom:6px">All clear!</div>'
+      +'<div style="font-size:13px">No issues found'
+      + (_hcActiveType ? ' for this category' : '')
+      + (_hcStageFilter ? ' in this stage' : '')+'.</div>'
+      +'</div>';
+    return;
+  }
+
+  var html = rows.map(function(row) {
+    var p = row.p;
+    var topSev = row.failures.reduce(function(best, f){ return sevRank[f.severity] < sevRank[best] ? f.severity : best; }, 'low');
+    var sc = sevColors[topSev];
+    var fd = firstEventDate(p) || '—';
+
+    var cardHtml = '<div style="background:#fff;border:1px solid '+(topSev==='critical'||topSev==='high'?sc.border:'#e5e5e5')+';border-left:4px solid '+sc.border+';border-radius:10px;padding:0;margin-bottom:10px;overflow:hidden">';
+
+    // Card header
+    cardHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #f5f5f5;gap:12px">'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="font-size:14px;font-weight:800">'+p.bride+' &amp; '+p.groom+'</div>'
+        +'<div style="font-size:11px;color:#888;margin-top:2px">'
+          +(p.refcode?'<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">'+p.refcode+'</span>':'')
+          +(p.city?p.city+' · ':'')
+          +fd
+        +'</div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
+        +stageBadge(p.stage)
+        +'<button class="btn btn-primary btn-sm" onclick="openProject('+p.id+')" style="font-size:11px;padding:4px 10px">Open</button>'
+      +'</div>'
+    +'</div>';
+
+    // Each failing check — with its inline edit control
+    cardHtml += '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">';
+    row.failures.forEach(function(chk) {
+      var sc2 = sevColors[chk.severity];
+      cardHtml += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+        // Severity + label pill
+        +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;min-width:200px">'
+          +'<span style="background:'+sc2.bg+';color:'+sc2.text+';border:1px solid '+sc2.border+';border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;white-space:nowrap">'
+            +chk.icon+' '+chk.label
+          +'</span>'
+        +'</div>'
+        // Inline input
+        +(chk.inputHtml ? '<div style="flex:1;min-width:160px">'+chk.inputHtml(p)+'</div>' : '')
+      +'</div>';
+    });
+    cardHtml += '</div>';
+
+    // Payment summary line if value is set
+    if (netVal(p) > 0) {
+      cardHtml += '<div style="padding:8px 16px;background:#fafafa;border-top:1px solid #f0f0f0;font-size:11px;color:#888;display:flex;gap:16px">'
+        +'<span>Net: <b style="color:#1a1a1a">₹'+fmt(netVal(p))+'</b></span>'
+        +'<span>Paid: <b style="color:#16a34a">₹'+fmt(paidTotal(p))+'</b></span>'
+        +'<span>Balance: <b style="color:'+(balDue(p)>0?'#dc2626':'#16a34a')+'">₹'+fmt(balDue(p))+'</b></span>'
+      +'</div>';
+    }
+
+    cardHtml += '</div>';
+    return cardHtml;
+  }).join('');
+
+  listEl.innerHTML = html;
+
+  // Add inline-input CSS once
+  if (!document.getElementById('hc-input-style')) {
+    var style = document.createElement('style');
+    style.id = 'hc-input-style';
+    style.textContent = '.hc-inline-input{padding:6px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:12px;font-family:inherit;background:#fff;min-width:140px;transition:border-color .15s}.hc-inline-input:focus{outline:none;border-color:#1a1a1a}.hc-inline-input:hover{border-color:#999}';
+    document.head.appendChild(style);
+  }
+
+  setTimeout(hcBindInlineEdits, 50);
+}
+// ══════════════════════════════════════════════════════════════════
+
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','priority','activitylog'],
+    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','priority','activitylog','healthcheck'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -9489,6 +10135,7 @@ function renderPage(name) {
   else if (name === 'accounts') renderAccounts();
   else if (name === 'quotations') { renderSalesDash(); }
   else if (name === 'datavault') renderDataVault();
+  else if (name === 'healthcheck') renderHealthCheck();
   else if (name === 'inventory') { loadAssets(); renderInventory(); }
 }
 
@@ -9564,12 +10211,13 @@ var SIDEBAR_ICON_MAP = {
   calendar:'📅', onboarding:'📋', postprod:'🎬', datavault:'🗄️',
   payments:'💳', invoice:'🧾', reports:'📈', priority:'🚨',
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
-  inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋'
+  inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
+  healthcheck:'🩺'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
-  { label:'Overview',          items:['dashboard','reports','priority','onboarding','quotations'] },
+  { label:'Overview',          items:['dashboard','reports','priority','healthcheck','onboarding','quotations'] },
   { label:'Post Productions',  items:['projects','pipeline','postprod'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
@@ -9786,7 +10434,7 @@ function openProject(id, tabId) {
   onRegionChange();
   setTimeout(function() { sv('f-state', p.state || ''); updateRegionHint(); }, 50);
   setTimeout(updatePayPresetPreview, 60);
-  buildDelivRows(p); renderBriefTab(p); loadRawRows(p); renderEventDays(p.eventDays); loadDataLog(p); populateTeamDrops(p); renderStageTL(); setTimeout(renderStageLog,100); setTimeout(renderRawApprovalStatus,100); setTimeout(renderDataLogApprovalStatus,100);
+  buildDelivRows(p); renderBriefTab(p); loadRawRows(p); renderEventDays(p.eventDays); loadDataLog(p); populateTeamDrops(p); renderStageTL(); setTimeout(renderStageLog,100); setTimeout(renderRawApprovalStatus,100); setTimeout(renderDataLogApprovalStatus,100); setTimeout(renderPipelineActionBlock,150);
 
   // Jump to target tab
   var targetTab = tabId || (allowed ? allowed[0] : 't-details');
@@ -12428,15 +13076,25 @@ function quickChangeStatus(id, newStatus, event) {
   if (event) event.stopPropagation();
   if (!id || id === 'undefined') { showToast('❌ ID missing — please refresh.'); return; }
   var q = quotations[id] || Object.values(quotations).find(function(r){ return r.id===id; });
-  if (!q) { showToast('❌ Quotation not found.'); return; }
+  if (!q) { showToast('❌ Quotation not found — try refreshing.'); return; }
   if (q.status === newStatus) return;
+  var realId = q.id || id; // ensure we have the Firebase key
   var label = QT_STATUS_LABELS[newStatus] || newStatus;
-  db.ref('crm_quotations/' + id + '/status').set(newStatus, function(err) {
-    if (err) { showToast('❌ Error: ' + err.message); return; }
+  // Optimistic local update — re-render instantly without waiting for Firebase
+  q.status = newStatus;
+  quotations[realId] = q;
+  if (typeof renderSalesDash === 'function') renderSalesDash();
+  // Then persist to Firebase
+  db.ref('crm_quotations/' + realId + '/status').set(newStatus, function(err) {
+    if (err) {
+      // Roll back on failure
+      showToast('❌ Save failed — ' + err.message);
+      q.status = Object.values(quotations).find(function(r){ return r.id===realId; }) ? q.status : q.status;
+      return;
+    }
     showToast('✅ ' + (q.bride||'Quote') + ' → ' + label);
-    // WhatsApp auto-open removed — send quotation separately
     if (newStatus === 'won') {
-      showToast('🎉 Won! Open the quotation to convert it to a project.');
+      setTimeout(function(){ showToast('🎉 Won! Click 🚀 Convert on the card to create a project.'); }, 800);
     }
   });
 }
@@ -12471,7 +13129,7 @@ function initQuotations(cb) {
     var raw = snap.val() || {};
     Object.keys(raw).forEach(function(k) { if (raw[k] && !raw[k].id) raw[k].id = k; });
     quotations = raw;
-    if (typeof renderSalesDash === 'function' && document.getElementById('page-sales') && document.getElementById('page-sales').classList.contains('active')) renderSalesDash();
+    if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
     if (cb) { cb(); cb = null; }
 
     // Then attach child listeners so only changed quotation downloads
@@ -12480,16 +13138,16 @@ function initQuotations(cb) {
       db.ref('crm_quotations').on('child_added', function(snap) {
         var q = snap.val(); if (q && !q.id) q.id = snap.key;
         quotations[snap.key] = q;
-        if (typeof renderSalesDash === 'function' && document.getElementById('page-sales') && document.getElementById('page-sales').classList.contains('active')) renderSalesDash();
+        if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
       });
       db.ref('crm_quotations').on('child_changed', function(snap) {
         var q = snap.val(); if (q && !q.id) q.id = snap.key;
         quotations[snap.key] = q;
-        if (typeof renderSalesDash === 'function' && document.getElementById('page-sales') && document.getElementById('page-sales').classList.contains('active')) renderSalesDash();
+        if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
       });
       db.ref('crm_quotations').on('child_removed', function(snap) {
         delete quotations[snap.key];
-        if (typeof renderSalesDash === 'function' && document.getElementById('page-sales') && document.getElementById('page-sales').classList.contains('active')) renderSalesDash();
+        if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
       });
     }
   });
