@@ -4266,6 +4266,11 @@ function getPayTerms(p){
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
+var _stageAtModalOpen=null,_stageManuallyTouched=false;
+document.addEventListener('DOMContentLoaded',function(){
+  var _fsEl=document.getElementById('f-stage');
+  if(_fsEl)_fsEl.addEventListener('change',function(){_stageManuallyTouched=true;});
+});
 var dashCharts={},repCharts={},pipeRegionFilter='all',teamViewMode='profile';
 
 function $(i){return document.getElementById(i);}
@@ -4652,7 +4657,7 @@ function autoAdvanceStage(projId,targetStage,reason){
       if(targetStage==='complete'){firePaymentClosedNotification(projId,p,'Auto');}
       if(typeof renderPipeline==='function')renderPipeline();
       if(typeof renderDashboard==='function')renderDashboard();
-      if(editProjId===projId)renderStageLog(); showWAStageSuggestion(projId, targetStage);
+      if(editProjId===projId){renderStageLog();var _fsEl=document.getElementById('f-stage');if(_fsEl)_fsEl.value=targetStage;} showWAStageSuggestion(projId, targetStage);
     }
   });
 }
@@ -7802,6 +7807,7 @@ $('btn-new-proj').addEventListener('click',function(){
   populateTeamDrops(null);renderStageTL();
   $('pay-ledger').innerHTML='';$('docs-list').innerHTML='';$('t-pay-summary').innerHTML='';
   populateProjectDropdowns(null);renderEventDays([]);
+  _stageManuallyTouched=false; _stageAtModalOpen='preprod';
   // Open modal first, THEN switch to details tab and reset star picker
   openModal('proj-modal');
   setTimeout(function(){
@@ -7878,13 +7884,16 @@ $('btn-save-proj').addEventListener('click',function(){
   var safeWhatsapp = fieldVisible('whatsapp') ? gv('f-whatsapp') : (ex2.whatsapp || '');
   var safeEmail    = fieldVisible('email')    ? gv('f-email')    : (ex2.email    || '');
   if(!bride||!groom){alert('Enter bride and groom names.');return;}
-  // ── Strict pipeline gate ──
-  var _exForStage=editProjId?(projects[editProjId]||{}):{};
-  var _exStageNow=_exForStage.stage||'preprod';
-  var _newStageNow=gv('f-stage');
-  if(_newStageNow!==_exStageNow){
-    var _stageErr=validateManualStageChange(_exStageNow,_newStageNow,_exForStage);
-    if(_stageErr){alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);return;}
+  // ── Strict pipeline gate — only applies if user MANUALLY changed the Stage dropdown ──
+  // (Production Plan edits, freelancer/team assignment, or a background auto-advance
+  //  must NEVER trigger this check — only a deliberate click on the Stage dropdown does.)
+  if(_stageManuallyTouched){
+    var _exForStage=editProjId?(projects[editProjId]||{}):{};
+    var _newStageNow=gv('f-stage');
+    if(_newStageNow!==_stageAtModalOpen){
+      var _stageErr=validateManualStageChange(_stageAtModalOpen,_newStageNow,_exForStage);
+      if(_stageErr){alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);return;}
+    }
   }
   _projSaving=true;
   var saveBtn=document.getElementById('btn-save-proj');
@@ -10801,6 +10810,7 @@ function openProject(id, tabId) {
   sv('f-date', p.date); sv('f-bookdate', p.bookdate || ''); sv('f-venue', p.venue); sv('f-type', p.type);
   sv('f-package', p.package); sv('f-source', p.source); sv('f-value', p.value); sv('f-discount', p.discount);
   sv('f-stage', p.stage); sv('f-pay-preset', p.payPreset || '30-50-10-5-5');
+  _stageAtModalOpen = p.stage || 'preprod'; _stageManuallyTouched = false;
   if (p.payPreset === 'custom') { var cpb = document.getElementById('custom-pay-builder'); if (cpb) cpb.style.display = 'block'; if (p.customPayTerms && p.customPayTerms.length) loadCustomPayRows(p.customPayTerms); }
   else { var cpb2 = document.getElementById('custom-pay-builder'); if (cpb2) cpb2.style.display = 'none'; }
   sv('f-requirements', p.requirements); sv('f-general-notes', p.generalNotes); sv('f-stage-notes', p.stageNotes);
