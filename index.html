@@ -8087,22 +8087,22 @@ $('btn-new-proj').addEventListener('click',function(){
 
 
 // ── Strict pipeline gate: validate any manual stage change before saving ──
+// Rules below are unchanged and apply to every role. Admin and Super Admin are the
+// only roles allowed to override a violated rule — and only after typing a specific
+// reason, which gets permanently recorded in this project's Stage Change History.
 function validateManualStageChange(currentStage, newStage, p){
   // No change — always fine
   if(currentStage===newStage)return null;
-  var isSA=CU&&CU.role==='superadmin';
-  // Superadmin can move freely (with warnings)
-  if(isSA)return null;
 
   var role=CU?CU.role:'';
 
-  // Rule: Pre-Production → Production: only auto (30-day rule) or superadmin
+  // Rule: Pre-Production → Production: only auto (30-day rule)
   if(newStage==='production'&&currentStage==='preprod'){
-    if(role!=='admin')return 'Production stage is set automatically when the first event is 30 days away. Only Super Admin can override.';
+    return 'Production stage is set automatically when the first event is 30 days away.';
   }
-  // Rule: Moving BACK is never allowed except by superadmin
+  // Rule: Moving BACK is never allowed automatically
   if(STAGE_ORDER.indexOf(newStage)<STAGE_ORDER.indexOf(currentStage)){
-    return 'Moving a project backward in the pipeline is not permitted. Contact Super Admin if a correction is needed.';
+    return 'Moving a project backward in the pipeline is not permitted automatically.';
   }
   // Rule: Cannot skip stages
   if(STAGE_ORDER.indexOf(newStage)>STAGE_ORDER.indexOf(currentStage)+1){
@@ -8124,12 +8124,18 @@ function validateManualStageChange(currentStage, newStage, p){
   if(newStage==='complete'){
     var bal=p?balDue(p):1;
     if(bal>0)return 'Cannot mark as Complete — ₹'+fmt(bal)+' balance is still outstanding. Collect all payments first.';
-    if(role!=='accounts'&&role!=='superadmin')return 'Only the Accounts team can confirm project completion. Please ask Accounts to use the "Confirm All Payments" button.';
+    if(role!=='accounts'&&role!=='superadmin'&&role!=='admin')return 'Only the Accounts team can confirm project completion. Please ask Accounts to use the "Confirm All Payments" button.';
   }
   return null;
 }
+// Can this role override a pipeline rule violation (with a reason)? Admin & Super Admin only.
+function canOverrideStageRule(){
+  var role=CU?CU.role:'';
+  return role==='superadmin'||role==='admin';
+}
 
 var _projSaving = false;
+var _stageOverrideReason = null; // set when an Admin/Super Admin manually overrides a pipeline rule
 $('btn-save-proj').addEventListener('click',function(){
   if(_projSaving)return;
   var bride=gv('f-bride').trim(),groom=gv('f-groom').trim();
@@ -8142,12 +8148,24 @@ $('btn-save-proj').addEventListener('click',function(){
   // ── Strict pipeline gate — only applies if user MANUALLY changed the Stage dropdown ──
   // (Production Plan edits, freelancer/team assignment, or a background auto-advance
   //  must NEVER trigger this check — only a deliberate click on the Stage dropdown does.)
+  _stageOverrideReason=null;
   if(_stageManuallyTouched){
     var _exForStage=editProjId?(projects[editProjId]||{}):{};
     var _newStageNow=gv('f-stage');
     if(_newStageNow!==_stageAtModalOpen){
       var _stageErr=validateManualStageChange(_stageAtModalOpen,_newStageNow,_exForStage);
-      if(_stageErr){alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);return;}
+      if(_stageErr){
+        if(!canOverrideStageRule()){
+          alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);
+          return;
+        }
+        // Admin / Super Admin may override — but only with a specific, typed reason.
+        var _reason=prompt('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr+'\n\nAs '+roleLabel(CU.role)+', you can override this and force the stage change.\nPlease enter a SPECIFIC reason for this override (this will be permanently recorded):','');
+        if(_reason===null)return; // user cancelled
+        _reason=_reason.trim();
+        if(!_reason){alert('A specific reason is required to override this pipeline rule. Stage change cancelled.');return;}
+        _stageOverrideReason=_reason;
+      }
     }
   }
   _projSaving=true;
@@ -8177,7 +8195,11 @@ $('btn-save-proj').addEventListener('click',function(){
     $('proj-modal-refcode').innerHTML='<span class="refcode">'+refcode+'</span>';
     sv('f-refcode',refcode);
     var newStage=p.stage;
-    if(newStage!==exStage){logStageChange(id,exStage,newStage,'Manual stage update',CU?CU.name||CU.username:'Admin');}
+    if(newStage!==exStage){
+      var _logReason=_stageOverrideReason?('\u26a0\ufe0f Rule override by '+roleLabel(CU?CU.role:'')+': '+_stageOverrideReason):'Manual stage update';
+      logStageChange(id,exStage,newStage,_logReason,CU?CU.name||CU.username:'Admin');
+      _stageOverrideReason=null;
+    }
     if(newStage==='complete'&&exStage!=='complete'){firePaymentClosedNotification(id,p,CU?CU.name||CU.username:'Admin');}
     closeModal('proj-modal');
     showToast('Project saved! Code: '+refcode);
