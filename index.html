@@ -1662,10 +1662,15 @@ document.addEventListener('wheel', function(e) {
       <div class="page-sub" id="hc-sub">Click any tile to see exactly which clients have that issue and fix them inline.</div>
 
       <!-- Tab switcher -->
-      <div style="display:flex;gap:2px;border-bottom:2px solid #e5e5e5;margin-bottom:16px">
+      <div style="display:flex;gap:2px;border-bottom:2px solid #e5e5e5;margin-bottom:16px;flex-wrap:wrap;align-items:center">
         <button class="tab-btn active" id="hc-tab-issues-btn" onclick="hcSwitchTab('issues')">🔍 Issues &amp; Gaps</button>
         <button class="tab-btn" id="hc-tab-dupes-btn" onclick="hcSwitchTab('dupes')">👯 Duplicates</button>
-        <button class="btn btn-sm" onclick="renderHealthCheck()" style="margin-left:auto;align-self:center">🔄 Refresh</button>
+        <button class="tab-btn" id="hc-tab-tasks-btn" onclick="hcSwitchTab('tasks')">📋 My Tasks <span id="hc-tasks-badge" style="display:none;background:#dc2626;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;margin-left:4px">0</span></button>
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:2px">
+          <button class="btn btn-sm" id="hc-assign-btn" onclick="hcOpenAssignModal()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-size:11px">👥 Assign Tasks</button>
+          <button class="btn btn-sm" id="hc-export-btn" onclick="hcExportCSV()" style="background:#0369a1;color:#fff;border-color:#0369a1;font-size:11px">⬇️ Export CSV</button>
+          <button class="btn btn-sm" onclick="renderHealthCheck()">🔄 Refresh</button>
+        </div>
       </div>
 
       <!-- Summary tiles (issues only) -->
@@ -1694,6 +1699,52 @@ document.addEventListener('wheel', function(e) {
 
       <!-- Client list / duplicates -->
       <div id="hc-list"></div>
+    </div>
+
+    <!-- ── HC Assign Modal ── -->
+    <div id="hc-assign-modal" class="modal-overlay">
+      <div class="modal modal-sm">
+        <div class="modal-hdr">
+          <span class="modal-title">👥 Assign Health Check Tasks</span>
+          <button class="modal-close" data-close="hc-assign-modal">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:20px;display:flex;flex-direction:column;gap:14px">
+          <div class="fr">
+            <label class="fl">Assign To (Role) *</label>
+            <select class="fi" id="hc-assign-user">
+              <option value="">-- Select Role --</option>
+              <option value="superadmin">👑 Super Admin</option>
+              <option value="admin">🔧 Admin</option>
+              <option value="accounts">💰 Accounts</option>
+              <option value="sales">💼 Sales Head</option>
+              <option value="salesperson">🧑‍💼 Sales Person</option>
+              <option value="postprod">🎬 Post Prod In-Charge</option>
+              <option value="datamanager">🗂️ Data Manager</option>
+              <option value="editor">✂️ Editor</option>
+              <option value="preprodmanager">📋 Pre-Prod Manager</option>
+              <option value="socialmedia">📱 Social Media Manager</option>
+              <option value="referral">🎁 Referral</option>
+            </select>
+          </div>
+          <div class="fr">
+            <label class="fl">Issue Category *</label>
+            <select class="fi" id="hc-assign-type">
+              <option value="">-- All Issues --</option>
+            </select>
+          </div>
+          <input type="hidden" id="hc-assign-stage" value="">
+          <div class="fr">
+            <label class="fl">Note / Instructions (optional)</label>
+            <textarea class="fi" id="hc-assign-note" rows="2" placeholder="e.g. Please update all missing phone numbers by Friday"></textarea>
+          </div>
+          <div id="hc-assign-preview" style="background:#f8f8f8;border-radius:8px;padding:10px;font-size:12px;color:#555;display:none"></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn" data-close="hc-assign-modal">Cancel</button>
+          <button class="btn" onclick="hcPreviewAssignment()" style="background:#f0f9ff;color:#0369a1;border-color:#bae6fd">👁️ Preview</button>
+          <button class="btn btn-primary" onclick="hcSaveAssignment()">✅ Assign Tasks</button>
+        </div>
+      </div>
     </div>
 
     <div id="page-priority" class="page">
@@ -4652,6 +4703,7 @@ function loadAll(){
       db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
       db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
       db.ref('crm_dupe_confirmed').on('value',function(snap){dupeConfirmed=snap.val()||{};if(_hcTab==='dupes')renderHealthCheck();});
+      hcLoadTasks();
       db.ref('crm_users').on('value',function(snap){var fb=snap.val()||{};DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});users=fb;});
 
       // ── Step 4: Non-critical stuff last ──
@@ -4753,14 +4805,16 @@ function renderStageLog() {
   el.innerHTML = log.map(function(e) {
     var d = new Date(e.at);
     var dateStr = fmtDateTime(d.getTime());
-    return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;align-items:flex-start">' +
-      '<div style="flex-shrink:0;margin-top:2px">' +
+    var isOverride = e.by && e.by.indexOf('Admin Override') !== -1;
+    return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;align-items:flex-start'+(isOverride?';background:#fffbeb;border-radius:6px;padding:8px 10px;margin-bottom:2px':'')+'">'+
+      '<div style="flex-shrink:0;margin-top:2px">'+
+        (isOverride?'<span style="font-size:13px;margin-right:4px" title="Admin Override">⚡</span>':'')+
         '<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">' + stageLabel(e.from).replace('Pre-Production','Pre-Prod').replace('Post-Production','Post-Prod') + '</span>' +
         '<span style="color:#aaa;font-size:11px;margin:0 4px">to</span>' +
         '<span style="background:#dcfce7;color:#15803d;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">' + stageLabel(e.to).replace('Pre-Production','Pre-Prod').replace('Post-Production','Post-Prod') + '</span>' +
       '</div>' +
       '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:11px;color:#555">' + (e.reason || 'Manual update') + '</div>' +
+        '<div style="font-size:11px;color:'+(isOverride?'#92400e':'#555')+';font-weight:'+(isOverride?'600':'400')+'">' + (e.reason || 'Manual update') + '</div>' +
         '<div style="font-size:10px;color:#aaa;margin-top:2px">' + dateStr + ' &middot; ' + (e.by || 'System') + '</div>' +
       '</div>' +
     '</div>';
@@ -7945,6 +7999,65 @@ function validateManualStageChange(currentStage, newStage, p){
   return null;
 }
 
+// ── Admin Stage Override Modal ──────────────────────────────────────────────
+var _pendingOverrideFromStage=null,_pendingOverrideToStage=null;
+
+function showAdminStageOverrideModal(fromStage,toStage,ruleMsg){
+  _pendingOverrideFromStage=fromStage;
+  _pendingOverrideToStage=toStage;
+  var modal=document.getElementById('admin-override-modal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='admin-override-modal';
+    modal.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)';
+    modal.innerHTML=
+      '<div style="background:#fff;border-radius:14px;padding:24px 28px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
+        +'<div style="width:36px;height:36px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">⚠️</div>'
+        +'<div>'
+          +'<div style="font-size:14px;font-weight:800;color:#1a1a1a">Admin Stage Override</div>'
+          +'<div style="font-size:11px;color:#888;margin-top:1px">This action bypasses a pipeline rule</div>'
+        +'</div>'
+      +'</div>'
+      +'<div id="ao-rule-msg" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;margin-bottom:14px;line-height:1.5"></div>'
+      +'<div style="margin-bottom:6px">'
+        +'<label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:6px">Reason for override <span style="color:#dc2626">*</span></label>'
+        +'<textarea id="ao-reason" rows="3" placeholder="Enter the reason for manually overriding this pipeline rule…" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;line-height:1.5"></textarea>'
+        +'<div id="ao-reason-err" style="color:#dc2626;font-size:11px;margin-top:3px;display:none">Please enter a reason before proceeding.</div>'
+      +'</div>'
+      +'<div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">'
+        +'<button onclick="closeAdminOverrideModal()" style="padding:9px 18px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600">Cancel</button>'
+        +'<button onclick="confirmAdminOverride()" style="padding:9px 18px;border:none;border-radius:8px;background:#d97706;color:#fff;font-size:13px;font-family:inherit;cursor:pointer;font-weight:700">⚡ Override &amp; Save</button>'
+      +'</div>'
+    +'</div>';
+    document.body.appendChild(modal);
+  }
+  document.getElementById('ao-rule-msg').textContent=ruleMsg;
+  var ta=document.getElementById('ao-reason');if(ta)ta.value='';
+  var err=document.getElementById('ao-reason-err');if(err)err.style.display='none';
+  modal.style.display='flex';
+}
+
+function closeAdminOverrideModal(){
+  var modal=document.getElementById('admin-override-modal');
+  if(modal)modal.style.display='none';
+  _pendingOverrideFromStage=null;_pendingOverrideToStage=null;
+}
+
+function confirmAdminOverride(){
+  var reason=(document.getElementById('ao-reason')||{}).value||'';
+  if(!reason.trim()){
+    var err=document.getElementById('ao-reason-err');if(err)err.style.display='block';
+    return;
+  }
+  closeAdminOverrideModal();
+  // Proceed with the save, but flag as override so logStageChange gets the rich reason
+  _adminOverridePending={reason:reason.trim(),by:CU?CU.name||CU.username:'Admin',fromStage:_pendingOverrideFromStage,toStage:_pendingOverrideToStage};
+  document.getElementById('btn-save-proj').click();
+}
+
+var _adminOverridePending=null; // set by confirmAdminOverride, consumed in save handler
+
 var _projSaving = false;
 $('btn-save-proj').addEventListener('click',function(){
   if(_projSaving)return;
@@ -7958,12 +8071,20 @@ $('btn-save-proj').addEventListener('click',function(){
   // ── Strict pipeline gate — only applies if user MANUALLY changed the Stage dropdown ──
   // (Production Plan edits, freelancer/team assignment, or a background auto-advance
   //  must NEVER trigger this check — only a deliberate click on the Stage dropdown does.)
-  if(_stageManuallyTouched){
+  if(_stageManuallyTouched && !_adminOverridePending){
     var _exForStage=editProjId?(projects[editProjId]||{}):{};
     var _newStageNow=gv('f-stage');
     if(_newStageNow!==_stageAtModalOpen){
       var _stageErr=validateManualStageChange(_stageAtModalOpen,_newStageNow,_exForStage);
-      if(_stageErr){alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);return;}
+      if(_stageErr){
+        // Admin (not superadmin) can override with a reason
+        var isAdminRole=CU&&(CU.role==='admin');
+        if(isAdminRole){
+          showAdminStageOverrideModal(_stageAtModalOpen,_newStageNow,_stageErr);
+          return;
+        }
+        alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);return;
+      }
     }
   }
   _projSaving=true;
@@ -7993,7 +8114,14 @@ $('btn-save-proj').addEventListener('click',function(){
     $('proj-modal-refcode').innerHTML='<span class="refcode">'+refcode+'</span>';
     sv('f-refcode',refcode);
     var newStage=p.stage;
-    if(newStage!==exStage){logStageChange(id,exStage,newStage,'Manual stage update',CU?CU.name||CU.username:'Admin');}
+    if(newStage!==exStage){
+      if(_adminOverridePending&&_adminOverridePending.toStage===newStage){
+        logStageChange(id,exStage,newStage,'⚡ Admin Override: '+_adminOverridePending.reason,_adminOverridePending.by+' (Admin Override)');
+        _adminOverridePending=null;
+      }else{
+        logStageChange(id,exStage,newStage,'Manual stage update',CU?CU.name||CU.username:'Admin');
+      }
+    } else { _adminOverridePending=null; }
     if(newStage==='complete'&&exStage!=='complete'){firePaymentClosedNotification(id,p,CU?CU.name||CU.username:'Admin');}
     closeModal('proj-modal');
     showToast('Project saved! Code: '+refcode);
@@ -9922,6 +10050,42 @@ function hcToggleConfirmedPanel() {
   if (arrow) arrow.textContent = isOpen ? 'Manage ▾' : 'Hide ▴';
 }
 
+// ── Render one duplicate-group card (reused by the Duplicates tab
+//    and by "My Tasks" so an assigned role can act on their own
+//    duplicate records directly, without browsing the full list) ───
+function hcDupCard(group, matchLabel, matchValue, type) {
+  var idsCsv = group.map(function(p) { return p.id; }).join(',');
+  var canDelete = CU && CU.role === 'superadmin';
+  var cardHtml = '<div style="background:#fff;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:10px;margin-bottom:12px;overflow:hidden">';
+  cardHtml += '<div style="background:#fef2f2;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #fecaca;flex-wrap:wrap">'
+    +'<span style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase">👯 '+matchLabel+'</span>'
+    +'<span style="font-size:12px;color:#dc2626;font-weight:700">'+matchValue+'</span>'
+    +'<span style="font-size:11px;color:#888;margin-left:auto">'+group.length+' records found</span>'
+    +'<button class="btn btn-sm hc-confirm-notdupe-btn" data-ids="'+idsCsv+'" data-type="'+type+'" data-value="'+encodeURIComponent(matchValue)+'" style="font-size:11px;padding:4px 10px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;cursor:pointer;font-weight:600" title="These are different, genuine clients">✅ Not a Duplicate</button>'
+    +'</div>';
+  cardHtml += '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">';
+  group.forEach(function(p) {
+    var fd = firstEventDate(p)||p.date||'—';
+    cardHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;flex-wrap:wrap">'
+      +'<div style="flex:1;min-width:200px">'
+        +'<div style="font-size:13px;font-weight:700">'+p.bride+' &amp; '+p.groom+'</div>'
+        +'<div style="font-size:11px;color:#888;margin-top:2px">'
+          +(p.refcode?'<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">'+p.refcode+'</span>':'')
+          +(p.city?p.city+' · ':'')+fd
+        +'</div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
+        +stageBadge(p.stage)
+        +'<span style="font-size:12px;font-weight:700;color:#1a1a1a">₹'+fmt(netVal(p))+'</span>'
+        +'<button class="btn btn-primary btn-sm" onclick="openProject('+p.id+')" style="font-size:11px;padding:4px 10px">Open</button>'
+        +(canDelete ? '<button class="btn btn-sm hc-del-dupe-btn" data-id="'+p.id+'" data-name="'+encodeURIComponent(p.bride+' & '+p.groom)+'" style="font-size:11px;padding:4px 10px;background:#fef2f2;color:#dc2626;border-color:#fecaca;border:1px solid #fecaca;border-radius:6px;cursor:pointer">🗑️ Delete</button>' : '')
+      +'</div>'
+      +'</div>';
+  });
+  cardHtml += '</div></div>';
+  return cardHtml;
+}
+
 // ── Render duplicates section ──────────────────────────────────────
 function renderDuplicates(container) {
   var dupes = hcFindDuplicates();
@@ -9959,50 +10123,18 @@ function renderDuplicates(container) {
     return;
   }
 
-  function dupCard(group, matchLabel, matchValue, type) {
-    var idsCsv = group.map(function(p) { return p.id; }).join(',');
-    var cardHtml = '<div style="background:#fff;border:1px solid #fecaca;border-left:4px solid #dc2626;border-radius:10px;margin-bottom:12px;overflow:hidden">';
-    cardHtml += '<div style="background:#fef2f2;padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #fecaca;flex-wrap:wrap">'
-      +'<span style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase">👯 '+matchLabel+'</span>'
-      +'<span style="font-size:12px;color:#dc2626;font-weight:700">'+matchValue+'</span>'
-      +'<span style="font-size:11px;color:#888;margin-left:auto">'+group.length+' records found</span>'
-      +'<button class="btn btn-sm hc-confirm-notdupe-btn" data-ids="'+idsCsv+'" data-type="'+type+'" data-value="'+encodeURIComponent(matchValue)+'" style="font-size:11px;padding:4px 10px;background:#f0fdf4;color:#166534;border:1px solid #bbf7d0;border-radius:6px;cursor:pointer;font-weight:600" title="These are different, genuine clients">✅ Not a Duplicate</button>'
-      +'</div>';
-    cardHtml += '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px">';
-    group.forEach(function(p) {
-      var fd = firstEventDate(p)||p.date||'—';
-      cardHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;flex-wrap:wrap">'
-        +'<div style="flex:1;min-width:200px">'
-          +'<div style="font-size:13px;font-weight:700">'+p.bride+' &amp; '+p.groom+'</div>'
-          +'<div style="font-size:11px;color:#888;margin-top:2px">'
-            +(p.refcode?'<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">'+p.refcode+'</span>':'')
-            +(p.city?p.city+' · ':'')+fd
-          +'</div>'
-        +'</div>'
-        +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
-          +stageBadge(p.stage)
-          +'<span style="font-size:12px;font-weight:700;color:#1a1a1a">₹'+fmt(netVal(p))+'</span>'
-          +'<button class="btn btn-primary btn-sm" onclick="openProject('+p.id+')" style="font-size:11px;padding:4px 10px">Open</button>'
-          +'<button class="btn btn-sm hc-del-dupe-btn" data-id="'+p.id+'" data-name="'+encodeURIComponent(p.bride+' & '+p.groom)+'" style="font-size:11px;padding:4px 10px;background:#fef2f2;color:#dc2626;border-color:#fecaca;border:1px solid #fecaca;border-radius:6px;cursor:pointer">🗑️ Delete</button>'
-        +'</div>'
-        +'</div>';
-    });
-    cardHtml += '</div></div>';
-    return cardHtml;
-  }
-
   if (dupes.byPhone.length) {
     html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">📞 Same Phone Number</div>';
     dupes.byPhone.forEach(function(group) {
       var ph = group[0].phone||'';
-      html += dupCard(group, 'Duplicate Phone', ph, 'phone');
+      html += hcDupCard(group, 'Duplicate Phone', ph, 'phone');
     });
   }
 
   if (dupes.byName.length) {
     html += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 10px">👤 Same Bride Name</div>';
     dupes.byName.forEach(function(group) {
-      html += dupCard(group, 'Duplicate Name', group[0].bride, 'name');
+      html += hcDupCard(group, 'Duplicate Name', group[0].bride, 'name');
     });
   }
 
@@ -10085,15 +10217,53 @@ function hcBindInlineEdits() {
   });
 }
 
+// ── Health Check role gate ──────────────────────────────────────────
+// Only Super Admin gets the full "Issues & Gaps" / "Duplicates" browser
+// plus the "Assign Tasks" / "Export CSV" controls — that view exposes
+// every client in the CRM, not just a department's own work. Every
+// other role only ever sees "My Tasks": the specific items a Super
+// Admin has explicitly assigned to their role. ──────────────────────
+function hcIsFullAccess() { return !!(CU && CU.role === 'superadmin'); }
+
+function hcApplyRBAC() {
+  var full = hcIsFullAccess();
+  var issuesBtn = document.getElementById('hc-tab-issues-btn');
+  var dupesBtn  = document.getElementById('hc-tab-dupes-btn');
+  var assignBtn = document.getElementById('hc-assign-btn');
+  var exportBtn = document.getElementById('hc-export-btn');
+  if (issuesBtn) issuesBtn.style.display = full ? '' : 'none';
+  if (dupesBtn)  dupesBtn.style.display  = full ? '' : 'none';
+  if (assignBtn) assignBtn.style.display = full ? '' : 'none';
+  if (exportBtn) exportBtn.style.display = full ? '' : 'none';
+  if (!full && (_hcTab === 'issues' || _hcTab === 'dupes')) _hcTab = 'tasks';
+  ['issues','dupes','tasks'].forEach(function(t) {
+    var btn = document.getElementById('hc-tab-' + t + '-btn');
+    if (btn) btn.classList.toggle('active', t === _hcTab);
+  });
+}
+
 // ── Switch HC tabs ────────────────────────────────────────────────
 function hcSwitchTab(tab) {
+  if ((tab === 'issues' || tab === 'dupes') && !hcIsFullAccess()) { tab = 'tasks'; }
   _hcTab = tab;
   _hcActiveType = '';
-  // Update tab button styles
-  var issBtn = document.getElementById('hc-tab-issues-btn');
-  var dupBtn = document.getElementById('hc-tab-dupes-btn');
-  if (issBtn) issBtn.classList.toggle('active', tab === 'issues');
-  if (dupBtn) dupBtn.classList.toggle('active', tab === 'dupes');
+  hcApplyRBAC();
+  // Update all three tab button states
+  ['issues','dupes','tasks'].forEach(function(t) {
+    var btn = document.getElementById('hc-tab-' + t + '-btn');
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  if (tab === 'tasks') {
+    // Hide controls that don't apply to My Tasks
+    var summaryEl = document.getElementById('hc-summary');
+    var filterBar = document.getElementById('hc-filter-bar');
+    var stageWrap = document.getElementById('hc-stage-wrap');
+    if (summaryEl) summaryEl.innerHTML = '';
+    if (filterBar) filterBar.style.display = 'none';
+    if (stageWrap) stageWrap.style.display = 'none';
+    hcRenderMyTasks();
+    return;
+  }
   renderHealthCheck();
 }
 
@@ -10112,6 +10282,9 @@ function hcApplyStageFilter() {
 var _hcTab = 'issues'; // 'issues' or 'dupes'
 
 function renderHealthCheck() {
+  hcApplyRBAC();
+  // Route to correct tab renderer
+  if (_hcTab === 'tasks') { hcRenderMyTasks(); return; }
   // If duplicates tab is active, render that instead
   if (_hcTab === 'dupes') {
     var listEl2 = document.getElementById('hc-list');
@@ -10322,7 +10495,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   intern: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','priority'],
+    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','priority','healthcheck'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -10330,7 +10503,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard','pipeline','projects','postprod','whatsapp','onboarding','calendar','priority','team'],
+    pages: ['dashboard','pipeline','projects','postprod','whatsapp','onboarding','calendar','priority','team','healthcheck'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -10338,7 +10511,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   postprod: {
-    pages: ['dashboard','postprod','team','whatsapp'],
+    pages: ['dashboard','postprod','team','whatsapp','healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -10348,7 +10521,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManagePostProd:true
   },
   accounts: {
-    pages: ['dashboard','pipeline','projects','postprod','payments','reports','invoice','calendar','users'],
+    pages: ['dashboard','pipeline','projects','postprod','payments','reports','invoice','calendar','users','healthcheck'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
@@ -10357,7 +10530,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   datamanager: {
-    pages: ['dashboard','projects','datavault'],
+    pages: ['dashboard','projects','datavault','healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -10366,7 +10539,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   editor: {
-    pages: ['dashboard','postprod'],
+    pages: ['dashboard','postprod','healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -10375,7 +10548,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   referral: {
-    pages: ['dashboard','referral','whatsapp'],
+    pages: ['dashboard','referral','whatsapp','healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -10384,7 +10557,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   preprodmanager: {
-    pages: ['dashboard','pipeline','projects','whatsapp','onboarding'],
+    pages: ['dashboard','pipeline','projects','whatsapp','onboarding','healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -10393,7 +10566,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   socialmedia: {
-    pages: ['dashboard','celebrations'],
+    pages: ['dashboard','celebrations','healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -19433,6 +19606,381 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
   mo.observe(document.documentElement, { childList: true, subtree: true });
   scan();
 })();
+
+
+// ══════════════════════════════════════════════════════════════════
+// HEALTH CHECK — EXPORT CSV
+// ══════════════════════════════════════════════════════════════════
+function hcExportCSV() {
+  if (!hcIsFullAccess()) { showToast('⛔ Only Super Admin can export the full health check.'); return; }
+  var allProjects = pl();
+  var filterType  = _hcActiveType || '';
+  var filterStage = _hcStageFilter || '';
+
+  var rows = [];
+  allProjects.forEach(function(p) {
+    if (filterStage && p.stage !== filterStage) return;
+    var failures = hcGetFailures(p);
+    if (!failures.length) return;
+    var relevant = filterType ? failures.filter(function(f){ return f.type === filterType; }) : failures;
+    if (!relevant.length) return;
+    relevant.forEach(function(chk) {
+      var fd = firstEventDate(p) || p.date || '';
+      rows.push([
+        '"' + (p.bride||'').replace(/"/g,'""') + ' & ' + (p.groom||'').replace(/"/g,'""') + '"',
+        '"' + (p.refcode||'') + '"',
+        '"' + (p.city||'') + '"',
+        '"' + (p.state||'') + '"',
+        '"' + (p.phone||'') + '"',
+        '"' + fd + '"',
+        '"' + (p.stage||'') + '"',
+        '"' + chk.type + '"',
+        '"' + chk.label.replace(/"/g,'""') + '"',
+        '"' + (chk.severity||'') + '"'
+      ].join(','));
+    });
+  });
+
+  if (!rows.length) { showToast('No issues to export!'); return; }
+
+  var header = 'Couple,Ref Code,City,State,Phone,Event Date,Stage,Issue Category,Issue,Severity';
+  var csv = header + '\n' + rows.join('\n');
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  var ts   = new Date().toISOString().slice(0,10);
+  var label = filterType ? filterType : 'all-issues';
+  a.href     = url;
+  a.download = 'KB-CRM-HealthCheck-' + label + '-' + ts + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('✅ CSV exported — ' + rows.length + ' issue rows');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// HEALTH CHECK — IN-APP TASK ASSIGNMENT
+// ══════════════════════════════════════════════════════════════════
+var hcTasks = {};
+
+// Load tasks from Firebase on init
+function hcLoadTasks() {
+  db.ref('crm_hc_tasks').on('value', function(snap) {
+    hcTasks = snap.val() || {};
+    hcUpdateTaskBadge();
+    if (_hcTab === 'tasks') renderHealthCheck();
+  });
+}
+
+function hcUpdateTaskBadge() {
+  var badge = document.getElementById('hc-tasks-badge');
+  if (!badge || !CU) return;
+  // Count open tasks assigned to me
+  var myOpen = Object.values(hcTasks).filter(function(t) {
+    return t.assignedTo === CU.role && t.status !== 'done';
+  });
+  if (myOpen.length > 0) {
+    badge.textContent = myOpen.length;
+    badge.style.display = 'inline';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function hcOpenAssignModal() {
+  if (!hcIsFullAccess()) { showToast('⛔ Only Super Admin can assign health check tasks.'); return; }
+  // Role dropdown is static HTML — no rebuild needed
+  // Populate Issue Category from HC_TILES — live counts, skip __clean
+  var counts = hcCountByType();
+  var typeEl = document.getElementById('hc-assign-type');
+  if (typeEl) {
+    typeEl.innerHTML = '<option value="">-- All Issues --</option>'
+      + HC_TILES
+          .filter(function(t){ return t.type !== '__clean'; })
+          .map(function(t){
+            var cnt = counts[t.type] || 0;
+            var label = t.icon + ' ' + t.label + (cnt > 0 ? ' (' + cnt + ')' : '');
+            var disabled = cnt === 0 ? ' disabled style="color:#bbb"' : '';
+            return '<option value="' + t.type + '"' + disabled + '>' + label + '</option>';
+          }).join('');
+    // Pre-select active tile if any
+    if (_hcActiveType) typeEl.value = _hcActiveType;
+  }
+
+  var prev = document.getElementById('hc-assign-preview');
+  if (prev) prev.style.display = 'none';
+  document.getElementById('hc-assign-note').value = '';
+  openModal('hc-assign-modal');
+}
+
+function hcGetIssueClients(type, stage) {
+  var allProjects = pl();
+  var result = [];
+
+  // Handle duplicates category specially
+  if (type === '__dupes') {
+    var dupes = hcFindDuplicates();
+    var seen = {};
+    dupes.byPhone.concat(dupes.byName).forEach(function(group) {
+      group.forEach(function(p) {
+        if (!seen[p.id]) {
+          seen[p.id] = true;
+          result.push({ p: p, failures: [{ type: '__dupes', label: 'Duplicate record', icon: '👯', severity: 'high' }] });
+        }
+      });
+    });
+    return result;
+  }
+
+  allProjects.forEach(function(p) {
+    if (stage && p.stage !== stage) return;
+    var failures = hcGetFailures(p);
+    var relevant = type && type !== 'all' ? failures.filter(function(f){ return f.type === type; }) : failures;
+    if (relevant.length) result.push({ p: p, failures: relevant });
+  });
+  return result;
+}
+
+function hcPreviewAssignment() {
+  var type = (document.getElementById('hc-assign-type') || {}).value || '';
+  var to   = (document.getElementById('hc-assign-user') || {}).value || '';
+  var clients = hcGetIssueClients(type, '');
+  var prev = document.getElementById('hc-assign-preview');
+  if (!prev) return;
+  if (!clients.length) {
+    prev.style.display = 'block';
+    prev.innerHTML = '<span style="color:#888">No matching issues found for this category.</span>';
+    return;
+  }
+  var tileLbl = type ? ((HC_TILES.find(function(t){ return t.type === type; }) || {}).label || type) : 'All Issues';
+  prev.style.display = 'block';
+  prev.innerHTML = '<b style="color:#1a1a1a">' + clients.length + ' clients</b> with <b>' + tileLbl + '</b>'
+    + (to ? ' will be assigned to <b>' + roleLabel(to) + '</b> role' : '')
+    + '.<br><span style="color:#888;font-size:11px">All users with this role will see it in their "My Tasks" tab.</span>';
+}
+
+function hcSaveAssignment() {
+  var to   = (document.getElementById('hc-assign-user') || {}).value || '';
+  var type = (document.getElementById('hc-assign-type') || {}).value || '';
+  var note = (document.getElementById('hc-assign-note') || {}).value || '';
+  if (!to) { alert('Please select a team member to assign to.'); return; }
+
+  var clients = hcGetIssueClients(type, '');
+  if (!clients.length) { showToast('No matching issues to assign.'); return; }
+
+  var tileLbl = type ? ((HC_TILES.find(function(t){ return t.type === type; }) || {}).label || type) : 'All Issues';
+  var taskId = 'task_' + Date.now();
+  var task = {
+    id: taskId,
+    assignedTo: to,
+    assignedBy: CU ? (CU.name || CU.username) : 'Admin',
+    assignedAt: Date.now(),
+    type: type || 'all',
+    typeLabel: tileLbl,
+    note: note,
+    status: 'open',
+    clientCount: clients.length,
+    clientIds: clients.map(function(c){ return c.p.id; })
+  };
+
+  db.ref('crm_hc_tasks/' + taskId).set(task, function(err) {
+    if (err) { showToast('❌ Error saving task: ' + err.message); return; }
+    closeModal('hc-assign-modal');
+    showToast('✅ ' + clients.length + ' clients assigned to ' + roleLabel(to) + ' role');
+    logActivity('healthcheck', 'HC Tasks Assigned',
+      clients.length + ' ' + tileLbl + ' issues assigned to ' + roleLabel(to) + ' role',
+      { assignedTo: to, type: type, count: clients.length });
+  });
+}
+
+function hcMarkTaskDone(taskId) {
+  db.ref('crm_hc_tasks/' + taskId + '/status').set('done', function(err) {
+    if (!err) { showToast('✅ Task marked as done!'); }
+  });
+}
+
+function hcDeleteTask(taskId) {
+  if (!CU || CU.role !== 'superadmin') { showToast('❌ Only Super Admin can delete tasks.'); return; }
+  if (!confirm('Remove this task assignment?')) return;
+  db.ref('crm_hc_tasks/' + taskId).remove(function(err) {
+    if (!err) showToast('Task removed.');
+  });
+}
+
+// ── My Tasks tab renderer ─────────────────────────────────────────
+function hcRenderMyTasks() {
+  var listEl = document.getElementById('hc-list');
+  var subEl  = document.getElementById('hc-sub');
+  var summaryEl = document.getElementById('hc-summary');
+  var filterBar = document.getElementById('hc-filter-bar');
+  var stageWrap = document.getElementById('hc-stage-wrap');
+  if (summaryEl) summaryEl.innerHTML = '';
+  if (filterBar) filterBar.style.display = 'none';
+  if (stageWrap) stageWrap.style.display = 'none';
+  if (!listEl) return;
+
+  var myRole = CU ? CU.role : '';
+  var isAdmin = hcIsFullAccess();
+
+  // Show every assigned task to Super Admin only; everyone else sees
+  // only the tasks assigned to their own role.
+  var myTasks = Object.values(hcTasks).filter(function(t) {
+    return isAdmin || t.assignedTo === myRole;
+  }).sort(function(a,b){ return (b.assignedAt||0) - (a.assignedAt||0); });
+
+  if (subEl) subEl.textContent = isAdmin
+    ? 'All tasks you have assigned to your team — live progress tracking below.'
+    : 'Health check tasks assigned to your role (' + roleLabel(myRole) + ').';
+
+  if (!myTasks.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:52px 20px;color:#aaa">'
+      + '<div style="font-size:40px;margin-bottom:12px">📋</div>'
+      + '<div style="font-size:15px;font-weight:700;color:#555;margin-bottom:6px">' + (isAdmin ? 'No tasks assigned yet' : 'No tasks for you yet') + '</div>'
+      + '<div style="font-size:13px">'
+      + (isAdmin ? 'Use the "Assign Tasks" button above to delegate health check work to your team.' : 'You have no pending health check tasks.')
+      + '</div></div>';
+    return;
+  }
+
+  // Summary bar for admin showing tasks per role
+  var adminBar = '';
+  if (isAdmin) {
+    var byRole = {};
+    myTasks.forEach(function(t) {
+      var r = t.assignedTo || 'unknown';
+      if (!byRole[r]) byRole[r] = { open:0, done:0 };
+      if (t.status === 'done') byRole[r].done++; else byRole[r].open++;
+    });
+    adminBar = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">'
+      + Object.keys(byRole).map(function(r) {
+          var o = byRole[r].open, d = byRole[r].done;
+          return '<div style="background:#f8f8f8;border:1px solid #e5e5e5;border-radius:8px;padding:8px 14px;font-size:12px">'
+            + '<b>' + roleLabel(r) + '</b><br>'
+            + '<span style="color:#dc2626">' + o + ' open</span>'
+            + (d ? ' · <span style="color:#16a34a">' + d + ' done</span>' : '')
+          + '</div>';
+        }).join('')
+    + '</div>';
+  }
+
+  var sevColors = { critical:{bg:'#fef2f2',text:'#991b1b',border:'#fecaca'}, high:{bg:'#fff7ed',text:'#c2410c',border:'#fed7aa'}, medium:{bg:'#fefce8',text:'#854d0e',border:'#fde68a'}, low:{bg:'#f0f9ff',text:'#0369a1',border:'#bae6fd'} };
+
+  var html = myTasks.map(function(task) {
+    var isDone = task.status === 'done';
+    var isDupeTask = task.type === '__dupes';
+    // Resolve current live issues for the client IDs in this task
+    var clientIds = task.clientIds || [];
+    var liveClients = clientIds.map(function(id){ return projects[id]; }).filter(Boolean);
+
+    // Duplicates are not part of hcGetFailures() (that only covers
+    // per-field checks), so they need their own "is this still
+    // unresolved?" computation — otherwise a duplicate task always
+    // reads as 100% done the instant it's assigned, even though
+    // nothing was fixed.
+    var relevantDupeGroups = [];
+    var stillFailing;
+    if (isDupeTask) {
+      var dupes = hcFindDuplicates();
+      var allGroups = dupes.byPhone.map(function(g){ return {group:g, kind:'phone'}; })
+        .concat(dupes.byName.map(function(g){ return {group:g, kind:'name'}; }));
+      var activeIds = {};
+      allGroups.forEach(function(entry) {
+        var touchesTask = entry.group.some(function(p){ return clientIds.indexOf(p.id) !== -1; });
+        if (touchesTask) {
+          relevantDupeGroups.push(entry);
+          entry.group.forEach(function(p){ activeIds[p.id] = true; });
+        }
+      });
+      stillFailing = liveClients.filter(function(p){ return !!activeIds[p.id]; });
+    } else {
+      stillFailing = liveClients.filter(function(p){
+        var failures = hcGetFailures(p);
+        return task.type && task.type !== 'all'
+          ? failures.some(function(f){ return f.type === task.type; })
+          : failures.length > 0;
+      });
+    }
+
+    var doneCount  = task.clientCount - stillFailing.length;
+    var pct = task.clientCount > 0 ? Math.round(doneCount / task.clientCount * 100) : 100;
+    var tileLbl = task.type && task.type !== 'all'
+      ? (HC_TILES.find(function(t){ return t.type === task.type; }) || {label: task.type}).label
+      : 'All Issues';
+    var dateStr = task.assignedAt ? new Date(task.assignedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
+
+    var card = '<div style="background:#fff;border:1px solid '+(isDone?'#d1fae5':'#e5e5e5')+';border-left:4px solid '+(isDone?'#16a34a':'#7c3aed')+';border-radius:10px;padding:14px 16px;margin-bottom:10px;opacity:'+(isDone?'.75':'1')+'">';
+    // Header
+    card += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px">'
+      + '<div style="flex:1">'
+        + '<div style="font-size:13px;font-weight:800;color:#1a1a1a">'
+          + (isDone ? '✅ ' : '📋 ') + tileLbl + (task.stage ? ' · ' + task.stage : '')
+        + '</div>'
+        + '<div style="font-size:11px;color:#888;margin-top:3px">'
+          + 'Assigned by <b>' + (task.assignedBy||'Admin') + '</b> on ' + dateStr
+          + (isAdmin ? ' → <b>' + roleLabel(task.assignedTo) + '</b> role' : '')
+        + '</div>'
+        + (task.note ? '<div style="font-size:12px;color:#555;margin-top:4px;font-style:italic">📝 ' + task.note + '</div>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:6px;flex-shrink:0">'
+        + (!isDone ? '<button class="btn btn-sm" onclick="hcMarkTaskDone(\'' + task.id + '\')" style="background:#dcfce7;color:#16a34a;border-color:#bbf7d0;font-size:11px">✓ Mark Done</button>' : '')
+        + (CU && CU.role === 'superadmin' ? '<button class="btn btn-sm btn-danger" onclick="hcDeleteTask(\'' + task.id + '\')" style="font-size:11px">🗑️</button>' : '')
+      + '</div>'
+    + '</div>';
+
+    // Progress bar
+    card += '<div style="margin-bottom:10px">'
+      + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:4px">'
+        + '<span>Progress</span><span style="font-weight:700;color:'+(pct===100?'#16a34a':'#1a1a1a')+'">'+pct+'% ('+doneCount+' / '+task.clientCount+' fixed)</span>'
+      + '</div>'
+      + '<div style="background:#f0f0f0;border-radius:4px;height:6px;overflow:hidden">'
+        + '<div style="background:'+(pct===100?'#16a34a':'#7c3aed')+';height:100%;width:'+pct+'%;transition:width .4s"></div>'
+      + '</div>'
+    + '</div>';
+
+    // Actual problem detail — what the assignee can actually act on
+    if (!isDone) {
+      if (isDupeTask) {
+        if (relevantDupeGroups.length) {
+          card += '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Duplicate Records To Resolve (' + relevantDupeGroups.length + ' group' + (relevantDupeGroups.length>1?'s':'') + ')</div>'
+            + relevantDupeGroups.map(function(entry) {
+                var mv = entry.kind === 'phone' ? (entry.group[0].phone||'') : entry.group[0].bride;
+                return hcDupCard(entry.group, entry.kind === 'phone' ? 'Duplicate Phone' : 'Duplicate Name', mv, entry.kind);
+              }).join('');
+        } else {
+          card += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;text-align:center;font-size:12px;color:#166534;font-weight:600">✅ No duplicate records left to review — you can mark this done.</div>';
+        }
+      } else if (stillFailing.length) {
+        card += '<div style="background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;padding:10px">'
+          + '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Pending Clients (' + stillFailing.length + ')</div>'
+          + stillFailing.slice(0, 8).map(function(p){
+              var fd = firstEventDate(p)||p.date||'';
+              return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">'
+                + '<div style="font-size:12px;font-weight:600">' + p.bride + ' &amp; ' + p.groom
+                  + (p.refcode ? ' <span style="font-size:10px;color:#6d28d9;font-family:monospace">'+p.refcode+'</span>' : '')
+                + '</div>'
+                + '<div style="display:flex;gap:6px;align-items:center">'
+                  + '<span style="font-size:10px;color:#888">' + (p.city||'') + (fd?' · '+fd:'') + '</span>'
+                  + '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:10px;padding:3px 8px">Open</button>'
+                + '</div>'
+              + '</div>';
+            }).join('')
+          + (stillFailing.length > 8 ? '<div style="font-size:11px;color:#888;padding-top:6px;text-align:center">+' + (stillFailing.length-8) + ' more clients…</div>' : '')
+        + '</div>';
+      }
+    }
+
+    card += '</div>';
+    return card;
+  }).join('');
+
+  listEl.innerHTML = adminBar + html;
+  bindDuplicateListEvents(listEl);
+}
+
+// hcSwitchTab tasks support is now built into the original function above
+
+// hcLoadTasks is called from Firebase init block — see below
 
 
 </script>
