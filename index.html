@@ -1763,6 +1763,105 @@ document.addEventListener('wheel', function(e) {
     </div>
 
     <!-- ══════════════════════════════════════════
+         CLIENT ISSUES HUB PAGE
+    ══════════════════════════════════════════ -->
+    <div id="page-clientissues" class="page">
+      <div class="page-title">🎫 Client Issues Hub</div>
+      <div class="page-sub">All issues raised by clients across every project — tracked, assigned, and resolved in one place.</div>
+      <div style="display:flex;gap:2px;border-bottom:2px solid #e5e5e5;margin-bottom:16px;flex-wrap:wrap">
+        <button class="tab-btn active" id="ci-tab-open-btn" onclick="switchCITab('open')">🔴 Open Issues</button>
+        <button class="tab-btn" id="ci-tab-urgent-btn" onclick="switchCITab('urgent')">🚨 Urgent</button>
+        <button class="tab-btn" id="ci-tab-waiting-btn" onclick="switchCITab('waiting')">⏳ Waiting</button>
+        <button class="tab-btn" id="ci-tab-resolved-btn" onclick="switchCITab('resolved')">✅ Resolved</button>
+        <button class="tab-btn" id="ci-tab-all-btn" onclick="switchCITab('all')">📋 All</button>
+      </div>
+      <div id="ci-metrics" class="metrics" style="margin-bottom:16px"></div>
+      <div id="ci-filter-bar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+        <select id="ci-filter-dept" onchange="renderCIHub()" style="padding:7px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff">
+          <option value="">All Departments</option>
+          <option value="photography">📸 Photography</option>
+          <option value="video">🎥 Video</option>
+          <option value="postprod">🎞️ Post Production</option>
+          <option value="accounts">💳 Accounts / Payments</option>
+          <option value="coordination">📋 Coordination</option>
+          <option value="other">📦 Other</option>
+        </select>
+        <input id="ci-search" oninput="renderCIHub()" placeholder="🔍 Search client name or issue…" style="padding:7px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;flex:1;min-width:180px">
+      </div>
+      <div id="ci-list-container"></div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         CLIENT RELATIONS HUB — Unified Page (v49)
+    ══════════════════════════════════════════ -->
+    <div id="page-clienthub" class="page">
+      <div class="page-title">🎯 Client Relations Hub</div>
+      <div class="page-sub">Priority flags, client issues, and sales escalations — all in one authenticated hub.</div>
+
+      <!-- Hub Tab Bar -->
+      <div style="display:flex;gap:2px;border-bottom:2px solid #e5e5e5;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+        <button class="tab-btn active" id="hub-tab-overview-btn" onclick="switchHubTab('overview')">📊 Overview</button>
+        <button class="tab-btn" id="hub-tab-issues-btn" onclick="switchHubTab('issues')">🎫 Client Issues <span id="hub-issues-badge" style="display:none;background:#ef4444;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;margin-left:4px">0</span></button>
+        <button class="tab-btn" id="hub-tab-vip-btn" onclick="switchHubTab('vip')">⭐ VIP / Premium</button>
+        <button class="tab-btn" id="hub-tab-annoyed-btn" onclick="switchHubTab('annoyed')">😤 Annoyed</button>
+        <button class="tab-btn" id="hub-tab-nr-btn" onclick="switchHubTab('not_responding')">📵 Not Responding</button>
+        <button class="tab-btn" id="hub-tab-esc-btn" onclick="switchHubTab('escalations')" style="display:none">🚨 Escalations</button>
+      </div>
+
+      <!-- OVERVIEW TAB -->
+      <div id="hub-pane-overview">
+        <div class="metrics" id="hub-overview-metrics" style="margin-bottom:16px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="card">
+            <div class="card-hdr"><span class="card-title">🎫 Recent Client Issues</span><button class="btn btn-sm" onclick="switchHubTab('issues')" style="font-size:11px">View All →</button></div>
+            <div id="hub-recent-issues"><div style="text-align:center;padding:20px;color:#aaa;font-size:12px">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-title">🚨 Priority Clients</span><button class="btn btn-sm" onclick="switchHubTab('vip')" style="font-size:11px">View All →</button></div>
+            <div id="hub-recent-priority"><div style="text-align:center;padding:20px;color:#aaa;font-size:12px">Loading…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ISSUES TAB -->
+      <div id="hub-pane-issues" style="display:none">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+          <span style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em">Status:</span>
+          <button class="hub-issue-filter" data-if="open" onclick="hubSetIssueFilter(this,'open')" style="background:#fee2e2;color:#dc2626;border:1.5px solid #fca5a5;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;outline:none">🔴 Open</button>
+          <button class="hub-issue-filter" data-if="urgent" onclick="hubSetIssueFilter(this,'urgent')" style="background:#f8f8f8;color:#b91c1c;border:1.5px solid #ddd;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;outline:none">🚨 Urgent</button>
+          <button class="hub-issue-filter" data-if="waiting" onclick="hubSetIssueFilter(this,'waiting')" style="background:#f8f8f8;color:#92400e;border:1.5px solid #ddd;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;outline:none">⏳ Waiting</button>
+          <button class="hub-issue-filter" data-if="resolved" onclick="hubSetIssueFilter(this,'resolved')" style="background:#f8f8f8;color:#166534;border:1.5px solid #ddd;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;outline:none">✅ Resolved</button>
+          <button class="hub-issue-filter" data-if="all" onclick="hubSetIssueFilter(this,'all')" style="background:#f8f8f8;color:#555;border:1.5px solid #ddd;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;outline:none">📋 All</button>
+        </div>
+        <div class="metrics" id="hub-ci-metrics" style="margin-bottom:14px"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+          <select id="hub-ci-filter-dept" onchange="renderHubIssues()" style="padding:7px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff">
+            <option value="">All Departments</option>
+            <option value="photography">📸 Photography</option>
+            <option value="video">🎥 Video</option>
+            <option value="postprod">🎞️ Post Production</option>
+            <option value="accounts">💳 Accounts / Payments</option>
+            <option value="coordination">📋 Coordination</option>
+            <option value="other">📦 Other</option>
+          </select>
+          <input id="hub-ci-search" oninput="renderHubIssues()" placeholder="🔍 Search client name or issue…" style="padding:7px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;flex:1;min-width:180px">
+        </div>
+        <div id="hub-ci-list-container"></div>
+      </div>
+
+      <!-- PRIORITY PANE (VIP / Annoyed / Not Responding) -->
+      <div id="hub-pane-priority" style="display:none">
+        <div class="metrics" id="hub-priority-metrics" style="margin-bottom:16px"></div>
+        <div id="hub-priority-list-container"></div>
+      </div>
+
+      <!-- ESCALATIONS PANE -->
+      <div id="hub-pane-escalations" style="display:none">
+        <div id="hub-sales-escalation-panel"></div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════
          INVOICE GENERATOR PAGE
     ══════════════════════════════════════════ -->
     <div id="page-invoice" class="page">
@@ -4679,6 +4778,7 @@ function loadAll(){
     }
     buildSidebar(); applyRBAC();
     refresh();
+    setTimeout(updateCIBadge, 2000);
 
     // ── Step 2: Load settings/team/etc in parallel ──
     Promise.all([
@@ -7817,6 +7917,25 @@ function verifyPaymentClosed(notifKey) {
   });
 }
 
+function updateCIBadge() {
+  var badge = document.getElementById('ci-sidebar-badge');
+  if (!badge) return;
+  var projIds = Object.keys(projects || {});
+  if (!projIds.length) return;
+  var openCount = 0;
+  var pending = projIds.length;
+  projIds.forEach(function(pid) {
+    db.ref('crm_client_issues/' + pid).once('value', function(snap) {
+      snap.forEach(function(c) { if (c.val().tag !== 'resolved') openCount++; });
+      pending--;
+      if (pending === 0) {
+        badge.textContent = openCount;
+        badge.style.display = openCount > 0 ? 'inline-flex' : 'none';
+      }
+    }, function() { pending--; if (pending === 0) { badge.textContent = openCount; badge.style.display = openCount > 0 ? 'inline-flex' : 'none'; } });
+  });
+}
+
 function updatePayClosedBadge() {
   var badge = document.getElementById('pay-closed-badge');
   if (!badge) return;
@@ -10424,7 +10543,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','priority','activitylog','healthcheck'],
+    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','activitylog','healthcheck','clienthub'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -10432,7 +10551,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   intern: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','priority','healthcheck'],
+    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','healthcheck','clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -10440,7 +10559,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard','pipeline','projects','postprod','whatsapp','onboarding','calendar','priority','team','healthcheck'],
+    pages: ['dashboard','pipeline','projects','postprod','whatsapp','onboarding','calendar','team','healthcheck','clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -10720,9 +10839,14 @@ function renderPage(name) {
   else if (name === 'datavault') renderDataVault();
   else if (name === 'healthcheck') renderHealthCheck();
   else if (name === 'inventory') { loadAssets(); renderInventory(); }
+  else if (name === 'clientissues') { renderCIHub(); }
+  else if (name === 'clienthub') { switchHubTab(_hubTab || 'overview'); }
 }
 
 function navTo(name) {
+  // Redirect legacy pages to unified Client Relations Hub
+  if (name === 'priority') { name = 'clienthub'; _hubTab = 'vip'; }
+  if (name === 'clientissues') { name = 'clienthub'; _hubTab = 'issues'; }
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   var pg = document.getElementById('page-' + name); if (pg) pg.classList.add('active');
   renderPage(name);
@@ -10815,16 +10939,16 @@ var SIDEBAR_ICON_MAP = {
   payments:'💳', invoice:'🧾', reports:'📈', priority:'🚨',
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
-  healthcheck:'🩺'
+  healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
-  { label:'Overview',          items:['dashboard','reports','priority','healthcheck','onboarding','quotations'] },
+  { label:'Overview',          items:['dashboard','reports','healthcheck','onboarding','quotations'] },
   { label:'Post Productions',  items:['projects','pipeline','postprod'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
-  { label:'Client Relations',  items:['whatsapp','referral','celebrations'] },
+  { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
   { label:'Team & Assets',     items:['team','inventory'] },
   { sep: true },
   { label:'Administration',    items:['settings','users','activitylog'] }
@@ -10894,7 +11018,8 @@ function sidebarPageLabel(page) {
     whatsapp:'WhatsApp', referral:'Referral', celebrations:'Celebrations',
     team:'Team', inventory:'Asset Inventory', settings:'Settings',
     users: (CU && CU.role === 'accounts') ? 'Bank Accounts' : 'Users & Accounts',
-    activitylog:'Activity Log', healthcheck:'Healthcheck'
+    activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
+    clienthub:'Client Relations Hub'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
 }
@@ -10936,6 +11061,10 @@ function buildSidebar() {
         })() : '') +
         ((page === 'users' || page === 'accounts') && CU && (CU.role === 'superadmin' || CU.role === 'admin' || CU.role === 'accounts') ?
           '<span id="pay-closed-badge" style="margin-left:auto;background:#dc2626;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 7px;flex-shrink:0;display:none">0</span>' : '') +
+        (page === 'clientissues' ?
+          '<span id="ci-sidebar-badge" style="margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 7px;flex-shrink:0;display:none">0</span>' : '') +
+        (page === 'clienthub' ?
+          '<span id="clienthub-sidebar-badge" style="margin-left:auto;background:#ef4444;color:#fff;font-size:10px;font-weight:800;border-radius:10px;padding:1px 7px;flex-shrink:0;display:none">0</span>' : '') +
         '</div>';
     });
     html += '</div>';
@@ -13796,7 +13925,7 @@ function quotStatusBadge(s) {
     isSalesperson:true
   };
   ROLE_ACCESS.sales = {
-    pages: ['dashboard','pipeline','projects','quotations','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','priority','activitylog'],
+    pages: ['dashboard','pipeline','projects','quotations','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','activitylog','clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -18039,6 +18168,8 @@ function portalResolveIssue(projId, issueKey) {
   var ta = document.getElementById('res-txt-' + issueKey);
   var res = ta ? ta.value.trim() : '';
   if (!res) { alert('Please type a resolution message for the client before marking as resolved.'); return; }
+  if (res.length < 20) { alert('Resolution must be at least 20 characters. Please provide a proper explanation for the client.'); return; }
+  if (!confirm('Are you sure this issue has been fully resolved? The client will see your resolution message and the issue will be closed.')) return;
   db.ref('crm_client_issues/' + projId + '/' + issueKey).update({
     tag: 'resolved',
     resolution: res,
@@ -18047,13 +18178,218 @@ function portalResolveIssue(projId, issueKey) {
   }, function(err) {
     if (err) { alert('Error: ' + err.message); return; }
     showToast('✅ Issue marked as resolved — client will see the resolution.');
+    // Check if all issues resolved → remove annoyed flag
+    db.ref('crm_client_issues/' + projId).once('value', function(snap) {
+      var allResolved = true;
+      snap.forEach(function(c){ if (c.val().tag !== 'resolved') allResolved = false; });
+      if (allResolved) {
+        db.ref('crm_projects/' + projId).update({ clientFlag: '', flagNote: '' }, function() {
+          showToast('😊 All issues resolved — client flag removed automatically.');
+        });
+      }
+    });
     renderClientIssuesPanel(projId);
+    // Refresh hub if open
+    if (document.getElementById('page-clientissues') && document.getElementById('page-clientissues').classList.contains('active')) {
+      renderCIHub();
+    }
   });
 }
 
 function portalTagIssue(projId, issueKey, newTag) {
   db.ref('crm_client_issues/' + projId + '/' + issueKey).update({ tag: newTag }, function(err) {
     if (!err) { showToast('🏷️ Issue tagged as ' + newTag); renderClientIssuesPanel(projId); }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CLIENT ISSUES HUB — Central visibility page
+// ══════════════════════════════════════════════════════════════════
+var _ciTab = 'open';
+var _ciAllIssues = []; // cached flat list of all issues with project info
+
+function switchCITab(tab) {
+  _ciTab = tab;
+  ['open','urgent','waiting','resolved','all'].forEach(function(t) {
+    var btn = document.getElementById('ci-tab-' + t + '-btn');
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  renderCIHub();
+}
+
+function renderCIHub() {
+  var container = document.getElementById('ci-list-container');
+  var metricsEl = document.getElementById('ci-metrics');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:13px">⏳ Loading all client issues…</div>';
+
+  // Gather all project IDs
+  var projIds = Object.keys(projects || {});
+  if (!projIds.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:13px">No projects found.</div>';
+    return;
+  }
+
+  var allIssues = [];
+  var pending = projIds.length;
+
+  projIds.forEach(function(pid) {
+    db.ref('crm_client_issues/' + pid).orderByChild('raisedAt').once('value', function(snap) {
+      var p = projects[pid];
+      snap.forEach(function(c) {
+        var issue = Object.assign({ _key: c.key, _projId: pid }, c.val());
+        issue._clientName = p ? (p.bride + ' & ' + p.groom) : 'Unknown';
+        issue._refcode = p ? (p.refcode || '') : '';
+        issue._projStage = p ? (p.stage || '') : '';
+        issue._clientPhone = p ? (p.phone || '') : '';
+        allIssues.push(issue);
+      });
+      pending--;
+      if (pending === 0) _ciRenderAll(allIssues, container, metricsEl);
+    }, function() {
+      pending--;
+      if (pending === 0) _ciRenderAll(allIssues, container, metricsEl);
+    });
+  });
+}
+
+function _ciRenderAll(allIssues, container, metricsEl) {
+  _ciAllIssues = allIssues;
+
+  // Sort newest first
+  allIssues.sort(function(a, b) { return (b.raisedAt || 0) - (a.raisedAt || 0); });
+
+  // Metrics
+  var openCount    = allIssues.filter(function(i) { return i.tag !== 'resolved'; }).length;
+  var urgentCount  = allIssues.filter(function(i) { return i.tag === 'urgent'; }).length;
+  var waitingCount = allIssues.filter(function(i) { return i.tag === 'waiting'; }).length;
+  var resolvedCount= allIssues.filter(function(i) { return i.tag === 'resolved'; }).length;
+
+  if (metricsEl) {
+    metricsEl.innerHTML =
+      '<div class="metric" style="border-left:3px solid #ef4444"><div class="ml">🔴 Open</div><div class="mv">' + openCount + '</div><div class="ms">Needs attention</div></div>' +
+      '<div class="metric" style="border-left:3px solid #dc2626"><div class="ml">🚨 Urgent</div><div class="mv">' + urgentCount + '</div><div class="ms">High priority</div></div>' +
+      '<div class="metric" style="border-left:3px solid #d97706"><div class="ml">⏳ Waiting</div><div class="mv">' + waitingCount + '</div><div class="ms">Pending info</div></div>' +
+      '<div class="metric" style="border-left:3px solid #16a34a"><div class="ml">✅ Resolved</div><div class="mv">' + resolvedCount + '</div><div class="ms">Closed issues</div></div>';
+  }
+
+  // Update sidebar badge
+  var badge = document.getElementById('ci-sidebar-badge');
+  if (badge) { badge.textContent = openCount; badge.style.display = openCount > 0 ? '' : 'none'; }
+
+  // Filter by tab
+  var deptFilter   = (document.getElementById('ci-filter-dept') || {}).value || '';
+  var searchFilter = ((document.getElementById('ci-search') || {}).value || '').toLowerCase().trim();
+
+  var filtered = allIssues.filter(function(i) {
+    if (_ciTab === 'open')     { if (i.tag === 'resolved') return false; }
+    else if (_ciTab === 'urgent')   { if (i.tag !== 'urgent') return false; }
+    else if (_ciTab === 'waiting')  { if (i.tag !== 'waiting') return false; }
+    else if (_ciTab === 'resolved') { if (i.tag !== 'resolved') return false; }
+    if (deptFilter && i.dept !== deptFilter) return false;
+    if (searchFilter) {
+      var haystack = ((i._clientName || '') + ' ' + (i.subject || '') + ' ' + (i.description || '') + ' ' + (i._refcode || '')).toLowerCase();
+      if (haystack.indexOf(searchFilter) === -1) return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:14px">✅ No issues in this category right now.</div>';
+    return;
+  }
+
+  var PORTAL_DEPT_MAP = { photography:'📸 Photography', video:'🎥 Video', postprod:'🎞️ Post Production', accounts:'💳 Accounts', coordination:'📋 Coordination', other:'📦 Other' };
+  var isAdmin = CU && (CU.role === 'superadmin' || CU.role === 'admin' || CU.role === 'intern');
+
+  var html = '';
+  filtered.forEach(function(issue) {
+    var tag = portalTagInfo(issue.tag || 'annoyed');
+    var deptLabel = PORTAL_DEPT_MAP[issue.dept] || (issue.dept || 'Unknown');
+    var isResolved = issue.tag === 'resolved';
+
+    // Priority sort indicator
+    var urgentBorder = issue.tag === 'urgent' ? '#dc2626' : issue.tag === 'resolved' ? '#16a34a' : issue.tag === 'waiting' ? '#d97706' : '#ef4444';
+
+    html += '<div style="background:#fff;border-radius:12px;border:1px solid #e5e5e5;border-left:4px solid ' + urgentBorder + ';padding:16px;margin-bottom:12px;' + (isResolved ? 'opacity:.85' : '') + '">' +
+      // Header row
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">' +
+        '<div style="flex:1">' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">' +
+            '<span style="font-size:11px;font-weight:800;color:' + tag.color + ';background:' + tag.bg + ';border:1px solid ' + tag.border + ';padding:2px 10px;border-radius:20px">' + tag.label + '</span>' +
+            '<span style="font-size:11px;background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:20px;font-weight:600">' + deptLabel + '</span>' +
+          '</div>' +
+          '<div style="font-size:14px;font-weight:800;color:#1a1a1a;margin-bottom:2px">' + escHtml(issue.subject || 'Issue') + '</div>' +
+          '<div style="font-size:12px;color:#555;line-height:1.5">' + escHtml(issue.description || '') + '</div>' +
+        '</div>' +
+        '<div style="text-align:right;flex-shrink:0">' +
+          '<div style="font-size:12px;font-weight:700;color:#1a1a1a">' + escHtml(issue._clientName) + '</div>' +
+          (issue._refcode ? '<div style="font-size:10px;color:#7c3aed;font-weight:700;background:#f5f3ff;padding:2px 8px;border-radius:10px;display:inline-block;margin-top:3px">' + issue._refcode + '</div>' : '') +
+          '<div style="font-size:10px;color:#aaa;margin-top:4px">' + portalFmtTime(issue.raisedAt) + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // Open project button
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:' + (isResolved ? '0' : '10px') + '">' +
+        '<button onclick="openProject(' + issue._projId + ',\'t-client-issues\')" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📂 Open Project</button>' +
+        (!isResolved && isAdmin
+          ? '<button onclick="ciTagIssue(\'' + issue._projId + '\',\'' + issue._key + '\',\'urgent\')" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🚨 Urgent</button>' +
+            '<button onclick="ciTagIssue(\'' + issue._projId + '\',\'' + issue._key + '\',\'waiting\')" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">⏳ Waiting</button>'
+          : '') +
+      '</div>' +
+
+      // Resolution area
+      (isResolved && issue.resolution
+        ? '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px">' +
+            '<div style="font-size:10px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">✅ Resolution</div>' +
+            '<div style="font-size:12px;color:#15803d;line-height:1.5">' + escHtml(issue.resolution) + '</div>' +
+            '<div style="font-size:10px;color:#aaa;margin-top:4px">Resolved by ' + escHtml(issue.resolvedBy || 'Team') + ' on ' + portalFmtTime(issue.resolvedAt) + '</div>' +
+          '</div>'
+        : (!isResolved && isAdmin
+          ? '<div style="margin-top:4px">' +
+              '<textarea id="ci-res-' + issue._projId + '-' + issue._key + '" placeholder="Type resolution message for the client (min 20 characters)…" rows="2" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;margin-bottom:8px"></textarea>' +
+              '<button onclick="ciResolveIssue(\'' + issue._projId + '\',\'' + issue._key + '\')" style="width:100%;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">✅ Mark as Resolved</button>' +
+            '</div>'
+          : (!isResolved ? '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e">⏳ Issue is open — awaiting resolution from the relevant department.</div>' : ''))
+      ) +
+    '</div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function ciTagIssue(projId, issueKey, newTag) {
+  db.ref('crm_client_issues/' + projId + '/' + issueKey).update({ tag: newTag }, function(err) {
+    if (!err) { showToast('🏷️ Issue tagged as ' + newTag); renderCIHub(); }
+  });
+}
+
+function ciResolveIssue(projId, issueKey) {
+  var ta = document.getElementById('ci-res-' + projId + '-' + issueKey);
+  var res = ta ? ta.value.trim() : '';
+  if (!res) { alert('Please type a resolution message for the client.'); return; }
+  if (res.length < 20) { alert('Resolution must be at least 20 characters. Please give the client a proper explanation.'); return; }
+  if (!confirm('Mark this issue as resolved? The client will see your resolution message and the issue will be closed.')) return;
+  db.ref('crm_client_issues/' + projId + '/' + issueKey).update({
+    tag: 'resolved',
+    resolution: res,
+    resolvedBy: CU ? (CU.name || CU.username) : 'Team',
+    resolvedAt: Date.now()
+  }, function(err) {
+    if (err) { alert('Error: ' + err.message); return; }
+    showToast('✅ Issue resolved. Client will see the resolution.');
+    // Auto-remove annoyed flag if all issues for that project are resolved
+    db.ref('crm_client_issues/' + projId).once('value', function(snap) {
+      var allResolved = true;
+      snap.forEach(function(c){ if (c.val().tag !== 'resolved') allResolved = false; });
+      if (allResolved) {
+        db.ref('crm_projects/' + projId).update({ clientFlag: '', flagNote: '' }, function() {
+          showToast('😊 All issues resolved — annoyed flag removed!');
+          if (typeof renderPriorityPage === 'function') renderPriorityPage();
+        });
+      }
+    });
+    renderCIHub();
   });
 }
 
@@ -18134,6 +18470,19 @@ function portalSubmitIssue(projId) {
   var issue = { dept: dept, subject: subject, description: desc, tag: 'annoyed', raisedAt: Date.now() };
   db.ref('crm_client_issues/' + projId).push(issue, function(err) {
     if (err) { if (errEl) { errEl.textContent = 'Failed to submit. Please try again.'; errEl.style.display='block'; } return; }
+    // Auto-flag project as annoyed if not already VIP
+    db.ref('crm_projects/' + projId).once('value', function(snap) {
+      var proj = snap.val();
+      if (proj && proj.clientFlag !== 'vip') {
+        var existingNote = proj.flagNote || '';
+        var newNote = ('Issue: ' + subject).substring(0, 80);
+        db.ref('crm_projects/' + projId).update({
+          clientFlag: 'annoyed',
+          flagNote: newNote,
+          lastIssueAt: Date.now()
+        });
+      }
+    });
     // Reset form
     ['pi-dept','pi-subject','pi-desc'].forEach(function(id){ var el=document.getElementById(id); if(el)el.value=''; });
     document.getElementById('portal-issue-form').style.display = 'none';
@@ -20151,6 +20500,405 @@ function hcRenderMyTasks() {
 // hcSwitchTab tasks support is now built into the original function above
 
 // hcLoadTasks is called from Firebase init block — see below
+
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// CLIENT RELATIONS HUB — Unified page logic (v49)
+// ═══════════════════════════════════════════════════════════════════════
+
+var _hubTab = 'overview';
+var _hubIssueFilter = 'open';
+var _hubAllIssues = [];
+
+// Auto-initialise hub overview on first load
+function switchHubTab(tab) {
+  _hubTab = tab;
+  var tabs = ['overview','issues','vip','annoyed','not_responding','escalations'];
+  tabs.forEach(function(t) {
+    var btn = document.getElementById('hub-tab-' + t + '-btn');
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  // Show/hide panes
+  var isIssues = tab === 'issues';
+  var isPrio = (tab === 'vip' || tab === 'annoyed' || tab === 'not_responding');
+  var isEsc = tab === 'escalations';
+  var isOverview = tab === 'overview';
+  document.getElementById('hub-pane-overview').style.display = isOverview ? '' : 'none';
+  document.getElementById('hub-pane-issues').style.display = isIssues ? '' : 'none';
+  document.getElementById('hub-pane-priority').style.display = isPrio ? '' : 'none';
+  document.getElementById('hub-pane-escalations').style.display = isEsc ? '' : 'none';
+
+  // Show escalation tab only to appropriate roles
+  var escBtn = document.getElementById('hub-tab-esc-btn');
+  if (escBtn) {
+    var isSalesOrAdmin = CU && (CU.role === 'superadmin' || CU.role === 'sales' || CU.role === 'admin' || CU.role === 'intern');
+    escBtn.style.display = isSalesOrAdmin ? '' : 'none';
+  }
+
+  if (isOverview) renderHubOverview();
+  if (isIssues) renderHubIssues();
+  if (isPrio) renderHubPriority(tab);
+  if (isEsc) renderHubEscalations();
+}
+
+function renderHubOverview() {
+  var allProjects = Object.values(projects || {});
+  var vipCount = allProjects.filter(function(p) { return p.clientFlag === 'vip'; }).length;
+  var annoyedCount = allProjects.filter(function(p) { return p.clientFlag === 'annoyed'; }).length;
+  var nrCount = allProjects.filter(function(p) { return p.clientFlag === 'not_responding'; }).length;
+
+  var metricsEl = document.getElementById('hub-overview-metrics');
+  if (metricsEl) {
+    metricsEl.innerHTML =
+      '<div class="metric" style="border-left:3px solid #f59e0b;cursor:pointer" onclick="switchHubTab(\'vip\')"><div class="ml">⭐ VIP / Premium</div><div class="mv">' + vipCount + '</div><div class="ms">Priority clients</div></div>' +
+      '<div class="metric" style="border-left:3px solid #ef4444;cursor:pointer" onclick="switchHubTab(\'annoyed\')"><div class="ml">😤 Annoyed</div><div class="mv">' + annoyedCount + '</div><div class="ms">Handle with care</div></div>' +
+      '<div class="metric" style="border-left:3px solid #6b7280;cursor:pointer" onclick="switchHubTab(\'not_responding\')"><div class="ml">📵 Not Responding</div><div class="mv">' + nrCount + '</div><div class="ms">Follow-up needed</div></div>' +
+      '<div class="metric" style="border-left:3px solid #7c3aed;cursor:pointer" onclick="switchHubTab(\'issues\')"><div class="ml">🎫 Open Issues</div><div class="mv" id="hub-overview-open-count">—</div><div class="ms">Client raised</div></div>';
+  }
+
+  // Recent priority clients list
+  var prioEl = document.getElementById('hub-recent-priority');
+  if (prioEl) {
+    var flagged = allProjects.filter(function(p) { return p.clientFlag && p.clientFlag !== ''; })
+      .sort(function(a, b) { var o = {annoyed:0,not_responding:1,vip:2}; return (o[a.clientFlag]||9) - (o[b.clientFlag]||9); })
+      .slice(0, 6);
+    if (!flagged.length) {
+      prioEl.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:12px">✅ No flagged clients right now.</div>';
+    } else {
+      prioEl.innerHTML = flagged.map(function(p) {
+        var icon = p.clientFlag === 'vip' ? '⭐' : p.clientFlag === 'annoyed' ? '😤' : '📵';
+        var col = p.clientFlag === 'vip' ? '#f59e0b' : p.clientFlag === 'annoyed' ? '#ef4444' : '#6b7280';
+        return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="openProject(' + p.id + ')">'
+          + '<span style="font-size:18px;flex-shrink:0">' + icon + '</span>'
+          + '<div style="flex:1">'
+          + '<div style="font-size:12px;font-weight:700;color:#1a1a1a">' + escHtml(p.bride) + ' &amp; ' + escHtml(p.groom) + '</div>'
+          + '<div style="font-size:10px;color:#888">' + (p.city || '') + (p.refcode ? ' · ' + p.refcode : '') + '</div>'
+          + '</div>'
+          + '<span style="font-size:10px;font-weight:700;background:' + col + '20;color:' + col + ';padding:2px 8px;border-radius:10px;border:1px solid ' + col + '40">' + (p.clientFlag === 'not_responding' ? 'Not Responding' : p.clientFlag === 'vip' ? 'VIP' : 'Annoyed') + '</span>'
+        + '</div>';
+      }).join('');
+    }
+  }
+
+  // Recent issues — pull from Firebase
+  var issuesEl = document.getElementById('hub-recent-issues');
+  if (issuesEl) {
+    var projIds = Object.keys(projects || {});
+    if (!projIds.length) { issuesEl.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:12px">No projects.</div>'; return; }
+    var allIssues = [];
+    var pending = projIds.length;
+    projIds.forEach(function(pid) {
+      db.ref('crm_client_issues/' + pid).once('value', function(snap) {
+        var p = projects[pid];
+        snap.forEach(function(c) {
+          var issue = Object.assign({ _key: c.key, _projId: pid }, c.val());
+          issue._clientName = p ? (p.bride + ' & ' + p.groom) : 'Unknown';
+          issue._refcode = p ? (p.refcode || '') : '';
+          allIssues.push(issue);
+        });
+        pending--;
+        if (pending === 0) {
+          allIssues.sort(function(a,b){ return (b.raisedAt||0)-(a.raisedAt||0); });
+          var openIssues = allIssues.filter(function(i){ return i.tag !== 'resolved'; });
+          // Update open count metric
+          var ocEl = document.getElementById('hub-overview-open-count');
+          if (ocEl) ocEl.textContent = openIssues.length;
+          // Update sidebar badge
+          var badge = document.getElementById('ci-sidebar-badge');
+          if (badge) { badge.textContent = openIssues.length; badge.style.display = openIssues.length > 0 ? '' : 'none'; }
+          var hubBadge = document.getElementById('hub-issues-badge');
+          if (hubBadge) { hubBadge.textContent = openIssues.length; hubBadge.style.display = openIssues.length > 0 ? '' : 'none'; }
+          var recent = openIssues.slice(0, 5);
+          if (!recent.length) {
+            issuesEl.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:12px">✅ No open client issues right now.</div>';
+          } else {
+            var PORTAL_DEPT_MAP = { photography:'📸 Photography', video:'🎥 Video', postprod:'🎞️ Post Production', accounts:'💳 Accounts', coordination:'📋 Coordination', other:'📦 Other' };
+            issuesEl.innerHTML = recent.map(function(issue) {
+              var tag = portalTagInfo(issue.tag || 'open');
+              return '<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="openProject(' + issue._projId + ',\'t-client-issues\')">'
+                + '<span style="margin-top:2px;font-size:14px;flex-shrink:0">🎫</span>'
+                + '<div style="flex:1">'
+                + '<div style="font-size:12px;font-weight:700;color:#1a1a1a">' + escHtml(issue.subject || 'Issue') + '</div>'
+                + '<div style="font-size:10px;color:#888">' + escHtml(issue._clientName) + (issue._refcode ? ' · ' + issue._refcode : '') + '</div>'
+                + '</div>'
+                + '<span style="font-size:9px;font-weight:700;background:' + tag.bg + ';color:' + tag.color + ';border:1px solid ' + tag.border + ';padding:2px 7px;border-radius:10px;flex-shrink:0">' + tag.label + '</span>'
+              + '</div>';
+            }).join('');
+          }
+        }
+      }, function() { pending--; if (pending === 0 && !allIssues.length) issuesEl.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:12px">No issues found.</div>'; });
+    });
+  }
+}
+
+function hubSetIssueFilter(btn, filter) {
+  _hubIssueFilter = filter;
+  document.querySelectorAll('.hub-issue-filter').forEach(function(b) {
+    var isActive = b.getAttribute('data-if') === filter;
+    b.style.border = isActive ? '1.5px solid currentColor' : '1.5px solid #ddd';
+    b.style.boxShadow = isActive ? '0 0 0 2px rgba(0,0,0,.08)' : '';
+    b.style.background = isActive ? (
+      filter === 'open' ? '#fee2e2' : filter === 'urgent' ? '#fef2f2' : filter === 'waiting' ? '#fffbeb' : filter === 'resolved' ? '#f0fdf4' : '#f0f0f0'
+    ) : '#f8f8f8';
+  });
+  if (_hubAllIssues.length) {
+    _hubRenderIssueList(_hubAllIssues, document.getElementById('hub-ci-list-container'), document.getElementById('hub-ci-metrics'));
+  } else {
+    renderHubIssues();
+  }
+}
+
+function renderHubIssues() {
+  var container = document.getElementById('hub-ci-list-container');
+  var metricsEl = document.getElementById('hub-ci-metrics');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:13px">⏳ Loading issues…</div>';
+
+  var projIds = Object.keys(projects || {});
+  if (!projIds.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:13px">No projects found.</div>';
+    return;
+  }
+
+  var allIssues = [];
+  var pending = projIds.length;
+  projIds.forEach(function(pid) {
+    db.ref('crm_client_issues/' + pid).orderByChild('raisedAt').once('value', function(snap) {
+      var p = projects[pid];
+      snap.forEach(function(c) {
+        var issue = Object.assign({ _key: c.key, _projId: pid }, c.val());
+        issue._clientName = p ? (p.bride + ' & ' + p.groom) : 'Unknown';
+        issue._refcode = p ? (p.refcode || '') : '';
+        issue._projStage = p ? (p.stage || '') : '';
+        issue._clientPhone = p ? (p.phone || '') : '';
+        allIssues.push(issue);
+      });
+      pending--;
+      if (pending === 0) _hubRenderIssueList(allIssues, container, metricsEl);
+    }, function() {
+      pending--;
+      if (pending === 0) _hubRenderIssueList(allIssues, container, metricsEl);
+    });
+  });
+}
+
+function _hubRenderIssueList(allIssues, container, metricsEl) {
+  _hubAllIssues = allIssues;
+  allIssues.sort(function(a, b) { return (b.raisedAt || 0) - (a.raisedAt || 0); });
+
+  var openCount    = allIssues.filter(function(i) { return i.tag !== 'resolved'; }).length;
+  var urgentCount  = allIssues.filter(function(i) { return i.tag === 'urgent'; }).length;
+  var waitingCount = allIssues.filter(function(i) { return i.tag === 'waiting'; }).length;
+  var resolvedCount= allIssues.filter(function(i) { return i.tag === 'resolved'; }).length;
+
+  if (metricsEl) {
+    metricsEl.innerHTML =
+      '<div class="metric" style="border-left:3px solid #ef4444"><div class="ml">🔴 Open</div><div class="mv">' + openCount + '</div></div>' +
+      '<div class="metric" style="border-left:3px solid #dc2626"><div class="ml">🚨 Urgent</div><div class="mv">' + urgentCount + '</div></div>' +
+      '<div class="metric" style="border-left:3px solid #d97706"><div class="ml">⏳ Waiting</div><div class="mv">' + waitingCount + '</div></div>' +
+      '<div class="metric" style="border-left:3px solid #16a34a"><div class="ml">✅ Resolved</div><div class="mv">' + resolvedCount + '</div></div>';
+  }
+
+  // Update badges
+  var badge = document.getElementById('ci-sidebar-badge');
+  if (badge) { badge.textContent = openCount; badge.style.display = openCount > 0 ? '' : 'none'; }
+  var hubSbBadge = document.getElementById('clienthub-sidebar-badge');
+  if (hubSbBadge) { hubSbBadge.textContent = openCount; hubSbBadge.style.display = openCount > 0 ? '' : 'none'; }
+  var hubBadge = document.getElementById('hub-issues-badge');
+  if (hubBadge) { hubBadge.textContent = openCount; hubBadge.style.display = openCount > 0 ? '' : 'none'; }
+
+  var deptFilter   = (document.getElementById('hub-ci-filter-dept') || {}).value || '';
+  var searchFilter = ((document.getElementById('hub-ci-search') || {}).value || '').toLowerCase().trim();
+
+  var filtered = allIssues.filter(function(i) {
+    if (_hubIssueFilter === 'open')     { if (i.tag === 'resolved') return false; }
+    else if (_hubIssueFilter === 'urgent')   { if (i.tag !== 'urgent') return false; }
+    else if (_hubIssueFilter === 'waiting')  { if (i.tag !== 'waiting') return false; }
+    else if (_hubIssueFilter === 'resolved') { if (i.tag !== 'resolved') return false; }
+    if (deptFilter && i.dept !== deptFilter) return false;
+    if (searchFilter) {
+      var haystack = ((i._clientName || '') + ' ' + (i.subject || '') + ' ' + (i.description || '') + ' ' + (i._refcode || '')).toLowerCase();
+      if (haystack.indexOf(searchFilter) === -1) return false;
+    }
+    return true;
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:14px">✅ No issues in this category right now.</div>';
+    return;
+  }
+
+  var PORTAL_DEPT_MAP = { photography:'📸 Photography', video:'🎥 Video', postprod:'🎞️ Post Production', accounts:'💳 Accounts', coordination:'📋 Coordination', other:'📦 Other' };
+  var isAdmin = CU && (CU.role === 'superadmin' || CU.role === 'admin' || CU.role === 'intern');
+
+  var html = '';
+  filtered.forEach(function(issue) {
+    var tag = portalTagInfo(issue.tag || 'annoyed');
+    var deptLabel = PORTAL_DEPT_MAP[issue.dept] || (issue.dept || 'Unknown');
+    var isResolved = issue.tag === 'resolved';
+    var urgentBorder = issue.tag === 'urgent' ? '#dc2626' : issue.tag === 'resolved' ? '#16a34a' : issue.tag === 'waiting' ? '#d97706' : '#ef4444';
+
+    html += '<div style="background:#fff;border-radius:12px;border:1px solid #e5e5e5;border-left:4px solid ' + urgentBorder + ';padding:16px;margin-bottom:12px;' + (isResolved ? 'opacity:.85' : '') + '">';
+    html += '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">';
+    html += '<div style="flex:1">';
+    html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">';
+    html += '<span style="font-size:11px;font-weight:800;color:' + tag.color + ';background:' + tag.bg + ';border:1px solid ' + tag.border + ';padding:2px 10px;border-radius:20px">' + tag.label + '</span>';
+    html += '<span style="font-size:11px;background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:20px;font-weight:600">' + deptLabel + '</span>';
+    html += '</div>';
+    html += '<div style="font-size:14px;font-weight:800;color:#1a1a1a;margin-bottom:2px">' + escHtml(issue.subject || 'Issue') + '</div>';
+    html += '<div style="font-size:12px;color:#555;line-height:1.5">' + escHtml(issue.description || '') + '</div>';
+    html += '</div>';
+    html += '<div style="text-align:right;flex-shrink:0">';
+    html += '<div style="font-size:12px;font-weight:700;color:#1a1a1a">' + escHtml(issue._clientName) + '</div>';
+    if (issue._refcode) html += '<div style="font-size:10px;color:#7c3aed;font-weight:700;background:#f5f3ff;padding:2px 8px;border-radius:10px;display:inline-block;margin-top:3px">' + issue._refcode + '</div>';
+    html += '<div style="font-size:10px;color:#aaa;margin-top:4px">' + portalFmtTime(issue.raisedAt) + '</div>';
+    html += '</div></div>';
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    html += '<button onclick="openProject(' + issue._projId + ',\'t-client-issues\')" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📂 Open Project</button>';
+    if (!isResolved && isAdmin) {
+      html += '<select onchange="if(this.value){portalTagIssueHub(' + issue._projId + ',\'' + issue._key + '\',this.value);this.value=\'\'}" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer">';
+      html += '<option value="">🏷️ Change Status…</option>';
+      html += '<option value="urgent">🚨 Urgent</option><option value="waiting">⏳ Waiting</option><option value="resolved">✅ Resolved</option><option value="open">🔴 Open</option>';
+      html += '</select>';
+    }
+    html += '</div></div>';
+  });
+  container.innerHTML = html;
+}
+
+function portalTagIssueHub(projId, issueKey, newTag) {
+  db.ref('crm_client_issues/' + projId + '/' + issueKey).update({ tag: newTag }, function(err) {
+    if (!err) { showToast('🏷️ Issue updated to ' + newTag); renderHubIssues(); }
+  });
+}
+
+function renderHubPriority(tab) {
+  var allProjects = Object.values(projects || {});
+  var flagged = allProjects.filter(function(p) { return p.clientFlag && p.clientFlag !== ''; });
+
+  var vipCount     = flagged.filter(function(p) { return p.clientFlag === 'vip'; }).length;
+  var annoyedCount = flagged.filter(function(p) { return p.clientFlag === 'annoyed'; }).length;
+  var nrCount      = flagged.filter(function(p) { return p.clientFlag === 'not_responding'; }).length;
+
+  var metricsEl = document.getElementById('hub-priority-metrics');
+  if (metricsEl) {
+    metricsEl.innerHTML =
+      '<div class="metric" style="border-left:3px solid #f59e0b;cursor:pointer" onclick="switchHubTab(\'vip\')"><div class="ml">⭐ VIP / Premium</div><div class="mv">' + vipCount + '</div></div>' +
+      '<div class="metric" style="border-left:3px solid #ef4444;cursor:pointer" onclick="switchHubTab(\'annoyed\')"><div class="ml">😤 Annoyed</div><div class="mv">' + annoyedCount + '</div></div>' +
+      '<div class="metric" style="border-left:3px solid #6b7280;cursor:pointer" onclick="switchHubTab(\'not_responding\')"><div class="ml">📵 Not Responding</div><div class="mv">' + nrCount + '</div></div>' +
+      '<div class="metric" style="border-left:3px solid #7c3aed"><div class="ml">Total Flagged</div><div class="mv">' + flagged.length + '</div></div>';
+  }
+
+  var list = tab === 'vip' || tab === 'annoyed' || tab === 'not_responding'
+    ? flagged.filter(function(p) { return p.clientFlag === tab; })
+    : flagged;
+
+  var container = document.getElementById('hub-priority-list-container');
+  if (!container) return;
+
+  if (!list.length) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:14px">✅ No clients in this category right now.</div>';
+    return;
+  }
+
+  var canFlag = CU && (CU.role === 'superadmin' || CU.role === 'admin' || CU.role === 'intern');
+  list.sort(function(a, b) {
+    var order = {annoyed:0, not_responding:1, vip:2};
+    return (order[a.clientFlag]||9) - (order[b.clientFlag]||9);
+  });
+
+  var html = '';
+  list.forEach(function(p) {
+    var bal = Math.max(0, balDue(p));
+    var cardClass = p.clientFlag === 'vip' ? 'vip-card' : p.clientFlag === 'annoyed' ? 'annoyed-card' : 'not-responding-card';
+    var bannerClass = p.clientFlag === 'vip' ? 'vip' : p.clientFlag === 'annoyed' ? 'annoyed' : 'not-responding';
+    var bannerIcon = p.clientFlag === 'vip' ? '⭐' : p.clientFlag === 'annoyed' ? '😤' : '📵';
+    var bannerLabel = p.clientFlag === 'vip' ? 'VIP / Premium Client' : p.clientFlag === 'annoyed' ? 'Annoyed Client — Handle with care' : 'Not Responding — Needs follow-up';
+    html += '<div class="priority-list-card ' + cardClass + '">' +
+      '<div class="priority-banner ' + bannerClass + '">' +
+        '<span style="font-size:20px">' + bannerIcon + '</span>' +
+        '<div style="flex:1"><div style="font-weight:800">' + bannerLabel + '</div>' +
+          (p.flagNote ? '<div style="font-size:12px;margin-top:2px;opacity:.8">' + escHtml(p.flagNote) + '</div>' : '') +
+        '</div>' +
+        '<div style="font-size:11px;opacity:.7">' + (p.refcode || '') + '</div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">' +
+        '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Client</div><div style="font-weight:700;font-size:14px">' + escHtml(p.bride) + ' & ' + escHtml(p.groom) + '</div><div style="font-size:12px;color:#555">' + (fieldVisible('phone') ? (p.phone || '') : (p.phone ? MASK_TEXT : '')) + '</div></div>' +
+        '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Stage</div><div>' + stageLabel(p.stage) + '</div><div style="font-size:11px;color:#888">' + (p.city || '') + '</div></div>' +
+        '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Balance Due</div><div style="font-size:16px;font-weight:800;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">' + (bal > 0 ? fmt(bal) : '✓ Paid') + '</div></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button class="btn btn-sm btn-primary" onclick="openProject(' + p.id + ')">📂 Open Project</button>' +
+        (p.clientFlag === 'not_responding' ? '<button class="escalate-btn" onclick="escalateToSalesHead(' + p.id + ')">📲 Escalate to Sales Head</button>' : '') +
+        (canFlag ? '<button class="btn btn-sm" onclick="clearClientFlagHub(' + p.id + ')" style="color:#dc2626;border-color:#fecaca">✕ Remove Flag</button>' : '') +
+      '</div>' +
+    '</div>';
+  });
+  container.innerHTML = html;
+}
+
+function clearClientFlagHub(projId) {
+  if (!confirm('Remove the priority flag from this client?')) return;
+  db.ref('crm_projects/' + projId).update({ clientFlag: '', flagNote: '' }, function() {
+    showToast('✅ Flag removed.');
+    renderHubPriority(_hubTab);
+  });
+}
+
+function renderHubEscalations() {
+  var el = document.getElementById('hub-sales-escalation-panel');
+  if (!el) return;
+  // Reuse existing renderSalesEscalations if it writes to a fixed element
+  // Instead, render inline
+  db.ref('crm_escalations').orderByChild('resolved').equalTo(false).once('value', function(snap) {
+    var rows = [];
+    snap.forEach(function(c) { rows.push([c.key, c.val()]); });
+    rows.sort(function(a,b) { return new Date(b[1].escalatedAt) - new Date(a[1].escalatedAt); });
+
+    if (!rows.length) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:14px">✅ No active escalations. All clients are being handled.</div>';
+      return;
+    }
+
+    var isAdmin = CU && (CU.role === 'superadmin' || CU.role === 'admin');
+    var html = '<div class="card" style="padding:0;overflow:hidden">';
+    html += '<table class="tbl"><thead><tr><th>Client</th><th>Ref Code</th><th>Phone</th><th>Balance Due</th><th>Escalated By</th><th>Date</th><th>Actions</th></tr></thead><tbody>';
+    rows.forEach(function(entry) {
+      var key = entry[0]; var esc = entry[1];
+      var dateStr = esc.escalatedAt ? new Date(esc.escalatedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+      html += '<tr>';
+      html += '<td style="font-weight:700">' + escHtml(esc.clientName || '—') + '</td>';
+      html += '<td><span class="refcode">' + escHtml(esc.refcode || '—') + '</span></td>';
+      html += '<td>' + escHtml(esc.phone || '—') + '</td>';
+      html += '<td style="color:#dc2626;font-weight:700">' + (esc.balance ? fmt(esc.balance) : '—') + '</td>';
+      html += '<td style="font-size:11px;color:#555">' + escHtml(esc.escalatedBy || '—') + '</td>';
+      html += '<td style="font-size:11px;color:#888">' + dateStr + '</td>';
+      html += '<td><div style="display:flex;gap:6px">';
+      html += '<button class="btn btn-sm" onclick="hubResolveEscalation(\'' + key + '\')" style="background:#f0fdf4;color:#16a34a;border-color:#bbf7d0;font-size:11px">✓ Resolve</button>';
+      if (isAdmin) html += '<button class="btn btn-sm btn-danger" onclick="hubDeleteEscalation(\'' + key + '\')" style="font-size:11px">🗑️</button>';
+      html += '</div></td></tr>';
+    });
+    html += '</tbody></table></div>';
+    el.innerHTML = html;
+  });
+}
+
+function hubResolveEscalation(key) {
+  if (!confirm('Mark this escalation as resolved?')) return;
+  db.ref('crm_escalations/' + key).update({ resolved: true, resolvedAt: Date.now(), resolvedBy: CU ? (CU.name||CU.username) : '' }, function() {
+    showToast('✅ Escalation resolved.'); renderHubEscalations();
+  });
+}
+function hubDeleteEscalation(key) {
+  if (!(CU && CU.role === 'superadmin')) { showToast('Only Super Admin can delete escalations.'); return; }
+  if (!confirm('Permanently delete this escalation?')) return;
+  db.ref('crm_escalations/' + key).remove(function() { showToast('🗑️ Deleted.'); renderHubEscalations(); });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// End of Client Relations Hub
+// ═══════════════════════════════════════════════════════════════════════
 
 
 </script>
