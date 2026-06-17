@@ -2488,6 +2488,7 @@ document.addEventListener('wheel', function(e) {
         <button class="tab-btn" data-tab="t-brief">📋 Client Brief</button>
         <button class="tab-btn" data-tab="t-raw">💾 Raw Data</button>
         <button class="tab-btn" data-tab="t-payments">💳 Payments</button>
+        <button class="tab-btn" data-tab="t-client-issues">🚩 Client Issues</button>
         <button class="tab-btn" data-tab="t-docs">📎 Documents</button>
         <button class="tab-btn" data-tab="t-notes">📝 Notes</button>
         <button class="tab-btn" data-tab="t-datalog">🗂️ Data Log</button>
@@ -2723,6 +2724,18 @@ document.addEventListener('wheel', function(e) {
           <button class="btn btn-primary btn-sm" id="btn-upload-doc">📎 Attach Document</button>
         </div>
         <div id="docs-list"></div>
+      </div>
+
+      <div id="t-client-issues" class="tab-pane">
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">🚩 Client Issues</span>
+            <span style="font-size:11px;color:#888">Issues raised by the client via their portal</span>
+          </div>
+          <div id="client-issues-panel-wrap">
+            <div style="color:#aaa;font-size:12px;padding:8px 0;text-align:center">Open a project to see client issues.</div>
+          </div>
+        </div>
       </div>
 
       <div id="t-notes" class="tab-pane">
@@ -4550,7 +4563,7 @@ document.body.addEventListener('click', function(e) {
 })();
 
 document.querySelectorAll('.tab-btn').forEach(function(btn){
-  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);}if(target==='t-docs')renderDocsList();});
+  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);}if(target==='t-docs')renderDocsList();if(target==='t-client-issues'&&editProjId){var wrap=document.getElementById('client-issues-panel-wrap');if(wrap){wrap.innerHTML='<div id="client-issues-panel-'+editProjId+'"><div style="color:#aaa;font-size:12px;padding:20px;text-align:center">Loading…</div></div>';renderClientIssuesPanel(editProjId);}}});
 });
 
 function initUsers(cb){
@@ -4805,16 +4818,14 @@ function renderStageLog() {
   el.innerHTML = log.map(function(e) {
     var d = new Date(e.at);
     var dateStr = fmtDateTime(d.getTime());
-    var isOverride = e.by && e.by.indexOf('Admin Override') !== -1;
-    return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;align-items:flex-start'+(isOverride?';background:#fffbeb;border-radius:6px;padding:8px 10px;margin-bottom:2px':'')+'">'+
-      '<div style="flex-shrink:0;margin-top:2px">'+
-        (isOverride?'<span style="font-size:13px;margin-right:4px" title="Admin Override">⚡</span>':'')+
+    return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;align-items:flex-start">' +
+      '<div style="flex-shrink:0;margin-top:2px">' +
         '<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">' + stageLabel(e.from).replace('Pre-Production','Pre-Prod').replace('Post-Production','Post-Prod') + '</span>' +
         '<span style="color:#aaa;font-size:11px;margin:0 4px">to</span>' +
         '<span style="background:#dcfce7;color:#15803d;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700">' + stageLabel(e.to).replace('Pre-Production','Pre-Prod').replace('Post-Production','Post-Prod') + '</span>' +
       '</div>' +
       '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:11px;color:'+(isOverride?'#92400e':'#555')+';font-weight:'+(isOverride?'600':'400')+'">' + (e.reason || 'Manual update') + '</div>' +
+        '<div style="font-size:11px;color:#555">' + (e.reason || 'Manual update') + '</div>' +
         '<div style="font-size:10px;color:#aaa;margin-top:2px">' + dateStr + ' &middot; ' + (e.by || 'System') + '</div>' +
       '</div>' +
     '</div>';
@@ -7999,65 +8010,6 @@ function validateManualStageChange(currentStage, newStage, p){
   return null;
 }
 
-// ── Admin Stage Override Modal ──────────────────────────────────────────────
-var _pendingOverrideFromStage=null,_pendingOverrideToStage=null;
-
-function showAdminStageOverrideModal(fromStage,toStage,ruleMsg){
-  _pendingOverrideFromStage=fromStage;
-  _pendingOverrideToStage=toStage;
-  var modal=document.getElementById('admin-override-modal');
-  if(!modal){
-    modal=document.createElement('div');
-    modal.id='admin-override-modal';
-    modal.style.cssText='position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)';
-    modal.innerHTML=
-      '<div style="background:#fff;border-radius:14px;padding:24px 28px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.25)">'
-      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
-        +'<div style="width:36px;height:36px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">⚠️</div>'
-        +'<div>'
-          +'<div style="font-size:14px;font-weight:800;color:#1a1a1a">Admin Stage Override</div>'
-          +'<div style="font-size:11px;color:#888;margin-top:1px">This action bypasses a pipeline rule</div>'
-        +'</div>'
-      +'</div>'
-      +'<div id="ao-rule-msg" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e;margin-bottom:14px;line-height:1.5"></div>'
-      +'<div style="margin-bottom:6px">'
-        +'<label style="font-size:12px;font-weight:700;color:#555;display:block;margin-bottom:6px">Reason for override <span style="color:#dc2626">*</span></label>'
-        +'<textarea id="ao-reason" rows="3" placeholder="Enter the reason for manually overriding this pipeline rule…" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;line-height:1.5"></textarea>'
-        +'<div id="ao-reason-err" style="color:#dc2626;font-size:11px;margin-top:3px;display:none">Please enter a reason before proceeding.</div>'
-      +'</div>'
-      +'<div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">'
-        +'<button onclick="closeAdminOverrideModal()" style="padding:9px 18px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:13px;font-family:inherit;cursor:pointer;font-weight:600">Cancel</button>'
-        +'<button onclick="confirmAdminOverride()" style="padding:9px 18px;border:none;border-radius:8px;background:#d97706;color:#fff;font-size:13px;font-family:inherit;cursor:pointer;font-weight:700">⚡ Override &amp; Save</button>'
-      +'</div>'
-    +'</div>';
-    document.body.appendChild(modal);
-  }
-  document.getElementById('ao-rule-msg').textContent=ruleMsg;
-  var ta=document.getElementById('ao-reason');if(ta)ta.value='';
-  var err=document.getElementById('ao-reason-err');if(err)err.style.display='none';
-  modal.style.display='flex';
-}
-
-function closeAdminOverrideModal(){
-  var modal=document.getElementById('admin-override-modal');
-  if(modal)modal.style.display='none';
-  _pendingOverrideFromStage=null;_pendingOverrideToStage=null;
-}
-
-function confirmAdminOverride(){
-  var reason=(document.getElementById('ao-reason')||{}).value||'';
-  if(!reason.trim()){
-    var err=document.getElementById('ao-reason-err');if(err)err.style.display='block';
-    return;
-  }
-  closeAdminOverrideModal();
-  // Proceed with the save, but flag as override so logStageChange gets the rich reason
-  _adminOverridePending={reason:reason.trim(),by:CU?CU.name||CU.username:'Admin',fromStage:_pendingOverrideFromStage,toStage:_pendingOverrideToStage};
-  document.getElementById('btn-save-proj').click();
-}
-
-var _adminOverridePending=null; // set by confirmAdminOverride, consumed in save handler
-
 var _projSaving = false;
 $('btn-save-proj').addEventListener('click',function(){
   if(_projSaving)return;
@@ -8071,20 +8023,12 @@ $('btn-save-proj').addEventListener('click',function(){
   // ── Strict pipeline gate — only applies if user MANUALLY changed the Stage dropdown ──
   // (Production Plan edits, freelancer/team assignment, or a background auto-advance
   //  must NEVER trigger this check — only a deliberate click on the Stage dropdown does.)
-  if(_stageManuallyTouched && !_adminOverridePending){
+  if(_stageManuallyTouched){
     var _exForStage=editProjId?(projects[editProjId]||{}):{};
     var _newStageNow=gv('f-stage');
     if(_newStageNow!==_stageAtModalOpen){
       var _stageErr=validateManualStageChange(_stageAtModalOpen,_newStageNow,_exForStage);
-      if(_stageErr){
-        // Admin (not superadmin) can override with a reason
-        var isAdminRole=CU&&(CU.role==='admin');
-        if(isAdminRole){
-          showAdminStageOverrideModal(_stageAtModalOpen,_newStageNow,_stageErr);
-          return;
-        }
-        alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);return;
-      }
+      if(_stageErr){alert('\u26d4 Pipeline Rule Violation:\n\n'+_stageErr);return;}
     }
   }
   _projSaving=true;
@@ -8114,14 +8058,7 @@ $('btn-save-proj').addEventListener('click',function(){
     $('proj-modal-refcode').innerHTML='<span class="refcode">'+refcode+'</span>';
     sv('f-refcode',refcode);
     var newStage=p.stage;
-    if(newStage!==exStage){
-      if(_adminOverridePending&&_adminOverridePending.toStage===newStage){
-        logStageChange(id,exStage,newStage,'⚡ Admin Override: '+_adminOverridePending.reason,_adminOverridePending.by+' (Admin Override)');
-        _adminOverridePending=null;
-      }else{
-        logStageChange(id,exStage,newStage,'Manual stage update',CU?CU.name||CU.username:'Admin');
-      }
-    } else { _adminOverridePending=null; }
+    if(newStage!==exStage){logStageChange(id,exStage,newStage,'Manual stage update',CU?CU.name||CU.username:'Admin');}
     if(newStage==='complete'&&exStage!=='complete'){firePaymentClosedNotification(id,p,CU?CU.name||CU.username:'Admin');}
     closeModal('proj-modal');
     showToast('Project saved! Code: '+refcode);
@@ -18021,6 +17958,199 @@ function checkClientPortalMode() {
   return true;
 }
 
+// ── Client Portal Issue System ────────────────────────────────────────────────
+var PORTAL_DEPTS = [
+  { key: 'preprod',   label: 'Pre-Production',  icon: '📋', role: 'preprodmanager' },
+  { key: 'production',label: 'Production',       icon: '🎬', role: 'admin' },
+  { key: 'postprod',  label: 'Post-Production',  icon: '🎞️', role: 'postprod' },
+  { key: 'accounts',  label: 'Accounts',         icon: '💳', role: 'accounts' }
+];
+
+var PORTAL_ISSUE_TAGS = [
+  { key: 'annoyed',  label: '😤 Annoyed',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+  { key: 'urgent',   label: '🚨 Urgent',   color: '#d97706', bg: '#fff7ed', border: '#fed7aa' },
+  { key: 'waiting',  label: '⏳ Waiting',  color: '#0369a1', bg: '#e0f2fe', border: '#bae6fd' },
+  { key: 'resolved', label: '✅ Resolved', color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' }
+];
+
+function portalTagInfo(key) {
+  return PORTAL_ISSUE_TAGS.find(function(t){ return t.key===key; }) || PORTAL_ISSUE_TAGS[0];
+}
+
+function portalFmtTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) + ' ' +
+         d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+}
+
+// ── CRM-side: render client issues panel inside a project ─────────────────────
+function renderClientIssuesPanel(projId) {
+  var el = document.getElementById('client-issues-panel-' + projId);
+  if (!el) return;
+  el.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px 0">Loading issues…</div>';
+  db.ref('crm_client_issues/' + projId).orderByChild('raisedAt').once('value', function(snap) {
+    var issues = [];
+    snap.forEach(function(c){ issues.push(Object.assign({_key:c.key}, c.val())); });
+    issues.reverse();
+    if (!issues.length) {
+      el.innerHTML = '<div style="color:#aaa;font-size:12px;padding:8px 0;text-align:center">No issues raised by client yet.</div>';
+      return;
+    }
+    var isAdmin = CU && (CU.role === 'superadmin' || CU.role === 'admin');
+    el.innerHTML = issues.map(function(issue) {
+      var tag = portalTagInfo(issue.tag || 'annoyed');
+      var dept = PORTAL_DEPTS.find(function(d){ return d.key===issue.dept; }) || {};
+      var canResolve = isAdmin || (CU && CU.role === dept.role);
+      var isResolved = issue.tag === 'resolved';
+      return '<div style="border:1px solid '+(isResolved?'#bbf7d0':'#e5e5e5')+';border-left:4px solid '+tag.color+';border-radius:10px;padding:14px 16px;margin-bottom:10px;background:'+(isResolved?'#f0fdf4':'#fff')+'">'
+        + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">'
+          + '<div style="flex:1">'
+            + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">'
+              + '<span style="font-size:11px;font-weight:800;color:'+tag.color+';background:'+tag.bg+';border:1px solid '+tag.border+';padding:2px 10px;border-radius:20px">'+tag.label+'</span>'
+              + '<span style="font-size:11px;background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:20px;font-weight:600">'+(dept.icon||'')+'&nbsp;'+(dept.label||issue.dept)+'</span>'
+            + '</div>'
+            + '<div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:4px">'+escHtml(issue.subject||'Issue')+'</div>'
+            + '<div style="font-size:12px;color:#555;line-height:1.5">'+escHtml(issue.description||'')+'</div>'
+            + '<div style="font-size:10px;color:#aaa;margin-top:6px">Raised on '+portalFmtTime(issue.raisedAt)+'</div>'
+          + '</div>'
+        + '</div>'
+        + (issue.resolution ? '<div style="margin-top:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 12px">'
+            + '<div style="font-size:10px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">✅ Resolution</div>'
+            + '<div style="font-size:12px;color:#15803d;line-height:1.5">'+escHtml(issue.resolution)+'</div>'
+            + '<div style="font-size:10px;color:#aaa;margin-top:4px">Resolved by '+escHtml(issue.resolvedBy||'Team')+' on '+portalFmtTime(issue.resolvedAt)+'</div>'
+          + '</div>' : '')
+        + (!isResolved && canResolve
+          ? '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'
+              + '<textarea id="res-txt-'+issue._key+'" placeholder="Type your resolution for the client…" rows="2" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>'
+              + '<div style="display:flex;gap:8px;width:100%">'
+                + '<button onclick="portalResolveIssue(\''+projId+'\',\''+issue._key+'\')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">✅ Mark Resolved</button>'
+                + '<button onclick="portalTagIssue(\''+projId+'\',\''+issue._key+'\',\'urgent\')" style="background:#fff7ed;color:#d97706;border:1px solid #fed7aa;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🚨 Urgent</button>'
+                + '<button onclick="portalTagIssue(\''+projId+'\',\''+issue._key+'\',\'waiting\')" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">⏳ Waiting</button>'
+              + '</div>'
+            + '</div>'
+          : '')
+        + '</div>';
+    }).join('');
+  });
+}
+
+function portalResolveIssue(projId, issueKey) {
+  var ta = document.getElementById('res-txt-' + issueKey);
+  var res = ta ? ta.value.trim() : '';
+  if (!res) { alert('Please type a resolution message for the client before marking as resolved.'); return; }
+  db.ref('crm_client_issues/' + projId + '/' + issueKey).update({
+    tag: 'resolved',
+    resolution: res,
+    resolvedBy: CU ? (CU.name || CU.username) : 'Team',
+    resolvedAt: Date.now()
+  }, function(err) {
+    if (err) { alert('Error: ' + err.message); return; }
+    showToast('✅ Issue marked as resolved — client will see the resolution.');
+    renderClientIssuesPanel(projId);
+  });
+}
+
+function portalTagIssue(projId, issueKey, newTag) {
+  db.ref('crm_client_issues/' + projId + '/' + issueKey).update({ tag: newTag }, function(err) {
+    if (!err) { showToast('🏷️ Issue tagged as ' + newTag); renderClientIssuesPanel(projId); }
+  });
+}
+
+// ── Portal: render the issue raise form and issue list for client ─────────────
+function portalIssueFormHTML(projId) {
+  var deptOpts = PORTAL_DEPTS.map(function(d){
+    return '<option value="'+d.key+'">'+d.icon+' '+d.label+'</option>';
+  }).join('');
+  return '<div id="portal-issue-form" style="display:none;margin-top:16px;background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:18px">'
+    + '<div style="font-size:13px;font-weight:800;color:#1a1a1a;margin-bottom:12px">🚩 Raise a New Issue</div>'
+    + '<div style="margin-bottom:10px">'
+      + '<label style="font-size:11px;font-weight:700;color:#555;display:block;margin-bottom:5px">Department *</label>'
+      + '<select id="pi-dept" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#fff">'
+        + '<option value="">Select department…</option>' + deptOpts
+      + '</select>'
+    + '</div>'
+    + '<div style="margin-bottom:10px">'
+      + '<label style="font-size:11px;font-weight:700;color:#555;display:block;margin-bottom:5px">Subject *</label>'
+      + '<input id="pi-subject" type="text" placeholder="Brief subject of your issue…" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box">'
+    + '</div>'
+    + '<div style="margin-bottom:14px">'
+      + '<label style="font-size:11px;font-weight:700;color:#555;display:block;margin-bottom:5px">Description *</label>'
+      + '<textarea id="pi-desc" rows="3" placeholder="Describe your issue in detail…" style="width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea>'
+    + '</div>'
+    + '<div id="pi-err" style="color:#dc2626;font-size:12px;margin-bottom:8px;display:none"></div>'
+    + '<div style="display:flex;gap:10px">'
+      + '<button onclick="portalSubmitIssue(\''+projId+'\')" style="flex:1;background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Submit Issue</button>'
+      + '<button onclick="document.getElementById(\'portal-issue-form\').style.display=\'none\'" style="padding:11px 18px;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>'
+    + '</div>'
+  + '</div>';
+}
+
+function portalRenderIssues(projId, issues) {
+  var el = document.getElementById('portal-issues-list');
+  if (!el) return;
+  if (!issues || !issues.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:#aaa;font-size:13px">No issues raised yet. If you have a concern, tap the button above.</div>';
+    return;
+  }
+  el.innerHTML = issues.map(function(issue) {
+    var tag = portalTagInfo(issue.tag || 'annoyed');
+    var dept = PORTAL_DEPTS.find(function(d){ return d.key === issue.dept; }) || {};
+    var isResolved = issue.tag === 'resolved';
+    return '<div style="border:1px solid '+(isResolved?'#bbf7d0':'#e5e7eb')+';border-left:4px solid '+tag.color+';border-radius:12px;padding:14px 16px;margin-bottom:10px;background:'+(isResolved?'#f9fef9':'#fff')+'">'
+      + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px">'
+        + '<div style="flex:1">'
+          + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">'
+            + '<span style="font-size:10px;font-weight:800;color:'+tag.color+';background:'+tag.bg+';border:1px solid '+tag.border+';padding:2px 10px;border-radius:20px">'+tag.label+'</span>'
+            + '<span style="font-size:10px;background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:20px;font-weight:600">'+(dept.icon||'')+' '+(dept.label||issue.dept)+'</span>'
+          + '</div>'
+          + '<div style="font-size:13px;font-weight:700;color:#1a1a1a">'+escHtml(issue.subject||'Issue')+'</div>'
+          + '<div style="font-size:12px;color:#555;margin-top:4px;line-height:1.5">'+escHtml(issue.description||'')+'</div>'
+          + '<div style="font-size:10px;color:#aaa;margin-top:6px">Raised on '+portalFmtTime(issue.raisedAt)+'</div>'
+        + '</div>'
+      + '</div>'
+      + (isResolved && issue.resolution
+        ? '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px">'
+            + '<div style="font-size:10px;font-weight:800;color:#16a34a;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">✅ Resolution from KB Studio</div>'
+            + '<div style="font-size:12px;color:#15803d;line-height:1.6">'+escHtml(issue.resolution)+'</div>'
+            + '<div style="font-size:10px;color:#aaa;margin-top:6px">Resolved on '+portalFmtTime(issue.resolvedAt)+'</div>'
+          + '</div>'
+        : '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12px;color:#92400e">⏳ Your issue has been received and is being reviewed by our team. We\'ll update you here once resolved.</div>'
+      )
+      + '</div>';
+  }).join('');
+}
+
+function portalSubmitIssue(projId) {
+  var dept    = (document.getElementById('pi-dept')    ||{}).value||'';
+  var subject = (document.getElementById('pi-subject') ||{}).value.trim()||'';
+  var desc    = (document.getElementById('pi-desc')    ||{}).value.trim()||'';
+  var errEl   = document.getElementById('pi-err');
+  if (!dept || !subject || !desc) {
+    if (errEl) { errEl.textContent = 'Please fill in all fields before submitting.'; errEl.style.display='block'; }
+    return;
+  }
+  if (errEl) errEl.style.display = 'none';
+  var issue = { dept: dept, subject: subject, description: desc, tag: 'annoyed', raisedAt: Date.now() };
+  db.ref('crm_client_issues/' + projId).push(issue, function(err) {
+    if (err) { if (errEl) { errEl.textContent = 'Failed to submit. Please try again.'; errEl.style.display='block'; } return; }
+    // Reset form
+    ['pi-dept','pi-subject','pi-desc'].forEach(function(id){ var el=document.getElementById(id); if(el)el.value=''; });
+    document.getElementById('portal-issue-form').style.display = 'none';
+    // Reload issues live
+    portalLoadAndRenderIssues(projId);
+  });
+}
+
+function portalLoadAndRenderIssues(projId) {
+  db.ref('crm_client_issues/' + projId).orderByChild('raisedAt').once('value', function(snap) {
+    var issues = [];
+    snap.forEach(function(c){ issues.push(Object.assign({_key:c.key}, c.val())); });
+    issues.reverse();
+    portalRenderIssues(projId, issues);
+  });
+}
+
 function renderClientPortal(container, p, projId) {
   var delivs = p.customDelivs || [];
   var paid = (p.payLedger || []).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0);
@@ -18028,74 +18158,114 @@ function renderClientPortal(container, p, projId) {
   var bal = Math.max(0, net - paid);
   var stage = p.stage || 'preprod';
   var stageNames = { preprod: 'Pre-Production', production: 'Production', postprod: 'Post-Production', delivery: 'Delivery', payment: 'Payment Pending', complete: 'Complete ✅' };
+  var stageIcons = { preprod: '📋', production: '🎬', postprod: '🎞️', delivery: '📦', payment: '💳', complete: '✅' };
+  var stageDesc  = { preprod: 'We are planning your event coverage.', production: 'Your event is being actively shot.', postprod: 'Your footage is in editing & post-production.', delivery: 'Your files are ready for delivery.', payment: 'Final payment confirmation pending.', complete: 'Your project is complete!' };
   var stageOrder = ['preprod', 'production', 'postprod', 'delivery', 'payment', 'complete'];
   var stageIdx = stageOrder.indexOf(stage);
   var health = calcHealthScore(p);
 
+  // ── Stage progress bar ─────────────────────────────────────────────────────
+  var pct = Math.round(((stageIdx + 1) / stageOrder.length) * 100);
   var stepsHTML = stageOrder.map(function(s, i) {
-    var done = i <= stageIdx;
-    var cur = s === stage;
-    return '<div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative">' +
-      (i > 0 ? '<div style="position:absolute;top:14px;right:50%;width:100%;height:2px;background:' + (i <= stageIdx ? '#22c55e' : '#e5e7eb') + '"></div>' : '') +
-      '<div style="width:28px;height:28px;border-radius:50%;background:' + (cur ? '#1d4ed8' : done ? '#22c55e' : '#e5e7eb') + ';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;position:relative;z-index:1">' + (done && !cur ? '✓' : (i + 1)) + '</div>' +
-      '<div style="font-size:9px;margin-top:4px;text-align:center;color:' + (cur ? '#1d4ed8' : done ? '#16a34a' : '#94a3b8') + ';font-weight:' + (cur ? '700' : '500') + '">' + stageNames[s].replace(' ✅', '') + '</div></div>';
+    var done = i < stageIdx;
+    var cur  = s === stage;
+    var upcoming = i > stageIdx;
+    return '<div style="display:flex;flex-direction:column;align-items:center;flex:1;position:relative">'
+      + (i > 0 ? '<div style="position:absolute;top:15px;right:50%;width:100%;height:2px;background:'+(done||cur?'#22c55e':'rgba(255,255,255,.15)')+';z-index:0"></div>' : '')
+      + '<div style="width:30px;height:30px;border-radius:50%;background:'+(cur?'#fff':done?'#22c55e':'rgba(255,255,255,.1)')+';display:flex;align-items:center;justify-content:center;font-size:'+(done?'13px':'11px')+';font-weight:800;color:'+(cur?'#1a1a1a':done?'#fff':'rgba(255,255,255,.3)')+';position:relative;z-index:1;flex-shrink:0;border:'+(cur?'3px solid #22c55e':'none')+'">'+(done?'✓':stageIcons[s])+'</div>'
+      + '<div style="font-size:8px;margin-top:5px;text-align:center;color:'+(cur?'#fff':done?'#86efac':'rgba(255,255,255,.3)')+';font-weight:'+(cur?'800':'500')+';white-space:nowrap">'+stageNames[s].replace('Pre-Production','Pre-Prod').replace('Post-Production','Post-Prod').replace('Payment Pending','Payment')+'</div>'
+      + '</div>';
   }).join('');
 
+  // ── What's happening now card ──────────────────────────────────────────────
+  var nowHTML = '<div style="background:rgba(255,255,255,.08);border-radius:10px;padding:14px 16px;margin-top:14px;display:flex;align-items:center;gap:12px">'
+    + '<div style="font-size:26px">' + stageIcons[stage] + '</div>'
+    + '<div><div style="color:#fff;font-size:13px;font-weight:700">Currently: ' + stageNames[stage] + '</div>'
+    + '<div style="color:rgba(255,255,255,.55);font-size:12px;margin-top:2px">' + stageDesc[stage] + '</div>'
+    + (p.deliveryDate ? '<div style="color:#86efac;font-size:11px;font-weight:700;margin-top:4px">📅 Expected Delivery: ' + p.deliveryDate + '</div>' : '')
+    + '</div></div>';
+
+  // ── Deliverables ───────────────────────────────────────────────────────────
   var delivsHTML = delivs.length ? delivs.map(function(d) {
-    var ks = delivToKanban(d);
     var statusColor = d.status === 'delivered' ? '#16a34a' : d.status === 'review' ? '#d97706' : '#94a3b8';
-    var statusLabel = d.status === 'delivered' ? '✅ Delivered' : ks === 'client_review' ? '👁️ Awaiting Your Review' : ks === 'revision' ? '🔄 In Revision' : ks === 'internal_review' ? '🔍 Internal Review' : ks === 'editing' ? '🎬 Editing' : '⏳ Queued';
+    var statusLabel = d.status === 'delivered' ? '✅ Delivered' : d.status === 'client_review' ? '👁️ Awaiting Your Review' : d.status === 'revision' ? '🔄 In Revision' : d.status === 'inprogress' ? '🎬 In Progress' : '⏳ Queued';
     var revCount = d.revisionCount || 0;
-    return '<div style="background:#fff;border-radius:12px;border:1px solid #e5e7eb;padding:14px;margin-bottom:10px">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
-      '<div><div style="font-size:14px;font-weight:700">' + escHtml(d.name || d.type || 'Deliverable') + '</div>' +
-      '<div style="font-size:11px;color:#888;margin-top:2px">' + escHtml(d.category || '') + (d.specs ? ' · ' + escHtml(d.specs) : '') + '</div></div>' +
-      '<span style="font-size:11px;font-weight:700;color:' + statusColor + ';background:' + statusColor + '18;padding:4px 12px;border-radius:20px">' + statusLabel + '</span>' +
-      '</div>' +
-      (d.link ? '<div style="margin-top:10px"><a href="' + (d.link.startsWith('http')?d.link:'#') + '" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;text-decoration:none">🔗 Open ' + (d.name || 'Delivery File') + ' ↗</a></div>' : '') +
-      (revCount > 0 ? '<div style="font-size:11px;color:#d97706;margin-top:6px">🔄 ' + revCount + ' revision round' + (revCount > 1 ? 's' : '') + ' completed</div>' : '') +
-      (ks === 'client_review' ? '<div style="margin-top:10px;display:flex;gap:8px">' +
-        '<button onclick="clientApproveDeliverable(\'' + projId + '\',\'' + d.id + '\')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">✅ Approve</button>' +
-        '<button onclick="clientRequestRevision(\'' + projId + '\',\'' + d.id + '\')" style="flex:1;background:#f8f8f8;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">🔄 Request Revision</button>' +
-        '</div>' : '') +
-      '</div>';
-  }).join('') : '<div style="text-align:center;padding:24px;color:#aaa;font-size:13px">📦 Deliverables will appear here once your project begins post-production.</div>';
+    return '<div style="background:#f8fafc;border-radius:10px;border:1px solid #e5e7eb;padding:13px;margin-bottom:8px">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
+        + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#1a1a1a">'+escHtml(d.name||d.type||'Deliverable')+'</div>'
+          + (d.category ? '<div style="font-size:11px;color:#888;margin-top:2px">'+escHtml(d.category)+(d.specs?' · '+escHtml(d.specs):'')+'</div>' : '')
+        + '</div>'
+        + '<span style="font-size:11px;font-weight:700;color:'+statusColor+';background:'+statusColor+'18;padding:4px 12px;border-radius:20px;white-space:nowrap">'+statusLabel+'</span>'
+      + '</div>'
+      + (d.link ? '<div style="margin-top:10px"><a href="'+(d.link.startsWith('http')?d.link:'#')+'" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:7px;padding:7px 13px;font-size:12px;font-weight:700;text-decoration:none">🔗 Open File ↗</a></div>' : '')
+      + (revCount > 0 ? '<div style="font-size:11px;color:#d97706;margin-top:6px">🔄 '+revCount+' revision round'+(revCount>1?'s':'')+' completed</div>' : '')
+      + (d.status==='client_review' ? '<div style="margin-top:10px;display:flex;gap:8px">'
+          + '<button onclick="clientApproveDeliverable(\''+projId+'\',\''+d.id+'\')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">✅ Approve</button>'
+          + '<button onclick="clientRequestRevision(\''+projId+'\',\''+d.id+'\')" style="flex:1;background:#f8f8f8;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">🔄 Request Revision</button>'
+          + '</div>' : '')
+      + '</div>';
+  }).join('') : '<div style="text-align:center;padding:20px;color:#aaa;font-size:13px">📦 Deliverables will appear here once your project enters post-production.</div>';
 
-  var paymentsHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">' +
-    '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:4px">Total</div><div style="font-size:18px;font-weight:800;color:#1a1a1a">₹' + net.toLocaleString('en-IN') + '</div></div>' +
-    '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:4px">Paid</div><div style="font-size:18px;font-weight:800;color:#16a34a">₹' + paid.toLocaleString('en-IN') + '</div></div>' +
-    '<div style="background:' + (bal > 0 ? '#fef2f2' : '#f0fdf4') + ';border:1px solid ' + (bal > 0 ? '#fecaca' : '#bbf7d0') + ';border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:4px">Balance</div><div style="font-size:18px;font-weight:800;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">₹' + bal.toLocaleString('en-IN') + '</div></div>' +
-    '</div>';
+  // ── Payment ────────────────────────────────────────────────────────────────
+  var paymentsHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
+    + '<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:3px;font-weight:600">Total Value</div><div style="font-size:17px;font-weight:800;color:#1a1a1a">₹'+net.toLocaleString('en-IN')+'</div></div>'
+    + '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:3px;font-weight:600">Paid</div><div style="font-size:17px;font-weight:800;color:#16a34a">₹'+paid.toLocaleString('en-IN')+'</div></div>'
+    + '<div style="background:'+(bal>0?'#fef2f2':'#f0fdf4')+';border:1px solid '+(bal>0?'#fecaca':'#bbf7d0')+';border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:3px;font-weight:600">Balance</div><div style="font-size:17px;font-weight:800;color:'+(bal>0?'#dc2626':'#16a34a')+'">₹'+bal.toLocaleString('en-IN')+'</div></div>'
+    + '</div>';
 
+  // ── Issues section ─────────────────────────────────────────────────────────
+  var issuesSectionHTML = '<div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.06)">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
+      + '<div style="font-size:14px;font-weight:800">🚩 Raise an Issue</div>'
+      + '<button onclick="document.getElementById(\'portal-issue-form\').style.display=(document.getElementById(\'portal-issue-form\').style.display===\'none\'?\'\':\'none\')" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">+ New Issue</button>'
+    + '</div>'
+    + '<div style="font-size:12px;color:#888;margin-bottom:12px">Have a concern or need something addressed? Raise it here and our team will respond directly on this page.</div>'
+    + portalIssueFormHTML(projId)
+    + '<div id="portal-issues-list"><div style="text-align:center;padding:20px;color:#aaa;font-size:13px">Loading your issues…</div></div>'
+  + '</div>';
+
+  // ── Full page render ───────────────────────────────────────────────────────
   container.innerHTML =
-    '<div style="max-width:680px;margin:0 auto;padding:20px 16px 40px">' +
+    '<div style="max-width:680px;margin:0 auto;padding:20px 16px 60px">'
     // Header
-    '<div style="background:#1a1a1a;border-radius:16px;padding:24px;margin-bottom:20px;position:relative;overflow:hidden">' +
-    '<div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:rgba(255,255,255,.03);border-radius:50%"></div>' +
-    '<div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">' +
-    '<div style="width:52px;height:52px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#1a1a1a;flex-shrink:0">KB</div>' +
-    '<div><div style="color:#fff;font-size:18px;font-weight:800">' + escHtml(p.bride) + ' & ' + escHtml(p.groom) + '</div>' +
-    '<div style="color:#888;font-size:12px">Client Portal · KB Studio Productions</div></div>' +
-    healthRingHTML(health, 44) +
-    '</div>' +
-    '<div style="background:rgba(255,255,255,.06);border-radius:10px;padding:14px">' +
-    '<div style="display:flex;position:relative">' + stepsHTML + '</div>' +
-    '</div></div>' +
+    + '<div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:18px;padding:24px;margin-bottom:18px;position:relative;overflow:hidden">'
+      + '<div style="position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:rgba(255,255,255,.03);border-radius:50%"></div>'
+      + '<div style="position:absolute;bottom:-30px;left:-20px;width:100px;height:100px;background:rgba(255,255,255,.02);border-radius:50%"></div>'
+      + '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;position:relative">'
+        + '<div style="width:48px;height:48px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#1a1a1a;flex-shrink:0">KB</div>'
+        + '<div style="flex:1"><div style="color:#fff;font-size:17px;font-weight:800">'+escHtml(p.bride)+' & '+escHtml(p.groom)+'</div>'
+          + (p.refcode ? '<div style="color:rgba(255,255,255,.45);font-size:11px;margin-top:1px;font-family:monospace">'+escHtml(p.refcode)+'</div>' : '')
+        + '</div>'
+        + healthRingHTML(health, 42)
+      + '</div>'
+      + '<div style="position:relative">'
+        + '<div style="display:flex;position:relative;margin-bottom:10px">' + stepsHTML + '</div>'
+      + '</div>'
+      + nowHTML
+    + '</div>'
     // Deliverables
-    '<div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.06)">' +
-    '<div style="font-size:14px;font-weight:800;margin-bottom:14px">📦 Your Deliverables</div>' +
-    delivsHTML + '</div>' +
+    + '<div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.06)">'
+      + '<div style="font-size:14px;font-weight:800;margin-bottom:14px">📦 Your Deliverables</div>'
+      + delivsHTML
+    + '</div>'
     // Payment
-    '<div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.06)">' +
-    '<div style="font-size:14px;font-weight:800;margin-bottom:14px">💳 Payment Summary</div>' +
-    paymentsHTML + '</div>' +
+    + '<div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.06)">'
+      + '<div style="font-size:14px;font-weight:800;margin-bottom:14px">💳 Payment Summary</div>'
+      + paymentsHTML
+    + '</div>'
     // Drive Links
-    (p.driveLinks ? '<div style="background:#fff;border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.06)">' +
-    '<div style="font-size:14px;font-weight:800;margin-bottom:14px">🔗 Shared Folders</div>' +
-    '<a href="' + p.driveLinks + '" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none">📁 Open Shared Folder ↗</a></div>' : '') +
+    + (p.driveLinks ? '<div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.06)">'
+      + '<div style="font-size:14px;font-weight:800;margin-bottom:14px">🔗 Shared Folders</div>'
+      + '<a href="'+p.driveLinks+'" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;text-decoration:none">📁 Open Shared Folder ↗</a>'
+      + '</div>' : '')
+    // Issues
+    + issuesSectionHTML
     // Footer
-    '<div style="text-align:center;margin-top:24px;color:#888;font-size:12px">Read-only view · Powered by KB Studio Productions</div>' +
-    '</div>';
+    + '<div style="text-align:center;margin-top:8px;color:#888;font-size:11px">KB Studio Productions · Client Portal · Read-only project view</div>'
+    + '</div>';
+
+  // Live-load issues after DOM is set
+  portalLoadAndRenderIssues(projId);
 }
 
 function clientApproveDeliverable(projId, delivId) {
