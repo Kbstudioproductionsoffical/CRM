@@ -9778,19 +9778,19 @@ var HC_CHECKS = [
     type: 'payment', key: 'complete_with_balance',
     label: 'Marked Complete but balance still due', icon: '🚨', severity: 'critical',
     test: function(p){ return p.stage==='complete' && netVal(p)>0 && balDue(p)>0; },
-    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#991b1b">Balance ₹'+fmt(balDue(p))+' still due — collect payment or revert stage.</span>'; }
+    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#991b1b">Balance ₹'+fmt(balDue(p))+' still due — collect payment or revert stage. </span><button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px;margin-left:6px">Open Payments Tab</button>'; }
   },
   {
     type: 'payment', key: 'excess_payment',
     label: 'Excess payment received', icon: '⚠️', severity: 'high',
     test: function(p){ return netVal(p)>0 && paidTotal(p) > netVal(p); },
-    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#c2410c">Over-received by ₹'+fmt(paidTotal(p)-netVal(p))+'. Verify contract value or issue refund.</span>'; }
+    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#c2410c">Over-received by ₹'+fmt(paidTotal(p)-netVal(p))+'. Verify contract value or issue refund. </span><button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px;margin-left:6px">Open Payments Tab</button>'; }
   },
   {
     type: 'payment', key: 'no_advance',
     label: 'No advance recorded (past Pre-Prod)', icon: '💰', severity: 'high',
     test: function(p){ return netVal(p)>0 && paidTotal(p)===0 && p.stage!=='preprod'; },
-    field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open Payments Tab</button>'; }
+    field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px">Open Payments Tab</button>'; }
   },
   {
     type: 'payment', key: 'value_zero',
@@ -9799,13 +9799,6 @@ var HC_CHECKS = [
     field: 'value',
     inputHtml: function(p){ return '<input type="number" placeholder="Enter contract value ₹" class="hc-inline-input" data-field="value" data-id="'+p.id+'" value="0" min="0">'; }
   },
-  {
-    type: 'payment', key: 'postprod_balance',
-    label: 'Balance due but in POST-PROD/Delivered', icon: '📛', severity: 'high',
-    test: function(p){ return (p.stage==='postprod'||p.stage==='delivered') && balDue(p)>0; },
-    field: null, inputHtml: function(p){ return '<span style="font-size:11px;color:#c2410c">₹'+fmt(balDue(p))+' pending. Chase payment before delivery.</span>'; }
-  },
-
   // ── DATES ─────────────────────────────────────────────────────────
   {
     type: 'eventdate', key: 'no_event_date',
@@ -10283,9 +10276,13 @@ function hcDeleteDupe(id, name) {
 // Reads every inline-edit box inside that client's card, skips any left
 // blank (so an untouched field is never overwritten with an empty value),
 // and writes the rest together in one update() call.
-function hcSaveCardFields(projId) {
+// containerId is optional — defaults to the original "hc-fields-<id>" so
+// every existing call site keeps working unchanged. The "My Tasks" view
+// passes its own unique container id (one client can appear inside more
+// than one assigned task, so ids must not collide between cards).
+function hcSaveCardFields(projId, containerId) {
   var p = projects[projId]; if (!p) return;
-  var container = document.getElementById('hc-fields-'+projId);
+  var container = document.getElementById(containerId || ('hc-fields-'+projId));
   if (!container) return;
   var inputs = container.querySelectorAll('.hc-inline-input');
   var upd = {}, count = 0;
@@ -10303,10 +10300,21 @@ function hcSaveCardFields(projId) {
     if (err) { showToast('❌ Save failed: '+err.message); return; }
     Object.keys(upd).forEach(function(f){ if (f !== 'updatedAt') projects[projId][f] = upd[f]; });
     showToast('✅ Saved ' + count + ' field' + (count > 1 ? 's' : '') + ' — ' + p.bride + ' & ' + p.groom);
-    // Re-render tiles to update counts (debounced)
+    // Re-render tiles to update counts (debounced) — this is what makes the
+    // progress bar / percentage move the instant a fix is saved.
     clearTimeout(hcSaveCardFields._t);
     hcSaveCardFields._t = setTimeout(function(){ renderHealthCheck(); }, 600);
   });
+}
+
+// ── Make sure the inline-edit input styling exists no matter which Health
+//    Check tab rendered first (Issues & Gaps vs My Tasks). ───────────────
+function hcEnsureInputStyle() {
+  if (document.getElementById('hc-input-style')) return;
+  var style = document.createElement('style');
+  style.id = 'hc-input-style';
+  style.textContent = '.hc-inline-input{padding:6px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:12px;font-family:inherit;background:#fff;min-width:140px;transition:border-color .15s}.hc-inline-input:focus{outline:none;border-color:#1a1a1a}.hc-inline-input:hover{border-color:#999}';
+  document.head.appendChild(style);
 }
 
 // ── Attach the single Save-button listener for each client card ──────
@@ -10320,11 +10328,13 @@ function hcBindInlineEdits() {
     if (btn._hcBound) return;
     btn._hcBound = true;
     btn.addEventListener('click', function() {
-      hcSaveCardFields(parseInt(this.getAttribute('data-id')));
+      hcSaveCardFields(parseInt(this.getAttribute('data-id'), 10), this.getAttribute('data-container'));
     });
   });
   // Pressing Enter inside any field in a card clicks that card's single
   // Save button (still an explicit, deliberate action — not auto-save).
+  // Scoped via the nearest [data-hc-card] wrapper so it still works when
+  // the same client appears inside more than one card on screen at once.
   document.querySelectorAll('.hc-inline-input').forEach(function(el) {
     if (el._hcBound) return;
     el._hcBound = true;
@@ -10332,11 +10342,81 @@ function hcBindInlineEdits() {
     el.addEventListener('keydown', function(e) {
       if (e.key !== 'Enter') return;
       e.preventDefault();
-      var id = el.getAttribute('data-id');
-      var btn = document.querySelector('.hc-save-card-btn[data-id="'+id+'"]');
+      var card = el.closest('[data-hc-card]');
+      var btn = card ? card.querySelector('.hc-save-card-btn') : null;
       if (btn) btn.click();
     });
   });
+}
+
+// ── Shared "client + fixable fields" card, reused by both the Super
+//    Admin "Issues & Gaps" browser and the "My Tasks" view, so every role
+//    gets the same inline-edit-and-save experience instead of just a name
+//    and an "Open" button. idSuffix must be unique per card on screen
+//    (a client can legitimately appear in more than one assigned task).
+function hcRenderFailureCard(p, failures, idSuffix) {
+  if (!failures || !failures.length) return '';
+  var sevRankLocal = { critical:0, high:1, medium:2, low:3 };
+  var sevColorsLocal = {
+    critical: { bg:'#fef2f2', text:'#991b1b', border:'#fecaca' },
+    high:     { bg:'#fff7ed', text:'#c2410c', border:'#fed7aa' },
+    medium:   { bg:'#fefce8', text:'#854d0e', border:'#fde68a' },
+    low:      { bg:'#f0f9ff', text:'#0369a1', border:'#bae6fd' }
+  };
+  var topSev = failures.reduce(function(best, f){ return sevRankLocal[f.severity] < sevRankLocal[best] ? f.severity : best; }, 'low');
+  var sc = sevColorsLocal[topSev];
+  var fd = firstEventDate(p) || '—';
+  var searchKey = ((p.bride||'')+' '+(p.groom||'')+' '+(p.refcode||'')).replace(/"/g,'');
+  var fieldsContainerId = 'hc-fields-' + idSuffix;
+
+  var cardHtml = '<div data-hc-card="'+idSuffix+'" data-search="'+searchKey+'" style="background:#fff;border:1px solid '+(topSev==='critical'||topSev==='high'?sc.border:'#e5e5e5')+';border-left:4px solid '+sc.border+';border-radius:10px;padding:0;margin-bottom:10px;overflow:hidden">';
+
+  cardHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #f5f5f5;gap:12px">'
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:14px;font-weight:800">'+p.bride+' &amp; '+p.groom+'</div>'
+      +'<div style="font-size:11px;color:#888;margin-top:2px">'
+        +(p.refcode?'<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">'+p.refcode+'</span>':'')
+        +(p.city?p.city+' · ':'')
+        +fd
+      +'</div>'
+    +'</div>'
+    +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
+      +stageBadge(p.stage)
+      +'<button class="btn btn-primary btn-sm" onclick="openProject('+p.id+')" style="font-size:11px;padding:4px 10px">Open</button>'
+    +'</div>'
+  +'</div>';
+
+  var hasEditableField = failures.some(function(chk){ return !!chk.field; });
+  cardHtml += '<div id="'+fieldsContainerId+'" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">';
+  failures.forEach(function(chk) {
+    var sc2 = sevColorsLocal[chk.severity];
+    cardHtml += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;min-width:200px">'
+        +'<span style="background:'+sc2.bg+';color:'+sc2.text+';border:1px solid '+sc2.border+';border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;white-space:nowrap">'
+          +chk.icon+' '+chk.label
+        +'</span>'
+      +'</div>'
+      +(chk.inputHtml ? '<div style="flex:1;min-width:160px">'+chk.inputHtml(p)+'</div>' : '')
+    +'</div>';
+  });
+  cardHtml += '</div>';
+
+  if (hasEditableField) {
+    cardHtml += '<div style="padding:0 16px 14px">'
+      +'<button type="button" class="btn btn-primary hc-save-card-btn" data-id="'+p.id+'" data-container="'+fieldsContainerId+'" style="width:100%;justify-content:center;font-size:12px;padding:9px 14px;border-radius:8px">💾 Save All Changes</button>'
+    +'</div>';
+  }
+
+  if (netVal(p) > 0) {
+    cardHtml += '<div style="padding:8px 16px;background:#fafafa;border-top:1px solid #f0f0f0;font-size:11px;color:#888;display:flex;gap:16px">'
+      +'<span>Net: <b style="color:#1a1a1a">₹'+fmt(netVal(p))+'</b></span>'
+      +'<span>Paid: <b style="color:#16a34a">₹'+fmt(paidTotal(p))+'</b></span>'
+      +'<span>Balance: <b style="color:'+(balDue(p)>0?'#dc2626':'#16a34a')+'">₹'+fmt(balDue(p))+'</b></span>'
+    +'</div>';
+  }
+
+  cardHtml += '</div>';
+  return cardHtml;
 }
 
 // ── Health Check role gate ──────────────────────────────────────────
@@ -10539,77 +10619,13 @@ function renderHealthCheck() {
   }
 
   var html = rows.map(function(row) {
-    var p = row.p;
-    var topSev = row.failures.reduce(function(best, f){ return sevRank[f.severity] < sevRank[best] ? f.severity : best; }, 'low');
-    var sc = sevColors[topSev];
-    var fd = firstEventDate(p) || '—';
-
-    var cardHtml = '<div style="background:#fff;border:1px solid '+(topSev==='critical'||topSev==='high'?sc.border:'#e5e5e5')+';border-left:4px solid '+sc.border+';border-radius:10px;padding:0;margin-bottom:10px;overflow:hidden">';
-
-    // Card header
-    cardHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #f5f5f5;gap:12px">'
-      +'<div style="flex:1;min-width:0">'
-        +'<div style="font-size:14px;font-weight:800">'+p.bride+' &amp; '+p.groom+'</div>'
-        +'<div style="font-size:11px;color:#888;margin-top:2px">'
-          +(p.refcode?'<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">'+p.refcode+'</span>':'')
-          +(p.city?p.city+' · ':'')
-          +fd
-        +'</div>'
-      +'</div>'
-      +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'
-        +stageBadge(p.stage)
-        +'<button class="btn btn-primary btn-sm" onclick="openProject('+p.id+')" style="font-size:11px;padding:4px 10px">Open</button>'
-      +'</div>'
-    +'</div>';
-
-    // Each failing check — with its inline edit control
-    var hasEditableField = row.failures.some(function(chk){ return !!chk.field; });
-    cardHtml += '<div id="hc-fields-'+p.id+'" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">';
-    row.failures.forEach(function(chk) {
-      var sc2 = sevColors[chk.severity];
-      cardHtml += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
-        // Severity + label pill
-        +'<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;min-width:200px">'
-          +'<span style="background:'+sc2.bg+';color:'+sc2.text+';border:1px solid '+sc2.border+';border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;white-space:nowrap">'
-            +chk.icon+' '+chk.label
-          +'</span>'
-        +'</div>'
-        // Inline input — nothing commits until the single Save button below is clicked
-        +(chk.inputHtml ? '<div style="flex:1;min-width:160px">'+chk.inputHtml(p)+'</div>' : '')
-      +'</div>';
-    });
-    cardHtml += '</div>';
-    // ── One single Save button per client — commits every edited field
-    //    in this card together, in one Firebase write.
-    if (hasEditableField) {
-      cardHtml += '<div style="padding:0 16px 14px">'
-        +'<button type="button" class="btn btn-primary hc-save-card-btn" data-id="'+p.id+'" style="width:100%;justify-content:center;font-size:12px;padding:9px 14px;border-radius:8px">💾 Save All Changes</button>'
-      +'</div>';
-    }
-
-    // Payment summary line if value is set
-    if (netVal(p) > 0) {
-      cardHtml += '<div style="padding:8px 16px;background:#fafafa;border-top:1px solid #f0f0f0;font-size:11px;color:#888;display:flex;gap:16px">'
-        +'<span>Net: <b style="color:#1a1a1a">₹'+fmt(netVal(p))+'</b></span>'
-        +'<span>Paid: <b style="color:#16a34a">₹'+fmt(paidTotal(p))+'</b></span>'
-        +'<span>Balance: <b style="color:'+(balDue(p)>0?'#dc2626':'#16a34a')+'">₹'+fmt(balDue(p))+'</b></span>'
-      +'</div>';
-    }
-
-    cardHtml += '</div>';
-    return cardHtml;
+    // idSuffix = the project id alone — matches the original "hc-fields-<id>"
+    // container id exactly, so nothing else that reads/writes that id breaks.
+    return hcRenderFailureCard(row.p, row.failures, String(row.p.id));
   }).join('');
 
   listEl.innerHTML = html;
-
-  // Add inline-input CSS once
-  if (!document.getElementById('hc-input-style')) {
-    var style = document.createElement('style');
-    style.id = 'hc-input-style';
-    style.textContent = '.hc-inline-input{padding:6px 10px;border:1.5px solid #d1d5db;border-radius:7px;font-size:12px;font-family:inherit;background:#fff;min-width:140px;transition:border-color .15s}.hc-inline-input:focus{outline:none;border-color:#1a1a1a}.hc-inline-input:hover{border-color:#999}';
-    document.head.appendChild(style);
-  }
-
+  hcEnsureInputStyle();
   setTimeout(hcBindInlineEdits, 50);
 }
 // ══════════════════════════════════════════════════════════════════
@@ -20660,8 +20676,6 @@ function hcRenderMyTasks() {
     + '</div>';
   }
 
-  var sevColors = { critical:{bg:'#fef2f2',text:'#991b1b',border:'#fecaca'}, high:{bg:'#fff7ed',text:'#c2410c',border:'#fed7aa'}, medium:{bg:'#fefce8',text:'#854d0e',border:'#fde68a'}, low:{bg:'#f0f9ff',text:'#0369a1',border:'#bae6fd'} };
-
   var html = myTasks.map(function(task) {
     var isDone = task.status === 'done';
     var isDupeTask = task.type === '__dupes';
@@ -20746,22 +20760,60 @@ function hcRenderMyTasks() {
         } else {
           card += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;text-align:center;font-size:12px;color:#166534;font-weight:600">✅ No duplicate records left to review — you can mark this done.</div>';
         }
-      } else if (stillFailing.length) {
+      }
+      // Always show the client list — use liveClients (all assigned clients)
+      // so that role-restricted users (e.g. Accounts) who may get an empty
+      // stillFailing due to permission-filtered hcGetFailures() can still
+      // see and act on every client in their task.
+      if (!isDupeTask && liveClients.length) {
+        var displayClients = stillFailing.length ? stillFailing : liveClients;
+        var taskListId = 'hc-task-list-' + task.id;
+        var toggleBtnId = 'hc-task-toggle-' + task.id;
+        var searchId = 'hc-task-search-' + task.id;
         card += '<div style="background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;padding:10px">'
-          + '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">Pending Clients (' + stillFailing.length + ')</div>'
-          + stillFailing.slice(0, 8).map(function(p){
-              var fd = firstEventDate(p)||p.date||'';
-              return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f0f0f0">'
-                + '<div style="font-size:12px;font-weight:600">' + p.bride + ' &amp; ' + p.groom
-                  + (p.refcode ? ' <span style="font-size:10px;color:#6d28d9;font-family:monospace">'+p.refcode+'</span>' : '')
+          + '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'
+            + '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.07em">📋 Clients in this task (' + displayClients.length + ') — open each client, fix the issue, then Save</div>'
+            + '<button id="' + toggleBtnId + '" type="button"'
+              + ' onclick="(function(){'
+                + 'var list=document.getElementById(\'' + taskListId + '\');'
+                + 'var srch=document.getElementById(\'' + searchId + '\');'
+                + 'var btn=document.getElementById(\'' + toggleBtnId + '\');'
+                + 'var open=list.style.display===\'\'||list.style.display===\'block\';'
+                + 'list.style.display=open?\'none\':\'\';'
+                + 'if(srch)srch.style.display=open?\'none\':\'\';'
+                + 'btn.textContent=open?\'👁 View ' + displayClients.length + ' clients →\':\'▲ Hide list\';'
+              + '})()"'
+              + ' style="font-size:11px;font-weight:700;color:#7c3aed;background:#ede9fe;border:1px solid #c4b5fd;border-radius:6px;padding:5px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0">'
+              + '👁 View ' + displayClients.length + ' clients →'
+            + '</button>'
+          + '</div>'
+          + (displayClients.length > 6
+              ? '<div id="' + searchId + '" style="display:none;margin-top:8px">'
+                  + '<input type="text" class="hc-task-search" data-target="' + taskListId + '" placeholder="🔍 Search by name or ref code…" style="width:100%;box-sizing:border-box;padding:6px 12px;border:1px solid #ddd;border-radius:6px;font-size:12px;font-family:inherit">'
                 + '</div>'
-                + '<div style="display:flex;gap:6px;align-items:center">'
-                  + '<span style="font-size:10px;color:#888">' + (p.city||'') + (fd?' · '+fd:'') + '</span>'
-                  + '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:10px;padding:3px 8px">Open</button>'
-                + '</div>'
-              + '</div>';
+              : '')
+          + '<div id="' + taskListId + '" style="display:none;margin-top:10px">'
+          + displayClients.map(function(p) {
+              var relevantFailures = task.type && task.type !== 'all'
+                ? hcGetFailures(p).filter(function(f){ return f.type === task.type; })
+                : hcGetFailures(p);
+              // If no failures detected (role restriction), still show the client card with an Open button
+              if (!relevantFailures.length) {
+                var fd = firstEventDate(p) || '—';
+                return '<div data-hc-card="' + p.id + '" data-search="' + ((p.bride||'')+' '+(p.groom||'')+' '+(p.refcode||'')).replace(/"/g,'') + '" style="background:#fff;border:1px solid #e5e5e5;border-left:4px solid #c4b5fd;border-radius:10px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:12px">'
+                  + '<div>'
+                    + '<div style="font-size:14px;font-weight:800">' + p.bride + ' &amp; ' + p.groom + '</div>'
+                    + '<div style="font-size:11px;color:#888;margin-top:2px">'
+                      + (p.refcode ? '<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">' + p.refcode + '</span>' : '')
+                      + (p.city ? p.city + ' · ' : '') + fd
+                    + '</div>'
+                  + '</div>'
+                  + '<button class="btn btn-primary btn-sm" onclick="openProject(' + p.id + ')" style="font-size:11px;padding:4px 10px;flex-shrink:0">Open →</button>'
+                + '</div>';
+              }
+              return hcRenderFailureCard(p, relevantFailures, 'mt_' + task.id + '_' + p.id);
             }).join('')
-          + (stillFailing.length > 8 ? '<div style="font-size:11px;color:#888;padding-top:6px;text-align:center">+' + (stillFailing.length-8) + ' more clients…</div>' : '')
+          + '</div>'
         + '</div>';
       }
     }
@@ -20771,7 +20823,29 @@ function hcRenderMyTasks() {
   }).join('');
 
   listEl.innerHTML = adminBar + html;
+  hcEnsureInputStyle();
   bindDuplicateListEvents(listEl);
+  hcBindTaskSearch(listEl);
+  setTimeout(hcBindInlineEdits, 50);
+}
+
+// ── Live filter for long "Pending Clients" lists inside a task card ──
+// Hides/shows cards client-side as the team member types — no re-render,
+// no data reload, just a name/ref-code search over what's already on screen.
+function hcBindTaskSearch(container) {
+  container.querySelectorAll('.hc-task-search').forEach(function(inp) {
+    if (inp._hcBound) return;
+    inp._hcBound = true;
+    inp.addEventListener('input', function() {
+      var target = document.getElementById(this.getAttribute('data-target'));
+      if (!target) return;
+      var q = this.value.trim().toLowerCase();
+      target.querySelectorAll('[data-hc-card]').forEach(function(c) {
+        var key = (c.getAttribute('data-search') || '').toLowerCase();
+        c.style.display = (!q || key.indexOf(q) !== -1) ? '' : 'none';
+      });
+    });
+  });
 }
 
 // hcSwitchTab tasks support is now built into the original function above
