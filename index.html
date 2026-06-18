@@ -20225,28 +20225,53 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
   function buildCalendar(wrap, hidden, display){
     var cal = document.createElement('div');
     cal.className = 'dmy-cal';
-    cal.style.cssText = 'position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:10px;z-index:10000;width:240px;font-size:12px;display:none;color:#1a1a1a';
+    cal.style.cssText = 'position:absolute;top:100%;left:0;margin-top:4px;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:10px;z-index:10000;width:260px;font-size:12px;display:none;color:#1a1a1a';
 
     var view = { y: 0, m: 0 };
 
     function render(){
       cal.innerHTML = '';
       var head = document.createElement('div');
-      head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
+      head.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:4px;margin-bottom:8px';
+
       var prev = document.createElement('button');
       prev.textContent = '‹';
       prev.type = 'button';
-      prev.style.cssText = 'border:none;background:none;cursor:pointer;font-size:16px;padding:2px 8px;border-radius:6px';
+      prev.style.cssText = 'border:none;background:none;cursor:pointer;font-size:16px;padding:2px 6px;border-radius:6px;flex-shrink:0';
+
       var next = document.createElement('button');
       next.textContent = '›';
       next.type = 'button';
       next.style.cssText = prev.style.cssText;
-      var label = document.createElement('div');
-      label.textContent = MONTHS[view.m] + ' ' + view.y;
-      label.style.cssText = 'font-weight:600';
+
+      var monthSel = document.createElement('select');
+      monthSel.style.cssText = 'border:1px solid #ddd;border-radius:6px;padding:3px 4px;font-size:12px;font-weight:600;background:#fff;cursor:pointer;flex:1;min-width:0';
+      MONTHS.forEach(function(mn, idx){
+        var o = document.createElement('option');
+        o.value = idx; o.textContent = mn;
+        if (idx === view.m) o.selected = true;
+        monthSel.appendChild(o);
+      });
+      monthSel.onclick = function(e){ e.stopPropagation(); };
+      monthSel.onchange = function(e){ e.stopPropagation(); view.m = parseInt(monthSel.value, 10); render(); };
+
+      var yearSel = document.createElement('select');
+      yearSel.style.cssText = 'border:1px solid #ddd;border-radius:6px;padding:3px 4px;font-size:12px;font-weight:600;background:#fff;cursor:pointer;flex:0 0 72px';
+      var curYear = new Date().getFullYear();
+      // Wide range so DOB entry (decades back) and far-future event dates both work in one jump.
+      var yMin = curYear - 100, yMax = curYear + 15;
+      for (var yy = yMax; yy >= yMin; yy--) {
+        var oy = document.createElement('option');
+        oy.value = yy; oy.textContent = yy;
+        if (yy === view.y) oy.selected = true;
+        yearSel.appendChild(oy);
+      }
+      yearSel.onclick = function(e){ e.stopPropagation(); };
+      yearSel.onchange = function(e){ e.stopPropagation(); view.y = parseInt(yearSel.value, 10); render(); };
+
       prev.onclick = function(e){ e.preventDefault(); e.stopPropagation(); view.m--; if(view.m<0){view.m=11;view.y--;} render(); };
       next.onclick = function(e){ e.preventDefault(); e.stopPropagation(); view.m++; if(view.m>11){view.m=0;view.y++;} render(); };
-      head.appendChild(prev); head.appendChild(label); head.appendChild(next);
+      head.appendChild(prev); head.appendChild(monthSel); head.appendChild(yearSel); head.appendChild(next);
       cal.appendChild(head);
 
       var grid = document.createElement('div');
