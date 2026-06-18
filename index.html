@@ -14288,64 +14288,6 @@ function deleteEscalation(key) {
   });
 }
 
-function renderSalesPersonDash() {
-  // Salesperson sees only their own quotations + ability to create new ones
-  renderApprovalQueue();
-  var myName = CU ? (CU.name || CU.username) : '';
-  var list = ql().filter(function(q) {
-    return !myName || !q.salesperson || q.salesperson === myName;
-  });
-
-  var won  = list.filter(function(q){return q.status==='won';}).length;
-  var lost = list.filter(function(q){return q.status==='lost';}).length;
-  var open = list.filter(function(q){return q.status==='open'||q.status==='sent';}).length;
-  var pending = list.filter(function(q){return q.status==='pending_approval';}).length;
-
-  var sc = document.getElementById('page-quotations'); if (!sc) return;
-  sc.innerHTML =
-    '<div class="page-title">🧑‍💼 My Quotations</div>' +
-    '<div class="page-sub">Create and manage your quotations.</div>' +
-    '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px">' +
-      '<div class="metric blue"><div class="ml">My Quotes</div><div class="mv">' + list.length + '</div></div>' +
-      '<div class="metric amber"><div class="ml">Open</div><div class="mv">' + open + '</div></div>' +
-      '<div class="metric green"><div class="ml">Won</div><div class="mv">' + won + '</div></div>' +
-      '<div class="metric red"><div class="ml">Lost</div><div class="mv">' + lost + '</div></div>' +
-    '</div>' +
-    (pending ? '<div id="approval-queue-mount"></div>' : '') +
-    '<div style="display:flex;gap:8px;margin-bottom:12px">' +
-      '<button class="btn btn-primary" onclick="openNewQuotation()">+ New Quotation</button>' +
-    '</div>' +
-    '<div class="card" style="padding:0"><div id="sp-quot-table"></div></div>';
-
-  // Render quotation table
-  var tableEl = document.getElementById('sp-quot-table');
-  if (!tableEl) return;
-  if (!list.length) { tableEl.innerHTML = '<div class="empty">No quotations yet. Create your first one!</div>'; return; }
-
-  var statusColors = {open:'b-blue',sent:'b-amber',won:'b-green',lost:'b-red',pending_approval:'b-purple'};
-  tableEl.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-    '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb">' +
-      '<th style="padding:10px 14px;text-align:left;font-weight:700">Client</th>' +
-      '<th style="padding:10px 14px;text-align:left;font-weight:700">Event</th>' +
-      '<th style="padding:10px 14px;text-align:left;font-weight:700">Value</th>' +
-      '<th style="padding:10px 14px;text-align:left;font-weight:700">Status</th>' +
-      '<th style="padding:10px 14px;text-align:left;font-weight:700">Date</th>' +
-      '<th style="padding:10px 14px"></th>' +
-    '</tr></thead><tbody>' +
-    list.sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);}).map(function(q) {
-      var couple = escHtml((q.bride||'')+(q.groom?' & '+q.groom:''));
-      var status = q.status||'open';
-      return '<tr style="border-top:1px solid #f0f0f0" onmouseover="this.style.background=\'#fafafa\'" onmouseout="this.style.background=\'\';">' +
-        '<td style="padding:10px 14px;font-weight:700">' + couple + '<div style="font-size:11px;color:#888">' + escHtml(q.city||'') + '</div></td>' +
-        '<td style="padding:10px 14px;font-size:12px;color:#555">' + escHtml(q.type||'—') + '</td>' +
-        '<td style="padding:10px 14px;font-weight:700;color:#1d4ed8">' + fmt((parseInt(q.value)||0)-(parseInt(q.discount)||0)) + '</td>' +
-        '<td style="padding:10px 14px"><span class="badge ' + (statusColors[status]||'b-blue') + '">' + status.replace(/_/g,' ') + '</span></td>' +
-        '<td style="padding:10px 14px;font-size:12px;color:#888">' + fmtDate(q.createdAt) + '</td>' +
-        '<td style="padding:10px 14px"><button class="btn btn-sm" onclick="editQuotation(\'' + q.id + '\')";>✏️ Edit</button></td>' +
-      '</tr>';
-    }).join('') +
-    '</tbody></table>';
-}
 
 function renderSalesDash() {
   renderApprovalQueue();
