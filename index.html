@@ -2286,9 +2286,19 @@ document.addEventListener('wheel', function(e) {
       '<select class="fi" id="sales-person-f" style="flex:0;width:auto" onchange="renderSalesDash()"><option value="">All Salespersons</option></select>' +
       '<input type="text" class="fi" id="sales-search" placeholder="Search client, city…" oninput="renderSalesDash()">' +
     '</div>' +
-    '<div class="card" style="padding:0;margin-bottom:16px"><div class="card-hdr" style="padding:14px 16px"><span class="card-title">📊 Pipeline View</span></div><div class="quot-pipeline" id="sales-pipeline" style="padding:0 12px 12px"></div></div>' +
-    '<div class="card" style="padding:0"><div class="card-hdr" style="padding:14px 16px"><span class="card-title">📋 All Quotations</span></div><div id="sales-table"></div></div>';
+    '<div class="card" style="padding:0;margin-bottom:16px"><div class="card-hdr" style="padding:14px 16px"><span class="card-title">📊 Pipeline View</span></div><div class="quot-pipeline" id="sales-pipeline" style="padding:0 12px 12px"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>' +
+    '<div class="card" style="padding:0"><div class="card-hdr" style="padding:14px 16px"><span class="card-title">📋 All Quotations</span></div><div id="sales-table"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>';
   mainDiv.appendChild(salesDash);
+
+  // Page: Sales Settings (Sales Head — quotation/lead settings only)
+  var salesSettingsPage = document.createElement('div');
+  salesSettingsPage.id = 'page-salessettings';
+  salesSettingsPage.className = 'page';
+  salesSettingsPage.innerHTML =
+    '<div class="page-title">⚙️ Quotation Settings</div>' +
+    '<div class="page-sub">Manage delivery timeline templates and lead sources used in quotations.</div>' +
+    '<div id="salesettings-content"></div>';
+  mainDiv.appendChild(salesSettingsPage);
 })();
 </script>
 
@@ -11007,6 +11017,7 @@ function renderPage(name) {
   else if (name === 'users') { renderUsers(); renderAccounts(); applyUsersPageRBAC(); }
   else if (name === 'accounts') renderAccounts();
   else if (name === 'quotations') { renderSalesDash(); }
+  else if (name === 'salessettings') { renderSalesSettings(); }
   else if (name === 'datavault') renderDataVault();
   else if (name === 'healthcheck') renderHealthCheck();
   else if (name === 'securitylog') renderSecLog();
@@ -11067,6 +11078,16 @@ function buildMobDrawer() {
     }
   }
 
+  if (CU && CU.role === 'sales') {
+    var hasSS = layout.some(function(g) { return !g.sep && (g.items||[]).indexOf('salessettings') !== -1; });
+    if (!hasSS) {
+      layout = JSON.parse(JSON.stringify(layout));
+      var ogs = layout.find(function(g) { return g.label === 'Overview'; });
+      if (ogs) { ogs.items = ogs.items||[]; ogs.items.push('salessettings'); }
+      else { layout.unshift({ label:'Overview', items:['salessettings'] }); }
+    }
+  }
+
   var html = '';
   layout.forEach(function(group) {
     if (group.sep) {
@@ -11112,7 +11133,7 @@ var SIDEBAR_ICON_MAP = {
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
   healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
-  securitylog:'🛡️'
+  securitylog:'🛡️', salessettings:'⚙️'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
@@ -11192,7 +11213,7 @@ function sidebarPageLabel(page) {
     team:'Team', inventory:'Asset Inventory', settings:'Settings',
     users: (CU && CU.role === 'accounts') ? 'Bank Accounts' : 'Users & Accounts',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
-    clienthub:'Client Relations Hub', securitylog:'Security Log'
+    clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
 }
@@ -11208,6 +11229,16 @@ function buildSidebar() {
       var og = layout.find(function(g) { return g.label === 'Overview'; });
       if (og) { og.items = og.items||[]; og.items.push('quotations'); }
       else { layout.unshift({ label:'Overview', items:['quotations'] }); }
+    }
+  }
+
+  if (CU && CU.role === 'sales') {
+    var hasSS = layout.some(function(g) { return !g.sep && (g.items||[]).indexOf('salessettings') !== -1; });
+    if (!hasSS) {
+      layout = JSON.parse(JSON.stringify(layout));
+      var ogs = layout.find(function(g) { return g.label === 'Overview'; });
+      if (ogs) { ogs.items = ogs.items||[]; ogs.items.push('salessettings'); }
+      else { layout.unshift({ label:'Overview', items:['salessettings'] }); }
     }
   }
 
@@ -14040,8 +14071,11 @@ function quickChangeStatus(id, newStatus, event) {
   var q = quotations[id] || Object.values(quotations).find(function(r){ return r.id===id; });
   if (!q) { showToast('❌ Quotation not found — try refreshing.'); return; }
   if (q.status === newStatus) return;
-  var realId = q.id || id; // ensure we have the Firebase key
   var label = QT_STATUS_LABELS[newStatus] || newStatus;
+  var curLabel = QT_STATUS_LABELS[q.status||'draft'] || (q.status||'draft');
+  var who = (q.bride||'') + (q.groom ? ' & ' + q.groom : '') || 'This quotation';
+  if (!confirm('Move ' + who + ' from ' + curLabel + ' to ' + label + '?')) return;
+  var realId = q.id || id; // ensure we have the Firebase key
   // Optimistic local update — re-render instantly without waiting for Firebase
   q.status = newStatus;
   quotations[realId] = q;
@@ -14083,6 +14117,7 @@ var quotDays = []; // local working copy of days for builder
 // ── Firebase sync for quotations — child-level listeners (bandwidth efficient) ──
 var _quotListenersAttached = false;
 var _quotInitialized = false;
+var _quotDataLoaded = false; // true only once the first Firebase read has actually resolved
 function initQuotations(cb) {
   if (_quotInitialized) { if (cb) cb(); return; } // Guard: only run once ever
   _quotInitialized = true;
@@ -14091,6 +14126,7 @@ function initQuotations(cb) {
     var raw = snap.val() || {};
     Object.keys(raw).forEach(function(k) { if (raw[k] && !raw[k].id) raw[k].id = k; });
     quotations = raw;
+    _quotDataLoaded = true;
     if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
     if (cb) { cb(); cb = null; }
 
@@ -14151,7 +14187,7 @@ function quotStatusBadge(s) {
     isSalesperson:true
   };
   ROLE_ACCESS.sales = {
-    pages: ['dashboard','pipeline','projects','quotations','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','activitylog','clienthub'],
+    pages: ['dashboard','pipeline','projects','quotations','salessettings','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','activitylog','clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -14290,6 +14326,14 @@ function deleteEscalation(key) {
 
 
 function renderSalesDash() {
+  if (!_quotDataLoaded) {
+    var pipeLoad = document.getElementById('sales-pipeline');
+    var tableLoad = document.getElementById('sales-table');
+    var loadingHtml = '<div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div>';
+    if (pipeLoad) pipeLoad.innerHTML = loadingHtml;
+    if (tableLoad) tableLoad.innerHTML = loadingHtml;
+    return;
+  }
   renderApprovalQueue();
   var _all = ql();
   var list = _all; // All roles with access to this page see all quotations, regardless of who created them.
@@ -14351,7 +14395,7 @@ function renderSalesDash() {
               '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
-              (nextLabel && !isLost && !isWon ? '<button onclick="quickChangeStatus(\'' + q.id + '\',\'' + nextStage + '\',event)" style="flex:1;min-width:0;font-size:10px;font-weight:700;padding:4px 6px;border-radius:6px;border:1px solid ' + nextCol + ';background:' + nextCol + '22;color:' + nextCol + ';cursor:pointer;font-family:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="Advance to ' + nextLabel + '">' + nextLabel + ' ›</button>' : '') +
+              (nextLabel && !isLost && !isWon ? '<button onclick="quickChangeStatus(\'' + q.id + '\',\'' + nextStage + '\',event)" style="font-size:13px;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid #d1d5db;background:#f3f4f6;color:#6b7280;cursor:pointer;font-family:inherit" title="Advance to ' + nextLabel + '" aria-label="Advance to ' + nextLabel + '">→</button>' : '') +
               (q.status === 'negotiating' ? '<button onclick="quickChangeStatus(\'' + q.id + '\',\'won\',event)" style="font-size:10px;font-weight:700;padding:4px 6px;border-radius:6px;border:1px solid #16a34a;background:#dcfce7;color:#16a34a;cursor:pointer;font-family:inherit" title="Mark Won">✅</button>' : '') +
               (!isLost && !isWon ? '<button onclick="quickChangeStatus(\'' + q.id + '\',\'lost\',event)" style="font-size:10px;font-weight:700;padding:4px 6px;border-radius:6px;border:1px solid #fecaca;background:#fee2e2;color:#dc2626;cursor:pointer;font-family:inherit" title="Mark Lost">✕</button>' : '') +
               (isWon ? '<button onclick="convertQuotToProject(\'' + q.id + '\');event.stopPropagation()" style="flex:1;font-size:10px;font-weight:700;padding:4px 6px;border-radius:6px;border:1px solid #134e50;background:#134e50;color:#fff;cursor:pointer;font-family:inherit">🚀 Convert</button>' : '') +
@@ -15057,6 +15101,67 @@ function saveTimelineAsPreset() {
 
 // ─── Settings page: Delivery Timeline Manager ──────────────────────
 
+// ─── Sales Head settings page: Timeline Templates + Lead Sources ───
+function renderSalesSettings() {
+  var sc = document.getElementById('salesettings-content'); if (!sc) return;
+  if (!isSalesHead()) {
+    sc.innerHTML = '<div class="empty" style="padding:30px">You do not have access to this section.</div>';
+    return;
+  }
+  window._settingDefaults = window._settingDefaults || {};
+  window._settingDefaults.sources = DEFAULT_SOURCES;
+
+  var sourcesList = getSettingList('sources', DEFAULT_SOURCES);
+  var html = '<div class="card">' +
+    '<div class="card-hdr"><span class="card-title">📣 Lead Sources</span><button class="btn btn-sm" onclick="resetSalesSourcesList()">Reset</button></div>' +
+    '<p style="font-size:12px;color:#888;margin-bottom:10px">Where clients find you — shown as the Lead Source dropdown when building a quotation.</p>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">' +
+    sourcesList.map(function(item) {
+      return '<div class="stag" data-val="' + item.replace(/"/g,'&quot;') + '" style="display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:500">' +
+        item + '<span class="ss-src-del" data-val="' + item.replace(/"/g,'&quot;') + '" style="cursor:pointer;color:#94a3b8;font-size:15px;margin-left:4px">×</span></div>';
+    }).join('') +
+    '</div><div style="display:flex;gap:8px">' +
+    '<input class="fi" id="ss-add-source" placeholder="Add new..." style="flex:1;padding:7px 10px;font-size:13px">' +
+    '<button class="btn" id="ss-add-source-btn" style="padding:7px 14px">+ Add</button></div></div>';
+
+  html += '<div class="card" style="margin-top:16px">' +
+    '<div class="card-hdr"><span class="card-title">⏱️ Delivery Timeline Templates</span>' +
+    '<span style="font-size:11px;color:#16a34a;background:#f0fdf4;padding:3px 10px;border-radius:20px;border:1px solid #bbf7d0;font-weight:600">Saved to Firebase</span></div>' +
+    '<p style="font-size:12px;color:#888;margin-bottom:12px">Manage delivery timeline presets that appear in the Quotation Builder. Built-in templates (Wedding, Pre-Wedding, Engagement, Sangeet, Haldi) are always available — add custom ones here.</p>' +
+    '<div id="ss-timeline-mount"></div>' +
+  '</div>';
+
+  sc.innerHTML = html;
+
+  sc.querySelectorAll('.ss-src-del').forEach(function(el) {
+    el.addEventListener('click', function() { removeSalesSourceItem(el.dataset.val); });
+  });
+  var addBtn = document.getElementById('ss-add-source-btn');
+  if (addBtn) addBtn.addEventListener('click', addSalesSourceItem);
+  var addInp = document.getElementById('ss-add-source');
+  if (addInp) addInp.addEventListener('keydown', function(e) { if (e.key === 'Enter') addSalesSourceItem(); });
+
+  var tlMount = document.getElementById('ss-timeline-mount');
+  if (tlMount && typeof renderDeliveryTimelineSettings === 'function') renderDeliveryTimelineSettings(tlMount);
+}
+
+function addSalesSourceItem() {
+  var inp = document.getElementById('ss-add-source'); if (!inp) return;
+  var val = inp.value.trim(); if (!val) return;
+  var list = getSettingList('sources', DEFAULT_SOURCES);
+  if (list.indexOf(val) > -1) { inp.value = ''; return; }
+  list.push(val);
+  saveSettingList('sources', list, function() { inp.value = ''; renderSalesSettings(); });
+}
+function removeSalesSourceItem(item) {
+  var list = getSettingList('sources', []).filter(function(v) { return v !== item; });
+  saveSettingList('sources', list, function() { renderSalesSettings(); });
+}
+function resetSalesSourcesList() {
+  if (!confirm('Reset Lead Sources to default options? Custom items will be removed.')) return;
+  saveSettingList('sources', DEFAULT_SOURCES, function() { renderSalesSettings(); });
+}
+
 function renderDeliveryTimelineSettings(container) {
   var saved = crmSettings.delivery_timelines || {};
   var all = Object.assign({}, DEFAULT_TIMELINE_PRESETS, saved);
@@ -15093,10 +15198,16 @@ function renderDeliveryTimelineSettings(container) {
   container.innerHTML = html;
 }
 
+function refreshActiveSettingsPage() {
+  var ssPage = document.getElementById('page-salessettings');
+  if (ssPage && ssPage.classList.contains('active') && typeof renderSalesSettings === 'function') { renderSalesSettings(); return; }
+  if (typeof renderSettings === 'function') renderSettings();
+}
+
 function deleteTimelinePreset(key) {
   if (!confirm('Delete this timeline template?')) return;
   db.ref('crm_settings/delivery_timelines/' + key).remove(function() {
-    showToast('🗑️ Template deleted.'); renderSettings();
+    showToast('🗑️ Template deleted.'); refreshActiveSettingsPage();
   });
 }
 
@@ -15188,7 +15299,7 @@ function saveEditedTimelinePreset() {
     crmSettings.delivery_timelines = savedAll;
     showToast('✅ Template "' + name + '" saved!');
     document.getElementById('tl-edit-modal').remove();
-    renderSettings();
+    refreshActiveSettingsPage();
   });
 }
 
@@ -15204,7 +15315,7 @@ function openNewTimelinePreset() {
   var saved = JSON.parse(JSON.stringify(crmSettings.delivery_timelines || {}));
   saved[key] = preset;
   db.ref('crm_settings/delivery_timelines').set(saved, function(err) {
-    if (!err) { showToast('✅ Template created! Edit it in the quotation builder.'); renderSettings(); }
+    if (!err) { showToast('✅ Template created! Edit it in the quotation builder.'); refreshActiveSettingsPage(); }
   });
 }
 
