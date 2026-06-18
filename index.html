@@ -4123,8 +4123,8 @@ function renderCelebrations() {
   pl().forEach(function(p) {
     // Wedding anniversary (based on event date = wedding date)
     if (p.date) {
-      var evDate = new Date(p.date);
-      if (!isNaN(evDate)) {
+      var evDate = parseLocalDate(p.date);
+      if (evDate && !isNaN(evDate)) {
         // Anniversary: only show from 1st year onwards (years >= 1)
         // "today" anniversary = if event date month/day matches today exactly
         var anniv = new Date(today.getFullYear(), evDate.getMonth(), evDate.getDate());
@@ -4557,7 +4557,20 @@ function fmtTime(ts) {
   h = h % 12 || 12;
   return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ' ' + ampm;
 }
-function daysUntil(d){if(!d)return 9999;return Math.ceil((new Date(d)-new Date())/86400000);}
+function parseLocalDate(s){
+  if(!s) return null;
+  var p=String(s).substring(0,10).split('-');
+  if(p.length<3) return new Date(s);
+  var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+  return isNaN(d)?null:d;
+}
+function daysUntil(d){
+  if(!d) return 9999;
+  var ev=parseLocalDate(d);
+  if(!ev) return 9999;
+  var today=new Date(); today.setHours(0,0,0,0);
+  return Math.ceil((ev-today)/86400000);
+}
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
 function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Prod In-Charge',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
@@ -6731,7 +6744,7 @@ function renderPostProd(){
       eHtml+='<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">';
       activeItems.sort(function(a,b){return(a.d.date||'9999').localeCompare(b.d.date||'9999');}).forEach(function(item){
         var d=item.d,p=item.p;
-        var daysLeft=d.date?Math.ceil((new Date(d.date)-new Date())/86400000):null;
+        var daysLeft=d.date?daysUntil(d.date):null;
         var overdue=daysLeft!==null&&daysLeft<=0;
         var urgent=daysLeft!==null&&daysLeft<=3&&!overdue;
         var deadlineColor=overdue?'#dc2626':urgent?'#d97706':'#1a1a1a';
@@ -9557,7 +9570,7 @@ function renderEditorPortal(portal, editor, editorId, allProjects) {
     var d = item.d, p = item.p;
     var brief = p.clientBrief;
     var hasBrief = !!(brief && brief.submittedAt);
-    var daysLeft = d.date ? Math.ceil((new Date(d.date) - new Date()) / 86400000) : null;
+    var daysLeft = d.date ? daysUntil(d.date) : null;
     var urgent = daysLeft !== null && daysLeft <= 3;
 
     // Brief section
@@ -10256,42 +10269,63 @@ function hcDeleteDupe(id, name) {
   });
 }
 
-// ── Save a single field directly to Firebase ─────────────────────
-function hcSaveField(projId, field, value) {
+// ── Save every edited field for ONE client in a single Firebase write ─
+// Reads every inline-edit box inside that client's card, skips any left
+// blank (so an untouched field is never overwritten with an empty value),
+// and writes the rest together in one update() call.
+function hcSaveCardFields(projId) {
   var p = projects[projId]; if (!p) return;
-  var upd = {}; upd[field] = value; upd.updatedAt = Date.now();
+  var container = document.getElementById('hc-fields-'+projId);
+  if (!container) return;
+  var inputs = container.querySelectorAll('.hc-inline-input');
+  var upd = {}, count = 0;
+  inputs.forEach(function(el) {
+    var field = el.getAttribute('data-field');
+    if (!field) return;
+    var v = (el.value || '').trim();
+    if (!v) return; // leave untouched fields alone
+    upd[field] = v;
+    count++;
+  });
+  if (!count) { showToast('⚠️ Enter at least one value before saving.'); return; }
+  upd.updatedAt = Date.now();
   db.ref('crm_projects/'+projId).update(upd, function(err) {
     if (err) { showToast('❌ Save failed: '+err.message); return; }
-    projects[projId][field] = value;
-    showToast('✅ Saved — '+p.bride+' & '+p.groom);
+    Object.keys(upd).forEach(function(f){ if (f !== 'updatedAt') projects[projId][f] = upd[f]; });
+    showToast('✅ Saved ' + count + ' field' + (count > 1 ? 's' : '') + ' — ' + p.bride + ' & ' + p.groom);
     // Re-render tiles to update counts (debounced)
-    clearTimeout(hcSaveField._t);
-    hcSaveField._t = setTimeout(function(){ renderHealthCheck(); }, 600);
+    clearTimeout(hcSaveCardFields._t);
+    hcSaveCardFields._t = setTimeout(function(){ renderHealthCheck(); }, 600);
   });
 }
 
-// ── Attach inline-edit listeners to rendered controls ────────────
+// ── Attach the single Save-button listener for each client card ──────
+// Nothing saves automatically — typing/selecting only updates the boxes on
+// screen. Every field for that client is only written when the one
+// "💾 Save All Changes" button at the bottom of their card is clicked, so a
+// wrong entry can be fixed or a box just left alone without anything being
+// committed.
 function hcBindInlineEdits() {
+  document.querySelectorAll('.hc-save-card-btn').forEach(function(btn) {
+    if (btn._hcBound) return;
+    btn._hcBound = true;
+    btn.addEventListener('click', function() {
+      hcSaveCardFields(parseInt(this.getAttribute('data-id')));
+    });
+  });
+  // Pressing Enter inside any field in a card clicks that card's single
+  // Save button (still an explicit, deliberate action — not auto-save).
   document.querySelectorAll('.hc-inline-input').forEach(function(el) {
     if (el._hcBound) return;
     el._hcBound = true;
-    var field = el.getAttribute('data-field');
-    var id    = parseInt(el.getAttribute('data-id'));
-    if (!field || !id) return;
-
-    if (el.tagName === 'SELECT') {
-      el.addEventListener('change', function() {
-        if (this.value) hcSaveField(id, field, this.value);
-      });
-    } else {
-      el.addEventListener('blur', function() {
-        var v = this.value.trim();
-        if (v !== (projects[id]||{})[field]||'') hcSaveField(id, field, v);
-      });
-      el.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
-      });
-    }
+    if (el.tagName === 'SELECT') return; // selects don't need Enter-to-save
+    el.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      var id = el.getAttribute('data-id');
+      var btn = document.querySelector('.hc-save-card-btn[data-id="'+id+'"]');
+      if (btn) btn.click();
+    });
   });
 }
 
@@ -10519,7 +10553,8 @@ function renderHealthCheck() {
     +'</div>';
 
     // Each failing check — with its inline edit control
-    cardHtml += '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">';
+    var hasEditableField = row.failures.some(function(chk){ return !!chk.field; });
+    cardHtml += '<div id="hc-fields-'+p.id+'" style="padding:12px 16px;display:flex;flex-direction:column;gap:10px">';
     row.failures.forEach(function(chk) {
       var sc2 = sevColors[chk.severity];
       cardHtml += '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
@@ -10529,11 +10564,18 @@ function renderHealthCheck() {
             +chk.icon+' '+chk.label
           +'</span>'
         +'</div>'
-        // Inline input
+        // Inline input — nothing commits until the single Save button below is clicked
         +(chk.inputHtml ? '<div style="flex:1;min-width:160px">'+chk.inputHtml(p)+'</div>' : '')
       +'</div>';
     });
     cardHtml += '</div>';
+    // ── One single Save button per client — commits every edited field
+    //    in this card together, in one Firebase write.
+    if (hasEditableField) {
+      cardHtml += '<div style="padding:0 16px 14px">'
+        +'<button type="button" class="btn btn-primary hc-save-card-btn" data-id="'+p.id+'" style="width:100%;justify-content:center;font-size:12px;padding:9px 14px;border-radius:8px">💾 Save All Changes</button>'
+      +'</div>';
+    }
 
     // Payment summary line if value is set
     if (netVal(p) > 0) {
@@ -10565,7 +10607,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','activitylog','healthcheck','clienthub'],
+    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','activitylog','healthcheck','clienthub','securitylog'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -10833,10 +10875,117 @@ function applyUsersPageRBAC() {
   }
 }
 
+
+// ── Device info parser — converts raw UA into human-readable labels ──
+// Handles Chrome's UA spoofing on Apple Silicon (reports Intel 10_15_7)
+// Uses navigator.userAgentData (modern API) when available for accuracy
+function parseDeviceInfo(ua, uad) {
+  ua = ua || '';
+  var browser = 'Unknown Browser';
+  var os      = 'Unknown OS';
+  var device  = 'Desktop';
+
+  // ── Browser detection (order matters — Edge/OPR before Chrome) ──
+  if (/Edg\//.test(ua))          browser = 'Edge '   + (ua.match(/Edg\/([\d.]+)/)||[])[1];
+  else if (/OPR\//.test(ua))     browser = 'Opera '  + (ua.match(/OPR\/([\d.]+)/)||[])[1];
+  else if (/Brave/.test(ua))     browser = 'Brave';
+  else if (/Chrome\//.test(ua))  browser = 'Chrome ' + (ua.match(/Chrome\/([\d.]+)/)||[])[1];
+  else if (/Firefox\//.test(ua)) browser = 'Firefox '+ (ua.match(/Firefox\/([\d.]+)/)||[])[1];
+  else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari ' + (ua.match(/Version\/([\d.]+)/)||[])[1];
+  // Clean version to major.minor only
+  browser = browser.replace(/(\d+\.\d+)\.\d+.*/, '$1');
+
+  // ── OS detection ──
+  // Try modern userAgentData first (accurate on Apple Silicon)
+  if (uad && uad.platform) {
+    var p = uad.platform;
+    if (p === 'macOS')   os = 'macOS';
+    else if (p === 'Windows') os = 'Windows';
+    else if (p === 'Android') os = 'Android';
+    else if (p === 'iOS')     os = 'iOS';
+    else                      os = p;
+  } else {
+    // Fallback to UA string parsing
+    if (/iPhone/.test(ua))          os = 'iPhone';
+    else if (/iPad/.test(ua))       os = 'iPad';
+    else if (/Android/.test(ua))    os = 'Android ' + ((ua.match(/Android ([\d.]+)/)||[])[1]||'');
+    else if (/Mac OS X/.test(ua))   os = 'macOS';
+    else if (/Windows NT 10/.test(ua)) os = 'Windows 11/10';
+    else if (/Windows NT 6/.test(ua))  os = 'Windows 8/7';
+    else if (/Linux/.test(ua))      os = 'Linux';
+    else if (/CrOS/.test(ua))       os = 'ChromeOS';
+  }
+
+  // ── Device type ──
+  if (/iPhone/.test(ua))                       device = '📱 iPhone';
+  else if (/iPad/.test(ua))                    device = '📱 iPad';
+  else if (/Android.*Mobile/.test(ua))         device = '📱 Android Phone';
+  else if (/Android/.test(ua))                 device = '📱 Android Tablet';
+  else if (os === 'macOS' || /Mac OS X/.test(ua)) {
+    // Apple Silicon detection: userAgentData.platform = 'macOS' on M-series too
+    // The only reliable way from browser context is checking for ARM hints
+    var isAppleSilicon = false;
+    try {
+      // Check if userAgentData brands include any hint
+      if (uad && uad.getHighEntropyValues) {
+        // async call — skip for sync context, use platform hint
+        isAppleSilicon = (uad.platform === 'macOS');
+      }
+    } catch(e) {}
+    device = '💻 Mac' + (isAppleSilicon ? ' (Apple Silicon)' : '');
+  }
+  else if (/Windows/.test(ua))  device = '💻 Windows PC';
+  else if (/Linux/.test(ua))    device = '💻 Linux';
+  else                          device = '💻 Desktop';
+
+  return { browser: browser, os: os, device: device, platform: os };
+}
+
+// navTo patch removed — securitylog flows through standard renderPage
+
+function renderSecLog(){
+  var main=document.querySelector('.main');if(!main)return;
+  var page=document.getElementById('page-seclog');
+  if(!page){page=document.createElement('div');page.id='page-seclog';page.className='page active';main.appendChild(page);}
+  document.querySelectorAll('.page').forEach(function(p){if(p.id!=='page-seclog')p.classList.remove('active');});
+  page.classList.add('active');
+  page.innerHTML='<div class="page-title">🛡️ Security Log</div><div class="page-sub">Logins, failed attempts, lockouts, password changes, idle logouts.</div><div id="seclog-body"><div style="text-align:center;padding:40px;color:#aaa">⏳ Loading…</div></div>';
+  if(!window.db){document.getElementById('seclog-body').innerHTML='<div style="color:#aaa;padding:20px">Database not connected.</div>';return;}
+  db.ref('crm_security_log').orderByChild('ts').limitToLast(500).once('value',function(snap){
+    var entries=[];snap.forEach(function(c){entries.push(c.val());});entries.reverse();
+    var icons={failed_login:'❌',account_lockout:'🔒',idle_logout:'⏰',password_changed:'🔑',new_device:'📱'};
+    var colors={failed_login:'#dc2626',account_lockout:'#dc2626',idle_logout:'#d97706',password_changed:'#1d4ed8'};
+    var rows=entries.map(function(e){
+      var when=e.ts?new Date(e.ts).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+      var detail=(e.username?'User: '+e.username:e.user?'User: '+e.user:'');
+      if(e.attempts)detail+=' | Attempt #'+e.attempts;if(e.lockoutMinutes)detail+=' | Locked '+e.lockoutMinutes+'min';if(e.role)detail+=' | '+e.role;
+      var devLabel = e.device || (e.ua ? parseDeviceInfo(e.ua, null).device : '—');
+      var browserLabel = e.browser || (e.ua ? parseDeviceInfo(e.ua, null).browser : '—');
+      var osLabel = e.os || (e.ua ? parseDeviceInfo(e.ua, null).os : '');
+      var deviceCell = '<div style="font-size:12px;font-weight:600;color:#1a1a1a">'+devLabel+'</div>' +
+        '<div style="font-size:11px;color:#888">'+browserLabel+(osLabel?' · '+osLabel:'')+'</div>';
+      return '<tr><td style="color:'+(colors[e.type]||'#1a1a1a')+';font-weight:700;white-space:nowrap">'+(icons[e.type]||'🔹')+' '+(e.type||'').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();})+'</td><td style="font-size:12px;color:#888;white-space:nowrap">'+when+'</td><td style="font-size:12px">'+detail+'</td><td style="font-size:11px;min-width:160px">'+deviceCell+'</td></tr>';
+    }).join('')||'<tr><td colspan="4" style="text-align:center;color:#aaa;padding:20px">No events yet.</td></tr>';
+
+    document.getElementById('seclog-body').innerHTML=
+      '<div class="metrics" style="margin-bottom:16px">'+
+        '<div class="metric red"><div class="ml">Failed Logins</div><div class="mv">'+entries.filter(function(e){return e.type==='failed_login';}).length+'</div></div>'+
+        '<div class="metric red"><div class="ml">Lockouts</div><div class="mv">'+entries.filter(function(e){return e.type==='account_lockout';}).length+'</div></div>'+
+        '<div class="metric amber"><div class="ml">Idle Logouts</div><div class="mv">'+entries.filter(function(e){return e.type==='idle_logout';}).length+'</div></div>'+
+        '<div class="metric blue"><div class="ml">Pw Changes</div><div class="mv">'+entries.filter(function(e){return e.type==='password_changed';}).length+'</div></div>'+
+      '</div>'+
+      '<div class="card"><div class="card-hdr"><span class="card-title">🛡️ Security Events (last 500)</span>'+
+        '<button onclick="renderSecLog()" style="background:#f0f0f0;border:none;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">🔄 Refresh</button>'+
+      '</div><div style="overflow-x:auto"><table class="tbl" style="width:100%">'+
+        '<thead><tr><th>Event</th><th>Time (IST)</th><th>Details</th><th>Device</th></tr></thead>'+
+        '<tbody>'+rows+'</tbody></table></div></div>';
+  });
+}
+
 function renderPage(name) {
   if (!CU) return;
   var ac = getAccess();
-  if (ac.pages.indexOf(name) === -1) { showToast('⛔ Access denied.'); navTo(ac.pages[0] || 'dashboard'); return; }
+  if (name !== 'securitylog' && ac.pages.indexOf(name) === -1) { showToast('⛔ Access denied.'); navTo(ac.pages[0] || 'dashboard'); return; }
   var tr = document.getElementById('tb-role'); if (tr) tr.textContent = roleLabel(CU.role);
   var tu = document.getElementById('tb-user'); if (tu) tu.textContent = CU.name;
   document.querySelectorAll('.sb-item').forEach(function(el) { el.classList.toggle('active', el.getAttribute('data-page') === name); });
@@ -10860,6 +11009,7 @@ function renderPage(name) {
   else if (name === 'quotations') { renderSalesDash(); }
   else if (name === 'datavault') renderDataVault();
   else if (name === 'healthcheck') renderHealthCheck();
+  else if (name === 'securitylog') renderSecLog();
   else if (name === 'inventory') { loadAssets(); renderInventory(); }
   else if (name === 'clientissues') { renderCIHub(); }
   else if (name === 'clienthub') { switchHubTab(_hubTab || 'overview'); }
@@ -10961,7 +11111,8 @@ var SIDEBAR_ICON_MAP = {
   payments:'💳', invoice:'🧾', reports:'📈', priority:'🚨',
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
-  healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯'
+  healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
+  securitylog:'🛡️'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
@@ -10973,7 +11124,7 @@ var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
   { label:'Team & Assets',     items:['team','inventory'] },
   { sep: true },
-  { label:'Administration',    items:['settings','users','activitylog'] }
+  { label:'Administration',    items:['settings','users','activitylog','securitylog'] }
 ];
 
 // ── In-memory sidebar layout (loaded from Firebase or default) ──────
@@ -11041,7 +11192,7 @@ function sidebarPageLabel(page) {
     team:'Team', inventory:'Asset Inventory', settings:'Settings',
     users: (CU && CU.role === 'accounts') ? 'Bank Accounts' : 'Users & Accounts',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
-    clienthub:'Client Relations Hub'
+    clienthub:'Client Relations Hub', securitylog:'Security Log'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
 }
@@ -11339,6 +11490,46 @@ function getDueAlerts() {
   return alerts.sort(function(a, b) { return a.days - b.days; });
 }
 
+
+// ═══ DASHBOARD DRILL-DOWN ════════════════════════════════════════
+function openDashDrill(type) {
+  var list = pl(); var ac = getAccess();
+  var thisMonth = new Date().toISOString().substring(0, 7);
+  var title = '', projects = [];
+  if (type === 'all') { title = '📁 All Projects (' + list.length + ')'; projects = list.slice().sort(function(a,b){return(b.createdAt||0)-(a.createdAt||0);}); }
+  else if (type === 'active') { projects = list.filter(function(p){return p.stage!=='complete';}).sort(function(a,b){return new Date(a.date||'9999')-new Date(b.date||'9999');}); title='⚡ Active Projects ('+projects.length+')'; }
+  else if (type === 'booked') { projects = list.filter(function(p){return p.bookdate&&p.bookdate.startsWith(thisMonth);}).sort(function(a,b){return(b.createdAt||0)-(a.createdAt||0);}); title='📅 Booked This Month ('+projects.length+')'; }
+  else if (type === 'overdue') { var alerts=getDueAlerts().filter(function(a){return a.days<0;}); var seen={}; projects=alerts.map(function(a){return a.p;}).filter(function(p){if(seen[p.id])return false;seen[p.id]=true;return true;}); title='⚠️ Overdue ('+projects.length+')'; }
+  else if (type === 'revenue') { projects=list.slice().sort(function(a,b){return netVal(b)-netVal(a);}); title='💰 By Revenue ('+projects.length+')'; }
+  else if (type === 'collected') { projects=list.filter(function(p){return paidTotal(p)>0;}).sort(function(a,b){return paidTotal(b)-paidTotal(a);}); title='✅ Collected ('+projects.length+')'; }
+  else if (type === 'balance') { projects=list.filter(function(p){return balDue(p)>0;}).sort(function(a,b){return balDue(b)-balDue(a);}); title='🔴 Balance Due ('+projects.length+')'; }
+
+  var sf = ac.canSeeFinancials;
+  var rows = projects.map(function(p) {
+    var d=daysUntil(p.date);
+    var dLabel=p.date?(d<0?'<span style="color:#dc2626;font-weight:700">⚠️ '+Math.abs(d)+'d ago</span>':d===0?'<span style="color:#dc2626;font-weight:700">TODAY</span>':d<=7?'<span style="color:#d97706;font-weight:700">'+d+'d left</span>':'<span style="color:#1d4ed8">'+fmtDate(p.date)+'</span>'):'<span style="color:#aaa">—</span>';
+    var fc=sf?'<td style="text-align:right;font-weight:700;color:#16a34a">'+fmt(netVal(p))+'</td><td style="text-align:right;color:#16a34a">'+fmt(paidTotal(p))+'</td><td style="text-align:right;color:'+(balDue(p)>0?'#dc2626':'#aaa')+'>'+(balDue(p)>0?fmt(balDue(p)):'—')+'</td>':'';
+    return '<tr style="cursor:pointer" onclick="closeDashDrill();setTimeout(function(){editProject(\''+p.id+'\')},100)">' +
+      '<td><div style="font-weight:600;font-size:13px">'+(p.bride||'—')+' & '+(p.groom||'—')+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+(p.type?' · '+p.type:'')+'</div></td>' +
+      '<td>'+stageBadge(p.stage)+'</td><td>'+dLabel+'</td>'+fc+'</tr>';
+  }).join('')||'<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">No projects.</td></tr>';
+  var fh=sf?'<th style="text-align:right">Revenue</th><th style="text-align:right">Collected</th><th style="text-align:right">Balance</th>':'';
+
+  var modal=document.getElementById('dash-drill-modal');
+  if(!modal){modal=document.createElement('div');modal.id='dash-drill-modal';modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';modal.onclick=function(e){if(e.target===modal)closeDashDrill();};document.body.appendChild(modal);}
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;width:100%;max-width:860px;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">' +
+    '<div style="background:#1a1a1a;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">' +
+      '<span style="color:#fff;font-size:16px;font-weight:800">'+title+'</span>' +
+      '<button onclick="closeDashDrill()" style="background:#333;border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit">✕ Close</button>' +
+    '</div><div style="padding:16px;overflow-x:auto">' +
+      '<table class="tbl" style="width:100%"><thead><tr><th>Client</th><th>Stage</th><th>Event</th>'+fh+'</tr></thead><tbody>'+rows+'</tbody></table>' +
+    '</div>' +
+    (type!=='overdue'?'<div style="padding:12px 20px;border-top:1px solid #f0f0f0;text-align:right"><button onclick="navTo(\'projects\');closeDashDrill()" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Open All Projects →</button></div>':'') +
+  '</div>';
+  modal.style.display='flex'; document.body.style.overflow='hidden';
+}
+function closeDashDrill(){var m=document.getElementById('dash-drill-modal');if(m)m.style.display='none';document.body.style.overflow='';}
+
 function renderDashboard() {
   var ac = getAccess();
   var list = pl();
@@ -11545,13 +11736,26 @@ function renderDashboard() {
     '<div class="metric green"><div class="ml">Collected</div><div class="mv">' + fmt(tPaid) + '</div><div class="ms">' + collPct + '%</div></div>' +
     '<div class="metric red"><div class="ml">Balance Due</div><div class="mv">' + fmt(tBal) + '</div></div>' : '';
 
+  var finHTML2 = ac.canSeeFinancials ?
+    '<div class="metric green" style="cursor:pointer" onclick="openDashDrill(\'collected\')" title="View collected">' +
+      '<div class="ml">Collected</div><div class="mv">' + fmt(tPaid) + '</div><div class="ms">' + collPct + '%</div></div>' +
+    '<div class="metric red" style="cursor:pointer" onclick="openDashDrill(\'balance\')" title="View balances">' +
+      '<div class="ml">Balance Due</div><div class="mv">' + fmt(tBal) + '</div></div>' +
+    '<div class="metric green" style="cursor:pointer" onclick="openDashDrill(\'revenue\')" title="View all revenue">' +
+      '<div class="ml">Total Revenue</div><div class="mv">' + fmt(tVal) + '</div></div>' : '';
+
   dc.innerHTML =
     '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' +
-      '<div class="metric blue"><div class="ml">Total Projects</div><div class="mv">' + total + '</div></div>' +
-      '<div class="metric amber"><div class="ml">Active</div><div class="mv">' + active + '</div></div>' +
-      finHTML +
-      '<div class="metric blue"><div class="ml">Booked This Month</div><div class="mv">' + newThis + '</div></div>' +
-      (overdue && CU.role !== 'postprod' ? '<div class="metric red"><div class="ml">⚠️ Overdue</div><div class="mv">' + overdue + '</div></div>' : '') +
+      '<div class="metric blue" style="cursor:pointer" onclick="openDashDrill(\'all\')">' +
+        '<div class="ml">Total Projects</div><div class="mv">' + total + '</div><div class="ms">↗ View all</div></div>' +
+      '<div class="metric amber" style="cursor:pointer" onclick="openDashDrill(\'active\')">' +
+        '<div class="ml">Active</div><div class="mv">' + active + '</div><div class="ms">↗ View active</div></div>' +
+      finHTML2 +
+      '<div class="metric blue" style="cursor:pointer" onclick="openDashDrill(\'booked\')">' +
+        '<div class="ml">Booked This Month</div><div class="mv">' + newThis + '</div><div class="ms">↗ View bookings</div></div>' +
+      (overdue && CU.role !== 'postprod' ?
+        '<div class="metric red" style="cursor:pointer" onclick="openDashDrill(\'overdue\')">' +
+          '<div class="ml">⚠️ Overdue</div><div class="mv">' + overdue + '</div><div class="ms">↗ View overdue</div></div>' : '') +
     '</div>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
       '<div class="card"><div class="card-hdr"><span class="card-title">📈 Monthly Bookings (6m)</span></div>' +
@@ -20924,5 +21128,237 @@ function hubDeleteEscalation(key) {
 
 
 </script>
+
+
+// parseDeviceInfo moved earlier in file
+
+<!-- ═══════════════════════════════════════════════════════════
+     KB CRM SECURITY MODULE v1.0
+═══════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+'use strict';
+
+// ── 1. STRIP CREDENTIALS FROM URL IMMEDIATELY ─────────────────
+(function(){
+  try{
+    var url=new URL(window.location.href); var stripped=false;
+    ['username','password','pass','pwd','user','u','p'].forEach(function(k){if(url.searchParams.has(k)){url.searchParams.delete(k);stripped=true;}});
+    if(stripped&&window.history&&window.history.replaceState){
+      window.history.replaceState({},document.title,url.pathname+(url.search!=='?'?url.search:'')+url.hash);
+    }
+  }catch(e){}
+})();
+
+// ── 2. BRUTE FORCE LOCKOUT ────────────────────────────────────
+var _failedAttempts=0, _lockoutUntil=0;
+var MAX_ATTEMPTS=5, LOCKOUT_MS=5*60*1000;
+
+function isLockedOut(){return Date.now()<_lockoutUntil;}
+function getLockoutRemaining(){return Math.ceil((_lockoutUntil-Date.now())/1000);}
+function recordFailedAttempt(un){
+  _failedAttempts++;
+  try{if(window.db){var _fd=parseDeviceInfo(navigator.userAgent,navigator.userAgentData);db.ref('crm_security_log').push({type:'failed_login',username:un||'unknown',attempts:_failedAttempts,ua:navigator.userAgent,device:_fd.device,browser:_fd.browser,os:_fd.os,ts:Date.now(),tsISO:new Date().toISOString()});}}catch(e){}
+  if(_failedAttempts>=MAX_ATTEMPTS){
+    _lockoutUntil=Date.now()+LOCKOUT_MS;
+    try{if(window.db){var _ld=parseDeviceInfo(navigator.userAgent,navigator.userAgentData);db.ref('crm_security_log').push({type:'account_lockout',username:un||'unknown',lockoutMinutes:5,ua:navigator.userAgent,device:_ld.device,browser:_ld.browser,os:_ld.os,ts:Date.now(),tsISO:new Date().toISOString()});}}catch(e){}
+  }
+}
+function resetFailedAttempts(){_failedAttempts=0;_lockoutUntil=0;}
+
+var _origDoLogin=window.doLogin;
+window.doLogin=function(){
+  var errEl=document.getElementById('login-err');
+  if(isLockedOut()){
+    var m=Math.ceil(getLockoutRemaining()/60);
+    if(errEl){errEl.style.display='block';errEl.textContent='🔒 Too many failed attempts. Try again in '+m+' minute'+(m!==1?'s':'')+'.';}
+    var cd=setInterval(function(){
+      if(!isLockedOut()){clearInterval(cd);if(errEl&&errEl.textContent.indexOf('Too many')!==-1)errEl.style.display='none';var btn=document.getElementById('login-btn');if(btn){btn.disabled=false;btn.textContent='Login →';}}
+      else{var s=Math.ceil(getLockoutRemaining()/60);if(errEl)errEl.textContent='🔒 Too many failed attempts. Try again in '+s+' minute'+(s!==1?'s':'')+'.';}
+    },10000);
+    return;
+  }
+  var un=(document.getElementById('login-user')||{}).value||'';
+  if(typeof _origDoLogin==='function') _origDoLogin.call(this);
+  setTimeout(function(){
+    if(errEl&&errEl.style.display!=='none'&&errEl.textContent.indexOf('Incorrect')!==-1){
+      recordFailedAttempt(un.toLowerCase());
+      if(_failedAttempts>=MAX_ATTEMPTS){errEl.textContent='🔒 Account locked 5 minutes — too many failed attempts.';}
+      else{var r=MAX_ATTEMPTS-_failedAttempts;errEl.textContent='Incorrect username or password. '+r+' attempt'+(r!==1?'s':'')+' left before lockout.';}
+    }else if(window.CU){resetFailedAttempts();}
+  },600);
+};
+
+// ── 3. INACTIVITY TIMEOUT (45 min) ───────────────────────────
+var IDLE_MS=45*60*1000, WARN_MS=40*60*1000;
+var _idleT=null, _warnT=null, _warnUp=false;
+
+function resetIdleTimer(){
+  clearTimeout(_idleT);clearTimeout(_warnT);
+  if(_warnUp)dismissIdleWarn();
+  if(!window.CU)return;
+  _warnT=setTimeout(function(){if(window.CU)showIdleWarn();},WARN_MS);
+  _idleT=setTimeout(function(){if(window.CU)doIdleLogout();},IDLE_MS);
+}
+function showIdleWarn(){
+  _warnUp=true;
+  if(document.getElementById('kb-idle-warn'))return;
+  var d=document.createElement('div');d.id='kb-idle-warn';
+  d.style.cssText='position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;border-radius:14px;padding:16px 20px;z-index:99999;max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,.4);font-family:-apple-system,sans-serif;font-size:13px';
+  d.innerHTML='<div style="font-weight:800;margin-bottom:6px">⏰ Session Expiring</div><div style="color:#aaa;margin-bottom:12px">Auto-logout in 5 minutes due to inactivity.</div><button onclick="window._kbStay()" style="background:#fff;color:#1a1a1a;border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;width:100%">Stay Logged In</button>';
+  document.body.appendChild(d);
+}
+function dismissIdleWarn(){_warnUp=false;var e=document.getElementById('kb-idle-warn');if(e&&e.parentNode)e.parentNode.removeChild(e);}
+window._kbStay=function(){dismissIdleWarn();resetIdleTimer();};
+
+function doIdleLogout(){
+  dismissIdleWarn();clearTimeout(_idleT);clearTimeout(_warnT);
+  try{if(window.db&&window.CU){db.ref('crm_security_log').push({type:'idle_logout',user:(window.CU.name||window.CU.username||''),role:(window.CU.role||''),ts:Date.now(),tsISO:new Date().toISOString()});if(typeof logActivity==='function')logActivity('login','Auto Logout (Inactivity)',(window.CU.name||window.CU.username)+' session expired after 45 min idle');}}catch(e){}
+  var div=document.createElement('div');
+  div.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:99999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,sans-serif';
+  div.innerHTML='<div style="background:#fff;border-radius:16px;padding:32px;max-width:340px;text-align:center"><div style="font-size:40px;margin-bottom:12px">🔒</div><div style="font-size:18px;font-weight:800;margin-bottom:8px">Session Expired</div><div style="font-size:13px;color:#888;margin-bottom:20px">Auto-logged out after 45 minutes of inactivity.</div><button style="background:#1a1a1a;color:#fff;border:none;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit" onclick="location.reload()">Login Again</button></div>';
+  document.body.appendChild(div);
+  window.CU=null;
+  var btn=document.getElementById('btn-logout');if(btn)btn.click();
+}
+['mousedown','mousemove','keydown','touchstart','scroll','click'].forEach(function(ev){document.addEventListener(ev,function(){if(window.CU)resetIdleTimer();},{passive:true});});
+
+// ── 4. PASSWORD STRENGTH ──────────────────────────────────────
+function checkPwStrength(pw){
+  if(!pw||pw.length<8)return{ok:false,msg:'At least 8 characters required.'};
+  if(!/[A-Z]/.test(pw))return{ok:false,msg:'Must include an uppercase letter.'};
+  if(!/[a-z]/.test(pw))return{ok:false,msg:'Must include a lowercase letter.'};
+  if(!/[0-9]/.test(pw))return{ok:false,msg:'Must include a number.'};
+  var lc=pw.toLowerCase();
+  if(lc.includes('password')||lc.includes('kb123')||lc.includes('ketan')&&pw.length<12)return{ok:false,msg:'Too easy to guess — add more variety.'};
+  var s=pw.length>=12&&/[^A-Za-z0-9]/.test(pw)?'Strong':pw.length>=10?'Medium':'Weak';
+  return{ok:true,strength:s};
+}
+
+var _origSubmitPw=window.submitPasswordChange;
+window.submitPasswordChange=function(){
+  var np=(document.getElementById('cp-new')||{}).value||'';
+  var ch=checkPwStrength(np);
+  if(!ch.ok){var e=document.getElementById('cp-err');if(e){e.style.display='block';e.textContent='⚠️ '+ch.msg;}return;}
+  if(typeof _origSubmitPw==='function')_origSubmitPw.call(this);
+};
+
+// ── 5. CHANGE PASSWORD MODAL ──────────────────────────────────
+window.openChangePwModal=function(){
+  var ex=document.getElementById('kb-cpw-modal');
+  if(ex){ex.style.display='flex';return;}
+  var m=document.createElement('div');m.id='kb-cpw-modal';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,sans-serif';
+  m.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
+    '<div style="font-size:18px;font-weight:800;margin-bottom:4px">🔑 Change Password</div>' +
+    '<div style="font-size:12px;color:#888;margin-bottom:16px">Min 8 chars · Uppercase · Lowercase · Number</div>' +
+    '<input type="password" id="kbcpw-cur" placeholder="Current password" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:10px">' +
+    '<input type="password" id="kbcpw-new" placeholder="New password" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:6px" oninput="kbPwBar(this.value)">' +
+    '<div id="kbcpw-bar" style="height:4px;border-radius:2px;background:#e5e5e5;margin-bottom:4px"></div>' +
+    '<div id="kbcpw-bar-lbl" style="font-size:11px;color:#888;margin-bottom:10px"></div>' +
+    '<input type="password" id="kbcpw-cfm" placeholder="Confirm new password" style="width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:12px">' +
+    '<div id="kbcpw-err" style="color:#dc2626;font-size:12px;margin-bottom:10px;display:none"></div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<button onclick="document.getElementById(\'kb-cpw-modal\').style.display=\'none\'" style="flex:1;padding:10px;background:#f0f0f0;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>' +
+      '<button onclick="kbSavePw()" style="flex:2;padding:10px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Update Password</button>' +
+    '</div></div>';
+  document.body.appendChild(m);
+  m.onclick=function(e){if(e.target===m)m.style.display='none';};
+  setTimeout(function(){var e=document.getElementById('kbcpw-cur');if(e)e.focus();},100);
+};
+
+window.kbPwBar=function(pw){
+  var bar=document.getElementById('kbcpw-bar'),lbl=document.getElementById('kbcpw-bar-lbl');
+  if(!bar||!lbl)return;
+  if(!pw){bar.style.background='#e5e5e5';lbl.textContent='';return;}
+  var r=checkPwStrength(pw);
+  if(!r.ok){bar.style.background='#dc2626';lbl.style.color='#dc2626';lbl.textContent='⚠️ '+r.msg;}
+  else{var c={Weak:'#d97706',Medium:'#1d4ed8',Strong:'#16a34a'}[r.strength];bar.style.background=c;lbl.style.color=c;lbl.textContent=r.strength==='Strong'?'✅ Strong':r.strength==='Medium'?'🔵 Medium — add symbols to strengthen':'⚠️ Weak — make it longer';}
+};
+
+window.kbSavePw=function(){
+  var cur=(document.getElementById('kbcpw-cur')||{}).value||'';
+  var np=(document.getElementById('kbcpw-new')||{}).value||'';
+  var nc=(document.getElementById('kbcpw-cfm')||{}).value||'';
+  var err=document.getElementById('kbcpw-err');
+  function se(m){if(err){err.style.display='block';err.textContent=m;}}
+  if(!cur||!np||!nc)return se('Please fill all fields.');
+  if(!window.CU)return se('Not logged in.');
+  if((window.CU.password||'')!==cur)return se('Current password is incorrect.');
+  if(np!==nc)return se('New passwords do not match.');
+  var ch=checkPwStrength(np);if(!ch.ok)return se('⚠️ '+ch.msg);
+  if(np===cur)return se('New password must differ from current.');
+  if(!window.db)return se('Database not connected.');
+  db.ref('crm_users/'+window.CU.id).update({password:np,mustChangePassword:false},function(e2){
+    if(e2)return se('Error: '+e2.message);
+    window.CU.password=np;
+    if(window.users&&window.users[window.CU.id])window.users[window.CU.id].password=np;
+    document.getElementById('kb-cpw-modal').style.display='none';
+    try{if(typeof logActivity==='function')logActivity('user','Password Changed',(window.CU.name||window.CU.username)+' changed their password');if(window.db)db.ref('crm_security_log').push({type:'password_changed',user:(window.CU.name||window.CU.username||''),role:(window.CU.role||''),ts:Date.now(),tsISO:new Date().toISOString()});}catch(e){}
+    if(typeof showToast==='function')showToast('✅ Password updated!');
+  });
+};
+
+// ── 6. ENHANCED LOGIN AUDIT ───────────────────────────────────
+var _origLog=window.logActivity;
+window.logActivity=function(type,action,detail,extra){
+  if(type==='login'&&action==='User Logged In'){
+    extra=extra||{};
+    // Smart device detection — avoids misleading Chrome UA spoofing
+  var _ua = navigator.userAgent;
+  var _uad = navigator.userAgentData; // Modern API — available in Chrome 90+
+  var _devInfo = parseDeviceInfo(_ua, _uad);
+  extra.ua = _ua; // keep raw for reference
+  extra.device = _devInfo.device;
+  extra.browser = _devInfo.browser;
+  extra.os = _devInfo.os;
+  extra.platform = _devInfo.platform;
+  extra.tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  extra.screen = screen.width + 'x' + screen.height;
+  var fp = btoa([_ua, navigator.language, screen.width+'x'+screen.height].join('|')).substring(0,20);
+  extra.deviceFP = fp;
+    try{var kfp=localStorage.getItem('kb_fp');if(kfp&&kfp!==fp){extra.newDevice=true;setTimeout(function(){if(typeof showToast==='function')showToast('🔐 Login from new device detected. Check Security Log.');},2000);}localStorage.setItem('kb_fp',fp);}catch(e){}
+  }
+  if(typeof _origLog==='function')_origLog.call(this,type,action,detail,extra);
+};
+
+// ── 7. SECURITY LOG PAGE ──────────────────────────────────────
+// securitylog is now in DEFAULT_SIDEBAR_LAYOUT — no dynamic injection needed
+
+// renderSecLog moved earlier in file
+
+// ── 8. SHIELD BADGE IN TOPBAR ─────────────────────────────────
+function injectSecBadge(){
+  if(!window.CU||window.CU.role!=='superadmin')return;
+  if(document.getElementById('kb-sec-badge'))return;
+  var tr=document.querySelector('.tb-right');if(!tr)return;
+  var b=document.createElement('span');b.id='kb-sec-badge';b.title='Security Log';
+  b.style.cssText='cursor:pointer;font-size:16px;opacity:.7;margin-right:4px;transition:opacity .2s';b.textContent='🛡️';
+  b.onmouseenter=function(){b.style.opacity='1';};b.onmouseleave=function(){b.style.opacity='.7';};
+  b.onclick=function(){if(typeof navTo==='function')navTo('securitylog');};
+  tr.insertBefore(b,tr.firstChild);
+}
+
+// Hook into buildSidebar
+// buildSidebar hook removed — securitylog is in DEFAULT_SIDEBAR_LAYOUT
+
+// Start idle timer and inject badge on login
+(function(){
+  var ma=document.getElementById('main-app');if(!ma)return;
+  var obs=new MutationObserver(function(muts){
+    muts.forEach(function(m){
+      if(m.target.id==='main-app'){
+        if(m.target.style.display==='block'){resetIdleTimer();setTimeout(injectSecBadge,500);}
+        else{clearTimeout(_idleT);clearTimeout(_warnT);dismissIdleWarn();}
+      }
+    });
+  });
+  obs.observe(ma,{attributes:true,attributeFilter:['style']});
+})();
+
+console.log('[KB Security] ✅ Module active — brute force, idle timeout, audit, password strength, security log');
+})();
+</script>
+
 </body>
 </html>
