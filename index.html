@@ -14350,9 +14350,7 @@ function renderSalesPersonDash() {
 function renderSalesDash() {
   renderApprovalQueue();
   var _all = ql();
-  var list = (CU && CU.role === 'salesperson')
-    ? _all.filter(function(q){ var me = CU.name||CU.username; return !me||!q.salesperson||q.salesperson===me; })
-    : _all;
+  var list = _all; // All roles with access to this page see all quotations, regardless of who created them.
   var statusF = (document.getElementById('sales-status-f') || {value:''}).value;
   var personF = (document.getElementById('sales-person-f') || {value:''}).value;
   var q = ((document.getElementById('sales-search') || {value:''}).value || '').toLowerCase();
