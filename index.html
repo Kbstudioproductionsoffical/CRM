@@ -2482,12 +2482,16 @@ document.addEventListener('wheel', function(e) {
         </div>
 
         <!-- Template selector -->
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
           <label style="font-size:12px;font-weight:700;color:#555">Load Template:</label>
           <select class="fi" id="qt-timeline-preset" style="flex:0;width:auto;font-size:12px" onchange="loadTimelinePreset()">
-            <option value="">— Select preset —</option>
+            <option value="">&#8212; Select preset &#8212;</option>
           </select>
-          <button type="button" onclick="saveTimelineAsPreset()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">💾 Save as preset</button>
+          <button type="button" onclick="saveTimelineAsPreset()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">&#128190; Save as preset</button>
+          <button type="button" onclick="syncTimelineFromDeliverables()" title="Auto-fills milestone descriptions from deliverables selected in the Deliverables tab" style="background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">&#x1F504; Sync from Deliverables</button>
+        </div>
+        <div style="font-size:11px;color:#888;margin-bottom:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 10px">
+          &#x1F4A1; Descriptions here are for the client's timeline PDF only &#8212; <strong>quantities &amp; durations are set in the Deliverables tab</strong>. Use <em>Sync from Deliverables</em> to auto-fill descriptions from your selections.
         </div>
 
         <!-- Timeline entries list -->
@@ -14990,10 +14994,10 @@ var DEFAULT_TIMELINE_PRESETS = {
     label: '💍 Wedding',
     milestones: [
       { label: 'Raw Data Delivery',          days: 3,  unit: 'days',   from: 'event',     desc: 'All raw files transferred to hard drive' },
-      { label: 'Wedding Teaser',             days: 15, unit: 'days',   from: 'raw_data',  desc: '1.5–2 min story teaser, ready to share' },
-      { label: 'Wedding Film',               days: 10, unit: 'days',   from: 'teaser',    desc: '7–8 min cinematic highlight film' },
-      { label: 'Traditional Video',          days: 45, unit: 'days',   from: 'raw_data',  desc: 'Full-length video for each event (20–30 min)' },
-      { label: 'Edited Photo Gallery',       days: 15, unit: 'days',   from: 'selection', desc: '600 edited pictures as per client selection' },
+      { label: 'Wedding Teaser',             days: 15, unit: 'days',   from: 'raw_data',  desc: 'Story teaser ready to share' },
+      { label: 'Wedding Film',               days: 10, unit: 'days',   from: 'teaser',    desc: 'Cinematic wedding film delivered' },
+      { label: 'Traditional Video',          days: 45, unit: 'days',   from: 'raw_data',  desc: 'Full-length traditional video delivered' },
+      { label: 'Edited Photo Gallery',       days: 15, unit: 'days',   from: 'selection', desc: 'Edited photos as per client selection' },
       { label: 'Album Design Approval',      days: 45, unit: 'days',   from: 'event',     desc: 'Album layout sent for client approval' },
       { label: 'Final Album Dispatch',       days: 30, unit: 'days',   from: 'approval',  desc: 'After design approval received' }
     ]
@@ -15001,7 +15005,7 @@ var DEFAULT_TIMELINE_PRESETS = {
   prewedding: {
     label: '🌸 Pre-Wedding',
     milestones: [
-      { label: 'Teaser / Sneak Peek',         days: 3,  unit: 'days',   from: 'shoot',    desc: '2–3 edited photos shared' },
+      { label: 'Teaser / Sneak Peek',         days: 3,  unit: 'days',   from: 'shoot',    desc: 'Quick teaser photos shared' },
       { label: 'Pre-Wedding Short Film',      days: 10, unit: 'days',   from: 'shoot',    desc: 'Cinematic short film delivered' },
       { label: 'Edited Photo Gallery',        days: 15, unit: 'days',   from: 'shoot',    desc: 'Full gallery of edited photos' },
       { label: 'Pre-Wedding Album Design',    days: 30, unit: 'days',   from: 'shoot',    desc: 'Album layout sent for approval' },
@@ -15100,6 +15104,56 @@ function renderTimelineRows() {
 function addTimelineRow() {
   quotTimeline.push({ label: '', days: 14, unit: 'days', from: 'event', desc: '' });
   renderTimelineRows();
+}
+
+// ── Sync timeline descriptions from the actual selected deliverables ──
+// Maps milestone label keywords → deliverable IDs in QD_PRESETS
+var TIMELINE_DELIVERABLE_MAP = [
+  { keywords: ['teaser','sneak peek'],          ids: ['wedding-teaser','prewed-teaser'] },
+  { keywords: ['highlight film','highlight'],   ids: ['highlight-film'] },
+  { keywords: ['wedding film'],                 ids: ['wedding-film'] },
+  { keywords: ['traditional video','trad'],     ids: ['trad-video'] },
+  { keywords: ['photo gallery','edited photo'], ids: ['edited-gallery'] },
+  { keywords: ['pre-wedding short film','short film'], ids: ['prewed-teaser'] },
+  { keywords: ['raw data'],                     ids: ['full-raw'] },
+  { keywords: ['album design','album dispatch','final album'], ids: ['wedding-album','prewed-album'] },
+];
+
+function buildDescFromDeliverable(milestoneLabel) {
+  if (!quotDeliverables || !quotDeliverables.length) return null;
+  var lbl = (milestoneLabel || '').toLowerCase();
+  for (var i = 0; i < TIMELINE_DELIVERABLE_MAP.length; i++) {
+    var map = TIMELINE_DELIVERABLE_MAP[i];
+    var matched = map.keywords.some(function(kw) { return lbl.indexOf(kw) !== -1; });
+    if (!matched) continue;
+    // find matching deliverable in the current quotation
+    for (var j = 0; j < quotDeliverables.length; j++) {
+      var d = quotDeliverables[j];
+      if (map.ids.indexOf(d.id) !== -1) {
+        // build description from deliverable's detail/label
+        if (d.detail && d.detail !== 'Included' && d.detail !== 'All Files') {
+          return d.label + ' — ' + d.detail;
+        }
+        return d.label;
+      }
+    }
+  }
+  return null;
+}
+
+function syncTimelineFromDeliverables() {
+  if (!quotTimeline.length) { showToast('Load a preset first, then sync.'); return; }
+  var updated = 0;
+  quotTimeline.forEach(function(m) {
+    var desc = buildDescFromDeliverable(m.label);
+    if (desc) { m.desc = desc; updated++; }
+  });
+  renderTimelineRows();
+  if (updated) {
+    showToast('✅ ' + updated + ' milestone' + (updated !== 1 ? 's' : '') + ' synced from deliverables.');
+  } else {
+    showToast('No matching deliverables found. Add deliverables first.');
+  }
 }
 
 function saveTimelineAsPreset() {
