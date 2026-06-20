@@ -1475,12 +1475,17 @@ document.addEventListener('wheel', function(e) {
           style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
           📜 Transaction Feed
         </button>
+        <button class="pay-main-tab" data-ptab="collections" onclick="switchPayTab('collections',this)"
+          style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
+          🏦 Collections by Account
+        </button>
       </div>
 
       <!-- Projects tab content -->
       <div id="pay-tab-projects">
         <div class="metrics" id="pay-metrics"></div>
         <div id="pay-due-alerts" style="margin-bottom:12px"></div>
+        <div id="pay-future-section" style="margin-bottom:16px"></div>
         <div style="margin-bottom:12px"><button class="btn btn-primary" id="btn-record-pay">+ Record Payment</button></div>
         <div id="pay-account-breakdown"></div>
         <div class="card" style="padding:0;overflow:hidden"><div id="pay-table"></div></div>
@@ -1489,6 +1494,37 @@ document.addEventListener('wheel', function(e) {
       <!-- Transaction Feed tab content -->
       <div id="pay-tab-feed" style="display:none">
         <div id="txn-feed-container"></div>
+      </div>
+
+      <!-- Collections by Account tab content -->
+      <div id="pay-tab-collections" style="display:none">
+        <div style="background:#f9f9fb;border:1px solid #e8e8ee;border-radius:12px;padding:12px 16px;margin-bottom:14px">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">
+            <span style="font-size:11px;font-weight:700;color:#555;letter-spacing:.04em;text-transform:uppercase">🏦 Account</span>
+            <select class="fi" id="coll-acc-f" style="flex:0;width:auto;padding:5px 10px;font-size:12px" onchange="renderCollectionsByAccount()">
+              <option value="">All Accounts</option>
+            </select>
+            <span style="font-size:11px;font-weight:700;color:#555;letter-spacing:.04em;text-transform:uppercase;margin-left:8px">📅 Period</span>
+            <select class="fi" id="coll-fy-f" style="flex:0;width:auto;padding:5px 10px;font-size:12px" onchange="onCollFYChange()">
+              <option value="">All Time</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px">
+            <button class="coll-range-btn btn btn-sm" data-range="" onclick="setCollRange(this,'')" style="font-size:11px;padding:4px 9px;background:#1a1a1a;color:#fff">All Time</button>
+            <button class="coll-range-btn btn btn-sm" data-range="1m" onclick="setCollRange(this,'1m')" style="font-size:11px;padding:4px 9px">1 Month</button>
+            <button class="coll-range-btn btn btn-sm" data-range="3m" onclick="setCollRange(this,'3m')" style="font-size:11px;padding:4px 9px">3 Months</button>
+            <button class="coll-range-btn btn btn-sm" data-range="6m" onclick="setCollRange(this,'6m')" style="font-size:11px;padding:4px 9px">6 Months</button>
+            <button class="coll-range-btn btn btn-sm" data-range="cfy" onclick="setCollRange(this,'cfy')" style="font-size:11px;padding:4px 9px">Current FY</button>
+            <button class="coll-range-btn btn btn-sm" data-range="lfy" onclick="setCollRange(this,'lfy')" style="font-size:11px;padding:4px 9px">Last FY</button>
+            <span style="font-size:11px;color:#aaa;margin:0 4px">Custom:</span>
+            <input type="date" class="fi" id="coll-date-from" style="flex:0;width:130px;padding:5px 8px;font-size:12px" onchange="onCollCustomDate()">
+            <span style="font-size:12px;color:#aaa">→</span>
+            <input type="date" class="fi" id="coll-date-to" style="flex:0;width:130px;padding:5px 8px;font-size:12px" onchange="onCollCustomDate()">
+            <button class="btn btn-sm" style="font-size:11px;padding:4px 10px;color:#888;border-color:#ddd" onclick="clearCollDateFilter()">✕ Clear</button>
+          </div>
+          <div id="coll-filter-summary" style="font-size:12px;color:#1d4ed8;font-weight:600"></div>
+        </div>
+        <div id="pay-account-breakdown-full"></div>
       </div>
     </div>
 
@@ -2644,6 +2680,25 @@ document.addEventListener('wheel', function(e) {
           </div>
           <div id="custom-pay-error" style="color:#dc2626;font-size:11px;margin-top:6px;display:none">Total must equal 100%</div>
         </div>
+        <div id="new-proj-advance-block" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:3px">💰 Advance Payment Required</div>
+          <div style="font-size:11px;color:#a16207;margin-bottom:10px">A new project cannot be saved without recording the first payment. Enter the advance received below.</div>
+          <div class="fg">
+            <div class="fr"><label class="fl">Amount Received (₹) *</label><input class="fi" type="number" id="np-amount" placeholder="e.g. 30000"></div>
+            <div class="fr"><label class="fl">Payment Date *</label><input class="fi" type="date" id="np-date"></div>
+          </div>
+          <div class="fg">
+            <div class="fr"><label class="fl">Payment Mode</label><select class="fi" id="np-mode" onchange="toggleProofRow('np')"><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Mixed</option></select></div>
+            <div class="fr"><label class="fl">Account Received In *</label><select class="fi" id="np-account"></select></div>
+          </div>
+          <div class="fr"><label class="fl">Transaction / UTR No.</label><input class="fi" id="np-ref"></div>
+          <div class="fr" id="np-proof-row">
+            <label class="fl">Payment Proof (screenshot) <span style="color:#dc2626;font-weight:700">*</span> <span style="color:#aaa;font-weight:400;font-size:10px">required for non-cash payments</span></label>
+            <input class="fi" type="file" id="np-proof-file" accept="image/*">
+            <div id="np-proof-preview" style="display:none;margin-top:6px"><img id="np-proof-img" style="max-width:140px;max-height:140px;border-radius:6px;border:1px solid #e2e8f0"></div>
+          </div>
+          <div style="font-size:11px;color:#a16207;margin-top:4px">Can't collect any payment right now? An Admin/Super Admin can override this with a specific reason at save time.</div>
+        </div>
         <div class="fr"><label class="fl">Referral Code (auto-generated)</label><input class="fi" id="f-refcode" readonly style="background:#f8f8f8;font-family:monospace;font-weight:700;color:#6d28d9;letter-spacing:1px" placeholder="Generated on save"></div>
         <div class="fr"><label class="fl">⭐ Client Priority (1–5 Stars)</label>
           <div class="star-picker" id="star-picker">
@@ -3016,6 +3071,11 @@ document.addEventListener('wheel', function(e) {
         <div class="fr"><label class="fl">Due Date (remaining)</label><input class="fi" type="date" id="pe-due"></div>
       </div>
       <div class="fr"><label class="fl">Notes</label><textarea class="fi" id="pe-notes" rows="2"></textarea></div>
+      <div class="fr" id="pe-proof-row" style="display:none">
+        <label class="fl">Payment Proof (screenshot) <span style="color:#dc2626;font-weight:700">*</span> <span style="color:#aaa;font-weight:400;font-size:10px">required for non-cash payments</span></label>
+        <input class="fi" type="file" id="pe-proof-file" accept="image/*">
+        <div id="pe-proof-preview" style="display:none;margin-top:6px"><img id="pe-proof-img" style="max-width:140px;max-height:140px;border-radius:6px;border:1px solid #e2e8f0"></div>
+      </div>
       <div id="pe-preview" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:13px;display:none;margin-top:8px"></div>
     </div>
     <div class="modal-foot">
@@ -3037,6 +3097,11 @@ document.addEventListener('wheel', function(e) {
       <div class="fr"><label class="fl">Account Received In *</label><select class="fi" id="rp-account"></select></div>
       <div class="fg"><div class="fr"><label class="fl">Transaction / UTR No.</label><input class="fi" id="rp-ref"></div><div class="fr"><label class="fl">Due Date (remaining)</label><input class="fi" type="date" id="rp-due"></div></div>
       <div class="fr"><label class="fl">Notes</label><textarea class="fi" id="rp-notes" rows="2"></textarea></div>
+      <div class="fr" id="rp-proof-row" style="display:none">
+        <label class="fl">Payment Proof (screenshot) <span style="color:#dc2626;font-weight:700">*</span> <span style="color:#aaa;font-weight:400;font-size:10px">required for non-cash payments</span></label>
+        <input class="fi" type="file" id="rp-proof-file" accept="image/*">
+        <div id="rp-proof-preview" style="display:none;margin-top:6px"><img id="rp-proof-img" style="max-width:140px;max-height:140px;border-radius:6px;border:1px solid #e2e8f0"></div>
+      </div>
     </div>
     <div class="modal-foot"><button class="btn" data-close="rp-modal">Cancel</button><button class="btn btn-primary" id="btn-save-rp">✅ Record Payment</button></div>
   </div>
@@ -4510,7 +4575,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v47-2026-06-17-01';
+var CRM_BUILD_VERSION = 'v48-2026-06-20-payments';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -7369,25 +7434,23 @@ function renderPayments(){
     (dateRange||accF ? '<div class="metric blue"><div class="ml">Filtered Collected</div><div class="mv">'+fmt(tFiltered)+'</div><div class="ms">'+(tR>0?Math.round(tFiltered/tR*100):0)+'% of contracted</div></div>' : '');
 
   renderPayDueAlerts();
+  renderFuturePayments();
 
-  // Account breakdown (filtered)
+  // Account breakdown teaser (filtered) — full breakdown now lives on its own tab
   var accBDHtml = '';
   if(Object.keys(accBreakdown).length){
-    var totalFiltered = Object.values(accBreakdown).reduce(function(a,v){return a+v;},0);
+    var totalFiltered2 = Object.values(accBreakdown).reduce(function(a,v){return a+v;},0);
+    var topAccounts = Object.entries(accBreakdown).sort(function(a,b){return b[1]-a[1];}).slice(0,4);
     accBDHtml = '<div class="card" style="margin-bottom:12px">'+
-      '<div class="card-hdr"><span class="card-title">🏦 Collections by Account' + (dateRange||accF?' <span style="font-size:11px;font-weight:400;color:#888">(filtered period)</span>':'') + '</span></div>'+
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">'+
-      Object.entries(accBreakdown).sort(function(a,b){return b[1]-a[1];}).map(function(e){
-        var pct = totalFiltered > 0 ? Math.round(e[1]/totalFiltered*100) : 0;
-        return '<div style="background:#f8f8f8;border-radius:10px;padding:12px;border:1px solid #eee">'+
-          '<div style="font-size:11px;color:#888;font-weight:600;margin-bottom:4px">'+e[0]+'</div>'+
-          '<div style="font-size:18px;font-weight:800;color:#16a34a;margin-bottom:6px">'+fmt(e[1])+'</div>'+
-          '<div style="background:#e5e7eb;border-radius:4px;height:5px;overflow:hidden">'+
-            '<div style="background:#16a34a;height:100%;width:'+pct+'%;border-radius:4px"></div>'+
-          '</div>'+
-          '<div style="font-size:10px;color:#aaa;margin-top:3px">'+pct+'% of filtered</div>'+
-        '</div>';
+      '<div class="card-hdr"><span class="card-title">🏦 Collections by Account' + (dateRange||accF?' <span style="font-size:11px;font-weight:400;color:#888">(filtered period)</span>':'') + '</span>'+
+      '<button class="btn btn-sm" onclick="document.querySelector(\'.pay-main-tab[data-ptab=collections]\').click()">View Full Breakdown →</button></div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:16px">'+
+      topAccounts.map(function(e){
+        var pct = totalFiltered2 > 0 ? Math.round(e[1]/totalFiltered2*100) : 0;
+        return '<div><div style="font-size:11px;color:#888;font-weight:600">'+e[0]+'</div>'+
+          '<div style="font-size:16px;font-weight:800;color:#16a34a">'+fmt(e[1])+'<span style="font-size:11px;color:#aaa;font-weight:400"> ('+pct+'%)</span></div></div>';
       }).join('')+
+      (Object.keys(accBreakdown).length>4?'<div style="align-self:center;font-size:12px;color:#888">+'+(Object.keys(accBreakdown).length-4)+' more</div>':'')+
       '</div></div>';
   }
   $('pay-account-breakdown').innerHTML = accBDHtml;
@@ -8085,6 +8148,12 @@ $('btn-new-proj').addEventListener('click',function(){
   $('region-hint').style.display='none';
   populateStateDropdown('f-state','');
   $('btn-delete-proj').style.display='none';
+  var npBlock=$('new-proj-advance-block'); if(npBlock) npBlock.style.display='block';
+  sv('np-amount','');sv('np-date',tod());sv('np-mode','UPI');sv('np-ref','');
+  populateAccountDropdown('np-account');
+  var npf=$('np-proof-file'); if(npf) npf.value='';
+  var npp=$('np-proof-preview'); if(npp) npp.style.display='none';
+  toggleProofRow('np');
   buildDelivRows({});rawRowCount=0;$('raw-rows').innerHTML='';dataEntryCount=0;renderShootDaysFromEventDays([]);var _der=document.getElementById('dataentry-rows');if(_der)_der.innerHTML='';
   populateTeamDrops(null);renderStageTL();
   $('pay-ledger').innerHTML='';$('docs-list').innerHTML='';$('t-pay-summary').innerHTML='';
@@ -8172,6 +8241,41 @@ $('btn-save-proj').addEventListener('click',function(){
   var safeWhatsapp = fieldVisible('whatsapp') ? gv('f-whatsapp') : (ex2.whatsapp || '');
   var safeEmail    = fieldVisible('email')    ? gv('f-email')    : (ex2.email    || '');
   if(!bride||!groom){alert('Enter bride and groom names.');return;}
+  // ── New-project gate: require an advance payment before the project can be saved ──
+  // Only applies to brand-new projects (editProjId is null). Existing projects are never affected.
+  var _advOverrideReason=null;
+  var _pendingAdvancePayment=null;
+  if(!editProjId){
+    var _npAmt=parseInt(gv('np-amount'))||0;
+    var _npDate=gv('np-date');
+    var _npMode=gv('np-mode')||'UPI';
+    var _npAccount=gv('np-account');
+    var _npRef=gv('np-ref');
+    var _npProofFile=($('np-proof-file')||{}).files;
+    var _npHasProof=_npProofFile&&_npProofFile.length>0;
+    var _npNeedsProof=_npMode.toLowerCase()!=='cash';
+    var _advMissing=null;
+    if(!_npAmt||!_npDate){
+      _advMissing='No advance payment has been recorded yet. A new project cannot be saved until the first payment is entered above.';
+    } else if(!_npAccount){
+      _advMissing='Select the account the advance payment was received in.';
+    } else if(_npNeedsProof&&!_npHasProof){
+      _advMissing='A payment proof (screenshot) is required for non-cash payments. Attach it, or switch the mode to Cash if it was a cash payment.';
+    }
+    if(_advMissing){
+      if(!canOverrideStageRule()){
+        alert('\u26d4 '+_advMissing);
+        return;
+      }
+      var _aReason=prompt('\u26d4 '+_advMissing+'\n\nAs '+roleLabel(CU.role)+', you can override this and save without a recorded advance payment.\nPlease enter a SPECIFIC reason for this override (this will be permanently recorded):','');
+      if(_aReason===null)return; // user cancelled
+      _aReason=_aReason.trim();
+      if(!_aReason){alert('A specific reason is required to override this rule. Save cancelled.');return;}
+      _advOverrideReason=_aReason;
+    } else {
+      _pendingAdvancePayment={amount:_npAmt,date:_npDate,mode:_npMode,account:_npAccount,ref:_npRef,hasProofFile:_npHasProof};
+    }
+  }
   // ── Strict pipeline gate — only applies if user MANUALLY changed the Stage dropdown ──
   // (Production Plan edits, freelancer/team assignment, or a background auto-advance
   //  must NEVER trigger this check — only a deliberate click on the Stage dropdown does.)
@@ -8211,7 +8315,7 @@ $('btn-save-proj').addEventListener('click',function(){
   for(var i=0;i<rawRowCount;i++){var ph=$('rdr-ph-'+i),sz=$('rdr-sz-'+i),un=$('rdr-un-'+i),loc=$('rdr-loc-'+i),bk=$('rdr-bk-'+i);if(ph&&ph.value)raws.push({photographer:ph.value,size:sz?sz.value:'',unit:un?un.value:'GB',location:loc?loc.value:'',backup:bk?bk.value:'no'});}
   var state=gv('f-state');
   var region=gv('f-region')||getRegionForState(state);
-  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:ex.shootDays||[],dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now()};
+  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:ex.shootDays||[],dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now(),strictPayments:editProjId?(ex.strictPayments||false):true};
   Object.assign(p,deliv);
   db.ref('crm_projects/'+id).set(p,function(err){
     _projSaving=false;
@@ -8229,7 +8333,67 @@ $('btn-save-proj').addEventListener('click',function(){
     }
     if(newStage==='complete'&&exStage!=='complete'){firePaymentClosedNotification(id,p,CU?CU.name||CU.username:'Admin');}
     closeModal('proj-modal');
-    showToast('Project saved! Code: '+refcode);
+    showToast('Project saved! Code: '+refcode+(_pendingAdvancePayment?' \u00b7 Recording advance payment\u2026':''));
+    // ── Flush the advance payment captured before save (new projects only) ──
+    if(_advOverrideReason){
+      db.ref('crm_projects/'+id+'/advancePaymentOverride').set({
+        reason:_advOverrideReason,
+        by:CU?(CU.name||CU.username):'Admin',
+        role:CU?CU.role:'',
+        at:Date.now()
+      });
+      logStageChange(id,'preprod','preprod','\u26a0\ufe0f Saved without advance payment — override by '+roleLabel(CU?CU.role:'')+': '+_advOverrideReason,CU?CU.name||CU.username:'Admin');
+    }
+    if(_pendingAdvancePayment){
+      var _finishAdvanceEntry=function(proofMeta){
+        var terms=getPayTerms(p);
+        var advTerm=(p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length)
+          ? (p.customPayTerms.find(function(t){return t.desc==='booking';})||terms[0])
+          : terms[0];
+        advTerm=advTerm||{key:'p30'};
+        var entry={
+          stage:advTerm.key,
+          amount:_pendingAdvancePayment.amount,
+          date:_pendingAdvancePayment.date,
+          mode:_pendingAdvancePayment.mode,
+          account:_pendingAdvancePayment.account,
+          ref:_pendingAdvancePayment.ref,
+          notes:'Advance recorded at project creation',
+          ts:Date.now(),
+          recordedBy:CU?(CU.name||CU.username||''):''
+        };
+        if(proofMeta) entry.proofDocId=proofMeta.id;
+        var upd={payLedger:[entry],bookdate:p.bookdate||_pendingAdvancePayment.date};
+        db.ref('crm_projects/'+id).update(upd,function(){
+          showToast('\u2705 Advance '+fmt(_pendingAdvancePayment.amount)+' recorded for '+bride+' & '+groom);
+          if(editProjId===id) renderPayLedger();
+          setTimeout(function(){runPaymentAutomations(id);},400);
+        });
+      };
+      var _npFile=($('np-proof-file')||{}).files;
+      if(_npFile&&_npFile.length>0){
+        var _f=_npFile[0];
+        var _reader=new FileReader();
+        _reader.onload=function(ev){
+          var rawB64=ev.target.result;
+          compressImage(rawB64,{maxWidth:1200,maxHeight:1200,quality:0.7,maxSizeKB:300}).then(function(finalB64){
+            var docId='doc_'+Date.now();
+            var compressedKB=Math.round(finalB64.length*0.75/1024);
+            var meta={id:docId,type:'Payment Screenshot',label:'Advance payment proof',filename:_f.name,mime:_f.type,uploadedAt:tod(),sizeKB:compressedKB};
+            var docData=Object.assign({},meta,{data:finalB64});
+            db.ref('crm_docs/'+id+'/'+docId).set(docData,function(){
+              var metas=[meta];
+              db.ref('crm_projects/'+id+'/docMetas').set(metas,function(){
+                _finishAdvanceEntry(meta);
+              });
+            });
+          }).catch(function(){ _finishAdvanceEntry(null); });
+        };
+        _reader.readAsDataURL(_f);
+      } else {
+        _finishAdvanceEntry(null);
+      }
+    }
   });
 });
 function autoLinkReferral(p){var ex=Object.values(referral).find(function(c){return c.projectId===p.id||c.refcode===p.refcode;});if(ex)return;var id=Date.now();db.ref('crm_referral/'+id).set({id:id,name:p.bride+(p.groom?' & '+p.groom:''),phone:p.phone||'',city:p.city||p.state||'',booking:netVal(p)||0,code:p.refcode,projectId:p.id,points:0,history:[],createdAt:tod()});}
@@ -8251,14 +8415,20 @@ function switchPayTab(tab, btn) {
   btn.style.fontWeight = '700';
   var projTab = document.getElementById('pay-tab-projects');
   var feedTab = document.getElementById('pay-tab-feed');
-  if (!projTab || !feedTab) return;
+  var collTab = document.getElementById('pay-tab-collections');
+  if (!projTab || !feedTab || !collTab) return;
+  projTab.style.display = 'none';
+  feedTab.style.display = 'none';
+  collTab.style.display = 'none';
   if (tab === 'projects') {
     projTab.style.display = '';
-    feedTab.style.display = 'none';
-  } else {
-    projTab.style.display = 'none';
+  } else if (tab === 'feed') {
     feedTab.style.display = '';
     renderTxnFeed();
+  } else if (tab === 'collections') {
+    collTab.style.display = '';
+    populateCollFYSelect();
+    renderCollectionsByAccount();
   }
 }
 
@@ -8452,6 +8622,81 @@ function populateStageDropdown(selId, projId) {
     return '<option value="' + o.key + '">' + o.label + '</option>';
   }).join('');
 }
+function viewPaymentProof(projId, docId){
+  if(!projId||!docId) return;
+  db.ref('crm_docs/'+projId+'/'+docId).once('value', function(snap){
+    var d = snap.val();
+    if(!d || !d.data){ alert('Proof image not found (it may have been removed).'); return; }
+    var w = window.open('');
+    if(w){
+      w.document.write('<title>'+(d.label||'Payment Proof')+'</title><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh"><img src="'+d.data+'" style="max-width:100%;max-height:100vh"></body>');
+    } else {
+      window.open(d.data); // popup blocked fallback
+    }
+  });
+}
+// ── Carry-forward schedule: walks payment terms in order, tracking any shortfall ──
+// from each stage forward onto the next stage's expected amount. Returns an array
+// parallel to getPayTerms(p), each item annotated with:
+//   baseExp      — the stage's own % of net value (unchanged from before)
+//   carryIn      — shortfall amount carried in from prior stages
+//   exp          — baseExp + carryIn (what's actually expected by/at this stage)
+//   paid         — amount actually paid against this stage
+//   shortfall    — max(0, exp - paid), carried forward to the NEXT stage
+// This is purely additive — does not alter payLedger, getPayTerms, or any existing
+// balance/due calculations elsewhere in the app.
+// ── Identify which payment-schedule stages are "event-linked" (1st/2nd event payment etc.) ──
+// Presets: the single "On Event"/"Shoot day" milestone qualifies (key starts with p50/p60).
+// Custom terms: any row built with the "Shoot Day" dropdown option (stored as desc==='event'
+//   is NOT how getCustomPayTerms saves it — it saves the *select's value* into desc, so a
+//   custom stage is event-linked if its raw desc equals 'event'). For presets, match by key.
+function isEventLinkedStage(p, stageKey){
+  if(!p) return false;
+  if(p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length){
+    var ct=p.customPayTerms.find(function(t){return t.key===stageKey;});
+    return !!(ct&&ct.desc==='event');
+  }
+  return /^p(50|60|50a)$/.test(stageKey||'');
+}
+function getPaymentScheduleWithCarryForward(p){
+  if(!p) return [];
+  var terms=getPayTerms(p);
+  var ledger=p.payLedger||[];
+  var net=netVal(p);
+  var customLabels=p.payTermLabels||{};
+  var totalGeneral=ledger.filter(function(e){return e.stage==='general';}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+  var generalUsed=0;
+  var carry=0;
+  return terms.map(function(t){
+    var baseExp=Math.round(net*t.pct/100);
+    var directPaid=ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+    var splitPaid=ledger.filter(function(e){return e.splitAllocation;}).reduce(function(a,e){
+      var alloc=e.splitAllocation.find(function(al){return al.stage===t.key;});
+      return a+(alloc?parseInt(alloc.amount)||0:0);
+    },0);
+    var exp=baseExp+carry;
+    var stillDue=Math.max(0,exp-directPaid-splitPaid);
+    var generalForThisStage=Math.max(0,Math.min(stillDue,totalGeneral-generalUsed));
+    generalUsed+=generalForThisStage;
+    var paid=directPaid+splitPaid+generalForThisStage;
+    var shortfall=Math.max(0,exp-paid);
+    var item={
+      key:t.key,
+      label:customLabels[t.key+'_label']||t.label,
+      desc:customLabels[t.key+'_desc']||t.desc,
+      pct:t.pct,
+      baseExp:baseExp,
+      carryIn:carry,
+      exp:exp,
+      paid:paid,
+      shortfall:shortfall,
+      dueDate:p['pay_'+t.key+'_due']||'',
+      isEventLinked:isEventLinkedStage(p,t.key)
+    };
+    carry=shortfall; // next stage inherits this stage's unpaid shortfall
+    return item;
+  });
+}
 function renderPayLedger(){
   var p=editProjId?projects[editProjId]:null;
   if(!p){$('pay-ledger').innerHTML='<div class="empty">Save the project first.</div>';return;}
@@ -8460,55 +8705,43 @@ function renderPayLedger(){
   var net=netVal(p);var paid=paidTotal(p);var bal=Math.max(0,net-paid);
   $('t-pay-summary').innerHTML='Net Value: <strong>'+fmt(net)+'</strong> &nbsp;&middot;&nbsp; Paid: <strong style="color:#16a34a">'+fmt(paid)+'</strong> &nbsp;&middot;&nbsp; Balance: <strong style="color:'+(bal>0?'#dc2626':'#16a34a')+'">'+fmt(bal)+'</strong>';
   var ledger=p.payLedger||[];
-  var html=ledger.length?'<table class="tbl" style="margin-bottom:14px"><thead><tr><th>#</th><th>Date</th><th>Stage</th><th>Amount</th><th>Mode</th><th>Account</th><th>Ref/UTR</th><th>Notes</th><th></th></tr></thead><tbody>'+
+  var html=ledger.length?'<table class="tbl" style="margin-bottom:14px"><thead><tr><th>#</th><th>Date</th><th>Stage</th><th>Amount</th><th>Mode</th><th>Account</th><th>Ref/UTR</th><th>Proof</th><th>Notes</th><th></th></tr></thead><tbody>'+
     ledger.map(function(e,i){
       var isSplit = e.stage === 'split' && e.splitAllocation;
       var term=terms.find(function(t){return t.key===e.stage;})||{label:e.stage==='general'?'General Payment':isSplit?'Smart Split':(e.stage||'—')};
       var displayLabel = isSplit ? ('Split: ' + (e.splitAllocation.length) + ' stages') : (customLabels[e.stage+'_label']||term.label);
       var badgeColor=e.stage==='general'?'b-gray':isSplit?'b-purple':'b-blue';
       var splitDetail = isSplit && e.splitAllocation ? '<div style="font-size:10px;color:#7c3aed;margin-top:3px">'+e.splitAllocation.map(function(a){return a.label+': '+fmt(a.amount);}).join(' · ')+'</div>' : '';
-      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
+      var proofCell = e.proofDocId
+        ? '<button class="btn btn-sm" style="font-size:10px;padding:3px 7px" onclick="viewPaymentProof(\''+editProjId+'\',\''+e.proofDocId+'\')">📎 View</button>'
+        : ((e.mode||'').toLowerCase()==='cash' ? '<span style="color:#aaa;font-size:11px">Cash</span>' : '<span style="color:#ccc;font-size:11px">—</span>');
+      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
     }).join('')+'</tbody></table>':
     '<div class="empty" style="padding:16px">No payments recorded yet.</div>';
 
-  // ── Payment Schedule with editable labels ──
+  // ── Payment Schedule with editable labels (carry-forward aware) ──
   html+='<div style="padding-top:12px;border-top:1px solid #f0f0f0">';
   html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
   html+='<div style="font-size:12px;font-weight:700;color:#555;text-transform:uppercase">Payment Schedule</div>';
   html+='<div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#888">Click label or milestone to edit</span><button class="btn btn-sm" style="font-size:11px;padding:3px 10px" onclick="savePayTermLabels()">&#x1F4BE; Save Labels</button></div>';
   html+='</div>';
-  html+=terms.map(function(t){
-    var exp=Math.round(net*t.pct/100);
-    // Total untagged 'general' payments not yet allocated to any stage
-    var totalGeneral=ledger.filter(function(e){return e.stage==='general';}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
-    // Distribute general payments: fill stages in order
-    var generalAllocated=0;
-    terms.forEach(function(tt){
-      if(tt.key===t.key)return;
-      var ttExp=Math.round(net*tt.pct/100);
-      var ttTagged=ledger.filter(function(e){return e.stage===tt.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
-      var ttShortfall=Math.max(0,ttExp-ttTagged);
-      generalAllocated+=Math.min(ttShortfall,Math.max(0,totalGeneral-generalAllocated));
-    });
-    var generalForThisStage=Math.max(0,Math.min(Math.round(net*t.pct/100)-ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0),totalGeneral-generalAllocated));
-    var stPaid=ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0)
-      + ledger.filter(function(e){return e.splitAllocation;}).reduce(function(a,e){
-          var alloc=e.splitAllocation.find(function(a){return a.stage===t.key;});
-          return a+(alloc?parseInt(alloc.amount)||0:0);
-        },0)
-      + generalForThisStage;
-    var badge=stPaid>=exp?'<span class="badge b-green">Paid &#x2713;</span>':stPaid>0?'<span class="badge b-amber">Partial</span>':'<span class="badge b-red">Pending</span>';
-    var curLabel=customLabels[t.key+'_label']||t.label;
-    var curDesc=customLabels[t.key+'_desc']||t.desc;
+  var schedule=getPaymentScheduleWithCarryForward(p);
+  html+=schedule.map(function(s){
+    var badge=s.paid>=s.exp&&s.exp>0?'<span class="badge b-green">Paid &#x2713;</span>':s.paid>0?'<span class="badge b-amber">Partial</span>':'<span class="badge b-red">Pending</span>';
+    var carryNote=s.carryIn>0?'<div style="font-size:10px;color:#d97706;margin-top:2px">+'+fmt(s.carryIn)+' carried from previous stage</div>':'';
+    var dueNote=s.isEventLinked&&s.paid<s.exp
+      ? '<div style="margin-top:5px;display:flex;align-items:center;gap:6px"><label style="font-size:10px;color:#888">Next due date:</label><input type="date" class="pay-stage-due-inp" data-key="'+s.key+'" value="'+(s.dueDate||'')+'" style="font-size:11px;padding:2px 6px;border:1px solid #e2e8f0;border-radius:4px"></div>'
+      : '';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">'+
       '<div style="flex:1;min-width:0;padding-right:12px">'+
-        '<input type="text" class="pay-term-label-inp" data-key="'+t.key+'" data-field="label" value="'+curLabel.replace(/"/g,'&quot;')+'" '+
+        '<input type="text" class="pay-term-label-inp" data-key="'+s.key+'" data-field="label" value="'+s.label.replace(/"/g,'&quot;')+'" '+
           'style="font-size:12px;font-weight:700;color:#1a1a1a;border:1px solid #e2e8f0;border-radius:5px;padding:3px 8px;width:100%;background:#fafafa;margin-bottom:3px" placeholder="Label (e.g. 30% Advance)">'+
-        '<input type="text" class="pay-term-label-inp" data-key="'+t.key+'" data-field="desc" value="'+curDesc.replace(/"/g,'&quot;')+'" '+
+        '<input type="text" class="pay-term-label-inp" data-key="'+s.key+'" data-field="desc" value="'+(s.desc||'').replace(/"/g,'&quot;')+'" '+
           'style="font-size:10px;color:#888;border:1px solid #e2e8f0;border-radius:5px;padding:2px 8px;width:100%;background:#fafafa" placeholder="Milestone (e.g. On booking / Shoot day)">'+
+        carryNote+dueNote+
       '</div>'+
       '<div style="display:flex;gap:10px;align-items:center;flex-shrink:0">'+
-        '<div style="text-align:right"><div style="font-size:12px;color:#16a34a;font-weight:600">'+fmt(stPaid)+' / '+fmt(exp)+'</div><div style="font-size:10px;color:#888">'+t.pct+'%</div></div>'+
+        '<div style="text-align:right"><div style="font-size:12px;color:#16a34a;font-weight:600">'+fmt(s.paid)+' / '+fmt(s.exp)+'</div><div style="font-size:10px;color:#888">'+s.pct+'%'+(s.carryIn>0?' (incl. carry)':'')+'</div></div>'+
         badge+
       '</div>'+
     '</div>';
@@ -8524,6 +8757,17 @@ function renderPayLedger(){
       tempLabels[key+'_'+field]=inp.value;
       // Update in-memory so ledger badge also reflects change immediately
       customLabels=tempLabels;
+    });
+  });
+  document.querySelectorAll('.pay-stage-due-inp').forEach(function(inp){
+    inp.addEventListener('change',function(){
+      var key=inp.dataset.key;
+      if(!editProjId) return;
+      var upd={}; upd['pay_'+key+'_due']=inp.value;
+      db.ref('crm_projects/'+editProjId).update(upd,function(err){
+        if(err){showToast('Error saving due date: '+err.message);return;}
+        showToast('📅 Due date updated.');
+      });
     });
   });
 }
@@ -8618,6 +8862,33 @@ function previewSmartSplit() {
     '</div>';
 }
 
+// ── Proof-of-payment: required for any non-cash mode, optional for Cash — only for new (strictPayments) projects ──
+function isStrictPaymentsProject(p){ return !!(p && p.strictPayments); }
+function toggleProofRow(modePrefix){
+  var modeVal = gv(modePrefix+'-mode');
+  var row = $(modePrefix+'-proof-row');
+  if(!row) return;
+  var p = null;
+  if(modePrefix==='pe') p = editProjId ? projects[editProjId] : null;
+  else if(modePrefix==='rp'){ var rid=gv('rp-client'); p = rid ? (projects[rid]||projects[parseInt(rid)]) : null; }
+  else if(modePrefix==='np') p = {strictPayments:true}; // new project being created — always strict
+  if(!isStrictPaymentsProject(p)){ row.style.display='none'; return; }
+  row.style.display = (modeVal && modeVal.toLowerCase()==='cash') ? 'none' : 'block';
+}
+document.addEventListener('change', function(e){
+  if(e.target && e.target.id==='pe-mode') toggleProofRow('pe');
+  if(e.target && e.target.id==='rp-mode') toggleProofRow('rp');
+  if(e.target && (e.target.id==='pe-proof-file' || e.target.id==='rp-proof-file')){
+    var pfx = e.target.id==='pe-proof-file' ? 'pe' : 'rp';
+    var f = e.target.files[0]; if(!f) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var img=$(pfx+'-proof-img'); var prev=$(pfx+'-proof-preview');
+      if(img&&prev){ img.src=ev.target.result; prev.style.display='block'; }
+    };
+    reader.readAsDataURL(f);
+  }
+});
 // ═══════════════════════════════════════════════════════════════════
 // Auto-fill amount when pe-stage changes
 document.addEventListener('change', function(e){
@@ -8668,6 +8939,9 @@ document.addEventListener('click', function(e) {
     sv('pe-mode', 'UPI');
     var prev = $('pe-preview'); if (prev) prev.style.display = 'none';
     var spPrev = $('pe-split-preview'); if (spPrev) spPrev.style.display = 'none';
+    var pfFile = $('pe-proof-file'); if (pfFile) pfFile.value = '';
+    var pfPrev = $('pe-proof-preview'); if (pfPrev) pfPrev.style.display = 'none';
+    toggleProofRow('pe');
     // Always reset to single mode
     _peMode = 'single'; setPEMode('single');
     openModal('pay-entry-modal');
@@ -8689,12 +8963,45 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// ── Shared proof-of-payment validator: returns an error string, or null if OK ──
+function validatePaymentProof(p, mode, fileInputEl){
+  if(!isStrictPaymentsProject(p)) return null; // old projects: no proof requirement at all
+  if(mode && mode.toLowerCase()==='cash') return null; // cash never needs proof
+  var hasFile = fileInputEl && fileInputEl.files && fileInputEl.files.length>0;
+  if(!hasFile) return 'A payment proof (screenshot) is required for non-cash payments. Attach one, or select "Cash" if it was a cash payment.';
+  return null;
+}
+// ── Uploads a payment proof file and links it to a payLedger entry; calls cb(proofMeta|null) ──
+function uploadPaymentProof(projId, fileInputEl, cb){
+  var f = fileInputEl && fileInputEl.files && fileInputEl.files[0];
+  if(!f){ cb(null); return; }
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var rawB64 = ev.target.result;
+    compressImage(rawB64,{maxWidth:1200,maxHeight:1200,quality:0.7,maxSizeKB:300}).then(function(finalB64){
+      var docId='doc_'+Date.now();
+      var compressedKB=Math.round(finalB64.length*0.75/1024);
+      var meta={id:docId,type:'Payment Screenshot',label:'Payment proof',filename:f.name,mime:f.type,uploadedAt:tod(),sizeKB:compressedKB};
+      var docData=Object.assign({},meta,{data:finalB64});
+      db.ref('crm_docs/'+projId+'/'+docId).set(docData,function(err){
+        if(err){ cb(null); return; }
+        var p=projects[projId]||{};
+        var metas=(p.docMetas||[]).concat([meta]);
+        db.ref('crm_projects/'+projId+'/docMetas').set(metas,function(){ cb(meta); });
+      });
+    }).catch(function(){ cb(null); });
+  };
+  reader.readAsDataURL(f);
+}
+
 $('btn-save-pay-entry').addEventListener('click',function(){
   if(!editProjId)return;
   var p=projects[editProjId];if(!p)return;
   var date=gv('pe-date'); var mode=gv('pe-mode'); var account=gv('pe-account');
   var ref=gv('pe-ref'); var due=gv('pe-due'); var notes=gv('pe-notes');
   var recordedBy=CU?(CU.name||CU.username||''):'';
+  var _proofErr=validatePaymentProof(p, mode, $('pe-proof-file'));
+  if(_proofErr){ alert('\u26d4 '+_proofErr); return; }
 
   if(_peMode==='split'){
     // ── Smart Split mode: ONE visible entry, internal stage allocations stored inside ──
@@ -8724,13 +9031,16 @@ $('btn-save-pay-entry').addEventListener('click',function(){
       var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk||(e.splitAllocation&&e.splitAllocation.some(function(a){return a.stage===sk;}));}).length===0;
       if(isAdv&&noExisting&&date&&(!p.bookdate||p.bookdate===''))upd.bookdate=date;
     }
-    db.ref('crm_projects/'+editProjId).update(upd,function(err){
-      if(err){alert('Error: '+err.message);return;}
-      closeModal('pay-entry-modal');
-      showToast('⚡ '+fmt(totalAmt)+' recorded & allocated across '+splits.length+' stages!');
-      renderPayLedger();
-      setTimeout(function(){runPaymentAutomations(editProjId);},400);
-      setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,consolidatedEntry);},600);
+    uploadPaymentProof(editProjId, $('pe-proof-file'), function(proofMeta){
+      if(proofMeta){ consolidatedEntry.proofDocId=proofMeta.id; upd.payLedger=(p.payLedger||[]).concat([consolidatedEntry]); }
+      db.ref('crm_projects/'+editProjId).update(upd,function(err){
+        if(err){alert('Error: '+err.message);return;}
+        closeModal('pay-entry-modal');
+        showToast('⚡ '+fmt(totalAmt)+' recorded & allocated across '+splits.length+' stages!');
+        renderPayLedger();
+        setTimeout(function(){runPaymentAutomations(editProjId);},400);
+        setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,consolidatedEntry);},600);
+      });
     });
 
   } else {
@@ -8741,25 +9051,28 @@ $('btn-save-pay-entry').addEventListener('click',function(){
     // Stage is now optional — blank = 'general'
     var sk=gv('pe-stage')||'general';
     var entry={stage:sk,amount:amt,date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,ts:Date.now(),recordedBy:recordedBy};
-    var ledger=(p.payLedger||[]).concat([entry]);
-    var upd={payLedger:ledger};
-    if(entry.due)upd['pay_'+sk+'_due']=entry.due;
     var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
     var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
-    if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate===''))upd.bookdate=entry.date;
-    db.ref('crm_projects/'+editProjId).update(upd,function(err){
-      if(err){alert('Error: '+err.message);return;}
-      closeModal('pay-entry-modal');
-      showToast('✅ '+fmt(amt)+' recorded!');
-      renderPayLedger();
-      setTimeout(function(){runPaymentAutomations(editProjId);},400);
-      setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);
+    uploadPaymentProof(editProjId, $('pe-proof-file'), function(proofMeta){
+      if(proofMeta) entry.proofDocId=proofMeta.id;
+      var ledger=(p.payLedger||[]).concat([entry]);
+      var upd={payLedger:ledger};
+      if(entry.due)upd['pay_'+sk+'_due']=entry.due;
+      if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate===''))upd.bookdate=entry.date;
+      db.ref('crm_projects/'+editProjId).update(upd,function(err){
+        if(err){alert('Error: '+err.message);return;}
+        closeModal('pay-entry-modal');
+        showToast('✅ '+fmt(amt)+' recorded!');
+        renderPayLedger();
+        setTimeout(function(){runPaymentAutomations(editProjId);},400);
+        setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);
+      });
     });
   }
 });
 function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
 
-$('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');}).map(function(p){var pid=p.id||Object.keys(projects).find(function(k){return projects[k]===p;});return '<option value="'+pid+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');$('rp-client-info').style.display='none';openModal('rp-modal');});
+$('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');}).map(function(p){var pid=p.id||Object.keys(projects).find(function(k){return projects[k]===p;});return '<option value="'+pid+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');sv('rp-mode','UPI');var rpf=$('rp-proof-file');if(rpf)rpf.value='';var rpp=$('rp-proof-preview');if(rpp)rpp.style.display='none';toggleProofRow('rp');$('rp-client-info').style.display='none';openModal('rp-modal');});
 $('rp-client').addEventListener('change',function(){
   var id=this.value;var p=projects[id]||projects[parseInt(id)];var info=$('rp-client-info');
   if(!p){info.style.display='none';return;}
@@ -8781,13 +9094,37 @@ $('rp-client').addEventListener('change',function(){
       if(due>0)sv('rp-amount',due);
     }
   }
+  toggleProofRow('rp');
 });
-$('btn-save-rp').addEventListener('click',function(){var _rpRaw=gv('rp-client');var id=_rpRaw;var p=projects[id]||projects[parseInt(id)];if(!p){alert('Select a client.');return;}id=p.id||id;var amt=parseInt(gv('rp-amount'))||0;if(!amt){alert('Enter amount.');return;}var sk=gv('rp-stage');var payDate=gv('rp-date');var entry={stage:sk,amount:amt,date:payDate,mode:gv('rp-mode'),account:gv('rp-account'),ref:gv('rp-ref'),due:gv('rp-due'),notes:gv('rp-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};var ledger=(p.payLedger||[]).concat([entry]);var upd={payLedger:ledger};if(entry.due)upd['pay_'+sk+'_due']=entry.due;
-// AUTO-FILL BOOKING DATE from first advance payment
-var isAdvance=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
-var existingAdvance=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
-if(isAdvance&&existingAdvance&&payDate&&(!p.bookdate||p.bookdate===''))upd.bookdate=payDate;
-db.ref('crm_projects/'+id).update(upd,function(err){if(err){alert('Error: '+err.message);return;}closeModal('rp-modal');showToast('✅ '+fmt(amt)+' recorded!'+(upd.bookdate?' Booking date set to '+payDate:''));setTimeout(function(){runPaymentAutomations(id);},400);setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(id,entry);},600);});});
+$('btn-save-rp').addEventListener('click',function(){
+  var _rpRaw=gv('rp-client');var id=_rpRaw;var p=projects[id]||projects[parseInt(id)];
+  if(!p){alert('Select a client.');return;}
+  id=p.id||id;
+  var amt=parseInt(gv('rp-amount'))||0;
+  if(!amt){alert('Enter amount.');return;}
+  var mode=gv('rp-mode');
+  var _proofErr=validatePaymentProof(p, mode, $('rp-proof-file'));
+  if(_proofErr){ alert('\u26d4 '+_proofErr); return; }
+  var sk=gv('rp-stage');var payDate=gv('rp-date');
+  var entry={stage:sk,amount:amt,date:payDate,mode:mode,account:gv('rp-account'),ref:gv('rp-ref'),due:gv('rp-due'),notes:gv('rp-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};
+  // AUTO-FILL BOOKING DATE from first advance payment
+  var isAdvance=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
+  var existingAdvance=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
+  uploadPaymentProof(id, $('rp-proof-file'), function(proofMeta){
+    if(proofMeta) entry.proofDocId=proofMeta.id;
+    var ledger=(p.payLedger||[]).concat([entry]);
+    var upd={payLedger:ledger};
+    if(entry.due)upd['pay_'+sk+'_due']=entry.due;
+    if(isAdvance&&existingAdvance&&payDate&&(!p.bookdate||p.bookdate===''))upd.bookdate=payDate;
+    db.ref('crm_projects/'+id).update(upd,function(err){
+      if(err){alert('Error: '+err.message);return;}
+      closeModal('rp-modal');
+      showToast('✅ '+fmt(amt)+' recorded!'+(upd.bookdate?' Booking date set to '+payDate:''));
+      setTimeout(function(){runPaymentAutomations(id);},400);
+      setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(id,entry);},600);
+    });
+  });
+});
 
 // ═══ DOCUMENTS ═══════════════════════════════════════
 // ── Document upload — stores compressed b64 in crm_docs/{projId}/{docId}
@@ -9456,6 +9793,167 @@ function clearPayDateFilter() {
   var allBtn = document.querySelector('.pay-range-btn[data-range=""]');
   if (allBtn) { allBtn.style.background = '#1a1a1a'; allBtn.style.color = '#fff'; }
   renderPayments();
+}
+
+// ── Collections by Account tab filter state — independent from the Projects tab filters ──
+var _collRange = ''; var _collDateFrom = ''; var _collDateTo = '';
+
+function populateCollFYSelect() {
+  var fys = allIndiaFYs();
+  var cfy = currentIndiaFY();
+  var el = document.getElementById('coll-fy-f'); if (!el) return;
+  var cur = el.value;
+  el.innerHTML = '<option value="">All Financial Years</option>';
+  fys.forEach(function(fy) {
+    var o = document.createElement('option');
+    o.value = fy;
+    o.textContent = 'FY ' + fy + (fy === cfy ? ' (Current)' : '');
+    el.appendChild(o);
+  });
+  if (cur) el.value = cur;
+  // Account dropdown for this tab
+  var accEl = document.getElementById('coll-acc-f');
+  if (accEl) {
+    var cur2 = accEl.value;
+    var accNames = [];
+    pl().forEach(function(p) {
+      (p.payLedger || []).forEach(function(e) {
+        if (e.account && accNames.indexOf(e.account) === -1) accNames.push(e.account);
+      });
+    });
+    accEl.innerHTML = '<option value="">All Accounts</option>';
+    accNames.sort().forEach(function(a) {
+      var o = document.createElement('option'); o.value = a; o.textContent = a; accEl.appendChild(o);
+    });
+    if (cur2) accEl.value = cur2;
+  }
+}
+
+function setCollRange(btn, range) {
+  _collRange = range;
+  _collDateFrom = ''; _collDateTo = '';
+  var fromEl = document.getElementById('coll-date-from'); if (fromEl) fromEl.value = '';
+  var toEl   = document.getElementById('coll-date-to');   if (toEl)   toEl.value   = '';
+  var fyEl   = document.getElementById('coll-fy-f');      if (fyEl)   fyEl.value   = '';
+  document.querySelectorAll('.coll-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+  if (btn) { btn.style.background = '#1a1a1a'; btn.style.color = '#fff'; }
+  renderCollectionsByAccount();
+}
+
+function onCollFYChange() {
+  _collRange = '';
+  _collDateFrom = ''; _collDateTo = '';
+  var fromEl = document.getElementById('coll-date-from'); if (fromEl) fromEl.value = '';
+  var toEl   = document.getElementById('coll-date-to');   if (toEl)   toEl.value   = '';
+  document.querySelectorAll('.coll-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+  renderCollectionsByAccount();
+}
+
+function onCollCustomDate() {
+  _collRange = '';
+  var fyEl = document.getElementById('coll-fy-f'); if (fyEl) fyEl.value = '';
+  document.querySelectorAll('.coll-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+  _collDateFrom = (document.getElementById('coll-date-from') || {value:''}).value;
+  _collDateTo   = (document.getElementById('coll-date-to')   || {value:''}).value;
+  renderCollectionsByAccount();
+}
+
+function clearCollDateFilter() {
+  _collRange = ''; _collDateFrom = ''; _collDateTo = '';
+  var fromEl = document.getElementById('coll-date-from'); if (fromEl) fromEl.value = '';
+  var toEl   = document.getElementById('coll-date-to');   if (toEl)   toEl.value   = '';
+  var fyEl   = document.getElementById('coll-fy-f');      if (fyEl)   fyEl.value   = '';
+  document.querySelectorAll('.coll-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+  var allBtn = document.querySelector('.coll-range-btn[data-range=""]');
+  if (allBtn) { allBtn.style.background = '#1a1a1a'; allBtn.style.color = '#fff'; }
+  renderCollectionsByAccount();
+}
+
+function getCollDateRange() {
+  if (_collDateFrom || _collDateTo) return { from: _collDateFrom || '0000-01-01', to: _collDateTo || '9999-12-31' };
+  var fyEl = document.getElementById('coll-fy-f');
+  var fy = fyEl ? fyEl.value : '';
+  if (fy) return indiaFYRange(fy);
+  return dateRangeFromQuickRange(_collRange);
+}
+
+// ── Renders the full, filterable Collections by Account view ──
+function renderCollectionsByAccount() {
+  var el = document.getElementById('pay-account-breakdown-full');
+  if (!el) return;
+
+  var accF = (document.getElementById('coll-acc-f') || {value:''}).value;
+  var dateRange = getCollDateRange();
+
+  var allEntries = [];
+  pl().forEach(function(p) {
+    (p.payLedger || []).forEach(function(e) {
+      if (accF && e.account !== accF) return;
+      if (dateRange && !inDateRange(e.date || '', dateRange)) return;
+      allEntries.push({ entry: e, proj: p });
+    });
+  });
+
+  var summaryEl = document.getElementById('coll-filter-summary');
+  var tFiltered = allEntries.reduce(function(a, x) { return a + (parseInt(x.entry.amount) || 0); }, 0);
+  if (summaryEl) {
+    var parts = [];
+    if (accF) parts.push('Account: <b>' + accF + '</b>');
+    if (dateRange) parts.push('Period: <b>' + dateRange.from + '</b> → <b>' + dateRange.to + '</b>');
+    summaryEl.innerHTML = parts.length
+      ? '🔍 Showing ' + parts.join(' &nbsp;|&nbsp; ') + ' — <b style="color:#16a34a">' + fmt(tFiltered) + '</b> collected in ' + allEntries.length + ' payment(s)'
+      : '';
+  }
+
+  var accBreakdown = {};
+  var accTxnCount = {};
+  allEntries.forEach(function(x) {
+    var an = x.entry.account || 'Unknown / Not set';
+    accBreakdown[an] = (accBreakdown[an] || 0) + (parseInt(x.entry.amount) || 0);
+    accTxnCount[an] = (accTxnCount[an] || 0) + 1;
+  });
+
+  if (!Object.keys(accBreakdown).length) {
+    el.innerHTML = '<div class="empty" style="padding:24px">No payments found for this filter.</div>';
+    return;
+  }
+
+  var totalFiltered = Object.values(accBreakdown).reduce(function(a, v) { return a + v; }, 0);
+  var cardsHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:16px">' +
+    Object.entries(accBreakdown).sort(function(a, b) { return b[1] - a[1]; }).map(function(e) {
+      var pct = totalFiltered > 0 ? Math.round(e[1] / totalFiltered * 100) : 0;
+      return '<div class="card" style="margin-bottom:0">' +
+        '<div style="font-size:12px;color:#888;font-weight:600;margin-bottom:5px">' + e[0] + '</div>' +
+        '<div style="font-size:22px;font-weight:800;color:#16a34a;margin-bottom:8px">' + fmt(e[1]) + '</div>' +
+        '<div style="background:#e5e7eb;border-radius:4px;height:6px;overflow:hidden">' +
+          '<div style="background:#16a34a;height:100%;width:' + pct + '%;border-radius:4px"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:#aaa;margin-top:4px">' + pct + '% of total &middot; ' + accTxnCount[e[0]] + ' txn(s)</div>' +
+      '</div>';
+    }).join('') +
+  '</div>';
+
+  // Detailed per-account transaction table
+  var tableHtml = Object.entries(accBreakdown).sort(function(a, b) { return b[1] - a[1]; }).map(function(e) {
+    var accName = e[0];
+    var txns = allEntries.filter(function(x) { return (x.entry.account || 'Unknown / Not set') === accName; })
+      .sort(function(a, b) { return (b.entry.ts || 0) - (a.entry.ts || 0); });
+    return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">' +
+      '<div class="card-hdr" style="padding:12px 16px;margin-bottom:0;border-bottom:1px solid #f0f0f0"><span class="card-title">' + accName + '</span><span style="font-size:12px;color:#16a34a;font-weight:700">' + fmt(e[1]) + '</span></div>' +
+      '<table class="tbl"><thead><tr><th>Date</th><th>Client</th><th>Stage</th><th>Amount</th><th>Mode</th><th>Ref/UTR</th></tr></thead><tbody>' +
+      txns.map(function(x) {
+        return '<tr><td>' + fmtDate(x.entry.date || '') + '</td>' +
+          '<td><span style="cursor:pointer;color:#1d4ed8;text-decoration:underline" onclick="openProjectPayments(' + x.proj.id + ')">' + escHtml(x.proj.bride + ' & ' + x.proj.groom) + '</span></td>' +
+          '<td style="font-size:11px;color:#888">' + (x.entry.stage || '-') + '</td>' +
+          '<td style="font-weight:700;color:#16a34a">' + fmt(x.entry.amount) + '</td>' +
+          '<td>' + (x.entry.mode || '-') + '</td>' +
+          '<td style="font-size:11px;color:#888">' + (x.entry.ref || '-') + '</td></tr>';
+      }).join('') +
+      '</tbody></table>' +
+    '</div>';
+  }).join('');
+
+  el.innerHTML = cardsHtml + tableHtml;
 }
 
 // Helper: resolve current effective date range for projects (booking date)
@@ -11303,6 +11801,7 @@ function openProject(id, tabId) {
   document.getElementById('proj-modal-title').textContent = p.bride + ' & ' + p.groom;
   document.getElementById('proj-modal-refcode').innerHTML = p.refcode ? '<span class="refcode">' + p.refcode + '</span>' : '';
   document.getElementById('btn-delete-proj').style.display = (CU && CU.role === 'superadmin') ? 'block' : 'none';
+  var npBlockEx = document.getElementById('new-proj-advance-block'); if (npBlockEx) npBlockEx.style.display = 'none';
 
   // Hide save button for data manager and preprodmanager (read-only)
   var saveBtn = document.getElementById('btn-save-proj');
@@ -11528,6 +12027,103 @@ function renderPayDueAlerts() {
       '<button class="pay-alert-dismiss" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:20px;line-height:1;padding:0 4px" title="Dismiss">&times;</button>' +
       '</div></div>';
   }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FUTURE PAYMENTS — gives Accounts visibility into what's coming next:
+// per-client next milestone + amount (incl. any carried shortfall), event-payment
+// due dates where set, and which clients are pending raw data delivery.
+// Built entirely from existing payLedger/getPayTerms/d_raw_status data plus the
+// new pay_{stage}_due field — does not alter any stored data.
+// ═══════════════════════════════════════════════════════════════════
+var _futurePayTab = 'upcoming'; // 'upcoming' | 'rawdata'
+
+function switchFuturePayTab(tab, btn) {
+  _futurePayTab = tab;
+  document.querySelectorAll('.future-pay-tab').forEach(function(b) {
+    b.style.background = 'none'; b.style.color = '#888'; b.style.fontWeight = '600';
+  });
+  if (btn) { btn.style.background = '#1d4ed8'; btn.style.color = '#fff'; btn.style.fontWeight = '700'; }
+  renderFuturePayments();
+}
+
+function renderFuturePayments() {
+  var el = document.getElementById('pay-future-section');
+  if (!el) return;
+  var list = pl().filter(function(p) { return p.stage !== 'complete'; });
+
+  // ── Build "next milestone due" per client from the carry-forward schedule ──
+  var upcoming = [];
+  list.forEach(function(p) {
+    var schedule = getPaymentScheduleWithCarryForward(p);
+    var next = schedule.find(function(s) { return s.paid < s.exp; });
+    if (!next) return; // fully paid
+    var days = next.dueDate ? daysUntil(next.dueDate) : null;
+    upcoming.push({ p: p, stage: next, days: days });
+  });
+  // Sort: dated items soonest-first, then undated items in schedule order (grouped after dated)
+  upcoming.sort(function(a, b) {
+    if (a.days != null && b.days != null) return a.days - b.days;
+    if (a.days != null) return -1;
+    if (b.days != null) return 1;
+    return 0;
+  });
+
+  // ── Raw data pending: clients whose raw data hasn't been delivered yet ──
+  var rawPending = list.filter(function(p) { return (p.d_raw_status || '') === 'pending'; });
+
+  var tabsHtml = '<div style="display:flex;gap:6px;margin-bottom:10px">' +
+    '<button class="future-pay-tab btn btn-sm" onclick="switchFuturePayTab(\'upcoming\',this)" style="font-size:11px;padding:5px 12px;' + (_futurePayTab==='upcoming'?'background:#1d4ed8;color:#fff;font-weight:700':'background:none;color:#888;font-weight:600') + '">📅 Upcoming Payments (' + upcoming.length + ')</button>' +
+    '<button class="future-pay-tab btn btn-sm" onclick="switchFuturePayTab(\'rawdata\',this)" style="font-size:11px;padding:5px 12px;' + (_futurePayTab==='rawdata'?'background:#1d4ed8;color:#fff;font-weight:700':'background:none;color:#888;font-weight:600') + '">🎞️ Raw Data Pending (' + rawPending.length + ')</button>' +
+  '</div>';
+
+  var bodyHtml = '';
+  if (_futurePayTab === 'upcoming') {
+    if (!upcoming.length) {
+      bodyHtml = '<div class="empty" style="padding:16px">No upcoming payments — every active project is fully paid up to its current milestone.</div>';
+    } else {
+      bodyHtml = '<table class="tbl"><thead><tr><th>Client</th><th>Next Milestone</th><th>Amount Due</th><th>When</th><th></th></tr></thead><tbody>' +
+        upcoming.map(function(u) {
+          var s = u.stage;
+          var amtLabel = fmt(s.exp - s.paid) + (s.carryIn > 0 ? ' <span style="color:#d97706;font-size:10px">(incl. ' + fmt(s.carryIn) + ' carried)</span>' : '');
+          var whenHtml;
+          if (u.days != null) {
+            var col = u.days < 0 ? '#dc2626' : u.days <= 7 ? '#d97706' : '#1d4ed8';
+            whenHtml = '<span style="color:' + col + ';font-weight:700">' + (u.days < 0 ? Math.abs(u.days) + ' days overdue' : u.days === 0 ? 'Due today' : 'in ' + u.days + ' days') + '</span> <span style="color:#aaa;font-size:11px">(' + fmtDate(s.dueDate) + ')</span>';
+          } else {
+            whenHtml = '<span style="color:#888;font-size:12px">Awaiting ' + (s.desc || s.label) + '</span>';
+          }
+          return '<tr>' +
+            '<td><b>' + u.p.bride + ' & ' + u.p.groom + '</b><div style="font-size:10px;color:#aaa">' + (u.p.state || u.p.city || '') + '</div></td>' +
+            '<td><span class="badge b-blue">' + s.label + '</span></td>' +
+            '<td style="font-weight:700;color:#16a34a">' + amtLabel + '</td>' +
+            '<td>' + whenHtml + '</td>' +
+            '<td><button class="btn btn-sm" onclick="openProjectPayments(' + u.p.id + ')">View</button></td>' +
+          '</tr>';
+        }).join('') + '</tbody></table>';
+    }
+  } else {
+    if (!rawPending.length) {
+      bodyHtml = '<div class="empty" style="padding:16px">No clients pending raw data delivery.</div>';
+    } else {
+      bodyHtml = '<table class="tbl"><thead><tr><th>Client</th><th>Shoot Date</th><th>Raw Data Size</th><th>Balance Due</th><th></th></tr></thead><tbody>' +
+        rawPending.map(function(p) {
+          var bal = balDue(p);
+          return '<tr>' +
+            '<td><b>' + p.bride + ' & ' + p.groom + '</b><div style="font-size:10px;color:#aaa">' + (p.state || p.city || '') + '</div></td>' +
+            '<td>' + fmtDate(p.date || '') + '</td>' +
+            '<td>' + (p.d_raw_qty ? p.d_raw_qty + ' ' + (p.d_raw_unit || 'GB') : '—') + '</td>' +
+            '<td style="font-weight:700;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">' + fmt(bal) + '</td>' +
+            '<td><button class="btn btn-sm" onclick="openProject(' + p.id + ',\'t-deliv\')">View</button></td>' +
+          '</tr>';
+        }).join('') + '</tbody></table>';
+    }
+  }
+
+  el.innerHTML = '<div class="card">' +
+    '<div class="card-hdr"><span class="card-title">🔮 Future Payments — Accounts Outlook</span></div>' +
+    tabsHtml + bodyHtml +
+  '</div>';
 }
 
 function getDueAlerts() {
@@ -14831,11 +15427,33 @@ var CREW_ROLES = [
   {key:'drone', label:'Drone Operator'}
 ];
 
+var SESSION_PRESETS = ['Morning','Afternoon','Evening','Night','Full Day'];
+
+// Migrate legacy day (crew at day level, no sessions array) to sessions array
+function _migrateDaySessions(day) {
+  if (!day.sessions || !day.sessions.length) {
+    var crew = day.crew || {};
+    var oldOccasion = day.occasion || '';
+    // name = time-of-day slot (Morning/Evening/Full Day), occasion = event type (Wedding/Haldi etc.)
+    // Old data stored event type in 'occasion' — put it in sess.occasion, default name to 'Full Day'
+    day.sessions = [{
+      name: 'Full Day',
+      occasion: oldOccasion,
+      crew: JSON.parse(JSON.stringify(crew || {}))
+    }];
+    delete day.crew;
+    delete day.occasion;
+  }
+}
+
+function _defaultCrew() {
+  var c = {};
+  CREW_ROLES.forEach(function(r){ c[r.key] = 0; });
+  return c;
+}
+
 function addQuotDay() {
-  var dayNum = quotDays.length + 1;
-  var crew = {};
-  CREW_ROLES.forEach(function(r) { crew[r.key] = 1; });
-  quotDays.push({ date: '', occasion: 'Wedding', crew: crew });
+  quotDays.push({ date: '', sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
   renderQuotDays();
 }
 
@@ -14844,47 +15462,118 @@ function removeQuotDay(idx) {
   renderQuotDays();
 }
 
-function renderQuotDays() {
-  var container = document.getElementById('quot-days-container'); if (!container) return;
-  if (!quotDays.length) {
-    container.innerHTML = '<div class="empty">No days added yet. Click "+ Add Day" to begin.</div>';
-    return;
-  }
-  container.innerHTML = quotDays.map(function(day, i) {
-    return '<div class="day-block" data-day-idx="' + i + '">' +
-      '<div class="day-block-hdr">' +
-        '<span class="day-block-title">📅 Day ' + (i+1) + '</span>' +
-        '<button class="btn-danger" onclick="removeQuotDay(' + i + ')">Remove Day</button>' +
-      '</div>' +
-      '<div class="fg">' +
-        '<div class="fr qday-date-wrap"><label class="fl">Date</label><input class="fi qday-date" data-idx="' + i + '" type="date" value="' + (day.date||'') + '" onchange="updateQuotDay(' + i + ',\'date\',this.value)"></div>' +
-        '<div class="fr"><label class="fl">Occasion / Event Name</label><input class="fi qday-occ" data-idx="' + i + '" value="' + (day.occasion||'').replace(/"/g,'&quot;') + '" placeholder="e.g. Haldi & Sangeet" onchange="updateQuotDay(' + i + ',\'occasion\',this.value)"></div>' +
-      '</div>' +
-      '<div class="crew-section">' +
-      '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Crew for This Day</div>' +
-      CREW_ROLES.map(function(r) {
-        var cnt = (day.crew && day.crew[r.key] !== undefined) ? day.crew[r.key] : 0;
-        return '<div class="crew-row">' +
-          '<label style="font-size:13px;color:#555">' + r.label + '</label>' +
-          '<input type="number" min="0" max="10" value="' + cnt + '" class="fi qcrew-inp" data-idx="' + i + '" data-role="' + r.key + '" onchange="updateQuotCrew(' + i + ',\'' + r.key + '\',this.value)" style="padding:6px 8px;text-align:center">' +
-          (cnt > 0 ? '<span style="font-size:11px;color:#16a34a;font-weight:700">✓</span>' : '<span style="font-size:11px;color:#ddd">–</span>') +
-        '</div>';
-      }).join('') +
-      '</div>' +
-    '</div>';
-  }).join('');
+function addQuotSession(dayIdx) {
+  _migrateDaySessions(quotDays[dayIdx]);
+  quotDays[dayIdx].sessions.push({ name: 'Evening', occasion: '', crew: _defaultCrew() });
+  renderQuotDays();
+}
+
+function removeQuotSession(dayIdx, sessIdx) {
+  _migrateDaySessions(quotDays[dayIdx]);
+  if (quotDays[dayIdx].sessions.length <= 1) return;
+  quotDays[dayIdx].sessions.splice(sessIdx, 1);
+  renderQuotDays();
 }
 
 function updateQuotDay(idx, field, val) {
   if (quotDays[idx]) quotDays[idx][field] = val;
 }
 
-function updateQuotCrew(dayIdx, role, val) {
-  if (!quotDays[dayIdx]) return;
-  if (!quotDays[dayIdx].crew) quotDays[dayIdx].crew = {};
-  quotDays[dayIdx].crew[role] = parseInt(val) || 0;
-  renderQuotDays();
+function updateQuotSession(dayIdx, sessIdx, field, val) {
+  _migrateDaySessions(quotDays[dayIdx]);
+  if (quotDays[dayIdx].sessions[sessIdx]) quotDays[dayIdx].sessions[sessIdx][field] = val;
 }
+
+function updateQuotSessionCrew(dayIdx, sessIdx, role, val) {
+  _migrateDaySessions(quotDays[dayIdx]);
+  var sess = quotDays[dayIdx].sessions[sessIdx];
+  if (!sess) return;
+  if (!sess.crew) sess.crew = _defaultCrew();
+  sess.crew[role] = parseInt(val) || 0;
+  // Update just the checkmark without full re-render (prevents focus loss)
+  var container = document.getElementById('quot-days-container');
+  if (!container) { return; }
+  var dayBlock = container.querySelector('[data-day-idx="' + dayIdx + '"]');
+  if (!dayBlock) { renderQuotDays(); return; }
+  var sessBlock = dayBlock.querySelector('[data-sess-idx="' + sessIdx + '"]');
+  if (!sessBlock) { renderQuotDays(); return; }
+  var inp = sessBlock.querySelector('[data-role="' + role + '"]');
+  if (inp) {
+    var span = inp.nextElementSibling;
+    if (span) { var v = parseInt(val)||0; span.textContent = v>0?'\u2713':'\u2013'; span.style.color = v>0?'#16a34a':'#ddd'; }
+  }
+}
+
+function renderQuotDays() {
+  var container = document.getElementById('quot-days-container'); if (!container) return;
+  if (!quotDays.length) {
+    container.innerHTML = '<div class="empty">No days added yet. Click \u201c+ Add Day\u201d to begin.</div>';
+    return;
+  }
+  container.innerHTML = quotDays.map(function(day, i) {
+    _migrateDaySessions(day);
+    var sessions = day.sessions;
+
+    var sessionsHtml = sessions.map(function(sess, si) {
+      var isPreset = SESSION_PRESETS.indexOf(sess.name) !== -1;
+      var nameOpts = SESSION_PRESETS.map(function(p){
+        return '<option value="'+p+'"'+(sess.name===p?' selected':'')+'>'+p+'</option>';
+      }).join('') + '<option value="__custom__"'+(!isPreset?' selected':'')+'>Custom\u2026</option>';
+
+
+
+      var crewRows = CREW_ROLES.map(function(r) {
+        var cnt = (sess.crew && sess.crew[r.key] !== undefined) ? sess.crew[r.key] : 0;
+        return '<div class="crew-row">' +
+          '<label style="font-size:13px;color:#555">' + r.label + '</label>' +
+          '<input type="number" min="0" max="10" value="' + cnt + '" class="fi qcrew-inp" data-role="' + r.key + '" onchange="updateQuotSessionCrew('+i+','+si+',\''+r.key+'\',this.value)" style="padding:6px 8px;text-align:center">' +
+          (cnt > 0 ? '<span style="font-size:11px;color:#16a34a;font-weight:700">\u2713</span>' : '<span style="font-size:11px;color:#ddd">\u2013</span>') +
+        '</div>';
+      }).join('');
+
+      var customNameField = !isPreset ?
+        '<input class="fi" type="text" value="' + (sess.name||'').replace(/"/g,'&quot;') + '" placeholder="Session name" style="font-size:12px;padding:4px 8px;flex:1;min-width:110px;max-width:180px" onchange="updateQuotSession('+i+','+si+',\'name\',this.value)">' : '';
+
+      return '<div class="sess-block" data-sess-idx="' + si + '" style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;padding:12px;margin-bottom:8px">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">' +
+          '<span style="background:#7c3aed;color:#fff;font-size:10px;font-weight:800;padding:2px 10px;border-radius:20px;white-space:nowrap">Session '+(si+1)+'</span>' +
+          // Time-of-day (Morning/Evening)
+          '<select class="fi" style="font-size:12px;padding:4px 8px;min-width:110px;max-width:150px" onchange="(function(v,d,s){if(v===\'__custom__\'){quotDays[d].sessions[s].name=\'\';renderQuotDays();}else{updateQuotSession(d,s,\'name\',v);}})(this.value,'+i+','+si+')">' +
+            nameOpts +
+          '</select>' +
+          customNameField +
+          '<input class="fi" type="text" value="' + (sess.occasion||'').replace(/"/g,'&quot;') + '" placeholder="e.g. Wedding Haldi Rituals" style="font-size:12px;padding:4px 8px;flex:1;min-width:160px" onchange="updateQuotSession('+i+','+si+',\'occasion\',this.value)">' +
+          (sessions.length > 1 ? '<button onclick="removeQuotSession('+i+','+si+')" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;padding:3px 9px;margin-left:auto">\u2715</button>' : '') +
+        '</div>' +
+        '<div class="crew-section">' +
+          '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Crew for this Session</div>' +
+          crewRows +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    return '<div class="day-block" data-day-idx="' + i + '">' +
+      '<div class="day-block-hdr">' +
+        '<span class="day-block-title">📅 Day ' + (i+1) + '</span>' +
+        '<button class="btn-danger" onclick="removeQuotDay('+i+')">Remove Day</button>' +
+      '</div>' +
+      '<div class="fr qday-date-wrap" style="margin-bottom:12px">' +
+        '<label class="fl">Date</label>' +
+        '<input class="fi qday-date" data-idx="'+i+'" type="date" value="'+(day.date||'')+'" onchange="updateQuotDay('+i+',\'date\',this.value)">' +
+      '</div>' +
+      '<div style="margin-bottom:8px">' + sessionsHtml + '</div>' +
+      '<button onclick="addQuotSession('+i+')" style="background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;padding:5px 14px;width:100%;margin-top:2px">+ Add Session (e.g. Evening, Sangeet)</button>' +
+    '</div>';
+  }).join('');
+}
+
+function updateQuotCrew(dayIdx, role, val) {
+  // Legacy shim — routes to session 0
+  if (!quotDays[dayIdx]) return;
+  _migrateDaySessions(quotDays[dayIdx]);
+  updateQuotSessionCrew(dayIdx, 0, role, val);
+}
+
 
 // ── Pricing summary ──────────────────────────────────────────────
 function updateQuotPriceSummary() {
@@ -15849,9 +16538,10 @@ function saveQuotation(silent) {
   if (!bride && !silent) { alert('Please enter the client / bride name.'); return; }
   if (!bride) return; // silent mode — skip if no name
 
-  // Sync any unsaved day text inputs (in case user typed but didn't blur)
+  // Sync any unsaved day date inputs (in case user typed but didn't blur)
   document.querySelectorAll('.qday-date').forEach(function(el) { var i = parseInt(el.dataset.idx); if (quotDays[i]) quotDays[i].date = el.value; });
-  document.querySelectorAll('.qday-occ').forEach(function(el) { var i = parseInt(el.dataset.idx); if (quotDays[i]) quotDays[i].occasion = el.value; });
+  // Migrate any legacy days (crew at top level, no sessions) before saving
+  quotDays.forEach(function(d) { _migrateDaySessions(d); });
 
   var gv2 = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
 
@@ -16299,17 +16989,62 @@ function buildQuotPDFDom(q) {
   }
 
   // Build timeline HTML for preview
+  // Build a lookup from deliverable label -> actual selected detail for accurate PDF descriptions
+  var _tlDelivLookup = {};
+  if (q.quotDeliverables && q.quotDeliverables.length) {
+    q.quotDeliverables.forEach(function(qd) {
+      if (!qd.label) return;
+      var detail = qd.customDetail || qd.detail || '';
+      var display = (detail && detail !== 'Included' && detail !== 'All Files')
+        ? qd.label + ' — ' + detail
+        : qd.label;
+      _tlDelivLookup[qd.label.toLowerCase()] = display;
+      if (qd.id) _tlDelivLookup[qd.id] = display;
+    });
+  }
+  var _tlKeywordToId = [
+    { kw: 'wedding teaser',         id: 'wedding-teaser' },
+    { kw: 'highlight film',         id: 'highlight-film' },
+    { kw: 'wedding film',           id: 'wedding-film' },
+    { kw: 'traditional video',      id: 'trad-video' },
+    { kw: 'edited photo gallery',   id: 'edited-gallery' },
+    { kw: 'photo gallery',          id: 'edited-gallery' },
+    { kw: 'pre-wedding short film', id: 'prewed-teaser' },
+    { kw: 'short film',             id: 'prewed-teaser' }
+  ];
+  // Milestone labels that are process steps, not deliverables — always use stored desc
+  var _tlProcessOnlyMilestones = [
+    'raw data delivery', 'data delivery', 'album design', 'album dispatch',
+    'final album', 'client approval', 'photo selection', 'sneak peek'
+  ];
+  function _tlGetDesc(m) {
+    var lbl = (m.label || '').toLowerCase().trim();
+    // Process-only milestones: skip deliverable lookup, use stored description
+    for (var _pi = 0; _pi < _tlProcessOnlyMilestones.length; _pi++) {
+      if (lbl.indexOf(_tlProcessOnlyMilestones[_pi]) !== -1) return m.desc || '';
+    }
+    if (_tlDelivLookup[lbl]) return _tlDelivLookup[lbl];
+    for (var _ki = 0; _ki < _tlKeywordToId.length; _ki++) {
+      if (lbl.indexOf(_tlKeywordToId[_ki].kw) !== -1) {
+        var _did = _tlKeywordToId[_ki].id;
+        if (_tlDelivLookup[_did]) return _tlDelivLookup[_did];
+      }
+    }
+    return m.desc || '';
+  }
+
   var timelineHTML = '';
   if (q.timeline && q.timeline.length) {
     timelineHTML = q.timeline.map(function(m, i) {
-      return '<div style="display:flex;gap:0;align-items:flex-start;margin-bottom:10px">' +
-        '<div style="display:flex;flex-direction:column;align-items:center;margin-right:14px;flex-shrink:0">' +
-          '<div style="width:28px;height:28px;border-radius:50%;border:2px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">' + (i+1) + '</div>' +
-          (i < q.timeline.length - 1 ? '<div style="width:2px;flex:1;min-height:18px;background:currentColor;opacity:0.25;margin-top:3px"></div>' : '') +
+      var _desc = _tlGetDesc(m);
+      return '<div style="display:flex;gap:0;align-items:flex-start;margin-bottom:7px">' +
+        '<div style="display:flex;flex-direction:column;align-items:center;margin-right:11px;flex-shrink:0">' +
+          '<div style="width:22px;height:22px;border-radius:50%;border:2px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800">' + (i+1) + '</div>' +
+          (i < q.timeline.length - 1 ? '<div style="width:2px;flex:1;min-height:14px;background:currentColor;opacity:0.25;margin-top:2px"></div>' : '') +
         '</div>' +
-        '<div style="flex:1;padding-bottom:4px">' +
-          '<div style="font-size:13px;font-weight:700">' + escHtml(m.label||'') + '</div>' +
-          '<div style="font-size:11px;opacity:0.65;margin-top:2px">Within <strong>' + (m.days||0) + ' days</strong> after ' + ({
+        '<div style="flex:1;padding-bottom:3px">' +
+          '<div style="font-size:12px;font-weight:700">' + escHtml(m.label||'') + '</div>' +
+          '<div style="font-size:10px;opacity:0.65;margin-top:1px">Within <strong>' + (m.days||0) + ' days</strong> after ' + ({
             event:     'event date',
             shoot:     'shoot date',
             raw_data:  'raw data delivery',
@@ -16319,7 +17054,7 @@ function buildQuotPDFDom(q) {
             approval:  'client approval',
             booking:   'booking date'
           }[m.from] || (m.from || 'event') + ' date') +
-            (m.desc ? ' — ' + escHtml(m.desc) : '') + '</div>' +
+            (_desc ? ' — ' + escHtml(_desc) : '') + '</div>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -16543,17 +17278,40 @@ function buildQuotPDFDom(q) {
   if (q.days && q.days.length) {
     // Helper: build a single crew HTML day block
     function buildDayBlock(day, globalIdx) {
-      var crewItems = CREW_ROLES.filter(function(r) { return day.crew && day.crew[r.key] > 0; });
+      // Support new sessions model AND legacy (crew at day level)
+      var sessions = day.sessions;
+      if (!sessions || !sessions.length) {
+        // legacy: wrap into single session
+        sessions = [{ name: day.occasion || '', time: '', crew: day.crew || {} }];
+      }
+      var dayNum = globalIdx + 1;
+      var dateStr = day.date ? ' \u2014 ' + fmtDate(day.date) : '';
+
+      // Build HTML for all sessions under one Day header
+      var sessionsHtml = sessions.map(function(sess, si) {
+        var crewItems = CREW_ROLES.filter(function(r){ return sess.crew && sess.crew[r.key] > 0; });
+        var sessLabel = (sess.name || '').trim();
+        var occLabel = (sess.occasion || '').trim();
+        var subHeaderText = sessLabel && occLabel ? sessLabel + ': ' + occLabel : (occLabel || sessLabel || ('Session ' + (si+1)));
+        var subHeader = (sessions.length > 1 || sessLabel || occLabel) ?
+          '<tr><td colspan="2" style="padding:9px 0 3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:' + coverAccCol + ';font-family:Arial,sans-serif">' +
+            subHeaderText +
+          '</td></tr>' : '';
+        var rows = crewItems.length
+          ? crewItems.map(function(r){
+              return '<tr>' +
+                '<td style="padding:5px 0 5px 12px;border-bottom:1px solid ' + coverTextCol + '18;color:' + coverTextCol + ';font-family:Arial,sans-serif;font-size:12px">' + r.label + '</td>' +
+                '<td style="padding:5px 0;border-bottom:1px solid ' + coverTextCol + '18;color:' + coverTextCol + ';font-weight:700;font-family:Georgia,serif;font-size:12px;text-align:right">' + sess.crew[r.key] + '</td>' +
+              '</tr>';
+            }).join('')
+          : '<tr><td colspan="2" style="padding:5px 0 5px 12px;color:#aaa;font-style:italic;font-size:11px">No crew specified</td></tr>';
+        return subHeader + rows;
+      }).join('');
+
       return (
-        '<div style="margin-top:20px;margin-bottom:0;">' +
-          '<div style="font-size:20px;font-weight:400;color:' + coverTextCol + ';font-family:Georgia,\'Times New Roman\',serif;letter-spacing:-0.3px">' +
-            (function() {
-              var dayNum = globalIdx + 1;
-              var occ = (day.occasion || '').trim();
-              var prefix = 'Day ' + dayNum;
-              var label = occ && /^Day\s+\d+/i.test(occ) ? occ : (occ ? prefix + ': ' + occ : prefix);
-              return label + (day.date ? ' \u2014 ' + fmtDate(day.date) : '');
-            })() +
+        '<div style="margin-top:14px;margin-bottom:0;">' +
+          '<div style="font-size:18px;font-weight:400;color:' + coverTextCol + ';font-family:Georgia,\'Times New Roman\',serif;letter-spacing:-0.3px">' +
+            'Day ' + dayNum + dateStr +
           '</div>' +
         '</div>' +
         '<table style="width:100%;border-collapse:collapse;margin-bottom:0;font-size:12px;font-family:Arial,sans-serif;">' +
@@ -16561,26 +17319,26 @@ function buildQuotPDFDom(q) {
             '<th style="padding:7px 0;text-align:left;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:' + coverAccCol + ';border-bottom:1px solid ' + coverTextCol + '33">Role</th>' +
             '<th style="padding:7px 0;text-align:right;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:' + coverAccCol + ';border-bottom:1px solid ' + coverTextCol + '33">Count</th>' +
           '</tr></thead>' +
-          '<tbody>' +
-          (crewItems.length ? crewItems.map(function(r) {
-            return '<tr>' +
-              '<td style="padding:8px 0;border-bottom:1px solid ' + coverTextCol + '18;color:' + coverTextCol + ';font-family:Arial,sans-serif;font-size:13px">' + r.label + '</td>' +
-              '<td style="padding:8px 0;border-bottom:1px solid ' + coverTextCol + '18;color:' + coverTextCol + ';font-weight:700;font-family:Georgia,serif;font-size:13px;text-align:right">' + day.crew[r.key] + '</td>' +
-            '</tr>';
-          }).join('') : '<tr><td colspan="2" style="padding:8px 0;text-align:center;color:#aaa;font-style:italic">No crew specified</td></tr>') +
-          '</tbody>' +
+          '<tbody>' + sessionsHtml + '</tbody>' +
         '</table>' +
         '<div style="height:1px;background:' + coverTextCol + ';opacity:0.2;margin:4px 0 0"></div>'
       );
     }
 
-    // Helper: estimate height of one day block (heading + rows)
+    // Helper: estimate height of one day block (heading + all session rows)
     function estimateDayHeight(day) {
-      var crewItems = CREW_ROLES.filter(function(r) { return day.crew && day.crew[r.key] > 0; });
-      var rowCount = Math.max(crewItems.length, 1); // at least 1 "no crew" row
-      // heading ~42px, table header ~26px, each row ~29px, separator ~9px, margin ~20px
-      return 42 + 26 + (rowCount * 29) + 9 + 20;
+      var sessions = day.sessions;
+      if (!sessions || !sessions.length) sessions = [{ crew: day.crew || {} }];
+      var totalRows = 0;
+      sessions.forEach(function(sess) {
+        var crewItems = CREW_ROLES.filter(function(r){ return sess.crew && sess.crew[r.key] > 0; });
+        totalRows += Math.max(crewItems.length, 1);
+        if (sessions.length > 1) totalRows += 0.7; // sub-header row
+      });
+      // heading ~38px, table header ~24px, each row ~26px, separator ~8px, margin ~16px
+      return 38 + 24 + (totalRows * 26) + 8 + 16;
     }
+
 
     // Page header HTML (first page has large title; continuation pages have compact header)
     function buildCrewPageHeader(isFirst) {
@@ -16622,8 +17380,8 @@ function buildQuotPDFDom(q) {
     }
 
     // Available content height per page (px) — conservative to prevent overflow
-    var FIRST_PAGE_CONTENT_H  = 700;  // after large title header + footer
-    var CONT_PAGE_CONTENT_H   = 870;  // after compact header + footer
+    var FIRST_PAGE_CONTENT_H  = 780;  // after large title header + footer
+    var CONT_PAGE_CONTENT_H   = 920;  // after compact header + footer
 
     var basePageNum = q.aboutImageB64 ? 3 : 2;
     var pageCount = 0;
@@ -16696,23 +17454,34 @@ function buildQuotPDFDom(q) {
       }
 
       // ── Build subtitle (small caps below label) ──
+      // Type descriptor only — duration/quantity already shows in valStr on the right
       var subMap = {
-        'wedding-teaser':  '1.5–2 Min',
-        'prewed-teaser':   '1.5–2 Min',
-        'wedding-film':    '15–20 Min · Feature Length',
-        'highlight-film':  '5–7 Min · Cinematic Edit',
+        'wedding-teaser':  'Cinematic Story Teaser',
+        'prewed-teaser':   'Pre-Wedding Teaser',
+        'wedding-film':    'Feature Length Film',
+        'highlight-film':  'Cinematic Highlight Edit',
         'short-reels':     'Vertical · Curated Cuts',
         'trad-video':      'Full Ceremony Coverage',
-        'edited-gallery':  '300–500 High-Res Images',
+        'edited-gallery':  'High-Res Edited Images',
         'online-gallery':  'Face Recognition Secure Gallery',
-        'wedding-album':   'Premium Add-On',
+        'wedding-album':   'Premium Printed Album',
         'prewed-album':    'Printed Keepsake',
         'photo-frames':    'Archival Prints',
         'full-raw':        'Full Archive Handover',
         'travel':          'Outstation Coverage',
         'accommodation':   'Hotel / Client Managed'
       };
-      var subStr = (preset && subMap[qd.id]) ? subMap[qd.id] : (qd.detail || 'Included');
+      // Combine selected duration + type descriptor for subtitle
+      var typeDesc = (preset && subMap[qd.id]) ? subMap[qd.id] : '';
+      var selDetail = qd.customDetail || qd.detail || '';
+      var subStr;
+      if (typeDesc && selDetail && selDetail !== 'Included' && selDetail !== 'All Files' && selDetail !== typeDesc) {
+        subStr = selDetail + ' · ' + typeDesc;
+      } else if (typeDesc) {
+        subStr = typeDesc;
+      } else {
+        subStr = selDetail || 'Included';
+      }
 
       delivItems.push({
         l:   (qd.icon ? qd.icon + ' ' : '') + qd.label,
@@ -16724,12 +17493,12 @@ function buildQuotPDFDom(q) {
 
   // ── Dynamic page numbers (crew can span multiple pages) ──────
   // Page 1 = cover, Page 2 = about (if image), Page 3+ = crew pages,
-  // then deliverables, pricing, terms
+  // then deliverables, terms+addons, pricing (always last)
   var _crewPageCount = (crewPage.match(/class="qpdf-page"/g) || []).length;
   var _baseAfterCover = q.aboutImageB64 ? 2 : 1;          // cover + optional about
   var _pgDeliv  = _baseAfterCover + _crewPageCount + 1;   // deliv page number
-  var _pgPrice  = _pgDeliv + (delivItems.length ? 1 : 0); // pricing page number
-  var _pgTerms  = _pgPrice + 1;                           // terms page number
+  var _pgTerms  = _pgDeliv + (delivItems.length ? 1 : 0); // terms page number (before pricing)
+  // _pgPrice computed after merge decision below (may be +1 or +2 after terms)
 
   var delivPage = '';
   if (delivItems.length) {
@@ -16760,10 +17529,13 @@ function buildQuotPDFDom(q) {
       }).join('') +
       '</div>' +
 
-      // Delivery note box
-      '<div style="margin-top:20px;background:' + (isNoir ? 'rgba(201,169,110,0.07)' : 'rgba(138,115,85,0.05)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.25)' : '#d4c8b4') + ';border-radius:4px;padding:14px 20px;">' +
-        '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin-bottom:6px;font-family:Arial,sans-serif">Delivery Timeline</div>' +
-        '<div style="font-size:12px;color:#444;font-family:Arial,sans-serif">Standard delivery: <strong>8–12 weeks</strong> from event completion. Expedited delivery available upon request.</div>' +
+      // Delivery Timeline — dynamic milestones if set, else static note
+      '<div style="margin-top:20px;">' +
+        '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin-bottom:8px;font-family:Arial,sans-serif">Delivery Timeline</div>' +
+        (timelineHTML
+          ? '<div style="background:' + (isNoir ? 'rgba(201,169,110,0.04)' : 'rgba(138,115,85,0.03)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.2)' : '#e8e0d5') + ';border-radius:8px;padding:12px 16px;color:' + (isNoir ? '#e8d5b0' : '#2c2418') + ';font-family:Arial,sans-serif">' + timelineHTML + '</div>'
+          : '<div style="background:' + (isNoir ? 'rgba(201,169,110,0.07)' : 'rgba(138,115,85,0.05)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.25)' : '#d4c8b4') + ';border-radius:4px;padding:14px 20px;font-size:12px;color:#444;font-family:Arial,sans-serif">Standard delivery: <strong>8–12 weeks</strong> from event completion. Expedited delivery available upon request.</div>'
+        ) +
       '</div>' +
 
       '</div>' +
@@ -16772,58 +17544,8 @@ function buildQuotPDFDom(q) {
   }
 
   // ══════════════════════════════════════════════════════════════
-  // PRICING PAGE — clean breakdown with dark price box
+  // PRICING PAGE — built later after merge decision (see finalPricePage below)
   // ══════════════════════════════════════════════════════════════
-  var pricePage = '<div class="qpdf-page" style="' + S.page + '">' +
-    pageHeader('Pricing & Payment Terms', clientName + '<br>' + fmtDate(new Date())) +
-    '<div style="flex:1;overflow:hidden;">' +
-    accentLine +
-
-    // Extras strip (Figma ref shows extras as a separate column)
-    '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin-bottom:12px;font-family:Arial,sans-serif">Package Pricing</div>' +
-
-    // Dark price box
-    '<div style="' + S.pBox + '">' +
-      '<div style="' + S.pRow + '"><span>Base Package Price</span><span>&#8377;' + (parseFloat(q.value)||0).toLocaleString('en-IN') + '</span></div>' +
-      (parseFloat(q.discount) > 0
-        ? '<div style="' + S.pRow + '"><span>Special Discount</span><span style="color:#fca5a5">&#8722; &#8377;' + parseFloat(q.discount).toLocaleString('en-IN') + '</span></div>'
-        : '') +
-      '<div style="' + S.pTot + '">' +
-        '<span style="' + S.pTotL + '">Total Package Cost</span>' +
-        '<span style="' + S.pTotV + '">&#8377;' + net.toLocaleString('en-IN') + '</span>' +
-      '</div>' +
-      (gstNote ? '<div style="' + S.pGst + '">' + gstNote + '</div>' : '') +
-    '</div>' +
-
-    // Payment schedule
-    '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin-bottom:10px;font-family:Arial,sans-serif">Payment Schedule</div>' +
-    '<div style="' + S.ptBox + '">' +
-      '<div style="' + S.ptLbl + '">Payment Terms</div>' +
-      payTermsText +
-    '</div>' +
-
-    // Timeline section
-    (timelineHTML ? (
-      '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin:20px 0 10px;font-family:Arial,sans-serif">Delivery Timeline</div>' +
-      '<div style="background:' + (isNoir ? 'rgba(201,169,110,0.04)' : 'rgba(138,115,85,0.03)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.2)' : '#e8e0d5') + ';border-radius:8px;padding:16px 18px;color:' + (isNoir ? '#e8d5b0' : '#2c2418') + ';font-family:Arial,sans-serif">' +
-        timelineHTML +
-      '</div>'
-    ) : '') +
-
-    // Notes
-    (q.priceNotes
-      ? '<div style="background:' + (isNoir ? 'rgba(201,169,110,0.06)' : 'rgba(138,115,85,0.04)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.25)' : '#d4c8b4') + ';border-radius:4px;padding:12px 16px;font-size:12px;color:#444;margin-bottom:16px;font-family:Arial,sans-serif"><b>Additional Notes:</b> ' + q.priceNotes + '</div>'
-      : '') +
-
-    // Thank you note
-    '<div style="margin-top:16px;text-align:center;padding:20px;border-top:' + T.hdrBorder + '">' +
-      '<div style="font-size:11px;font-style:italic;color:' + T.coverAccent + ';font-family:Georgia,serif;margin-bottom:4px">Thank you for choosing KB Studio Productions</div>' +
-      '<div style="font-size:9px;color:#aaa;letter-spacing:1px;text-transform:uppercase;font-family:Arial,sans-serif">This is a quotation, not an invoice  ·  Valid for 30 days</div>' +
-    '</div>' +
-
-    '</div>' +
-    pageFooter('Pricing & Terms  ·  ' + clientName, _pgPrice) +
-  '</div>';
 
   // ══════════════════════════════════════════════════════════════
   // TERMS PAGE — only rendered if any terms are selected
@@ -16893,11 +17615,123 @@ function buildQuotPDFDom(q) {
         'All additional services are subject to availability and must be confirmed at the time of booking. Charges are exclusive of GST unless stated.' +
       '</div>' +
       '</div>' +
-      pageFooter('Additional Services  ·  ' + clientName, (_pgTerms ? _pgTerms + 1 : _pgPrice + 1)) +
+      pageFooter('Additional Services  ·  ' + clientName, _pgTerms + 1) +
     '</div>';
   }
 
-  return cover + aboutPage + crewPage + delivPage + pricePage + termsPage + addlServicesPage;
+  // ── Smart merge: Terms + Additional Services onto Pricing page ──────
+  // Build compact inline versions of terms and addl services
+  var termsInline = '';
+  if (allTermLines.length) {
+    termsInline =
+      '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin:18px 0 8px;font-family:Arial,sans-serif">Terms &amp; Conditions</div>' +
+      '<div style="background:' + (isNoir ? 'rgba(201,169,110,0.04)' : 'rgba(138,115,85,0.03)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.2)' : '#e8e0d5') + ';border-radius:6px;padding:10px 14px;font-family:Arial,sans-serif">' +
+      allTermLines.map(function(line, idx) {
+        return '<div style="display:flex;align-items:flex-start;gap:10px;padding:6px 0;border-bottom:1px solid ' + (isNoir ? 'rgba(201,169,110,0.1)' : '#ede6da') + '">' +
+          '<div style="min-width:18px;height:18px;border-radius:50%;background:' + T.dayHdrBg + ';color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;font-family:Arial,sans-serif">' + (idx+1) + '</div>' +
+          '<div style="flex:1;font-size:11px;color:#444;font-family:Arial,sans-serif;line-height:1.5">' + line + '</div>' +
+        '</div>';
+      }).join('') +
+      '<div style="padding-top:7px;font-size:10px;color:#aaa;font-family:Arial,sans-serif">By confirming this quotation, the client acknowledges and agrees to all the above terms and conditions.</div>' +
+      '</div>';
+  }
+
+  var addlInline = '';
+  if (svcList.length) {
+    addlInline =
+      '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin:14px 0 8px;font-family:Arial,sans-serif">Optional Add-On Services</div>' +
+      '<div style="border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.2)' : '#e8e0d5') + ';border-radius:6px;overflow:hidden;font-family:Arial,sans-serif">' +
+      '<div style="display:flex;background:' + T.dayHdrBg + ';color:#fff;padding:6px 12px;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase">' +
+        '<div style="flex:2">Service</div><div style="flex:2">Charge</div><div style="flex:1.5">Notes</div>' +
+      '</div>' +
+      svcList.map(function(s, idx) {
+        var bg = idx % 2 === 0 ? (isNoir ? 'rgba(255,255,255,0.03)' : '#faf8f4') : (isNoir ? 'rgba(255,255,255,0.06)' : '#fff');
+        return '<div style="display:flex;padding:7px 12px;background:' + bg + ';border-bottom:1px solid ' + (isNoir ? 'rgba(201,169,110,0.1)' : '#ede6da') + '">' +
+          '<div style="flex:2;font-size:11px;font-weight:600;color:' + (isNoir ? '#e8d5b0' : '#2c2418') + '">' + escHtml(s.name) + '</div>' +
+          '<div style="flex:2;font-size:11px;font-weight:700;color:' + T.coverAccent + '">' + escHtml(s.rate) + '</div>' +
+          '<div style="flex:1.5;font-size:10px;color:#888">' + escHtml(s.note || '') + '</div>' +
+        '</div>';
+      }).join('') +
+      '</div>' +
+      '<div style="font-size:10px;color:#aaa;margin-top:6px;font-family:Arial,sans-serif">All services subject to availability. Charges exclusive of GST unless stated.</div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // PAGE ORDER:
+  //   1. Cover  2. About  3. Crew  4. Package Inclusions
+  //   5. Terms & Conditions + Additional Services (merged if fit, separate if not)
+  //   6. Pricing & Payment Terms (always last, always alone)
+  // ══════════════════════════════════════════════════════════════
+
+  // ── Merge decision first (so we know the total page count before building pricing) ──
+  // Heights calibrated from actual rendered output:
+  //   Terms: label(30) + items(28 each) + confirmation note(24)
+  //   AddOns: label(30) + table-header(28) + rows(26 each) + footer note(24)
+  var termsHeight = allTermLines.length ? (30 + allTermLines.length * 28 + 24) : 0;
+  var addlHeight  = svcList.length      ? (30 + 28 + svcList.length * 26 + 24) : 0;
+  var availableOnTermsPage = 900; // usable content height on a fresh page
+  var bothFitOnOnePage = (termsHeight + addlHeight) <= availableOnTermsPage;
+
+  var finalTermsPage, finalAddlPage;
+
+  if (bothFitOnOnePage && allTermLines.length && svcList.length) {
+    // Merge: Terms + AddOns on one page (page _pgTerms)
+    finalTermsPage = '<div class="qpdf-page" style="' + S.page + '">' +
+      pageHeader('Terms & Conditions', clientName) +
+      '<div style="flex:1;overflow:hidden;">' +
+      accentLine +
+      '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin-bottom:16px;font-family:Arial,sans-serif">Please Read Carefully</div>' +
+      allTermLines.map(function(line, idx) {
+        return '<div style="display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid ' + (isNoir ? 'rgba(201,169,110,0.12)' : '#ede6da') + '">' +
+          '<div style="width:22px;height:22px;border-radius:50%;background:' + T.dayHdrBg + ';color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;font-family:Arial,sans-serif">' + (idx+1) + '</div>' +
+          '<div style="flex:1;font-size:13px;color:#333;font-family:Arial,sans-serif;line-height:1.6">' + line + '</div>' +
+        '</div>';
+      }).join('') +
+      '<div style="margin-top:20px;background:' + (isNoir ? 'rgba(201,169,110,0.06)' : 'rgba(138,115,85,0.04)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.2)' : '#d4c8b4') + ';border-radius:6px;padding:14px 18px;font-size:11px;color:#888;font-family:Arial,sans-serif;line-height:1.7">' +
+        'By confirming this quotation, the client acknowledges and agrees to all the above terms and conditions.' +
+      '</div>' +
+      addlInline +
+      '</div>' +
+      pageFooter('Terms & Conditions  ·  ' + clientName, _pgTerms) +
+    '</div>';
+    finalAddlPage = '';
+
+  } else {
+    // Separate pages: terms page then addons page (each before pricing)
+    finalTermsPage = termsPage;        // standalone terms (built above, page _pgTerms)
+    finalAddlPage  = addlServicesPage; // standalone addons (built above, page _pgTerms+1)
+  }
+
+  // ── Now compute _pgPrice (depends on whether addons got a separate page) ──
+  var _addlPageCount = finalAddlPage ? 1 : 0;
+  var _pgPrice = _pgTerms + (_pgTerms > 0 ? 1 : 0) + _addlPageCount;
+  // If there are no terms at all, pricing follows deliverables directly
+  if (!allTermLines.length && !svcList.length) _pgPrice = _pgDeliv + (delivItems.length ? 1 : 0);
+
+  // ── Pricing page — always standalone, always last ──
+  var finalPricePage = '<div class="qpdf-page" style="' + S.page + '">' +
+    pageHeader('Pricing & Payment Terms', clientName + '<br>' + fmtDate(new Date())) +
+    '<div style="flex:1;overflow:hidden;">' +
+    accentLine +
+    '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin-bottom:12px;font-family:Arial,sans-serif">Package Pricing</div>' +
+    '<div style="' + S.pBox + '">' +
+      '<div style="' + S.pRow + '"><span>Base Package Price</span><span>&#8377;' + (parseFloat(q.value)||0).toLocaleString('en-IN') + '</span></div>' +
+      (parseFloat(q.discount) > 0 ? '<div style="' + S.pRow + '"><span>Special Discount</span><span style="color:#fca5a5">&#8722; &#8377;' + parseFloat(q.discount).toLocaleString('en-IN') + '</span></div>' : '') +
+      '<div style="' + S.pTot + '"><span style="' + S.pTotL + '">Total Package Cost</span><span style="' + S.pTotV + '">&#8377;' + net.toLocaleString('en-IN') + '</span></div>' +
+      (gstNote ? '<div style="' + S.pGst + '">' + gstNote + '</div>' : '') +
+    '</div>' +
+    '<div style="font-size:9px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:' + T.coverAccent + ';margin-bottom:10px;font-family:Arial,sans-serif">Payment Schedule</div>' +
+    '<div style="' + S.ptBox + '"><div style="' + S.ptLbl + '">Payment Terms</div>' + payTermsText + '</div>' +
+    (q.priceNotes ? '<div style="background:' + (isNoir ? 'rgba(201,169,110,0.06)' : 'rgba(138,115,85,0.04)') + ';border:1px solid ' + (isNoir ? 'rgba(201,169,110,0.25)' : '#d4c8b4') + ';border-radius:4px;padding:10px 14px;font-size:12px;color:#444;margin-bottom:12px;font-family:Arial,sans-serif"><b>Additional Notes:</b> ' + q.priceNotes + '</div>' : '') +
+    '<div style="margin-top:12px;text-align:center;padding:14px;border-top:' + T.hdrBorder + '">' +
+      '<div style="font-size:11px;font-style:italic;color:' + T.coverAccent + ';font-family:Georgia,serif;margin-bottom:3px">Thank you for choosing KB Studio Productions</div>' +
+      '<div style="font-size:9px;color:#aaa;letter-spacing:1px;text-transform:uppercase;font-family:Arial,sans-serif">This is a quotation, not an invoice  ·  Valid for 30 days</div>' +
+    '</div>' +
+    '</div>' +
+    pageFooter('Pricing & Terms  ·  ' + clientName, _pgPrice) +
+  '</div>';
+
+  return cover + aboutPage + crewPage + delivPage + finalTermsPage + finalAddlPage + finalPricePage;
 }
 </script>
 
