@@ -1428,8 +1428,29 @@ document.addEventListener('wheel', function(e) {
     </div>
 
     <div id="page-postprod" class="page">
-      <div class="page-title">Post Production Tracker</div>
-      <div class="page-sub">Live deliverables status across all projects.</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+        <div>
+          <div class="page-title" style="margin-bottom:2px">Post Production Tracker</div>
+          <div class="page-sub">Live deliverables status across all projects.</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="pp-export-stage" class="fi" style="width:160px;padding:7px 10px;font-size:12px">
+            <option value="">All Stages</option>
+            <option value="preprod">Pre-Production</option>
+            <option value="production">Production</option>
+            <option value="postprod">Post-Production</option>
+            <option value="delivery">Delivery</option>
+            <option value="payment">Payment Pending</option>
+            <option value="complete">Complete</option>
+          </select>
+          <select id="pp-export-deliv-status" class="fi" style="width:170px;padding:7px 10px;font-size:12px">
+            <option value="pending_only">Pending Deliverables Only</option>
+            <option value="all">All Deliverables</option>
+          </select>
+          <button onclick="exportPPReport('excel')" style="background:#16a34a;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">📊 Excel</button>
+          <button onclick="exportPPReport('pdf')" style="background:#2563eb;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">📄 PDF</button>
+        </div>
+      </div>
       <div id="pp-content"></div>
     </div>
 
@@ -7204,6 +7225,191 @@ function buildEditorStats(){
 }
 
 function setPPTab(t){_ppTab=t;renderPostProd();}
+
+// ── Post Production Pending Deliverables Export ──────────────────────────────
+function exportPPReport(fmt) {
+  var stageFilter  = (document.getElementById('pp-export-stage') || {}).value || '';
+  var delivFilter  = (document.getElementById('pp-export-deliv-status') || {}).value || 'pending_only';
+  var pendingOnly  = delivFilter === 'pending_only';
+
+  // Build rows: one row per pending deliverable per project
+  var rows = [];
+  var statusLabel = { pending:'⏳ Pending', inprogress:'🔄 In Progress', review:'👁️ Review', delivered:'✅ Delivered' };
+
+  Object.values(projects || {}).forEach(function(p) {
+    if (!p || !p.customDelivs || !p.customDelivs.length) return;
+    if (stageFilter && p.stage !== stageFilter) return;
+
+    var delivs = p.customDelivs.filter(function(d) {
+      if (pendingOnly) return d.status !== 'delivered';
+      return true;
+    });
+    if (!delivs.length) return;
+
+    var clientName = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+    var eventDate  = p.eventDays && p.eventDays.length ? p.eventDays.map(function(ed){ return ed.date || ''; }).filter(Boolean).sort()[0] : (p.eventDate || '');
+    var editor     = function(edId) {
+      if (!edId) return '—';
+      var u = (users || {})[edId];
+      return u ? u.name : edId;
+    };
+
+    delivs.forEach(function(d) {
+      rows.push({
+        client:    clientName,
+        phone:     p.phone || '—',
+        stage:     stageLabel(p.stage || ''),
+        eventDate: eventDate || '—',
+        category:  d.category || '—',
+        delivName: d.name || d.type || '—',
+        qty:       d.qty || 1,
+        specs:     d.specs || '—',
+        editor:    editor(d.editorId),
+        status:    statusLabel[d.status] || d.status || '—',
+        deadline:  d.deadline || '—',
+        link:      d.link || '—'
+      });
+    });
+  });
+
+  if (!rows.length) {
+    showToast('✅ No pending deliverables found!');
+    return;
+  }
+
+  if (fmt === 'excel') {
+    exportPPExcel(rows, pendingOnly);
+  } else {
+    exportPPPDF(rows, pendingOnly);
+  }
+}
+
+function exportPPExcel(rows, pendingOnly) {
+  var stageF = (document.getElementById('pp-export-stage') || {}).value || '';
+  var stageN = stageF ? stageLabel(stageF) : 'All Stages';
+  var title  = pendingOnly ? 'Pending Deliverables Report' : 'All Deliverables Report';
+
+  var cols = ['Client','Phone','Stage','Event Date','Category','Deliverable','Qty','Specs','Editor Assigned','Status','Deadline','Drive Link'];
+  var tsv  = [cols.join('	')];
+  rows.forEach(function(r) {
+    tsv.push([r.client, r.phone, r.stage, r.eventDate, r.category, r.delivName, r.qty, r.specs, r.editor, r.status, r.deadline, r.link].join('	'));
+  });
+
+  // Build a styled HTML table that Excel will open natively
+  var html = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>' +
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
+    '<Styles>' +
+    '<Style ss:ID="h"><Font ss:Bold="1" ss:Size="11"/><Interior ss:Color="#1e3a5f" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF" ss:Bold="1"/></Style>' +
+    '<Style ss:ID="t"><Font ss:Bold="1" ss:Size="13"/></Style>' +
+    '<Style ss:ID="p"><Interior ss:Color="#f59e0b" ss:Pattern="Solid"/></Style>' +
+    '<Style ss:ID="i"><Interior ss:Color="#3b82f6" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF"/></Style>' +
+    '<Style ss:ID="r"><Interior ss:Color="#8b5cf6" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF"/></Style>' +
+    '</Styles>' +
+    '<Worksheet ss:Name="Pending Deliverables"><Table>' +
+    '<Row><Cell ss:MergeAcross="11" ss:StyleID="t"><Data ss:Type="String">KB Studio Productions — ' + title + ' (' + stageN + ') — ' + new Date().toLocaleDateString('en-IN') + '</Data></Cell></Row>' +
+    '<Row>' + cols.map(function(c){ return '<Cell ss:StyleID="h"><Data ss:Type="String">' + c + '</Data></Cell>'; }).join('') + '</Row>';
+
+  rows.forEach(function(r) {
+    var statusStyle = r.status.includes('Progress') ? 'i' : r.status.includes('Review') ? 'r' : '';
+    var rowStyle = statusStyle ? ' ss:StyleID="' + statusStyle + '"' : '';
+    html += '<Row>' +
+      [r.client, r.phone, r.stage, r.eventDate, r.category, r.delivName, String(r.qty), r.specs, r.editor, r.status, r.deadline, r.link]
+        .map(function(v, i){ return '<Cell' + (i===9 ? rowStyle : '') + '><Data ss:Type="String">' + escHtml(String(v)) + '</Data></Cell>'; }).join('') +
+    '</Row>';
+  });
+
+  html += '</Table></Worksheet></Workbook>';
+
+  var blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = 'KB_Pending_Deliverables_' + new Date().toISOString().slice(0,10) + '.xls';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📊 Excel exported — ' + rows.length + ' deliverables');
+}
+
+function exportPPPDF(rows, pendingOnly) {
+  var stageF = (document.getElementById('pp-export-stage') || {}).value || '';
+  var stageN = stageF ? stageLabel(stageF) : 'All Stages';
+  var title  = pendingOnly ? 'Pending Deliverables Report' : 'All Deliverables Report';
+  var today  = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+  // Group by client
+  var byClient = {};
+  var clientOrder = [];
+  rows.forEach(function(r) {
+    if (!byClient[r.client]) { byClient[r.client] = []; clientOrder.push(r.client); }
+    byClient[r.client].push(r);
+  });
+
+  var statusColor = function(s) {
+    if (s.includes('Progress')) return '#2563eb';
+    if (s.includes('Review'))   return '#7c3aed';
+    if (s.includes('Delivered'))return '#16a34a';
+    return '#b45309';
+  };
+
+  var tableRows = '';
+  var rowN = 0;
+  clientOrder.forEach(function(client) {
+    var cRows = byClient[client];
+    cRows.forEach(function(r, ci) {
+      rowN++;
+      var bg = rowN % 2 === 0 ? '#f8f9fa' : '#ffffff';
+      tableRows += '<tr style="background:' + bg + '">' +
+        (ci === 0 ? '<td rowspan="' + cRows.length + '" style="vertical-align:top;padding:8px 10px;border:1px solid #e2e8f0;font-weight:700;color:#1e3a5f;font-size:12px;min-width:120px">' + escHtml(r.client) + '<br><span style="font-weight:400;color:#888;font-size:11px">' + escHtml(r.phone) + '</span><br><span style="font-size:10px;color:#555;background:#e0f2fe;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:3px">' + escHtml(r.stage) + '</span><br><span style="font-size:10px;color:#888;margin-top:2px;display:block">📅 ' + escHtml(r.eventDate) + '</span></td>' : '') +
+        '<td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#374151">' + escHtml(r.category) + '</td>' +
+        '<td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;font-weight:600;color:#111">' + escHtml(r.delivName) + (r.qty > 1 ? ' <span style="color:#888;font-size:10px">×' + r.qty + '</span>' : '') + '</td>' +
+        '<td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:11px;color:#555">' + escHtml(r.specs !== '—' ? r.specs : '') + '</td>' +
+        '<td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:12px;color:#374151">' + escHtml(r.editor) + '</td>' +
+        '<td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center"><span style="background:' + statusColor(r.status) + ';color:#fff;padding:3px 8px;border-radius:20px;font-size:10px;font-weight:700;white-space:nowrap">' + escHtml(r.status) + '</span></td>' +
+        '<td style="padding:7px 10px;border:1px solid #e2e8f0;font-size:11px;color:#555;text-align:center">' + escHtml(r.deadline !== '—' ? r.deadline : '') + '</td>' +
+      '</tr>';
+    });
+  });
+
+  var summary = '<div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">' +
+    '<div style="background:#fff3e0;border:1px solid #f59e0b;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:800;color:#b45309">' + rows.filter(function(r){return r.status.includes('Pending');}).length + '</div><div style="font-size:11px;color:#92400e;font-weight:600">PENDING</div></div>' +
+    '<div style="background:#eff6ff;border:1px solid #3b82f6;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:800;color:#1d4ed8">' + rows.filter(function(r){return r.status.includes('Progress');}).length + '</div><div style="font-size:11px;color:#1e40af;font-weight:600">IN PROGRESS</div></div>' +
+    '<div style="background:#f5f3ff;border:1px solid #8b5cf6;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:800;color:#6d28d9">' + rows.filter(function(r){return r.status.includes('Review');}).length + '</div><div style="font-size:11px;color:#4c1d95;font-weight:600">IN REVIEW</div></div>' +
+    '<div style="background:#f0fdf4;border:1px solid #22c55e;border-radius:8px;padding:10px 18px;text-align:center"><div style="font-size:22px;font-weight:800;color:#15803d">' + clientOrder.length + '</div><div style="font-size:11px;color:#166534;font-weight:600">CLIENTS</div></div>' +
+  '</div>';
+
+  var w = window.open('', '_blank');
+  w.document.write('<!DOCTYPE html><html><head><title>KB Studio — ' + title + '</title>' +
+    '<style>body{margin:0;padding:24px;font-family:Arial,sans-serif;color:#111}@media print{body{padding:12px}.no-print{display:none}}</style></head><body>' +
+    '<div class="no-print" style="margin-bottom:16px;display:flex;gap:10px">' +
+      '<button onclick="window.print()" style="background:#2563eb;color:#fff;border:none;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🖨️ Print / Save as PDF</button>' +
+      '<button onclick="window.close()" style="background:#f3f4f6;border:1px solid #d1d5db;padding:9px 16px;border-radius:8px;font-size:13px;cursor:pointer">✕ Close</button>' +
+    '</div>' +
+    '<div style="border-bottom:3px solid #1e3a5f;padding-bottom:14px;margin-bottom:20px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-end">' +
+        '<div><div style="font-size:22px;font-weight:800;color:#1e3a5f;letter-spacing:-0.5px">KB Studio Productions</div>' +
+        '<div style="font-size:14px;color:#555;margin-top:2px">' + title + ' · ' + stageN + '</div></div>' +
+        '<div style="text-align:right;font-size:12px;color:#888"><div>Generated: ' + today + '</div><div style="margin-top:2px">Total Deliverables: <b>' + rows.length + '</b></div></div>' +
+      '</div>' +
+    '</div>' +
+    summary +
+    '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif">' +
+      '<thead><tr style="background:#1e3a5f;color:#fff">' +
+        '<th style="padding:9px 10px;text-align:left;font-size:11px;letter-spacing:.05em;border:1px solid #2d4f7c">CLIENT</th>' +
+        '<th style="padding:9px 10px;text-align:left;font-size:11px;letter-spacing:.05em;border:1px solid #2d4f7c">CATEGORY</th>' +
+        '<th style="padding:9px 10px;text-align:left;font-size:11px;letter-spacing:.05em;border:1px solid #2d4f7c">DELIVERABLE</th>' +
+        '<th style="padding:9px 10px;text-align:left;font-size:11px;letter-spacing:.05em;border:1px solid #2d4f7c">SPECS</th>' +
+        '<th style="padding:9px 10px;text-align:left;font-size:11px;letter-spacing:.05em;border:1px solid #2d4f7c">EDITOR</th>' +
+        '<th style="padding:9px 10px;text-align:center;font-size:11px;letter-spacing:.05em;border:1px solid #2d4f7c">STATUS</th>' +
+        '<th style="padding:9px 10px;text-align:center;font-size:11px;letter-spacing:.05em;border:1px solid #2d4f7c">DEADLINE</th>' +
+      '</tr></thead>' +
+      '<tbody>' + tableRows + '</tbody>' +
+    '</table>' +
+    '<div style="margin-top:20px;font-size:10px;color:#aaa;text-align:center;border-top:1px solid #e2e8f0;padding-top:10px">KB Studio Productions · Post Production Report · ' + today + ' · www.kbstudio.in</div>' +
+    '</body></html>');
+  w.document.close();
+  showToast('📄 PDF report opened — use Print → Save as PDF');
+}
+
 
 // ── Targeted deliverable write helper ───────────────────────────────────────
 // Writes only the changed deliverable at its array index instead of the full array.
