@@ -2523,18 +2523,17 @@ document.addEventListener('wheel', function(e) {
               <div id="qf-addl-services-desc" style="font-size:12px;color:#64748b;margin-top:3px">These appear as a dedicated page in the quotation PDF.</div>
             </div>
             <!-- Toggle switch -->
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;margin-left:14px" title="Include or exclude the Add-on Services page from the PDF">
-              <span id="qf-addl-toggle-label" style="font-size:12px;font-weight:600;color:#16a34a">Included in PDF</span>
-              <div style="position:relative;width:42px;height:24px" onclick="toggleAddlServices()">
-                <input type="checkbox" id="qf-addl-enabled" checked style="opacity:0;width:0;height:0;position:absolute">
-                <div id="qf-addl-track" style="position:absolute;inset:0;border-radius:12px;background:#16a34a;transition:background .2s;cursor:pointer"></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:14px">
+              <span id="qf-addl-toggle-label" style="font-size:12px;font-weight:600;color:#94a3b8">Excluded from PDF</span>
+              <div onclick="toggleAddlServices()" title="Toggle Add-on Services page in PDF" style="position:relative;width:42px;height:24px;cursor:pointer;flex-shrink:0">
+                <div id="qf-addl-track" style="position:absolute;inset:0;border-radius:12px;background:#d1d5db;transition:background .2s"></div>
                 <div id="qf-addl-thumb" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.25)"></div>
               </div>
-            </label>
+            </div>
           </div>
 
           <!-- Services body (collapsible) -->
-          <div id="qf-addl-services-body">
+          <div id="qf-addl-services-body" style="display:none">
             <div style="display:flex;gap:6px;margin-bottom:6px">
               <span style="flex:2;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Service Name</span>
               <span style="flex:2;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Rate</span>
@@ -2545,7 +2544,7 @@ document.addEventListener('wheel', function(e) {
           </div>
 
           <!-- Disabled state placeholder -->
-          <div id="qf-addl-services-off" style="display:none;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:8px;padding:14px 16px;text-align:center;color:#94a3b8;font-size:12px">
+          <div id="qf-addl-services-off" style="background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:8px;padding:14px 16px;text-align:center;color:#94a3b8;font-size:12px">
             🚫 Add-on Services page is <strong>excluded</strong> from this quotation's PDF.<br>
             <span style="font-size:11px">Toggle the switch above to include it.</span>
           </div>
@@ -15629,7 +15628,7 @@ function openNewQuotation() {
   editQuotId = null;
   quotDays = [];
   quotDeliverables = [];
-  quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES)); quotAddlEnabled = true; toggleAddlServices(true); renderAddlServices();
+  quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES)); quotAddlEnabled = false; toggleAddlServices(false); renderAddlServices();
   clearQuotForm();
   fillSel('qf-source', 'sources', DEFAULT_SOURCES, '');
   document.getElementById('quot-modal-title').textContent = 'New Quotation';
@@ -15682,11 +15681,11 @@ function openEditQuotation(id) {
   sv2('qf-value', q.value); sv2('qf-discount', q.discount);
   sv2('qf-gst', q.gst || 'excluded'); sv2('qf-currency', q.currency || 'INR');
   sv2('qf-payterms', q.payterms || '30-50-10-5-5'); sv2('qf-price-notes', q.priceNotes);
-  // Restore add-on services: if saved with enabled=false, honour that; default true for legacy quotations
-  quotAddlEnabled = (q.addlServicesEnabled === false) ? false : true;
-  // For legacy quotations that were saved with addlEnabled=false but non-empty list, restore list anyway
+  // Restore add-on services toggle — default OFF for all quotations (including legacy)
+  quotAddlEnabled = (q.addlServicesEnabled === true) ? true : false;
+  // Always restore the list itself so toggling ON shows the saved/default services
   quotAddlServices = JSON.parse(JSON.stringify(
-    (q.addlServicesEnabled === false) ? DEFAULT_ADDL_SERVICES : (q.addlServices && q.addlServices.length ? q.addlServices : DEFAULT_ADDL_SERVICES)
+    (q.addlServices && q.addlServices.length ? q.addlServices : DEFAULT_ADDL_SERVICES)
   ));
   toggleAddlServices(quotAddlEnabled);
   renderAddlServices();
@@ -16666,39 +16665,30 @@ var DEFAULT_ADDL_SERVICES = [
   { name:'Extra Album',                   rate:'₹5,000–10,000',         note:'100–250 Photos' }
 ];
 var quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES));
-var quotAddlEnabled  = true; // whether add-on services page is included in PDF
+var quotAddlEnabled  = false; // OFF by default — user must explicitly enable
 
 function toggleAddlServices(forceState) {
-  var cb     = document.getElementById('qf-addl-enabled');
   var track  = document.getElementById('qf-addl-track');
   var thumb  = document.getElementById('qf-addl-thumb');
   var body   = document.getElementById('qf-addl-services-body');
   var offMsg = document.getElementById('qf-addl-services-off');
   var label  = document.getElementById('qf-addl-toggle-label');
-  if (!cb) return;
+  if (!track || !thumb) return;
 
-  // If forceState passed (true/false), use it; otherwise flip
-  if (typeof forceState === 'boolean') {
-    quotAddlEnabled = forceState;
-  } else {
-    quotAddlEnabled = !quotAddlEnabled;
-  }
-  cb.checked = quotAddlEnabled;
+  quotAddlEnabled = (typeof forceState === 'boolean') ? forceState : !quotAddlEnabled;
 
   if (quotAddlEnabled) {
-    track.style.background  = '#16a34a';
-    thumb.style.left        = '21px';
-    body.style.display      = 'block';
-    offMsg.style.display    = 'none';
-    label.textContent       = 'Included in PDF';
-    label.style.color       = '#16a34a';
+    track.style.background = '#16a34a';
+    thumb.style.left       = '21px';
+    if (body)   body.style.display   = 'block';
+    if (offMsg) offMsg.style.display = 'none';
+    if (label)  { label.textContent = 'Included in PDF'; label.style.color = '#16a34a'; }
   } else {
-    track.style.background  = '#d1d5db';
-    thumb.style.left        = '3px';
-    body.style.display      = 'none';
-    offMsg.style.display    = 'block';
-    label.textContent       = 'Excluded from PDF';
-    label.style.color       = '#94a3b8';
+    track.style.background = '#d1d5db';
+    thumb.style.left       = '3px';
+    if (body)   body.style.display   = 'none';
+    if (offMsg) offMsg.style.display = 'block';
+    if (label)  { label.textContent = 'Excluded from PDF'; label.style.color = '#94a3b8'; }
   }
 }
 
