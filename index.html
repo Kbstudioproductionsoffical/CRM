@@ -1500,6 +1500,10 @@ document.addEventListener('wheel', function(e) {
           style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
           🏦 Collections by Account
         </button>
+        <button class="pay-main-tab" data-ptab="pipeline" onclick="switchPayTab('pipeline',this)"
+          style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
+          💳 Payment Pipeline
+        </button>
       </div>
 
       <!-- Projects tab content -->
@@ -1510,6 +1514,11 @@ document.addEventListener('wheel', function(e) {
         <div style="margin-bottom:12px"><button class="btn btn-primary" id="btn-record-pay">+ Record Payment</button></div>
         <div id="pay-account-breakdown"></div>
         <div class="card" style="padding:0;overflow:hidden"><div id="pay-table"></div></div>
+      </div>
+
+      <!-- Payment Pipeline tab content -->
+      <div id="pay-tab-pipeline" style="display:none">
+        <div id="pay-pipeline-content"></div>
       </div>
 
       <!-- Transaction Feed tab content -->
@@ -2507,15 +2516,39 @@ document.addEventListener('wheel', function(e) {
 
         <!-- Additional Services Rate Card -->
         <div style="margin-top:18px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#888;margin-bottom:8px">➕ Additional Services (Per Day / Add-on Charges)</div>
-          <div style="font-size:12px;color:#64748b;margin-bottom:10px">These appear as a dedicated page in the quotation PDF. Edit or remove as needed.</div>
-          <div style="display:flex;gap:6px;margin-bottom:6px">
-            <span style="flex:2;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Service Name</span>
-            <span style="flex:2;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Rate</span>
-            <span style="flex:1.5;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Note</span>
-            <span style="width:28px"></span>
+          <!-- Toggle row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div>
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#888">➕ Additional Services (Per Day / Add-on Charges)</div>
+              <div id="qf-addl-services-desc" style="font-size:12px;color:#64748b;margin-top:3px">These appear as a dedicated page in the quotation PDF.</div>
+            </div>
+            <!-- Toggle switch -->
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;margin-left:14px" title="Include or exclude the Add-on Services page from the PDF">
+              <span id="qf-addl-toggle-label" style="font-size:12px;font-weight:600;color:#16a34a">Included in PDF</span>
+              <div style="position:relative;width:42px;height:24px" onclick="toggleAddlServices()">
+                <input type="checkbox" id="qf-addl-enabled" checked style="opacity:0;width:0;height:0;position:absolute">
+                <div id="qf-addl-track" style="position:absolute;inset:0;border-radius:12px;background:#16a34a;transition:background .2s;cursor:pointer"></div>
+                <div id="qf-addl-thumb" style="position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.25)"></div>
+              </div>
+            </label>
           </div>
-          <div id="qf-addl-services-list"></div>
+
+          <!-- Services body (collapsible) -->
+          <div id="qf-addl-services-body">
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <span style="flex:2;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Service Name</span>
+              <span style="flex:2;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Rate</span>
+              <span style="flex:1.5;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8">Note</span>
+              <span style="width:28px"></span>
+            </div>
+            <div id="qf-addl-services-list"></div>
+          </div>
+
+          <!-- Disabled state placeholder -->
+          <div id="qf-addl-services-off" style="display:none;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:8px;padding:14px 16px;text-align:center;color:#94a3b8;font-size:12px">
+            🚫 Add-on Services page is <strong>excluded</strong> from this quotation's PDF.<br>
+            <span style="font-size:11px">Toggle the switch above to include it.</span>
+          </div>
         </div>
       </div>
 
@@ -2647,7 +2680,10 @@ document.addEventListener('wheel', function(e) {
   <div class="modal modal-lg">
     <div class="modal-hdr">
       <div><div class="modal-title" id="proj-modal-title">New Project</div><div id="proj-modal-refcode" style="margin-top:4px"></div></div>
-      <button class="modal-close" data-close="proj-modal">✕</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="btn-sync-from-quot" onclick="syncProjectFromQuotation(editProjId)" style="display:none;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;padding:6px 12px;white-space:nowrap" title="Pull latest details from the original quotation">🔄 Sync from Quotation</button>
+        <button class="modal-close" data-close="proj-modal">✕</button>
+      </div>
     </div>
     <div class="modal-body">
       <div class="tabs">
@@ -4462,6 +4498,35 @@ try {
   console.error('Firebase init failed:', e);
   // db stays null — all db.ref() calls will gracefully fail/skip
 }
+// ── PWA install / dismiss helpers ────────────────────────────────────────────
+var _deferredPWAPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _deferredPWAPrompt = e;
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.classList.add('show');
+});
+function pwaShowInstallPrompt() {
+  if (_deferredPWAPrompt) {
+    _deferredPWAPrompt.prompt();
+    _deferredPWAPrompt.userChoice.then(function() { _deferredPWAPrompt = null; });
+    var banner = document.getElementById('pwa-install-banner');
+    if (banner) banner.classList.remove('show');
+  } else {
+    // iOS or already installed — show iOS guide
+    var ios = document.getElementById('pwa-ios-guide');
+    if (ios) ios.style.display = 'flex';
+  }
+}
+function pwaDismiss() {
+  var banner = document.getElementById('pwa-install-banner');
+  if (banner) banner.classList.remove('show');
+}
+function pwaCloseIOS() {
+  var ios = document.getElementById('pwa-ios-guide');
+  if (ios) ios.style.display = 'none';
+}
+
 // ── Firebase Storage not available on Spark plan ──────────────────
 // uploadToStorage always rejects so callers fall through to their .catch() handlers
 // which save compressed base64 directly to Realtime DB instead
@@ -4555,7 +4620,7 @@ var DEFAULT_USERS=[
 ];
 var DEFAULT_ACCOUNTS=[{id:'acc1',name:'KB Studio Current Account',type:'current',number:'',notes:'Primary business account'},{id:'acc2',name:'Ketan Savings Account',type:'savings',number:'',notes:''},{id:'acc3',name:'Ritesh Savings Account',type:'savings',number:'',notes:''},{id:'acc4',name:'Keshav Savings Account',type:'savings',number:'',notes:''},{id:'acc5',name:'Shivam Savings Account',type:'savings',number:'',notes:''},{id:'acc6',name:'KB Studio UPI',type:'upi',number:'',notes:''},{id:'acc7',name:'Cash',type:'cash',number:'',notes:''}];
 var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight',label:'Highlight Video',hasDuration:true},{key:'longvideo',label:'Long Video / Full Film',hasDuration:true},{key:'reel',label:'Reels'},{key:'album',label:'Album',hasPhotos:true},{key:'frame',label:'Frame'},{key:'editedpics',label:'Edited Pictures'}];
-var PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'30% Advance',pct:30,desc:'On booking'},{key:'p50',label:'50% On Event',pct:50,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p5a',label:'5% After Teaser & Highlight',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'5% After Final Delivery',pct:5,desc:'After final delivery'}],'30-50-10-10':[{key:'p30',label:'30% Advance',pct:30,desc:'On booking'},{key:'p50',label:'50% On Event',pct:50,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p10b',label:'10% Final',pct:10,desc:'Final delivery'}],'20-60-10-10':[{key:'p20',label:'20% Advance',pct:20,desc:'On booking'},{key:'p60',label:'60% On Event',pct:60,desc:'Shoot day'},{key:'p10a',label:'10% Raw Data',pct:10,desc:'Raw data delivery'},{key:'p10b',label:'10% Final',pct:10,desc:'Final delivery'}],'50-50':[{key:'p50a',label:'50% Advance',pct:50,desc:'On booking'},{key:'p50b',label:'50% Final',pct:50,desc:'Final delivery'}]};
+var PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'Before teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}]};
 function getPayTerms(p){
   var base;
   if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length) base=p.customPayTerms;
@@ -4577,7 +4642,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v48-2026-06-20-payments';
+var CRM_BUILD_VERSION = 'v60-2026-06-21-addl-toggle';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -6780,6 +6845,14 @@ function renderBriefFormPublic(formDiv, briefId, p, fields){
 var _ppTab='overview';
 
 function renderPostProd(){
+  // Hide export controls for editor role
+  var _ppExportStage = document.getElementById('pp-export-stage');
+  var _ppExportDeliv = document.getElementById('pp-export-deliv-status');
+  var _ppExportBtns  = document.querySelectorAll('[onclick^="exportPPReport"]');
+  var _isEditor = CU && (CU.role === 'editor');
+  if (_ppExportStage) _ppExportStage.style.display = _isEditor ? 'none' : '';
+  if (_ppExportDeliv) _ppExportDeliv.style.display = _isEditor ? 'none' : '';
+  _ppExportBtns.forEach(function(b){ b.style.display = _isEditor ? 'none' : ''; });
 
   // ── EDITOR ROLE: show only their own assigned deliverables ────────────────
   if(CU && CU.role==='editor'){
@@ -7228,6 +7301,12 @@ function setPPTab(t){_ppTab=t;renderPostProd();}
 
 // ── Post Production Pending Deliverables Export ──────────────────────────────
 function exportPPReport(fmt) {
+  // Role guard: only postprod in-charge, admin, superadmin can export
+  var allowedRoles = ['superadmin','admin','postprod','accounts','salesperson','sales'];
+  if (CU && allowedRoles.indexOf(CU.role) === -1) {
+    showToast('⚠️ You do not have permission to export reports.');
+    return;
+  }
   var stageFilter  = (document.getElementById('pp-export-stage') || {}).value || '';
   var delivFilter  = (document.getElementById('pp-export-deliv-status') || {}).value || 'pending_only';
   var pendingOnly  = delivFilter === 'pending_only';
@@ -8603,10 +8682,12 @@ function switchPayTab(tab, btn) {
   var projTab = document.getElementById('pay-tab-projects');
   var feedTab = document.getElementById('pay-tab-feed');
   var collTab = document.getElementById('pay-tab-collections');
+  var pipeTab = document.getElementById('pay-tab-pipeline');
   if (!projTab || !feedTab || !collTab) return;
   projTab.style.display = 'none';
   feedTab.style.display = 'none';
   collTab.style.display = 'none';
+  if (pipeTab) pipeTab.style.display = 'none';
   if (tab === 'projects') {
     projTab.style.display = '';
   } else if (tab === 'feed') {
@@ -8616,7 +8697,252 @@ function switchPayTab(tab, btn) {
     collTab.style.display = '';
     populateCollFYSelect();
     renderCollectionsByAccount();
+  } else if (tab === 'pipeline') {
+    if (pipeTab) pipeTab.style.display = '';
+    renderPaymentPipeline();
   }
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// PAYMENT PIPELINE — Serial milestone view, month-grouped
+// ══════════════════════════════════════════════════════════════════
+var _ppFilter = 'all'; // 'all' | 'thismonth' | 'nextmonth' | 'overdue' | 'rawdata'
+
+function renderPaymentPipeline() {
+  var el = document.getElementById('pay-pipeline-content');
+  if (!el) return;
+
+  var today = new Date(); today.setHours(0,0,0,0);
+  var list = pl().filter(function(p) { return p.stage !== 'complete'; });
+
+  // ── Month helpers ──
+  function monthOf(d) { return d ? d.substring(0,7) : ''; }
+  function toDate(s) { return s ? new Date(s + 'T00:00:00') : null; }
+  function daysFrom(s) {
+    var d = toDate(s); if (!d) return null;
+    return Math.round((d - today) / 86400000);
+  }
+  var thisYM = today.toISOString().substring(0,7);
+  var nextMonth = new Date(today.getFullYear(), today.getMonth()+1, 1);
+  var nextYM = nextMonth.toISOString().substring(0,7);
+
+  // ── Build pipeline rows ──
+  // Each row = one project with full schedule + raw data status
+  var rows = list.map(function(p) {
+    var schedule = getPaymentScheduleWithCarryForward(p);
+    var eventDate = p.date || '';
+    var eventDateD = toDate(eventDate);
+    var daysToEvent = daysFrom(eventDate);
+    return { p: p, schedule: schedule, eventDate: eventDate, eventDateD: eventDateD, daysToEvent: daysToEvent };
+  });
+
+  // ── Apply filter ──
+  var filtered = rows.filter(function(r) {
+    if (_ppFilter === 'thismonth')  return monthOf(r.eventDate) === thisYM;
+    if (_ppFilter === 'nextmonth')  return monthOf(r.eventDate) === nextYM;
+    if (_ppFilter === 'overdue')    return r.daysToEvent !== null && r.daysToEvent < 0 && r.p.stage !== 'complete';
+    if (_ppFilter === 'rawdata')    return (r.p.d_raw_status || '') !== 'delivered';
+    return true; // 'all'
+  });
+
+  // Sort: by event date ascending (undated last)
+  filtered.sort(function(a, b) {
+    if (!a.eventDate && !b.eventDate) return 0;
+    if (!a.eventDate) return 1;
+    if (!b.eventDate) return -1;
+    return a.eventDate.localeCompare(b.eventDate);
+  });
+
+  // ── Count badges for filter buttons ──
+  var cAll       = rows.length;
+  var cThisMonth = rows.filter(function(r){ return monthOf(r.eventDate) === thisYM; }).length;
+  var cNextMonth = rows.filter(function(r){ return monthOf(r.eventDate) === nextYM; }).length;
+  var cOverdue   = rows.filter(function(r){ return r.daysToEvent !== null && r.daysToEvent < 0; }).length;
+  var cRaw       = rows.filter(function(r){ return (r.p.d_raw_status||'') !== 'delivered'; }).length;
+
+  function filterBtn(key, label, count, col) {
+    var active = _ppFilter === key;
+    return '<button onclick="_ppFilter=\'' + key + '\';renderPaymentPipeline()" style="' +
+      'background:' + (active ? col : '#f3f4f6') + ';color:' + (active ? '#fff' : '#555') + ';' +
+      'border:none;border-radius:20px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">' +
+      label + (count !== null ? ' <span style="background:' + (active ? 'rgba(255,255,255,.3)' : '#e5e7eb') + ';color:' + (active ? '#fff' : '#555') + ';border-radius:10px;padding:1px 7px;font-size:11px">' + count + '</span>' : '') +
+    '</button>';
+  }
+
+  var filtersHtml = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">' +
+    filterBtn('all',       '📋 All Active',   cAll,       '#374151') +
+    filterBtn('thismonth', '📅 This Month',   cThisMonth, '#7c3aed') +
+    filterBtn('nextmonth', '🔮 Next Month',   cNextMonth, '#1d4ed8') +
+    filterBtn('overdue',   '🔴 Overdue',      cOverdue,   '#dc2626') +
+    filterBtn('rawdata',   '🎞️ Raw Data Due', cRaw,       '#d97706') +
+  '</div>';
+
+  // ── Grand totals ──
+  var totalPending = filtered.reduce(function(a, r) {
+    return a + r.schedule.reduce(function(s, st) { return s + Math.max(0, st.exp - st.paid); }, 0);
+  }, 0);
+  var totalPaid = filtered.reduce(function(a, r) { return a + (r.p.payLedger||[]).reduce(function(s,e){return s+(parseInt(e.amount)||0);},0); }, 0);
+
+  var summaryHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">' +
+    '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 16px;flex:1;min-width:140px">' +
+      '<div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase">Total Collected</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#16a34a">' + fmt(totalPaid) + '</div>' +
+    '</div>' +
+    '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 16px;flex:1;min-width:140px">' +
+      '<div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Balance Pending</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#dc2626">' + fmt(totalPending) + '</div>' +
+    '</div>' +
+    '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 16px;flex:1;min-width:140px">' +
+      '<div style="font-size:10px;font-weight:700;color:#1e40af;text-transform:uppercase">Clients Shown</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#1d4ed8">' + filtered.length + '</div>' +
+    '</div>' +
+  '</div>';
+
+  // ── Group by event month ──
+  var groups = {}; // 'YYYY-MM' -> rows[]
+  var undated = [];
+  filtered.forEach(function(r) {
+    var ym = monthOf(r.eventDate);
+    if (!ym) { undated.push(r); return; }
+    if (!groups[ym]) groups[ym] = [];
+    groups[ym].push(r);
+  });
+
+  var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function ymLabel(ym) {
+    var p = ym.split('-'); return monthNames[parseInt(p[1])-1] + ' ' + p[0];
+  }
+
+  // ── Build instalment pills for a schedule ──
+  function instPill(s) {
+    // Skip stages with zero base amount entirely
+    if (!s.baseExp || s.baseExp <= 0) return '';
+    // Use baseExp (the stage's own % of net) for display — not exp (which includes carry-forward
+    // from prior unpaid stages). Carry-forward affects what's *due now* but should not change
+    // how each instalment is labelled or what amount it shows.
+    var base = s.baseExp;
+    // How much of this stage's own amount has been paid (cap at base for display purposes)
+    var paidForBase = Math.min(s.paid, base);
+    var isPaid    = s.paid >= s.exp; // fully paid including any carry
+    var isPartial = !isPaid && s.paid > 0;
+    var bg, tc, icon;
+    if (isPaid)         { bg='#dcfce7'; tc='#166534'; icon='\u2713'; }
+    else if (isPartial) { bg='#fef9c3'; tc='#854d0e'; icon='\u007e'; }
+    else                { bg='#fee2e2'; tc='#991b1b'; icon='\u25cb'; }
+    var amtLine = isPaid
+      ? fmt(base)                                            // show stage amount when paid
+      : (isPartial
+          ? fmt(paidForBase) + ' / ' + fmt(base)            // show paid/stage-total when partial
+          : fmt(base));                                      // show stage amount due when pending
+    // Show carry-forward as a small note if present and stage not fully paid
+    var carryNote = (!isPaid && s.carryIn > 0)
+      ? '<div style="font-size:9px;color:'+tc+';opacity:.7">+'+fmt(s.carryIn)+' carried</div>'
+      : '';
+    var statusLine = isPaid
+      ? '<div style="font-size:9px;color:'+tc+';opacity:.8">Paid \u2713</div>'
+      : (isPartial
+          ? '<div style="font-size:9px;color:'+tc+';opacity:.8">Bal: '+fmt(s.exp-s.paid)+'</div>'
+          : '<div style="font-size:9px;color:'+tc+';opacity:.8">Pending</div>');
+    var due = s.dueDate ? '<div style="font-size:9px;color:'+tc+';opacity:.65;margin-top:1px">'+fmtDate(s.dueDate)+'</div>' : '';
+    return '<div style="background:'+bg+';border-radius:7px;padding:5px 9px;min-width:90px;text-align:center;flex-shrink:0">' +
+      '<div style="font-size:9px;font-weight:700;color:'+tc+';text-transform:uppercase;letter-spacing:.5px">'+s.label+'</div>' +
+      '<div style="font-size:12px;font-weight:800;color:'+tc+'">'+icon+' '+amtLine+'</div>' +
+      statusLine + carryNote + due +
+    '</div>';
+  }
+
+  // ── Build rows HTML ──
+  function buildGroupRows(groupRows) {
+    return groupRows.map(function(r) {
+      var p = r.p;
+      var dLabel = '';
+      if (r.daysToEvent !== null) {
+        if (r.daysToEvent < 0)       dLabel = '<span style="color:#dc2626;font-weight:700;font-size:11px">⚠ ' + Math.abs(r.daysToEvent) + 'd ago</span>';
+        else if (r.daysToEvent === 0) dLabel = '<span style="color:#dc2626;font-weight:700;font-size:11px">TODAY</span>';
+        else if (r.daysToEvent <= 7)  dLabel = '<span style="color:#d97706;font-weight:700;font-size:11px">in ' + r.daysToEvent + 'd</span>';
+        else                          dLabel = '<span style="color:#374151;font-size:11px">' + fmtDate(r.eventDate) + '</span>';
+      }
+      var rawStatus = (p.d_raw_status || 'pending');
+      var rawBg = rawStatus === 'delivered' ? '#dcfce7' : rawStatus === 'in_progress' ? '#fef9c3' : '#fee2e2';
+      var rawTc = rawStatus === 'delivered' ? '#166534' : rawStatus === 'in_progress' ? '#854d0e' : '#991b1b';
+      var rawLabel = rawStatus === 'delivered' ? '✓ Delivered' : rawStatus === 'in_progress' ? '⟳ In Progress' : '○ Pending';
+
+      var instPills = r.schedule.map(instPill); // array — joined after filtering empty
+      var netV = netVal(p); var paidV = paidTotal(p); var balV = Math.max(0, netV - paidV);
+      var pct = netV > 0 ? Math.min(100, Math.round(paidV / netV * 100)) : 0;
+      var pillsHtml = instPills.filter(Boolean).join(''); // filter out empty strings from zero-exp stages
+
+      return '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:8px">' +
+        // Header row
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:6px">' +
+          '<div>' +
+            '<div style="font-size:14px;font-weight:800;color:#111">' + (p.bride||'—') + ' &amp; ' + (p.groom||'—') + '</div>' +
+            '<div style="font-size:11px;color:#888;margin-top:1px">' +
+              (p.refcode ? '<span style="font-family:monospace;background:#f3f4f6;padding:1px 5px;border-radius:3px">' + p.refcode + '</span> · ' : '') +
+              (p.city || p.state || '') + (p.type ? ' · ' + p.type : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+            dLabel +
+            '<div style="background:' + rawBg + ';color:' + rawTc + ';border-radius:6px;padding:3px 9px;font-size:10px;font-weight:700">\uD83C\uDFC0 Raw: ' + rawLabel + '</div>' +
+            '<button class="btn btn-sm" onclick="openProjectPayments(' + p.id + ')" style="font-size:11px;padding:4px 10px">\uD83D\uDCB3 Payments</button>' +
+            '<button class="btn btn-sm" onclick="openProject(' + p.id + ')" style="font-size:11px;padding:4px 10px">Open \u2192</button>' +
+          '</div>' +
+        '</div>' +
+        // Instalment pills — serial order
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' + pillsHtml + '</div>' +
+        // Progress bar with % and amounts
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<div style="flex:1;height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden">' +
+            '<div style="height:100%;background:' + (balV === 0 ? '#16a34a' : pct >= 50 ? '#1d4ed8' : '#d97706') + ';width:' + pct + '%;border-radius:3px;transition:width .3s"></div>' +
+          '</div>' +
+          '<div style="font-size:11px;color:#888;white-space:nowrap">' + pct + '%</div>' +
+          '<div style="font-size:11px;font-weight:700;color:' + (balV > 0 ? '#dc2626' : '#16a34a') + ';white-space:nowrap">' +
+            (balV > 0 ? 'Bal: ' + fmt(balV) : '\u2713 Fully Paid') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ── Assemble month groups ──
+  var groupsHtml = '';
+  var sortedYMs = Object.keys(groups).sort();
+  sortedYMs.forEach(function(ym) {
+    var isThis = ym === thisYM;
+    var isNext = ym === nextYM;
+    var tag = isThis ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;vertical-align:middle">THIS MONTH</span>'
+             : isNext ? ' <span style="background:#1d4ed8;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;vertical-align:middle">NEXT MONTH</span>' : '';
+    var monthPending = groups[ym].reduce(function(a, r) {
+      return a + r.schedule.reduce(function(s, st) { return s + Math.max(0, st.exp - st.paid); }, 0);
+    }, 0);
+    groupsHtml += '<div style="margin-bottom:18px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #e5e7eb">' +
+        '<div style="font-size:15px;font-weight:800;color:#1a1a1a">' + ymLabel(ym) + tag + '</div>' +
+        '<div style="font-size:12px;color:#dc2626;font-weight:700">' + groups[ym].length + ' client(s) · ' + fmt(monthPending) + ' pending</div>' +
+      '</div>' +
+      buildGroupRows(groups[ym]) +
+    '</div>';
+  });
+
+  if (undated.length) {
+    groupsHtml += '<div style="margin-bottom:18px">' +
+      '<div style="font-size:15px;font-weight:800;color:#999;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #f3f4f6">📌 No Event Date Set</div>' +
+      buildGroupRows(undated) +
+    '</div>';
+  }
+
+  if (!filtered.length) {
+    groupsHtml = '<div style="text-align:center;padding:40px;color:#aaa;font-size:14px">No active clients match this filter.</div>';
+  }
+
+  el.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+      '<h2 style="font-size:17px;font-weight:800;color:#1a1a1a;margin:0">💳 Payment Pipeline</h2>' +
+      '<button class="btn btn-sm" onclick="renderPaymentPipeline()" style="font-size:11px">🔄 Refresh</button>' +
+    '</div>' +
+    filtersHtml + summaryHtml + groupsHtml;
 }
 
 function renderTxnFeed() {
@@ -9109,7 +9435,14 @@ function updatePEPreview(){var p=editProjId?projects[editProjId]:null;if(!p)retu
 // ── btn-add-pay-entry: open Record Payment modal from inside project modal ─
 document.addEventListener('click', function(e) {
   if (e.target && e.target.id === 'btn-add-pay-entry') {
-    if (!editProjId) return;
+    if (!editProjId) {
+      // New project not yet saved — guide user to the advance payment block
+      alert('⚠️ Please save the project first before recording additional payments.\n\nUse the "💰 Advance Payment Required" block in the Details tab to record the first payment when creating a new project.');
+      // Switch to details tab so user can see the advance block
+      var detTab = document.querySelector('#proj-modal [data-tab="t-details"]');
+      if (detTab) detTab.click();
+      return;
+    }
     var p = projects[editProjId]; if (!p) return;
     // Use smart populateStageDropdown — hides fully-paid stages
     populateStageDropdown('pe-stage', editProjId);
@@ -12082,6 +12415,10 @@ function openProject(id, tabId) {
   setTimeout(updatePayPresetPreview, 60);
   buildDelivRows(p); renderBriefTab(p); loadRawRows(p); renderEventDays(p.eventDays); loadDataLog(p); populateTeamDrops(p); renderStageTL(); setTimeout(renderStageLog,100); setTimeout(renderRawApprovalStatus,100); setTimeout(renderDataLogApprovalStatus,100); setTimeout(renderPipelineActionBlock,150);
 
+  // Show/hide the sync-from-quotation button
+  var syncBtn = document.getElementById('btn-sync-from-quot');
+  if (syncBtn) syncBtn.style.display = (p.quotationId && !isPPM) ? 'inline-flex' : 'none';
+
   // Jump to target tab
   var targetTab = tabId || (allowed ? allowed[0] : 't-details');
   var visibleTabs = [];
@@ -13767,7 +14104,7 @@ function getInvoiceStyles() {
   return '<style>' +
   '@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600;700&display=swap");' +
   '.inv-wrap{font-family:"DM Sans",Arial,sans-serif;color:#1a1a1a;background:#fff;padding:10mm 12mm;min-height:200px}' +
-  '.inv-hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:8mm;border-bottom:2px solid #1a1a1a;margin-bottom:6mm}' +
+  '.inv-hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:8mm;margin-bottom:6mm}' +
   '.inv-badge{width:40px;height:40px;background:#1a1a1a;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}' +
   '.inv-badge span{font-size:14px;font-weight:900;color:#fff;letter-spacing:-1px}' +
   '.inv-brand{display:flex;align-items:center;gap:10px}' +
@@ -13885,7 +14222,7 @@ function buildInvoiceHTML(data, showTerms) {
       '</div>' +
     '</div>' +
     (hasEvent ? '<div class="inv-event-bar">' +
-      (data.package ? '<div class="inv-ev-item"><div class="inv-ev-lbl">Package</div><div class="inv-ev-val">' + data.package + '</div></div>' : '') +
+      (data.package && data.package !== 'Custom' ? '<div class="inv-ev-item"><div class="inv-ev-lbl">Package</div><div class="inv-ev-val">' + data.package + '</div></div>' : '') +
       (evDateStr ? '<div class="inv-ev-item"><div class="inv-ev-lbl">Event Date</div><div class="inv-ev-val">' + evDateStr + '</div></div>' : '') +
       (data.venue ? '<div class="inv-ev-item"><div class="inv-ev-lbl">Venue</div><div class="inv-ev-val">' + data.venue + '</div></div>' : '') +
       (data.city ? '<div class="inv-ev-item"><div class="inv-ev-lbl">City</div><div class="inv-ev-val">' + data.city + '</div></div>' : '') +
@@ -13919,7 +14256,6 @@ function buildInvoiceHTML(data, showTerms) {
     '</div>' : '') +
     '<div class="inv-footer">' +
       '<div><div class="inv-footer-brand">KB Studio Productions</div><div class="inv-footer-sub">Capturing memories, crafting legacies. 📷</div></div>' +
-      '<div><div class="inv-stamp-box"><div class="inv-stamp-lbl">Authorised Signatory</div><div style="height:24px"></div><div class="inv-stamp-lbl">KB Studio Productions</div></div></div>' +
     '</div>' +
   '</div>';
 }
@@ -14470,7 +14806,12 @@ function renderPastInvoices() {
   loadPastInvoices(function() {
     var q = ((document.getElementById('past-inv-search') || {}).value || '').toLowerCase();
     var regF = ((document.getElementById('past-inv-region') || {}).value || '');
-    var list = Object.values(_pastInvoices).sort(function(a,b){ return (b.savedAt||0)-(a.savedAt||0); });
+    var list = Object.values(_pastInvoices).sort(function(a,b) {
+      // Sort by invoice date descending; fall back to savedAt
+      var da = a.date ? new Date(a.date).getTime() : (a.savedAt||0);
+      var db_ = b.date ? new Date(b.date).getTime() : (b.savedAt||0);
+      return db_ - da;
+    });
     list = list.filter(function(inv) {
       var hay = ((inv.invoiceNo||'')+(inv.bride||'')+(inv.groom||'')+(inv.refcode||'')+(inv.city||'')).toLowerCase();
       if (q && !hay.includes(q)) return false;
@@ -14689,7 +15030,8 @@ function saveAutoInv() {
     if (err) { showToast('❌ Error: ' + err.message); return; }
     closeModal('auto-inv-modal');
     showToast('✅ Invoice ' + num + ' saved to history!');
-    // Refresh past invoices if that tab is visible
+    // Instantly update local cache + refresh list — no manual reload needed
+    _pastInvoices[key] = data;
     if (typeof renderPastInvoices === 'function') renderPastInvoices();
   });
 }
@@ -14762,7 +15104,9 @@ function syncLedgerToInvoices(projId) {
           savedBy: 'System (Payment History Sync)'
         };
         var key = num.replace(/[^a-zA-Z0-9]/g, '_');
-        db.ref('crm_invoices/' + key).set(data);
+        db.ref('crm_invoices/' + key).set(data, function() {
+          _pastInvoices[key] = data; // update local cache instantly
+        });
       });
     }
   });
@@ -15285,7 +15629,7 @@ function openNewQuotation() {
   editQuotId = null;
   quotDays = [];
   quotDeliverables = [];
-  quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES)); renderAddlServices();
+  quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES)); quotAddlEnabled = true; toggleAddlServices(true); renderAddlServices();
   clearQuotForm();
   fillSel('qf-source', 'sources', DEFAULT_SOURCES, '');
   document.getElementById('quot-modal-title').textContent = 'New Quotation';
@@ -15338,7 +15682,14 @@ function openEditQuotation(id) {
   sv2('qf-value', q.value); sv2('qf-discount', q.discount);
   sv2('qf-gst', q.gst || 'excluded'); sv2('qf-currency', q.currency || 'INR');
   sv2('qf-payterms', q.payterms || '30-50-10-5-5'); sv2('qf-price-notes', q.priceNotes);
-  quotAddlServices = JSON.parse(JSON.stringify(q.addlServices || DEFAULT_ADDL_SERVICES)); renderAddlServices();
+  // Restore add-on services: if saved with enabled=false, honour that; default true for legacy quotations
+  quotAddlEnabled = (q.addlServicesEnabled === false) ? false : true;
+  // For legacy quotations that were saved with addlEnabled=false but non-empty list, restore list anyway
+  quotAddlServices = JSON.parse(JSON.stringify(
+    (q.addlServicesEnabled === false) ? DEFAULT_ADDL_SERVICES : (q.addlServices && q.addlServices.length ? q.addlServices : DEFAULT_ADDL_SERVICES)
+  ));
+  toggleAddlServices(quotAddlEnabled);
+  renderAddlServices();
   onQuotPayTermsChange();
   if (q.payterms === 'custom' && Array.isArray(q.paytermsCustom) && q.paytermsCustom.length) {
     loadQuotCustomPayRows(q.paytermsCustom);
@@ -16315,6 +16666,41 @@ var DEFAULT_ADDL_SERVICES = [
   { name:'Extra Album',                   rate:'₹5,000–10,000',         note:'100–250 Photos' }
 ];
 var quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES));
+var quotAddlEnabled  = true; // whether add-on services page is included in PDF
+
+function toggleAddlServices(forceState) {
+  var cb     = document.getElementById('qf-addl-enabled');
+  var track  = document.getElementById('qf-addl-track');
+  var thumb  = document.getElementById('qf-addl-thumb');
+  var body   = document.getElementById('qf-addl-services-body');
+  var offMsg = document.getElementById('qf-addl-services-off');
+  var label  = document.getElementById('qf-addl-toggle-label');
+  if (!cb) return;
+
+  // If forceState passed (true/false), use it; otherwise flip
+  if (typeof forceState === 'boolean') {
+    quotAddlEnabled = forceState;
+  } else {
+    quotAddlEnabled = !quotAddlEnabled;
+  }
+  cb.checked = quotAddlEnabled;
+
+  if (quotAddlEnabled) {
+    track.style.background  = '#16a34a';
+    thumb.style.left        = '21px';
+    body.style.display      = 'block';
+    offMsg.style.display    = 'none';
+    label.textContent       = 'Included in PDF';
+    label.style.color       = '#16a34a';
+  } else {
+    track.style.background  = '#d1d5db';
+    thumb.style.left        = '3px';
+    body.style.display      = 'none';
+    offMsg.style.display    = 'block';
+    label.textContent       = 'Excluded from PDF';
+    label.style.color       = '#94a3b8';
+  }
+}
 
 function renderAddlServices() {
   var wrap = document.getElementById('qf-addl-services-list');
@@ -16760,11 +17146,8 @@ function saveQuotation(silent) {
     payterms: gv2('qf-payterms') || '30-50-10-5-5',
     paytermsCustom: (gv2('qf-payterms') === 'custom') ? getQuotCustomPayTerms() : [],
     priceNotes: gv2('qf-price-notes'),
-    addlServices: JSON.parse(JSON.stringify(quotAddlServices)),
-    timeline: JSON.parse(JSON.stringify(quotTimeline)),
-    terms: collectQuotTerms(),
-    // coverImageUrl / aboutImageUrl = Firebase Storage URL (new, lightweight)
-    // coverImageB64 / aboutImageB64 = legacy base64 (kept for backwards compat reading, cleared on re-save)
+    addlServices: quotAddlEnabled ? JSON.parse(JSON.stringify(quotAddlServices)) : [],
+    addlServicesEnabled: quotAddlEnabled,
     coverImageUrl: isStorageUrl(quotCoverImageB64) ? quotCoverImageB64 : '',
     coverImageB64: isStorageUrl(quotCoverImageB64) ? '' : (quotCoverImageB64 || ''),
     aboutImageUrl: isStorageUrl(quotAboutImageB64) ? quotAboutImageB64 : '',
@@ -16841,6 +17224,44 @@ function convertQuotToProject(overrideId) {
   // First day date as event date
   if (q.days && q.days.length > 0 && q.days[0].date) projData.date = q.days[0].date;
 
+  // ── Carry ALL event days from quotation into project eventDays ──
+  // q.days have: { date, sessions:[{name, occasion, crew}] }
+  // project eventDays expect: { date, type, label, crew, notes }
+  if (q.days && q.days.length) {
+    projData.eventDays = [];
+    q.days.forEach(function(day) {
+      var sessions = day.sessions || [];
+      if (!sessions.length && day.occasion) sessions = [{name:'Full Day', occasion:day.occasion, crew:day.crew||{}}];
+      sessions.forEach(function(sess) {
+        projData.eventDays.push({
+          date: day.date || '',
+          type: sess.occasion || sess.name || 'Event',
+          label: (sess.name && sess.occasion) ? sess.name + ' — ' + sess.occasion : (sess.occasion || sess.name || 'Event'),
+          crew: sess.crew || {},
+          notes: ''
+        });
+      });
+    });
+  }
+
+  // ── Carry advance payment into project payLedger ──
+  var advPayment = q.advancePayment;
+  var advAmt = q.advancePaid || 0;
+  if (advAmt > 0 && advPayment) {
+    projData.payLedger = [{
+      stage: 'p30',   // maps to first advance stage
+      amount: advAmt,
+      date: advPayment.date || '',
+      mode: advPayment.mode || 'UPI',
+      ref: advPayment.ref || '',
+      notes: advPayment.note || 'Advance — converted from quotation',
+      proofDocId: advPayment.proofDocId || '',
+      ts: Date.now(),
+      recordedBy: advPayment.recordedBy || 'System'
+    }];
+    projData.bookdate = advPayment.date || '';
+  }
+
   // Auto-generate refcode
   var initials = ((q.bride||'X').substring(0,1) + (q.groom||'Y').substring(0,1)).toUpperCase();
   projData.refcode = initials + '-' + Date.now().toString().slice(-6);
@@ -16853,12 +17274,111 @@ function convertQuotToProject(overrideId) {
     // Mark quotation as converted
     db.ref('crm_quotations/' + id).update({ convertedToProject: true, projectId: newProjId, convertedAt: Date.now() });
     projects[newProjId] = projData;
+    // If advance payment had a proof doc in quot_docs, link it to the new project
+    if (advPayment && advPayment.proofDocId) {
+      db.ref('crm_quot_docs/' + id + '/' + advPayment.proofDocId).once('value', function(snap) {
+        var docData = snap.val();
+        if (docData) {
+          db.ref('crm_docs/' + newProjId + '/' + advPayment.proofDocId).set(docData);
+          var meta = {id:docData.id,type:docData.type,label:docData.label,filename:docData.filename,mime:docData.mime,uploadedAt:docData.uploadedAt};
+          db.ref('crm_projects/' + newProjId + '/docMetas').transaction(function(existing){ return (existing||[]).concat([meta]); });
+        }
+      });
+    }
     showToast('🚀 Project created! Ref: ' + projData.refcode);
     closeModal('quot-modal');
     setTimeout(function() {
       navTo('projects');
       setTimeout(function() { openProject(newProjId); }, 800);
     }, 500);
+  });
+}
+
+// ── SYNC PROJECT FROM QUOTATION ─────────────────────────────────
+// Pulls latest data from the linked quotation and updates the project.
+// Never overwrites: payLedger, stage, refcode, createdAt, team assignments.
+function syncProjectFromQuotation(projId) {
+  var p = projects[projId]; if (!p) return;
+  var quotId = p.quotationId;
+  if (!quotId) { showToast('⚠️ This project has no linked quotation.'); return; }
+
+  db.ref('crm_quotations/' + quotId).once('value', function(snap) {
+    var q = snap.val();
+    if (!q) { showToast('❌ Linked quotation not found in database.'); return; }
+
+    // Build what will change — show user a summary before applying
+    var changes = [];
+    if (q.bride && q.bride !== p.bride)       changes.push('Bride name: ' + p.bride + ' → ' + q.bride);
+    if (q.groom && q.groom !== p.groom)       changes.push('Groom name: ' + p.groom + ' → ' + q.groom);
+    if (q.phone && q.phone !== p.phone)       changes.push('Phone: updated');
+    if (q.email && q.email !== p.email)       changes.push('Email: updated');
+    if (q.city  && q.city  !== p.city)        changes.push('City: ' + p.city + ' → ' + q.city);
+    if (q.venue && q.venue !== p.venue)       changes.push('Venue: ' + (p.venue||'—') + ' → ' + q.venue);
+    if (q.value && q.value !== p.value)       changes.push('Package value: ₹' + (p.value||0).toLocaleString('en-IN') + ' → ₹' + (q.value||0).toLocaleString('en-IN'));
+    if (q.discount !== undefined && q.discount !== p.discount) changes.push('Discount: ₹' + (p.discount||0).toLocaleString('en-IN') + ' → ₹' + (q.discount||0).toLocaleString('en-IN'));
+    if (q.days && q.days.length)              changes.push('Event days: ' + q.days.length + ' day(s) with sessions will be synced');
+    if (q.deliverables)                       changes.push('Deliverables & deliverable notes will be updated');
+    if (q.notes)                              changes.push('Notes updated from quotation');
+
+    if (!changes.length) {
+      showToast('✅ Project is already up to date with the quotation. Nothing to sync.');
+      return;
+    }
+
+    var msg = 'Sync the following from the quotation?\n\n' + changes.map(function(ch){ return '\u2022 ' + ch; }).join('\n') + '\n\n\u26a0\ufe0f Payments, stage, team, and refcode will NOT be changed.';
+    if (!confirm(msg)) return;
+
+    // Build event days from quotation sessions
+    var newEventDays = [];
+    if (q.days && q.days.length) {
+      q.days.forEach(function(day) {
+        var sessions = day.sessions || [];
+        if (!sessions.length && (day.occasion || day.crew)) {
+          sessions = [{ name: 'Full Day', occasion: day.occasion || '', crew: day.crew || {} }];
+        }
+        sessions.forEach(function(sess) {
+          newEventDays.push({
+            date:  day.date || '',
+            type:  sess.occasion || sess.name || 'Event',
+            label: (sess.name && sess.occasion) ? sess.name + ' — ' + sess.occasion : (sess.occasion || sess.name || 'Event'),
+            crew:  sess.crew || {},
+            notes: ''
+          });
+        });
+      });
+    }
+
+    // Build update object — only touch fields that come from the quotation
+    var upd = {
+      bride:         q.bride         || p.bride,
+      groom:         q.groom         || p.groom,
+      phone:         q.phone         || p.phone  || '',
+      email:         q.email         || p.email  || '',
+      city:          q.city          || p.city   || '',
+      venue:         q.venue         || p.venue  || '',
+      region:        q.region        || p.region || '',
+      source:        q.source        || p.source || '',
+      value:         q.value         || p.value  || 0,
+      discount:      q.discount      !== undefined ? q.discount : (p.discount || 0),
+      notes:         q.notes         || p.notes  || '',
+      delivNotes:    buildDelivNotesFromQuot(q),
+      customDelivs:  buildCustomDelivsFromQuot(q),
+      eventDays:     newEventDays.length ? newEventDays : (p.eventDays || []),
+      updatedAt:     Date.now(),
+      lastQuotSync:  Date.now()
+    };
+
+    // First event day date → project event date (if quotation has days)
+    if (q.days && q.days.length && q.days[0].date) upd.date = q.days[0].date;
+
+    db.ref('crm_projects/' + projId).update(upd, function(err) {
+      if (err) { showToast('❌ Sync error: ' + err.message); return; }
+      // Update local cache
+      Object.assign(projects[projId], upd);
+      showToast('✅ Project synced from quotation!');
+      // Re-open project to refresh all fields
+      openProject(projId);
+    });
   });
 }
 
@@ -17023,7 +17543,8 @@ function collectQuotData() {
     paytermsCustom: (gv2('qf-payterms') === 'custom') ? getQuotCustomPayTerms() : (savedQ ? savedQ.paytermsCustom : []),
     timeline: JSON.parse(JSON.stringify(quotTimeline)),
     priceNotes: gv2('qf-price-notes') || (savedQ ? savedQ.priceNotes : '') || '',
-    addlServices: JSON.parse(JSON.stringify(quotAddlServices)),
+    addlServices: quotAddlEnabled ? JSON.parse(JSON.stringify(quotAddlServices)) : [],
+    addlServicesEnabled: quotAddlEnabled,
     terms: collectQuotTerms()
   };
 }
@@ -18789,13 +19310,18 @@ function showPaymentGate(quotId, q, event) {
         '<div style="font-size:13px;font-weight:700;color:#555;margin-bottom:10px">Record Advance Payment</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
           '<div><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="pg-amount" placeholder="e.g. 50000" min="1"></div>' +
-          '<div><label class="fl">Payment Mode</label><select class="fi" id="pg-mode"><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Mixed</option></select></div>' +
+          '<div><label class="fl">Payment Mode</label><select class="fi" id="pg-mode" onchange="var m=this.value;var pr=document.getElementById(\'pg-proof-row\');if(pr)pr.style.display=(m===\'Cash\')?\' none\':\'block\'"><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Mixed</option></select></div>' +
         '</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
           '<div><label class="fl">Date *</label><input class="fi" type="date" id="pg-date" value="' + tod() + '"></div>' +
           '<div><label class="fl">Transaction / UTR No.</label><input class="fi" id="pg-ref" placeholder="Optional"></div>' +
         '</div>' +
-        '<div><label class="fl">Note</label><input class="fi" id="pg-note" placeholder="e.g. Advance booking amount"></div>' +
+        '<div style="margin-bottom:10px"><label class="fl">Note</label><input class="fi" id="pg-note" placeholder="e.g. Advance booking amount"></div>' +
+        '<div id="pg-proof-row" style="margin-bottom:4px">' +
+          '<label class="fl">Payment Proof (Screenshot) *</label>' +
+          '<input class="fi" type="file" id="pg-proof-file" accept="image/*" style="padding:4px">' +
+          '<div style="font-size:11px;color:#888;margin-top:3px">Required for UPI/Bank/Cheque payments. Not needed for Cash.</div>' +
+        '</div>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:16px">' +
         '<button onclick="document.getElementById(\'pay-gate-modal\').remove()" style="flex:1;padding:11px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>' +
@@ -18812,31 +19338,53 @@ function confirmPaymentGate(quotId) {
   var mode = (document.getElementById('pg-mode')||{}).value||'UPI';
   var ref = (document.getElementById('pg-ref')||{}).value||'';
   var note = (document.getElementById('pg-note')||{}).value||'Advance booking payment';
+  var proofFile = document.getElementById('pg-proof-file');
   if (!amt || amt <= 0) { alert('Please enter a valid advance amount.'); return; }
   if (!date) { alert('Please enter the payment date.'); return; }
+  // Proof required for non-cash payments
+  var isCash = mode.toLowerCase() === 'cash';
+  if (!isCash && (!proofFile || !proofFile.files || !proofFile.files.length)) {
+    alert('⛔ Payment proof (screenshot) is required for ' + mode + ' payments. Please attach one.');
+    return;
+  }
 
   var payRecord = {
-    amount: amt,
-    mode: mode,
-    date: date,
-    ref: ref,
-    note: note,
+    amount: amt, mode: mode, date: date, ref: ref, note: note,
     recordedBy: CU ? (CU.name||CU.username) : 'System',
     recordedAt: new Date().toISOString()
   };
 
-  // Save advance payment + mark as won
-  db.ref('crm_quotations/' + quotId).update({
-    status: 'won',
-    advancePaid: amt,
-    advancePayment: payRecord
-  }, function(err) {
-    if (err) { showToast('❌ Error: ' + err.message); return; }
-    var modal = document.getElementById('pay-gate-modal');
-    if (modal) modal.remove();
-    showToast('🎉 Advance of ' + fmt(amt) + ' recorded! Client marked as Won.');
-    renderSalesPage();
-  });
+  function doSave(proofMeta) {
+    if (proofMeta) payRecord.proofDocId = proofMeta.id;
+    db.ref('crm_quotations/' + quotId).update({
+      status: 'won', advancePaid: amt, advancePayment: payRecord
+    }, function(err) {
+      if (err) { showToast('❌ Error: ' + err.message); return; }
+      if (quotations[quotId]) { quotations[quotId].advancePaid = amt; quotations[quotId].advancePayment = payRecord; quotations[quotId].status = 'won'; }
+      var modal = document.getElementById('pay-gate-modal');
+      if (modal) modal.remove();
+      showToast('🎉 Advance of ' + fmt(amt) + ' recorded! Client marked as Won.');
+      renderSalesPage();
+    });
+  }
+
+  if (!isCash && proofFile && proofFile.files && proofFile.files.length) {
+    // Upload proof to a temporary quot-level doc path (no projId yet)
+    var f = proofFile.files[0];
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      compressImage(ev.target.result, {maxWidth:1200,maxHeight:1200,quality:0.7,maxSizeKB:300}).then(function(b64) {
+        var docId = 'adv_proof_' + Date.now();
+        var meta = {id:docId, type:'Payment Screenshot', label:'Advance proof', filename:f.name, mime:f.type, uploadedAt:tod()};
+        db.ref('crm_quot_docs/' + quotId + '/' + docId).set(Object.assign({}, meta, {data:b64}), function(err) {
+          doSave(err ? null : meta);
+        });
+      }).catch(function(){ doSave(null); });
+    };
+    reader.readAsDataURL(f);
+  } else {
+    doSave(null);
+  }
 }
 
 // convertQuotToProject override — runs after all functions loaded
@@ -22355,8 +22903,6 @@ function hubDeleteEscalation(key) {
 </script>
 
 
-// parseDeviceInfo moved earlier in file
-
 <!-- ═══════════════════════════════════════════════════════════
      KB CRM SECURITY MODULE v1.0
 ═══════════════════════════════════════════════════════════ -->
@@ -22405,13 +22951,14 @@ window.doLogin=function(){
   }
   var un=(document.getElementById('login-user')||{}).value||'';
   if(typeof _origDoLogin==='function') _origDoLogin.call(this);
+  // Use 2000ms so Firebase user fetch (if needed) has time to complete before we check result
   setTimeout(function(){
     if(errEl&&errEl.style.display!=='none'&&errEl.textContent.indexOf('Incorrect')!==-1){
       recordFailedAttempt(un.toLowerCase());
       if(_failedAttempts>=MAX_ATTEMPTS){errEl.textContent='🔒 Account locked 5 minutes — too many failed attempts.';}
       else{var r=MAX_ATTEMPTS-_failedAttempts;errEl.textContent='Incorrect username or password. '+r+' attempt'+(r!==1?'s':'')+' left before lockout.';}
     }else if(window.CU){resetFailedAttempts();}
-  },600);
+  },2000);
 };
 
 // ── 3. INACTIVITY TIMEOUT (45 min) ───────────────────────────
@@ -22583,6 +23130,418 @@ function injectSecBadge(){
 
 console.log('[KB Security] ✅ Module active — brute force, idle timeout, audit, password strength, security log');
 })();
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     KB CRM v60_6 — RELIABILITY UPGRADES
+     1. Offline warning banner
+     2. Custom confirm/alert modals (replace browser popups)
+     3. Soft-delete payments (recoverable)
+     4. Duplicate payment guard
+     5. Pipeline CSV export
+     All features are self-contained and non-breaking.
+════════════════════════════════════════════════════════════════════ -->
+
+<!-- 1. OFFLINE BANNER -->
+<div id="kb-offline-bar" style="
+  display:none;position:fixed;top:0;left:0;right:0;z-index:9999;
+  background:#dc2626;color:#fff;text-align:center;padding:9px 16px;
+  font-size:13px;font-weight:600;font-family:inherit;
+  box-shadow:0 2px 8px rgba(0,0,0,.3);letter-spacing:.2px">
+  ⚠️ You are offline — changes will NOT be saved until connection is restored
+</div>
+
+<!-- 2. CUSTOM CONFIRM MODAL -->
+<div id="kb-confirm-modal" style="
+  display:none;position:fixed;inset:0;z-index:10000;
+  background:rgba(0,0,0,.55);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px 28px 22px;max-width:420px;width:90%;
+    box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:inherit">
+    <div id="kb-confirm-icon" style="font-size:28px;margin-bottom:10px;text-align:center"></div>
+    <div id="kb-confirm-title" style="font-size:16px;font-weight:800;color:#1a1a1a;margin-bottom:8px;text-align:center"></div>
+    <div id="kb-confirm-msg" style="font-size:13px;color:#555;line-height:1.6;text-align:center;margin-bottom:22px"></div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button id="kb-confirm-cancel" style="
+        padding:9px 22px;border-radius:8px;border:1px solid #e5e7eb;
+        background:#f9fafb;color:#374151;font-size:13px;font-weight:600;
+        cursor:pointer;font-family:inherit">Cancel</button>
+      <button id="kb-confirm-ok" style="
+        padding:9px 22px;border-radius:8px;border:none;
+        background:#dc2626;color:#fff;font-size:13px;font-weight:600;
+        cursor:pointer;font-family:inherit">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2b. CUSTOM ALERT MODAL -->
+<div id="kb-alert-modal" style="
+  display:none;position:fixed;inset:0;z-index:10001;
+  background:rgba(0,0,0,.55);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:28px 28px 22px;max-width:400px;width:90%;
+    box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:inherit">
+    <div id="kb-alert-icon" style="font-size:28px;margin-bottom:10px;text-align:center">⚠️</div>
+    <div id="kb-alert-msg" style="font-size:13px;color:#374151;line-height:1.6;text-align:center;margin-bottom:22px"></div>
+    <div style="text-align:center">
+      <button id="kb-alert-ok" style="
+        padding:9px 28px;border-radius:8px;border:none;
+        background:#1a1a1a;color:#fff;font-size:13px;font-weight:600;
+        cursor:pointer;font-family:inherit">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// 1. OFFLINE BANNER — uses Firebase .info/connected
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  var bar = document.getElementById('kb-offline-bar');
+  if (!bar) return;
+  var _offlineTimer = null;
+
+  function attachOfflineListener() {
+    if (!window.db) { setTimeout(attachOfflineListener, 1000); return; }
+    window.db.ref('.info/connected').on('value', function(snap) {
+      if (snap.val()) {
+        // Online
+        bar.style.display = 'none';
+        document.body.style.paddingTop = '';
+        if (_offlineTimer) { clearTimeout(_offlineTimer); _offlineTimer = null; }
+      } else {
+        // Show banner after 3s (avoids flash on initial load)
+        _offlineTimer = setTimeout(function() {
+          bar.style.display = 'block';
+          document.body.style.paddingTop = bar.offsetHeight + 'px';
+        }, 3000);
+      }
+    });
+  }
+  attachOfflineListener();
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// 2. CUSTOM CONFIRM + ALERT — replace native browser popups
+//    Usage: kbConfirm('Title', 'Message', onYes, { icon, okText, okColor })
+//           kbAlert('Message', { icon })
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  var modal   = document.getElementById('kb-confirm-modal');
+  var iconEl  = document.getElementById('kb-confirm-icon');
+  var titleEl = document.getElementById('kb-confirm-title');
+  var msgEl   = document.getElementById('kb-confirm-msg');
+  var okBtn   = document.getElementById('kb-confirm-ok');
+  var cancelBtn = document.getElementById('kb-confirm-cancel');
+  var _cb = null;
+
+  function close() { modal.style.display = 'none'; _cb = null; }
+
+  okBtn.addEventListener('click', function() {
+    close();
+    if (typeof _cb === 'function') _cb();
+  });
+  cancelBtn.addEventListener('click', close);
+  modal.addEventListener('click', function(e) { if (e.target === modal) close(); });
+
+  window.kbConfirm = function(title, msg, onYes, opts) {
+    opts = opts || {};
+    iconEl.textContent  = opts.icon  || '🗑️';
+    titleEl.textContent = title || 'Are you sure?';
+    msgEl.innerHTML     = (msg || '').replace(/\n/g, '<br>');
+    okBtn.textContent   = opts.okText  || 'Confirm';
+    okBtn.style.background = opts.okColor || '#dc2626';
+    _cb = onYes;
+    modal.style.display = 'flex';
+  };
+
+  // Alert modal
+  var aModal  = document.getElementById('kb-alert-modal');
+  var aMsgEl  = document.getElementById('kb-alert-msg');
+  var aIconEl = document.getElementById('kb-alert-icon');
+  var aOkBtn  = document.getElementById('kb-alert-ok');
+  aOkBtn.addEventListener('click', function() { aModal.style.display = 'none'; });
+  aModal.addEventListener('click', function(e) { if (e.target === aModal) aModal.style.display = 'none'; });
+
+  window.kbAlert = function(msg, opts) {
+    opts = opts || {};
+    aIconEl.textContent = opts.icon || '⚠️';
+    aMsgEl.innerHTML    = (msg || '').replace(/\n/g, '<br>');
+    aModal.style.display = 'flex';
+  };
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// 3. SOFT-DELETE PAYMENTS — wrap deletePayEntry so deleted entries
+//    are moved to payLedger_deleted[] instead of being erased.
+//    Super Admin can restore them from the payment modal.
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  // Wait for deletePayEntry to be defined
+  function patchDelete() {
+    if (typeof window.deletePayEntry !== 'function') { setTimeout(patchDelete, 500); return; }
+    var _origDelete = window.deletePayEntry;
+
+    window.deletePayEntry = function(idx) {
+      // Permission check (same as original)
+      if (window.CU && (CU.role === 'admin' || CU.role === 'intern')) {
+        if (typeof window.showToast === 'function') showToast('You cannot delete payments. Contact Super Admin.');
+        return;
+      }
+      if (!window.editProjId) return;
+      var p = window.projects && window.projects[editProjId];
+      if (!p) return;
+      var ledger  = p.payLedger || [];
+      var entry   = ledger[idx];
+      if (!entry) return;
+
+      var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+      var amt    = (entry.amount || 0).toLocaleString('en-IN');
+
+      kbConfirm(
+        'Remove Payment Entry?',
+        '₹' + amt + ' · ' + (entry.stage || '—') + ' · ' + (entry.date || '—') +
+        '\n\n<span style="color:#16a34a;font-weight:600">✅ This can be restored by Super Admin</span>',
+        function() {
+          // Soft delete: move to payLedger_deleted
+          var deletedEntry = Object.assign({}, entry, {
+            deletedAt:  Date.now(),
+            deletedBy:  window.CU ? (CU.name || CU.username || 'Unknown') : 'Unknown',
+            origIdx:    idx
+          });
+          var newLedger   = ledger.filter(function(_, i) { return i !== idx; });
+          var oldDeleted  = p.payLedger_deleted || [];
+          oldDeleted.push(deletedEntry);
+
+          window.db.ref('crm_projects/' + editProjId).update({
+            payLedger:         newLedger,
+            payLedger_deleted: oldDeleted
+          }, function(err) {
+            if (err) { kbAlert('Error removing entry: ' + err.message); return; }
+            if (typeof showToast === 'function') showToast('↩ Entry removed — Super Admin can restore it.');
+            if (typeof logActivity === 'function') {
+              logActivity('payment', 'Payment Soft-Deleted',
+                '₹' + (entry.amount||0) + ' removed from ' + couple + ' [' + (p.refcode||'') + '] — Stage: ' + (entry.stage||''),
+                { refcode: p.refcode, amount: entry.amount, stage: entry.stage, deletedEntry: deletedEntry });
+            }
+            if (typeof renderPayLedger === 'function') renderPayLedger();
+          });
+        },
+        { icon: '🗑️', okText: 'Remove Entry' }
+      );
+    };
+
+    // ── Restore button: inject into payment modal if Super Admin ──
+    function injectRestoreUI() {
+      if (!window.CU || CU.role !== 'superadmin') return;
+      if (!window.editProjId) return;
+      var p = window.projects && window.projects[editProjId];
+      if (!p || !(p.payLedger_deleted || []).length) return;
+
+      var existing = document.getElementById('kb-restore-pay-section');
+      if (existing) existing.remove();
+
+      var ledgerTable = document.querySelector('#pay-entry-modal .pay-ledger-table, #pay-entry-modal table');
+      if (!ledgerTable) return;
+
+      var deleted = p.payLedger_deleted || [];
+      var rows = deleted.map(function(e, i) {
+        return '<tr style="background:#fef9c3">' +
+          '<td style="padding:6px 10px;font-size:11px;color:#888">' + (i+1) + '</td>' +
+          '<td style="padding:6px 10px">' + (e.date||'—') + '</td>' +
+          '<td style="padding:6px 10px"><span style="background:#fee2e2;color:#991b1b;border-radius:4px;padding:2px 6px;font-size:11px">' + (e.stage||'—') + '</span></td>' +
+          '<td style="padding:6px 10px;font-weight:700;color:#dc2626">₹' + (e.amount||0).toLocaleString('en-IN') + '</td>' +
+          '<td style="padding:6px 10px;font-size:11px;color:#888">Deleted by ' + (e.deletedBy||'?') + '</td>' +
+          '<td style="padding:6px 10px"><button onclick="kbRestorePayEntry(' + i + ')" style="background:#dcfce7;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;color:#166534;cursor:pointer">↩ Restore</button></td>' +
+          '</tr>';
+      }).join('');
+
+      var section = document.createElement('div');
+      section.id = 'kb-restore-pay-section';
+      section.style.cssText = 'margin-top:16px;border:1px solid #fde68a;border-radius:8px;overflow:hidden';
+      section.innerHTML = '<div style="background:#fef3c7;padding:8px 12px;font-size:11px;font-weight:700;color:#92400e">🗑️ DELETED PAYMENTS (Super Admin only — click Restore to recover)</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:12px"><tbody>' + rows + '</tbody></table>';
+      ledgerTable.parentNode.insertBefore(section, ledgerTable.nextSibling);
+    }
+
+    window.kbRestorePayEntry = function(deletedIdx) {
+      if (!editProjId) return;
+      var p = projects && projects[editProjId];
+      if (!p) return;
+      var deleted = (p.payLedger_deleted || []).slice();
+      var entry   = deleted[deletedIdx];
+      if (!entry) return;
+      var restored = Object.assign({}, entry);
+      delete restored.deletedAt; delete restored.deletedBy; delete restored.origIdx;
+      var newLedger  = (p.payLedger || []).concat([restored]);
+      deleted.splice(deletedIdx, 1);
+      db.ref('crm_projects/' + editProjId).update({
+        payLedger:         newLedger,
+        payLedger_deleted: deleted
+      }, function(err) {
+        if (err) { kbAlert('Restore failed: ' + err.message); return; }
+        showToast('✅ Payment entry restored!');
+        if (typeof logActivity === 'function') logActivity('payment', 'Payment Restored', '₹' + (entry.amount||0) + ' restored', { refcode: p.refcode });
+        if (typeof renderPayLedger === 'function') renderPayLedger();
+        var s = document.getElementById('kb-restore-pay-section'); if (s) s.remove();
+        injectRestoreUI();
+      });
+    };
+
+    // Hook into openModal to inject restore UI when payment modal opens
+    var _origOpenModal = window.openModal;
+    if (typeof _origOpenModal === 'function') {
+      window.openModal = function(id) {
+        _origOpenModal(id);
+        if (id === 'pay-entry-modal') setTimeout(injectRestoreUI, 300);
+      };
+    }
+  }
+  patchDelete();
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// 4. DUPLICATE PAYMENT GUARD
+//    Before saving a payment, check if same amount+date+stage exists.
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  function patchSave() {
+    var saveBtn = document.getElementById('btn-save-pay');
+    if (!saveBtn) { setTimeout(patchSave, 800); return; }
+
+    saveBtn.addEventListener('click', function(e) {
+      if (!window.editProjId) return;
+      var p = window.projects && window.projects[editProjId];
+      if (!p) return;
+
+      var amtEl   = document.getElementById('pay-amount') || document.getElementById('f-pay-amount');
+      var dateEl  = document.getElementById('pay-date')   || document.getElementById('f-pay-date');
+      var stageEl = document.getElementById('pay-stage')  || document.getElementById('f-pay-stage');
+      if (!amtEl || !dateEl) return;
+
+      var amt   = parseInt(amtEl.value) || 0;
+      var date  = (dateEl.value || '').trim();
+      var stage = stageEl ? (stageEl.value || '') : '';
+      if (!amt || !date) return;
+
+      var ledger = p.payLedger || [];
+      var dupe = ledger.find(function(e) {
+        return (parseInt(e.amount) || 0) === amt &&
+               (e.date || '') === date &&
+               (e.stage || '') === stage;
+      });
+
+      if (dupe) {
+        e.stopImmediatePropagation();
+        kbConfirm(
+          'Possible Duplicate Payment',
+          '₹' + amt.toLocaleString('en-IN') + ' for <b>' + (stage || 'this stage') + '</b> on <b>' + date + '</b> was already recorded.\n\nAre you sure this is a different payment?',
+          function() {
+            // User confirmed — fire the original save by clicking the button without our guard
+            saveBtn.removeEventListener('click', arguments.callee);
+            saveBtn.click();
+          },
+          { icon: '⚠️', okText: 'Yes, Save Anyway', okColor: '#d97706' }
+        );
+      }
+    }, true); // capture phase so we can stopImmediatePropagation
+  }
+  patchSave();
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// 5. PIPELINE CSV EXPORT
+//    Adds an "Export CSV" button to the payment pipeline header.
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  function injectExportBtn() {
+    var content = document.getElementById('pay-pipeline-content');
+    if (!content) { setTimeout(injectExportBtn, 1000); return; }
+
+    // Observe for when pipeline renders (it's dynamic)
+    var obs = new MutationObserver(function() {
+      var hdr = content.querySelector('[data-pp-header]');
+      if (hdr && !document.getElementById('kb-pp-export-btn')) {
+        var btn = document.createElement('button');
+        btn.id = 'kb-pp-export-btn';
+        btn.textContent = '📥 Export CSV';
+        btn.style.cssText = 'background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-left:8px';
+        btn.onclick = exportPipelineCSV;
+        hdr.appendChild(btn);
+      }
+    });
+    obs.observe(content, { childList: true, subtree: true });
+  }
+
+  window.exportPipelineCSV = function() {
+    if (!window.projects) { kbAlert('No data loaded yet.'); return; }
+    var rows = [['Ref Code', 'Couple', 'City', 'Event Type', 'Event Date', 'Net Value', 'Total Paid', 'Balance Due', 'Stage', 'Raw Status']];
+
+    Object.values(window.projects).forEach(function(p) {
+      if (!p || p.archived) return;
+      var net  = (typeof netVal === 'function') ? netVal(p) : 0;
+      var paid = (typeof paidTotal === 'function') ? paidTotal(p) : 0;
+      var bal  = Math.max(0, net - paid);
+      rows.push([
+        p.refcode || '',
+        (p.bride || '') + (p.groom ? ' & ' + p.groom : ''),
+        p.city || p.state || '',
+        p.eventType || '',
+        p.eventDate || '',
+        net, paid, bal,
+        p.stage || '',
+        p.d_raw_status || 'pending'
+      ]);
+    });
+
+    var csv = rows.map(function(r) {
+      return r.map(function(c) {
+        var s = String(c === null || c === undefined ? '' : c);
+        return s.indexOf(',') > -1 || s.indexOf('"') > -1 ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',');
+    }).join('\n');
+
+    var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'KB_Pipeline_' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    if (typeof showToast === 'function') showToast('📥 Pipeline exported to CSV!');
+  };
+
+  injectExportBtn();
+})();
+
+// ══════════════════════════════════════════════════════════════════
+// Replace common native alert/confirm calls with kb versions
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  // Only patch after page is fully loaded so kbConfirm/kbAlert exist
+  var _nativeConfirm = window.confirm;
+  var _nativeAlert   = window.alert;
+
+  window.confirm = function(msg) {
+    // Fallback: if kbConfirm not ready, use native
+    if (typeof window.kbConfirm !== 'function') return _nativeConfirm(msg);
+    // For synchronous confirm calls we can't fully replace, but we can catch
+    // the most common KB CRM ones via kbConfirm with a callback pattern.
+    // This override handles any remaining confirm() calls gracefully.
+    return _nativeConfirm(msg);
+  };
+
+  // Override alert globally with our nicer modal
+  window.alert = function(msg) {
+    if (typeof window.kbAlert === 'function') {
+      window.kbAlert(String(msg || ''));
+    } else {
+      _nativeAlert(msg);
+    }
+  };
+})();
+
+console.log('[KB v60_6] ✅ Reliability upgrades loaded: offline banner, custom modals, soft-delete, dupe guard, CSV export');
 </script>
 
 </body>
