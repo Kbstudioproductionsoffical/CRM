@@ -1504,6 +1504,10 @@ document.addEventListener('wheel', function(e) {
           style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
           💳 Payment Pipeline
         </button>
+        <button class="pay-main-tab" data-ptab="calendar" onclick="switchPayTab('calendar',this)"
+          style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
+          📅 Payment Calendar
+        </button>
       </div>
 
       <!-- Projects tab content -->
@@ -1519,6 +1523,11 @@ document.addEventListener('wheel', function(e) {
       <!-- Payment Pipeline tab content -->
       <div id="pay-tab-pipeline" style="display:none">
         <div id="pay-pipeline-content"></div>
+      </div>
+
+      <!-- Payment Calendar tab content -->
+      <div id="pay-tab-calendar" style="display:none">
+        <div id="pay-calendar-content"></div>
       </div>
 
       <!-- Transaction Feed tab content -->
@@ -4641,7 +4650,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v60-2026-06-21-addl-toggle';
+var CRM_BUILD_VERSION = 'v60-2026-06-22-pay-calendar';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -8687,6 +8696,8 @@ function switchPayTab(tab, btn) {
   feedTab.style.display = 'none';
   collTab.style.display = 'none';
   if (pipeTab) pipeTab.style.display = 'none';
+  var calTab = document.getElementById('pay-tab-calendar');
+  if (calTab) calTab.style.display = 'none';
   if (tab === 'projects') {
     projTab.style.display = '';
   } else if (tab === 'feed') {
@@ -8699,6 +8710,9 @@ function switchPayTab(tab, btn) {
   } else if (tab === 'pipeline') {
     if (pipeTab) pipeTab.style.display = '';
     renderPaymentPipeline();
+  } else if (tab === 'calendar') {
+    if (calTab) calTab.style.display = '';
+    renderPaymentCalendar();
   }
 }
 
@@ -8777,25 +8791,43 @@ function renderPaymentPipeline() {
     filterBtn('rawdata',   '🎞️ Raw Data Due', cRaw,       '#d97706') +
   '</div>';
 
-  // ── Grand totals ──
-  var totalPending = filtered.reduce(function(a, r) {
-    return a + r.schedule.reduce(function(s, st) { return s + Math.max(0, st.exp - st.paid); }, 0);
-  }, 0);
-  var totalPaid = filtered.reduce(function(a, r) { return a + (r.p.payLedger||[]).reduce(function(s,e){return s+(parseInt(e.amount)||0);},0); }, 0);
+  // ── Grand totals — match dashboard: use paidTotal / balDue directly (same as dashboard) ──
+  var totalPaid    = filtered.reduce(function(a, r) { return a + paidTotal(r.p); }, 0);
+  var totalPending = filtered.reduce(function(a, r) { return a + Math.max(0, balDue(r.p)); }, 0);
+  // Dashboard includes complete projects; pipeline shows active only — note this so teams aren't confused
+  var allPaid    = pl().reduce(function(a,p){ return a+paidTotal(p); }, 0);
+  var allPending = pl().reduce(function(a,p){ return a+Math.max(0,balDue(p)); }, 0);
+  var completedPaid    = pl().filter(function(p){return p.stage==='complete';}).reduce(function(a,p){return a+paidTotal(p);},0);
+  var completedPending = pl().filter(function(p){return p.stage==='complete';}).reduce(function(a,p){return a+Math.max(0,balDue(p));},0);
 
-  var summaryHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">' +
+  var summaryHtml = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">' +
     '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 16px;flex:1;min-width:140px">' +
       '<div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase">Total Collected</div>' +
       '<div style="font-size:20px;font-weight:800;color:#16a34a">' + fmt(totalPaid) + '</div>' +
+      '<div style="font-size:10px;color:#86efac;margin-top:2px">Active clients only</div>' +
     '</div>' +
     '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 16px;flex:1;min-width:140px">' +
       '<div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Balance Pending</div>' +
       '<div style="font-size:20px;font-weight:800;color:#dc2626">' + fmt(totalPending) + '</div>' +
+      '<div style="font-size:10px;color:#fca5a5;margin-top:2px">Active clients only</div>' +
     '</div>' +
     '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 16px;flex:1;min-width:140px">' +
       '<div style="font-size:10px;font-weight:700;color:#1e40af;text-transform:uppercase">Clients Shown</div>' +
       '<div style="font-size:20px;font-weight:800;color:#1d4ed8">' + filtered.length + '</div>' +
+      '<div style="font-size:10px;color:#93c5fd;margin-top:2px">Excl. ' + pl().filter(function(p){return p.stage==='complete';}).length + ' completed</div>' +
     '</div>' +
+  '</div>' +
+  // Reconciliation note: explains difference vs dashboard
+  '<div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:8px 14px;margin-bottom:16px;font-size:11px;color:#666;display:flex;flex-wrap:wrap;gap:12px">' +
+    '<span>📊 <strong>All projects (incl. complete):</strong> Collected ' +
+      '<strong style="color:#16a34a">' + fmt(allPaid) + '</strong> · ' +
+      'Pending <strong style="color:#dc2626">' + fmt(allPending) + '</strong></span>' +
+    '<span style="color:#ccc">|</span>' +
+    '<span>✅ Completed projects: Collected <strong>' + fmt(completedPaid) + '</strong>' +
+      (completedPending > 0 ? ' · <strong style="color:#dc2626">⚠️ '+fmt(completedPending)+' still due</strong>' : '') + '</span>' +
+    '<span style="color:#ccc">|</span>' +
+    '<span style="color:#888">Pipeline shows active clients only · Dashboard shows all · ' +
+      '<a href="#" onclick="showPage(\'payments\');switchPayTab(\'projects\',null)" style="color:#1d4ed8;text-decoration:none">Full view →</a></span>' +
   '</div>';
 
   // ── Group by event month ──
@@ -23532,6 +23564,297 @@ console.log('[KB Security] ✅ Module active — brute force, idle timeout, audi
 })();
 
 console.log('[KB v60_6] ✅ Reliability upgrades loaded: offline banner, custom modals, soft-delete, dupe guard, CSV export');
+
+// ══════════════════════════════════════════════════════════════════
+// PAYMENT CALENDAR — shows instalment due dates grouped by month
+// Accounts team can set/edit due dates per instalment directly here
+// ══════════════════════════════════════════════════════════════════
+function renderPaymentCalendar() {
+  var el = document.getElementById('pay-calendar-content');
+  if (!el) return;
+
+  var allProjects = pl().filter(function(p) { return p.stage !== 'complete' && netVal(p) > 0; });
+  var today = new Date(); today.setHours(0,0,0,0);
+  var todayStr = today.toISOString().slice(0,10);
+
+  // Build a flat list of all pending instalments with their due dates
+  var entries = [];
+  allProjects.forEach(function(p) {
+    var schedule = getPaymentScheduleWithCarryForward(p);
+    var couple = (p.bride||'') + (p.groom ? ' & ' + p.groom : '');
+    schedule.forEach(function(s) {
+      if (s.paid >= s.exp) return; // fully paid — skip
+      if (s.baseExp <= 0) return;
+      entries.push({
+        p: p, couple: couple, stage: s,
+        dueDate: s.dueDate || '',
+        amount: Math.max(0, s.exp - s.paid),
+        isOverdue: s.dueDate && s.dueDate < todayStr,
+        noDueDate: !s.dueDate
+      });
+    });
+  });
+
+  // Summary bar
+  var withDate    = entries.filter(function(e) { return e.dueDate; });
+  var withoutDate = entries.filter(function(e) { return !e.dueDate; });
+  var overdue     = entries.filter(function(e) { return e.isOverdue; });
+  var totalDue    = entries.reduce(function(a,e) { return a + e.amount; }, 0);
+
+  var html = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">' +
+    '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 16px;flex:1;min-width:120px">' +
+      '<div style="font-size:10px;font-weight:700;color:#991b1b;text-transform:uppercase">Total Pending</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#dc2626">' + fmt(totalDue) + '</div>' +
+    '</div>' +
+    '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 16px;flex:1;min-width:120px">' +
+      '<div style="font-size:10px;font-weight:700;color:#c2410c;text-transform:uppercase">🔴 Overdue</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#ea580c">' + overdue.length + ' instalments</div>' +
+    '</div>' +
+    '<div style="background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:10px 16px;flex:1;min-width:120px">' +
+      '<div style="font-size:10px;font-weight:700;color:#854d0e;text-transform:uppercase">⚠️ No Due Date Set</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#d97706">' + withoutDate.length + ' instalments</div>' +
+    '</div>' +
+    '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 16px;flex:1;min-width:120px">' +
+      '<div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase">✅ Dated</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#16a34a">' + withDate.length + ' instalments</div>' +
+    '</div>' +
+  '</div>';
+
+  // ── Section: No due date — accounts team action required ──
+  if (withoutDate.length) {
+    html += '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:20px">';
+    html += '<div style="font-size:12px;font-weight:800;color:#92400e;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between">' +
+      '<span>⚠️ INSTALMENT DUE DATES NOT SET (' + withoutDate.length + ')</span>' +
+      '<span style="font-size:11px;font-weight:500;color:#b45309">Set dates below so the team gets notified on time</span>' +
+    '</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    html += '<thead><tr style="background:#fef3c7">' +
+      '<th style="padding:7px 10px;text-align:left;font-size:11px;color:#92400e">Client</th>' +
+      '<th style="padding:7px 10px;text-align:left;font-size:11px;color:#92400e">Instalment</th>' +
+      '<th style="padding:7px 10px;text-align:right;font-size:11px;color:#92400e">Amount Due</th>' +
+      '<th style="padding:7px 10px;text-align:left;font-size:11px;color:#92400e">Event Date</th>' +
+      '<th style="padding:7px 10px;text-align:left;font-size:11px;color:#92400e">Set Due Date</th>' +
+    '</tr></thead><tbody>';
+    withoutDate.forEach(function(e) {
+      html += '<tr style="border-bottom:1px solid #fde68a">' +
+        '<td style="padding:7px 10px"><div style="font-weight:700">' + e.couple + '</div>' +
+          '<div style="font-size:10px;color:#888">' + (e.p.refcode||'') + ' · ' + (e.p.city||'') + '</div></td>' +
+        '<td style="padding:7px 10px"><span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 8px;font-weight:700;font-size:11px">' + e.stage.label + '</span></td>' +
+        '<td style="padding:7px 10px;text-align:right;font-weight:800;color:#dc2626">' + fmt(e.amount) + '</td>' +
+        '<td style="padding:7px 10px;font-size:11px;color:#888">' + (e.p.date ? fmtDate(e.p.date) : '—') + '</td>' +
+        '<td style="padding:7px 10px">' +
+          '<div style="display:flex;align-items:center;gap:6px">' +
+            '<input type="date" id="cal-due-' + e.p.id + '-' + e.stage.key + '" ' +
+              'style="font-size:11px;padding:4px 8px;border:1px solid #fbbf24;border-radius:6px;font-family:inherit" ' +
+              'onchange="saveInstDueDate(' + e.p.id + ',\'' + e.stage.key + '\',this.value)">' +
+          '</div>' +
+        '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // ── Section: Upcoming by month ──
+  var byMonth = {};
+  withDate.forEach(function(e) {
+    var ym = e.dueDate.substring(0,7);
+    if (!byMonth[ym]) byMonth[ym] = [];
+    byMonth[ym].push(e);
+  });
+  var months = Object.keys(byMonth).sort();
+
+  if (months.length) {
+    html += '<div style="font-size:12px;font-weight:800;color:#1a1a1a;margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em">📅 UPCOMING INSTALMENTS BY MONTH</div>';
+    months.forEach(function(ym) {
+      var items = byMonth[ym];
+      var monthTotal = items.reduce(function(a,e){return a+e.amount;},0);
+      var parts = ym.split('-');
+      var mLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(parts[1])-1] + ' ' + parts[0];
+      var isPast = ym < todayStr.substring(0,7);
+      var isCurrent = ym === todayStr.substring(0,7);
+      var headerBg = isPast ? '#fef2f2' : isCurrent ? '#eff6ff' : '#f0fdf4';
+      var headerBorder = isPast ? '#fecaca' : isCurrent ? '#bfdbfe' : '#bbf7d0';
+      var headerColor = isPast ? '#991b1b' : isCurrent ? '#1e40af' : '#166534';
+
+      html += '<div style="border:1px solid ' + headerBorder + ';border-radius:12px;margin-bottom:14px;overflow:hidden">';
+      html += '<div style="background:' + headerBg + ';padding:10px 16px;display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="font-size:13px;font-weight:800;color:' + headerColor + '">' +
+          (isPast ? '🔴 ' : isCurrent ? '🔵 This Month · ' : '🟢 ') + mLabel +
+          (isPast ? ' — OVERDUE' : isCurrent ? '' : '') +
+        '</div>' +
+        '<div style="font-size:13px;font-weight:800;color:' + headerColor + '">' + fmt(monthTotal) + ' expected · ' + items.length + ' instalment' + (items.length>1?'s':'') + '</div>' +
+      '</div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:12px"><tbody>';
+      items.sort(function(a,b){return a.dueDate.localeCompare(b.dueDate);}).forEach(function(e) {
+        var daysAway = Math.round((new Date(e.dueDate+'T00:00:00') - today) / 86400000);
+        var dayLabel = daysAway === 0 ? '<span style="color:#dc2626;font-weight:700">TODAY</span>'
+          : daysAway < 0 ? '<span style="color:#dc2626;font-weight:700">' + Math.abs(daysAway) + 'd overdue</span>'
+          : '<span style="color:#888">in ' + daysAway + 'd</span>';
+        html += '<tr style="border-bottom:1px solid #f0f0f0">' +
+          '<td style="padding:8px 16px"><div style="font-weight:700">' + e.couple + '</div>' +
+            '<div style="font-size:10px;color:#888">' + (e.p.refcode||'') + ' · ' + (e.p.city||'') + '</div></td>' +
+          '<td style="padding:8px 10px"><span style="background:#eff6ff;color:#1e40af;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">' + e.stage.label + '</span></td>' +
+          '<td style="padding:8px 10px;font-weight:800;color:#1a1a1a;text-align:right">' + fmt(e.amount) + '</td>' +
+          '<td style="padding:8px 10px;font-size:11px">' + fmtDate(e.dueDate) + ' · ' + dayLabel + '</td>' +
+          '<td style="padding:8px 16px">' +
+            '<div style="display:flex;gap:6px;align-items:center">' +
+              '<input type="date" value="' + e.dueDate + '" ' +
+                'style="font-size:11px;padding:3px 7px;border:1px solid #e2e8f0;border-radius:5px;font-family:inherit" ' +
+                'onchange="saveInstDueDate(' + e.p.id + ',\'' + e.stage.key + '\',this.value)">' +
+              '<button onclick="openProjectPayments(' + e.p.id + ')" style="background:#1d4ed8;color:#fff;border:none;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">Payments</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      });
+      html += '</tbody></table></div>';
+    });
+  } else if (!withoutDate.length) {
+    html += '<div style="text-align:center;padding:40px;color:#aaa;font-size:13px">No pending instalments with due dates. All clients are paid up! 🎉</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// Save a single instalment due date from the calendar
+function saveInstDueDate(projId, stageKey, dateVal) {
+  if (!projId || !stageKey) return;
+  var update = {};
+  update['pay_' + stageKey + '_due'] = dateVal || '';
+  db.ref('crm_projects/' + projId).update(update, function(err) {
+    if (err) { kbAlert('Error saving date: ' + err.message); return; }
+    if (typeof showToast === 'function') showToast('📅 Due date saved for ' + stageKey);
+    if (typeof logActivity === 'function') {
+      var p = projects && projects[projId];
+      var couple = p ? ((p.bride||'') + (p.groom?' & '+p.groom:'')) : projId;
+      logActivity('payment', 'Instalment Due Date Set',
+        stageKey + ' due date set to ' + (dateVal||'cleared') + ' for ' + couple,
+        { refcode: p && p.refcode });
+    }
+    // Refresh calendar after short delay so Firebase data is updated
+    setTimeout(renderPaymentCalendar, 400);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// HEALTHCHECK — New payment-specific checks for accounts team
+// Injected into existing HC_CHECKS array
+// ══════════════════════════════════════════════════════════════════
+(function() {
+  function waitForHC() {
+    if (typeof HC_CHECKS === 'undefined' || typeof HC_TILES === 'undefined') { setTimeout(waitForHC, 500); return; }
+
+    // Add new tile for missing instalment due dates
+    var hasDueDateTile = HC_TILES.some(function(t){ return t.type === 'duedate'; });
+    if (!hasDueDateTile) {
+      // Insert after 'payment' tile
+      var payIdx = HC_TILES.findIndex(function(t){ return t.type === 'payment'; });
+      HC_TILES.splice(payIdx + 1, 0,
+        { type:'duedate', label:'Missing Due Dates', icon:'📅', color:'#d97706' }
+      );
+    }
+
+    // New check: active instalment has no due date
+    var hasDueDateCheck = HC_CHECKS.some(function(c){ return c.key === 'no_inst_due_date'; });
+    if (!hasDueDateCheck) {
+      HC_CHECKS.push({
+        type: 'duedate', key: 'no_inst_due_date',
+        label: 'Pending instalment(s) have no due date', icon: '📅', severity: 'high',
+        test: function(p) {
+          if (p.stage === 'complete') return false;
+          if (!netVal(p) || netVal(p) <= 0) return false;
+          if (typeof getPaymentScheduleWithCarryForward !== 'function') return false;
+          var sched = getPaymentScheduleWithCarryForward(p);
+          return sched.some(function(s) { return s.paid < s.exp && s.baseExp > 0 && !s.dueDate; });
+        },
+        field: null,
+        inputHtml: function(p) {
+          if (typeof getPaymentScheduleWithCarryForward !== 'function') return '';
+          var sched = getPaymentScheduleWithCarryForward(p);
+          var pending = sched.filter(function(s){ return s.paid < s.exp && s.baseExp > 0 && !s.dueDate; });
+          var inputs = pending.map(function(s) {
+            return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">' +
+              '<span style="font-size:11px;font-weight:600;color:#92400e;min-width:90px">' + s.label + '</span>' +
+              '<span style="font-size:11px;color:#888;min-width:70px">' + fmt(Math.max(0,s.exp-s.paid)) + ' due</span>' +
+              '<input type="date" style="font-size:11px;padding:3px 7px;border:1px solid #fbbf24;border-radius:5px;font-family:inherit" ' +
+                'onchange="saveInstDueDate('+p.id+',\''+s.key+'\',this.value)">' +
+            '</div>';
+          }).join('');
+          return '<div style="background:#fffbeb;border-radius:6px;padding:8px 10px">' + inputs +
+            '<div style="font-size:10px;color:#92400e;margin-top:4px">Set dates so the accounts team is notified on time · <a href="#" onclick="showPage(\'payments\');switchPayTab(\'calendar\',document.querySelector(\'[data-ptab=calendar]\'))" style="color:#1d4ed8">Open Calendar →</a></div>' +
+            '</div>';
+        }
+      });
+    }
+
+    // New check: large balance overdue (event past + balance > 10% of contract)
+    var hasLargeOverdue = HC_CHECKS.some(function(c){ return c.key === 'large_overdue_balance'; });
+    if (!hasLargeOverdue) {
+      HC_CHECKS.push({
+        type: 'payment', key: 'large_overdue_balance',
+        label: 'Event passed — large balance still outstanding', icon: '🚨', severity: 'critical',
+        test: function(p) {
+          var ed = p.date;
+          if (!ed || p.stage === 'complete') return false;
+          var eventPassed = new Date(ed) < new Date();
+          var bal = Math.max(0, balDue(p));
+          var net = netVal(p);
+          return eventPassed && net > 0 && bal > 0 && (bal / net) > 0.1;
+        },
+        field: null,
+        inputHtml: function(p) {
+          var bal = Math.max(0, balDue(p));
+          var pct = netVal(p) > 0 ? Math.round(bal/netVal(p)*100) : 0;
+          return '<span style="font-size:11px;color:#991b1b">Event passed · <strong>' + fmt(bal) + ' (' + pct + '%)</strong> still unpaid · </span>' +
+            '<button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px;margin-left:6px">Open Payments →</button>';
+        }
+      });
+    }
+
+    // New check: instalment due date is today or tomorrow — alert accounts team
+    var hasDueTodayCheck = HC_CHECKS.some(function(c){ return c.key === 'inst_due_soon'; });
+    if (!hasDueTodayCheck) {
+      HC_CHECKS.push({
+        type: 'duedate', key: 'inst_due_soon',
+        label: 'Instalment due today or tomorrow', icon: '🔔', severity: 'high',
+        test: function(p) {
+          if (p.stage === 'complete') return false;
+          if (typeof getPaymentScheduleWithCarryForward !== 'function') return false;
+          var sched = getPaymentScheduleWithCarryForward(p);
+          var today = new Date(); today.setHours(0,0,0,0);
+          var soon  = new Date(today); soon.setDate(soon.getDate()+2);
+          return sched.some(function(s) {
+            if (!s.dueDate || s.paid >= s.exp) return false;
+            var d = new Date(s.dueDate + 'T00:00:00');
+            return d >= today && d < soon;
+          });
+        },
+        field: null,
+        inputHtml: function(p) {
+          if (typeof getPaymentScheduleWithCarryForward !== 'function') return '';
+          var sched = getPaymentScheduleWithCarryForward(p);
+          var today = new Date(); today.setHours(0,0,0,0);
+          var soon  = new Date(today); soon.setDate(soon.getDate()+2);
+          var due = sched.filter(function(s){
+            if (!s.dueDate || s.paid >= s.exp) return false;
+            var d = new Date(s.dueDate + 'T00:00:00');
+            return d >= today && d < soon;
+          });
+          var lines = due.map(function(s){
+            var d = new Date(s.dueDate+'T00:00:00');
+            var diff = Math.round((d-today)/86400000);
+            return '<span style="font-size:11px"><strong>' + s.label + '</strong> — ' + fmt(Math.max(0,s.exp-s.paid)) + ' due ' + (diff===0?'TODAY':'tomorrow') + '</span>';
+          }).join('<br>');
+          return '<div style="background:#fef2f2;border-radius:6px;padding:8px 10px">' + lines +
+            '<div style="margin-top:6px"><button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px">Open Payments →</button></div>' +
+            '</div>';
+        }
+      });
+    }
+
+    console.log('[KB v60_8] ✅ HC payment checks injected');
+  }
+  waitForHC();
+})();
 </script>
 
 </body>
