@@ -4650,7 +4650,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v60-2026-06-22-pay-calendar';
+var CRM_BUILD_VERSION = 'v60-2026-06-22-pay-pill-fix';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -8855,8 +8855,9 @@ function renderPaymentPipeline() {
     var base = s.baseExp;
     // How much of this stage's own amount has been paid (cap at base for display purposes)
     var paidForBase = Math.min(s.paid, base);
-    var isPaid    = s.paid >= s.exp; // fully paid including any carry
-    var isPartial = !isPaid && s.paid > 0;
+    // isPaid: stage's own base amount is covered (ignore carry-forward inflation)
+    var isPaid    = paidForBase >= base;
+    var isPartial = !isPaid && paidForBase > 0;
     var bg, tc, icon;
     if (isPaid)         { bg='#dcfce7'; tc='#166534'; icon='\u2713'; }
     else if (isPartial) { bg='#fef9c3'; tc='#854d0e'; icon='\u007e'; }
@@ -8866,14 +8867,12 @@ function renderPaymentPipeline() {
       : (isPartial
           ? fmt(paidForBase) + ' / ' + fmt(base)            // show paid/stage-total when partial
           : fmt(base));                                      // show stage amount due when pending
-    // Show carry-forward as a small note if present and stage not fully paid
-    var carryNote = (!isPaid && s.carryIn > 0)
-      ? '<div style="font-size:9px;color:'+tc+';opacity:.7">+'+fmt(s.carryIn)+' carried</div>'
-      : '';
+    // carryNote removed — carry-forward is internal accounting, not per-pill display
+    var carryNote = '';
     var statusLine = isPaid
       ? '<div style="font-size:9px;color:'+tc+';opacity:.8">Paid \u2713</div>'
       : (isPartial
-          ? '<div style="font-size:9px;color:'+tc+';opacity:.8">Bal: '+fmt(s.exp-s.paid)+'</div>'
+          ? '<div style="font-size:9px;color:'+tc+';opacity:.8">Bal: '+fmt(base-paidForBase)+'</div>'
           : '<div style="font-size:9px;color:'+tc+';opacity:.8">Pending</div>');
     var due = s.dueDate ? '<div style="font-size:9px;color:'+tc+';opacity:.65;margin-top:1px">'+fmtDate(s.dueDate)+'</div>' : '';
     return '<div style="background:'+bg+';border-radius:7px;padding:5px 9px;min-width:90px;text-align:center;flex-shrink:0">' +
@@ -23175,7 +23174,7 @@ console.log('[KB Security] ✅ Module active — brute force, idle timeout, audi
 
 <!-- 2. CUSTOM CONFIRM MODAL -->
 <div id="kb-confirm-modal" style="
-  display:none;position:fixed;inset:0;z-index:10000;
+  display:none;position:fixed;inset:0;z-index:99999;
   background:rgba(0,0,0,.55);align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:28px 28px 22px;max-width:420px;width:90%;
     box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:inherit">
@@ -23197,7 +23196,7 @@ console.log('[KB Security] ✅ Module active — brute force, idle timeout, audi
 
 <!-- 2b. CUSTOM ALERT MODAL -->
 <div id="kb-alert-modal" style="
-  display:none;position:fixed;inset:0;z-index:10001;
+  display:none;position:fixed;inset:0;z-index:99999;
   background:rgba(0,0,0,.55);align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:28px 28px 22px;max-width:400px;width:90%;
     box-shadow:0 20px 60px rgba(0,0,0,.25);font-family:inherit">
@@ -23857,5 +23856,63 @@ function saveInstDueDate(projId, stageKey, dateVal) {
 })();
 </script>
 
+
+<script>
+// FINAL deletePayEntry — definitive, runs last, wins over all wrappers
+(function() {
+  function setup() {
+    window.deletePayEntry = function(idx) {
+      // Permission check
+      if (window.CU && (CU.role === 'admin' || CU.role === 'intern')) {
+        showToast('You cannot delete payments. Contact Super Admin.');
+        return;
+      }
+      var projId = window.editProjId;
+      if (!projId) { alert('No project open. Please try again.'); return; }
+      // Firebase keys are strings — coerce
+      var p = window.projects && (window.projects[projId] || window.projects[String(projId)]);
+      if (!p) { alert('Project not found.'); return; }
+      var ledger = (p.payLedger || []).slice();
+      var entry  = ledger[idx];
+      if (!entry) { alert('Entry not found at index ' + idx); return; }
+
+      // Use native confirm — zero z-index issues, zero callback timing issues
+      var amtStr = (entry.amount || 0).toLocaleString('en-IN');
+      if (!confirm('Remove this payment?\n\nAmount: Rs.' + amtStr + '\nStage: ' + (entry.stage || '-') + '\nDate: ' + (entry.date || '-') + '\n\nThis can be restored by Super Admin.')) {
+        return;
+      }
+
+      // Soft-delete: move entry to payLedger_deleted
+      var deletedEntry = Object.assign({}, entry, {
+        deletedAt: Date.now(),
+        deletedBy: window.CU ? (CU.name || CU.username || 'Unknown') : 'Unknown',
+        origIdx: idx
+      });
+      var newLedger  = ledger.filter(function(_, i) { return i !== idx; });
+      var oldDeleted = (p.payLedger_deleted || []).concat([deletedEntry]);
+
+      // Write to Firebase
+      var ref = window.db.ref('crm_projects/' + projId);
+      ref.update({ payLedger: newLedger, payLedger_deleted: oldDeleted }, function(err) {
+        if (err) { alert('Firebase error: ' + err.message); return; }
+        // Update local cache
+        p.payLedger         = newLedger;
+        p.payLedger_deleted = oldDeleted;
+        showToast('Entry removed. Super Admin can restore it.');
+        if (typeof logActivity === 'function') {
+          var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+          logActivity('payment', 'Payment Deleted',
+            (entry.amount || 0) + ' removed from ' + couple + ' [' + (p.refcode || '') + ']',
+            { refcode: p.refcode, amount: entry.amount, stage: entry.stage });
+        }
+        if (typeof renderPayLedger === 'function') renderPayLedger();
+      });
+    };
+  }
+  // Run after all other scripts have executed
+  if (document.readyState === 'complete') { setup(); }
+  else { window.addEventListener('load', setup); }
+})();
+</script>
 </body>
 </html>
