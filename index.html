@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio Productions — CRM</title>
+<title>KB Studio CRM v64</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1680,8 +1680,133 @@ document.addEventListener('wheel', function(e) {
       </div>
     </div>
 
+    <!-- ══════════════════════════════════════════
+         ACCOUNTS ERP PAGE
+    ══════════════════════════════════════════ -->
     <div id="page-accounts" class="page" style="display:none">
       <div id="pay-closed-alerts" style="margin-bottom:16px"></div>
+      <div class="page-title">💰 Accounts ERP</div>
+      <div class="page-sub">Professional payment tracking — instalments, due dates, forecasts, and cash flow.</div>
+
+      <!-- KPI Row -->
+      <div id="erp-kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px"></div>
+
+      <!-- Tab bar -->
+      <div style="display:flex;gap:2px;border-bottom:2px solid #e5e5e5;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+        <button class="tab-btn active" id="erp-tab-btn-schedule"  onclick="erpSwitchTab('schedule')">📋 Instalment Schedule</button>
+        <button class="tab-btn"        id="erp-tab-btn-forecast"  onclick="erpSwitchTab('forecast')">📈 Revenue Forecast</button>
+        <button class="tab-btn"        id="erp-tab-btn-aging"     onclick="erpSwitchTab('aging')">📊 Aging Report</button>
+        <button class="tab-btn"        id="erp-tab-btn-overdue"   onclick="erpSwitchTab('overdue')">🔴 Overdue</button>
+        <button class="tab-btn"        id="erp-tab-btn-reminders" onclick="erpSwitchTab('reminders')">🔔 Reminders</button>
+        <button class="tab-btn"        id="erp-tab-btn-received"  onclick="erpSwitchTab('received')">✅ Received History</button>
+        <button class="tab-btn"        id="erp-tab-btn-bankaccs"  onclick="erpSwitchTab('bankaccs')">🏦 Bank Accounts</button>
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:2px">
+          <button class="btn btn-sm" onclick="renderAccountsERP()" style="font-size:11px">🔄 Refresh</button>
+          <button class="btn btn-sm" onclick="erpExportCSV()" style="background:#0369a1;color:#fff;border-color:#0369a1;font-size:11px">⬇️ Export CSV</button>
+        </div>
+      </div>
+
+      <!-- Filter bar (shared) -->
+      <div id="erp-filter-bar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+        <input type="text" id="erp-search" placeholder="🔍 Search client…" class="fi" style="width:180px;padding:7px 10px" oninput="renderAccountsERP()">
+        <select class="fi" id="erp-filter-stage" style="width:160px;padding:7px 10px" onchange="renderAccountsERP()">
+          <option value="">All Stages</option>
+          <option value="preprod">Pre-Prod</option>
+          <option value="production">Production</option>
+          <option value="postprod">Post-Prod</option>
+          <option value="delivery">Delivery</option>
+          <option value="payment">Pay Pending</option>
+          <option value="complete">Complete</option>
+        </select>
+        <select class="fi" id="erp-filter-region" style="width:140px;padding:7px 10px" onchange="renderAccountsERP()">
+          <option value="">All Regions</option>
+          <option value="north">🔵 North</option>
+          <option value="south">🟠 South</option>
+        </select>
+        <select class="fi" id="erp-filter-fy" style="width:150px;padding:7px 10px" onchange="renderAccountsERP()">
+          <option value="">All Financial Years</option>
+        </select>
+      </div>
+
+      <!-- Tab Panes -->
+      <div id="erp-tab-schedule" class="erp-tab-pane">
+        <div id="erp-schedule-content"></div>
+      </div>
+      <div id="erp-tab-forecast" class="erp-tab-pane" style="display:none">
+        <div id="erp-forecast-content"></div>
+      </div>
+      <div id="erp-tab-aging" class="erp-tab-pane" style="display:none">
+        <div id="erp-aging-content"></div>
+      </div>
+      <div id="erp-tab-reminders" class="erp-tab-pane" style="display:none">
+        <div id="erp-reminders-content"></div>
+      </div>
+      <div id="erp-tab-overdue" class="erp-tab-pane" style="display:none">
+        <div id="erp-overdue-content"></div>
+      </div>
+      <div id="erp-tab-received" class="erp-tab-pane" style="display:none">
+        <div id="erp-received-content"></div>
+      </div>
+      <div id="erp-tab-bankaccs" class="erp-tab-pane" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div style="font-size:14px;font-weight:700">Bank Accounts &amp; UPI</div>
+          <button class="btn btn-sm" onclick="openAddAccount()" style="background:#1a1a1a;color:#fff;font-size:11px">+ Add Account</button>
+        </div>
+        <div id="accounts-list"></div>
+      </div>
+    </div>
+
+    <!-- ERP: Set Due Date Modal -->
+    <div class="modal-overlay" id="erp-due-modal">
+      <div class="modal-box" style="max-width:400px">
+        <div class="modal-header"><span class="modal-title">📅 Set Expected Payment Date</span><button class="modal-close" data-close="erp-due-modal">✕</button></div>
+        <div class="modal-body" style="padding:20px">
+          <div id="erp-due-info" style="background:#f8f9fa;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px"></div>
+          <label class="fl">Expected Date <span style="color:#dc2626">*</span></label>
+          <input type="date" class="fi" id="erp-due-date-inp" style="margin-bottom:14px">
+          <label class="fl">Internal Notes (optional)</label>
+          <input type="text" class="fi" id="erp-due-notes-inp" placeholder="e.g. Client promised by WhatsApp" style="margin-bottom:18px">
+          <button class="btn" onclick="erpSaveDueDate()" style="width:100%;background:#1a1a1a;color:#fff">💾 Save Due Date</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ERP: Quick Record Payment Modal -->
+    <div class="modal-overlay" id="erp-pay-modal">
+      <div class="modal-box" style="max-width:480px">
+        <div class="modal-header"><span class="modal-title">💳 Mark Payment Received</span><button class="modal-close" data-close="erp-pay-modal">✕</button></div>
+        <div class="modal-body" style="padding:20px">
+          <div id="erp-pay-info" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div><label class="fl">Amount (₹) <span style="color:#dc2626">*</span></label>
+              <input type="number" class="fi" id="erp-pay-amount" placeholder="0" oninput="erpPayPreview()"></div>
+            <div><label class="fl">Date Received <span style="color:#dc2626">*</span></label>
+              <input type="date" class="fi" id="erp-pay-date"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div><label class="fl">Mode</label>
+              <select class="fi" id="erp-pay-mode">
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="UPI">UPI</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Cash">Cash</option>
+                <option value="Other">Other</option>
+              </select></div>
+            <div><label class="fl">Account</label>
+              <select class="fi" id="erp-pay-account"></select></div>
+          </div>
+          <div style="margin-bottom:12px">
+            <label class="fl">UTR / Reference No.</label>
+            <input type="text" class="fi" id="erp-pay-ref" placeholder="Transaction ID / cheque no.">
+          </div>
+          <div style="margin-bottom:16px">
+            <label class="fl">Notes</label>
+            <input type="text" class="fi" id="erp-pay-notes" placeholder="Any remarks…">
+          </div>
+          <div id="erp-pay-preview" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px"></div>
+          <button class="btn" onclick="erpSubmitPayment()" style="width:100%;background:#16a34a;color:#fff;font-weight:700">✅ Record Payment</button>
+        </div>
+      </div>
     </div>
 
     <!-- ══════════════════════════════════════════
@@ -2689,7 +2814,7 @@ document.addEventListener('wheel', function(e) {
     <div class="modal-hdr">
       <div><div class="modal-title" id="proj-modal-title">New Project</div><div id="proj-modal-refcode" style="margin-top:4px"></div></div>
       <div style="display:flex;align-items:center;gap:8px">
-        <button id="btn-sync-from-quot" onclick="syncProjectFromQuotation(editProjId)" style="display:none;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;padding:6px 12px;white-space:nowrap" title="Pull latest details from the original quotation">🔄 Sync from Quotation</button>
+        <button id="btn-sync-from-quot" onclick="kbSyncOrLinkQuotation(editProjId)" style="display:none;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;padding:6px 12px;white-space:nowrap" title="Pull latest details from the original quotation">🔄 Sync from Quotation</button>
         <button class="modal-close" data-close="proj-modal">✕</button>
       </div>
     </div>
@@ -2745,6 +2870,158 @@ document.addEventListener('wheel', function(e) {
           </div>
           <div id="custom-pay-error" style="color:#dc2626;font-size:11px;margin-top:6px;display:none">Total must equal 100%</div>
         </div>
+
+        <!-- ═══ KB ERP: 5-STAGE PAYMENT STRUCTURE BUILDER ═══ -->
+        <div id="kb-erp-pay-builder" style="background:#f8f8ff;border:1.5px solid #c7d2fe;border-radius:12px;padding:16px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:13px;font-weight:800;color:#3730a3">📋 KB Payment Schedule</div>
+            <div id="kb-erp-total-check" style="font-size:11px;font-weight:700;color:#6b7280"></div>
+          </div>
+
+          <!-- Stage 1: Advance (always required) -->
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+              <span style="background:#1d4ed8;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">1</span>
+              <span style="font-size:12px;font-weight:700;color:#1d4ed8">Advance</span>
+              <span style="font-size:10px;color:#6b7280;margin-left:2px">— required to create project</span>
+              <span style="margin-left:auto;background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Gate 1</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                <select class="fi" id="kb-s1-type" onchange="kbErpUpdateStage(1)" style="font-size:12px;padding:6px 8px">
+                  <option value="pct">Percentage (%)</option>
+                  <option value="fixed">Fixed Amount (₹)</option>
+                </select></div>
+              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                <input class="fi" type="number" id="kb-s1-val" placeholder="e.g. 30" oninput="kbErpUpdateStage(1)" style="font-size:12px;padding:6px 8px"></div>
+            </div>
+            <div id="kb-s1-preview" style="font-size:11px;color:#15803d;font-weight:600;margin-top:5px"></div>
+          </div>
+
+          <!-- Stage 2: Event Payment(s) -->
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+              <span style="background:#7c3aed;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">2</span>
+              <span style="font-size:12px;font-weight:700;color:#7c3aed">Event Payment</span>
+              <span style="font-size:10px;color:#6b7280;margin-left:2px">— date auto-fetched from event</span>
+              <span style="margin-left:auto;background:#f3e8ff;color:#7c3aed;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">📅 Date-linked</span>
+            </div>
+            <!-- Split toggle -->
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <button type="button" id="kb-s2-single-btn" onclick="kbErpSetEventMode('single')" style="flex:1;padding:7px;font-size:11px;font-weight:700;border-radius:8px;border:2px solid #7c3aed;background:#7c3aed;color:#fff;cursor:pointer">Single Event</button>
+              <button type="button" id="kb-s2-split-btn" onclick="kbErpSetEventMode('split')" style="flex:1;padding:7px;font-size:11px;font-weight:700;border-radius:8px;border:2px solid #e5e7eb;background:#fff;color:#6b7280;cursor:pointer">Split: Pre-Wedding + Main Event</button>
+            </div>
+            <!-- Single event -->
+            <div id="kb-s2-single" style="">
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                  <select class="fi" id="kb-s2-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
+                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                  </select></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                  <input class="fi" type="number" id="kb-s2-val" placeholder="e.g. 50" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Due Date (or auto from event)</label>
+                  <input class="fi" type="date" id="kb-s2-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
+              </div>
+              <div id="kb-s2-preview" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:5px"></div>
+            </div>
+            <!-- Split events -->
+            <div id="kb-s2-split" style="display:none">
+              <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">Pre-Wedding Payment</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                  <select class="fi" id="kb-s2a-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
+                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                  </select></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                  <input class="fi" type="number" id="kb-s2a-val" placeholder="e.g. 25" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Pre-Wedding Date</label>
+                  <input class="fi" type="date" id="kb-s2a-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
+              </div>
+              <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">Main Event Payment</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                  <select class="fi" id="kb-s2b-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
+                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                  </select></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                  <input class="fi" type="number" id="kb-s2b-val" placeholder="e.g. 25" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Main Event Date</label>
+                  <input class="fi" type="date" id="kb-s2b-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
+              </div>
+              <div id="kb-s2-split-preview" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:5px"></div>
+            </div>
+          </div>
+
+          <!-- Stage 3: Raw Data Payment -->
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+              <span style="background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">3</span>
+              <span style="font-size:12px;font-weight:700;color:#dc2626">Raw Data Payment</span>
+              <span style="font-size:10px;color:#6b7280;margin-left:2px">— before handing over files</span>
+              <span style="margin-left:auto;background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                <select class="fi" id="kb-s3-type" onchange="kbErpUpdateStage(3)" style="font-size:12px;padding:6px 8px">
+                  <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                </select></div>
+              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                <input class="fi" type="number" id="kb-s3-val" placeholder="e.g. 10" oninput="kbErpUpdateStage(3)" style="font-size:12px;padding:6px 8px"></div>
+            </div>
+            <div id="kb-s3-preview" style="font-size:11px;color:#dc2626;font-weight:600;margin-top:5px"></div>
+          </div>
+
+          <!-- Stage 4: Teaser & Highlight -->
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+              <span style="background:#d97706;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">4</span>
+              <span style="font-size:12px;font-weight:700;color:#d97706">Teaser &amp; Highlight Delivery</span>
+              <span style="font-size:10px;color:#6b7280;margin-left:2px">— before sharing teaser</span>
+              <span style="margin-left:auto;background:#fffbeb;color:#d97706;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                <select class="fi" id="kb-s4-type" onchange="kbErpUpdateStage(4)" style="font-size:12px;padding:6px 8px">
+                  <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                </select></div>
+              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                <input class="fi" type="number" id="kb-s4-val" placeholder="e.g. 5" oninput="kbErpUpdateStage(4)" style="font-size:12px;padding:6px 8px"></div>
+            </div>
+            <div id="kb-s4-preview" style="font-size:11px;color:#d97706;font-weight:600;margin-top:5px"></div>
+          </div>
+
+          <!-- Stage 5: Final Delivery -->
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+              <span style="background:#059669;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">5</span>
+              <span style="font-size:12px;font-weight:700;color:#059669">Final Delivery</span>
+              <span style="font-size:10px;color:#6b7280;margin-left:2px">— full balance cleared</span>
+              <span style="margin-left:auto;background:#dcfce7;color:#059669;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                <select class="fi" id="kb-s5-type" onchange="kbErpUpdateStage(5)" style="font-size:12px;padding:6px 8px">
+                  <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                </select></div>
+              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                <input class="fi" type="number" id="kb-s5-val" placeholder="e.g. 5" oninput="kbErpUpdateStage(5)" style="font-size:12px;padding:6px 8px"></div>
+            </div>
+            <div id="kb-s5-preview" style="font-size:11px;color:#059669;font-weight:600;margin-top:5px"></div>
+          </div>
+
+          <!-- Running total check -->
+          <div id="kb-erp-sum-bar" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 12px;font-size:12px;color:#1d4ed8;font-weight:700;display:flex;justify-content:space-between;align-items:center">
+            <span>Total assigned: <span id="kb-erp-assigned">0%</span></span>
+            <span id="kb-erp-remaining" style="font-size:11px;color:#6b7280;font-weight:600"></span>
+          </div>
+
+          <!-- 7-day reminder note -->
+          <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:11px;color:#92400e;margin-top:8px">
+            🔔 <strong>7-day reminder</strong> will auto-fire for all event-linked payments · Other payments trigger after prior stage clears
+          </div>
+        </div>
+        <!-- ═══ END KB ERP BUILDER ═══ -->
         <div id="new-proj-advance-block" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;margin-bottom:12px">
           <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:3px">💰 Advance Payment Required</div>
           <div style="font-size:11px;color:#a16207;margin-bottom:10px">A new project cannot be saved without recording the first payment. Enter the advance received below.</div>
@@ -2873,6 +3150,10 @@ document.addEventListener('wheel', function(e) {
 
       <div id="t-payments" class="tab-pane">
         <div class="info info-green" id="t-pay-summary"></div>
+
+        <!-- ═══ KB ERP GATE LOCKS ═══ -->
+        <div id="kb-gate-panel" style="margin-bottom:16px"></div>
+
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div style="font-size:13px;font-weight:700">Payment Ledger</div>
           <button class="btn btn-primary btn-sm" id="btn-add-pay-entry">+ Record Payment</button>
@@ -4629,6 +4910,461 @@ var DEFAULT_USERS=[
 var DEFAULT_ACCOUNTS=[{id:'acc1',name:'KB Studio Current Account',type:'current',number:'',notes:'Primary business account'},{id:'acc2',name:'Ketan Savings Account',type:'savings',number:'',notes:''},{id:'acc3',name:'Ritesh Savings Account',type:'savings',number:'',notes:''},{id:'acc4',name:'Keshav Savings Account',type:'savings',number:'',notes:''},{id:'acc5',name:'Shivam Savings Account',type:'savings',number:'',notes:''},{id:'acc6',name:'KB Studio UPI',type:'upi',number:'',notes:''},{id:'acc7',name:'Cash',type:'cash',number:'',notes:''}];
 var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight',label:'Highlight Video',hasDuration:true},{key:'longvideo',label:'Long Video / Full Film',hasDuration:true},{key:'reel',label:'Reels'},{key:'album',label:'Album',hasPhotos:true},{key:'frame',label:'Frame'},{key:'editedpics',label:'Edited Pictures'}];
 var PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'Before teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}]};
+
+// ═══════════════════════════════════════════════════════════════
+// KB ERP — 5-STAGE PAYMENT ENGINE  (v63)
+// Stages: Advance · Event(s) · Raw Data · Teaser · Final
+// ═══════════════════════════════════════════════════════════════
+
+var _kbErpEventMode = 'single'; // 'single' | 'split'
+
+// ── Helpers ──────────────────────────────────────────────────
+function _kbNetVal() {
+  var v = parseInt(document.getElementById('f-value') ? document.getElementById('f-value').value : 0) || 0;
+  var d = parseInt(document.getElementById('f-discount') ? document.getElementById('f-discount').value : 0) || 0;
+  return Math.max(0, v - d);
+}
+
+function _kbResolve(type, val, net) {
+  if (!val || !net) return 0;
+  return type === 'pct' ? Math.round(net * val / 100) : parseInt(val) || 0;
+}
+
+function _kbFmt(n) {
+  return '₹' + (n || 0).toLocaleString('en-IN');
+}
+
+// ── Event mode toggle ─────────────────────────────────────────
+function kbErpSetEventMode(mode) {
+  _kbErpEventMode = mode;
+  var single = document.getElementById('kb-s2-single');
+  var split  = document.getElementById('kb-s2-split');
+  var btnS   = document.getElementById('kb-s2-single-btn');
+  var btnSp  = document.getElementById('kb-s2-split-btn');
+  if (!single || !split) return;
+  if (mode === 'single') {
+    single.style.display = ''; split.style.display = 'none';
+    if (btnS)  { btnS.style.background='#7c3aed';  btnS.style.color='#fff';    btnS.style.borderColor='#7c3aed'; }
+    if (btnSp) { btnSp.style.background='#fff';    btnSp.style.color='#6b7280'; btnSp.style.borderColor='#e5e7eb'; }
+  } else {
+    single.style.display = 'none'; split.style.display = '';
+    if (btnSp) { btnSp.style.background='#7c3aed'; btnSp.style.color='#fff';   btnSp.style.borderColor='#7c3aed'; }
+    if (btnS)  { btnS.style.background='#fff';     btnS.style.color='#6b7280'; btnS.style.borderColor='#e5e7eb'; }
+  }
+  kbErpUpdateAll();
+}
+
+// ── Per-stage preview update ──────────────────────────────────
+function kbErpUpdateStage(stageNum) { kbErpUpdateAll(); }
+
+function kbErpUpdateAll() {
+  var net = _kbNetVal();
+  var fmtAmt = function(id_type, id_val) {
+    var t = (document.getElementById(id_type)||{}).value || 'pct';
+    var v = parseFloat((document.getElementById(id_val)||{}).value) || 0;
+    return _kbResolve(t, v, net);
+  };
+
+  // Stage 1
+  var s1 = fmtAmt('kb-s1-type','kb-s1-val');
+  var p1 = document.getElementById('kb-s1-preview');
+  if (p1) p1.textContent = s1 > 0 ? ('= ' + _kbFmt(s1) + ' advance required to create project') : '';
+
+  // Stage 2 — event(s)
+  var s2total = 0;
+  if (_kbErpEventMode === 'single') {
+    var s2 = fmtAmt('kb-s2-type','kb-s2-val');
+    s2total = s2;
+    var p2 = document.getElementById('kb-s2-preview');
+    // Auto-fill date from project event date
+    var evDate = (document.getElementById('f-date')||{}).value || '';
+    var s2dateEl = document.getElementById('kb-s2-date');
+    if (s2dateEl && !s2dateEl.value && evDate) s2dateEl.value = evDate;
+    if (p2) p2.textContent = s2 > 0 ? ('= ' + _kbFmt(s2) + (evDate ? ' · due on event day ' + evDate : ' · set due date')) : '';
+  } else {
+    var s2a = fmtAmt('kb-s2a-type','kb-s2a-val');
+    var s2b = fmtAmt('kb-s2b-type','kb-s2b-val');
+    s2total = s2a + s2b;
+    var p2s = document.getElementById('kb-s2-split-preview');
+    if (p2s) p2s.textContent = (s2a > 0 || s2b > 0) ? ('Pre-wedding: ' + _kbFmt(s2a) + ' · Main event: ' + _kbFmt(s2b) + ' · Total: ' + _kbFmt(s2total)) : '';
+  }
+
+  // Stage 3
+  var s3 = fmtAmt('kb-s3-type','kb-s3-val');
+  var p3 = document.getElementById('kb-s3-preview');
+  if (p3) p3.textContent = s3 > 0 ? ('= ' + _kbFmt(s3) + ' · raw data locked until paid') : '';
+
+  // Stage 4
+  var s4 = fmtAmt('kb-s4-type','kb-s4-val');
+  var p4 = document.getElementById('kb-s4-preview');
+  if (p4) p4.textContent = s4 > 0 ? ('= ' + _kbFmt(s4) + ' · teaser & highlight locked until paid') : '';
+
+  // Stage 5
+  var s5 = fmtAmt('kb-s5-type','kb-s5-val');
+  var p5 = document.getElementById('kb-s5-preview');
+  if (p5) p5.textContent = s5 > 0 ? ('= ' + _kbFmt(s5) + ' · final delivery locked until paid') : '';
+
+  // Running total (only works properly if all are %)
+  var t1 = parseFloat((document.getElementById('kb-s1-val')||{}).value)||0;
+  var t2 = _kbErpEventMode === 'single'
+    ? (parseFloat((document.getElementById('kb-s2-val')||{}).value)||0)
+    : ((parseFloat((document.getElementById('kb-s2a-val')||{}).value)||0) + (parseFloat((document.getElementById('kb-s2b-val')||{}).value)||0));
+  var t3 = parseFloat((document.getElementById('kb-s3-val')||{}).value)||0;
+  var t4 = parseFloat((document.getElementById('kb-s4-val')||{}).value)||0;
+  var t5 = parseFloat((document.getElementById('kb-s5-val')||{}).value)||0;
+
+  var allPct = ['kb-s1-type','kb-s2-type','kb-s3-type','kb-s4-type','kb-s5-type',
+                'kb-s2a-type','kb-s2b-type'].every(function(id){
+    var el = document.getElementById(id);
+    return !el || el.value === 'pct';
+  });
+
+  var totalAssigned = t1 + t2 + t3 + t4 + t5;
+  var assignedEl   = document.getElementById('kb-erp-assigned');
+  var remainingEl  = document.getElementById('kb-erp-remaining');
+  var sumBar       = document.getElementById('kb-erp-sum-bar');
+
+  if (allPct && assignedEl) {
+    assignedEl.textContent = totalAssigned + '%';
+    var rem = 100 - totalAssigned;
+    if (remainingEl) remainingEl.textContent = rem === 0 ? '✓ Total = 100%' : (rem > 0 ? rem + '% unassigned' : Math.abs(rem) + '% over 100%');
+    if (sumBar) {
+      sumBar.style.background = totalAssigned === 100 ? '#dcfce7' : totalAssigned > 100 ? '#fee2e2' : '#eff6ff';
+      sumBar.style.borderColor = totalAssigned === 100 ? '#86efac' : totalAssigned > 100 ? '#fca5a5' : '#bfdbfe';
+      sumBar.style.color = totalAssigned === 100 ? '#15803d' : totalAssigned > 100 ? '#dc2626' : '#1d4ed8';
+    }
+  } else if (assignedEl) {
+    assignedEl.textContent = _kbFmt(s1 + s2total + s3 + s4 + s5);
+    if (remainingEl && net > 0) {
+      var balLeft = net - (s1 + s2total + s3 + s4 + s5);
+      remainingEl.textContent = balLeft === 0 ? '✓ Matches contract' : (balLeft > 0 ? _kbFmt(balLeft) + ' unassigned' : _kbFmt(Math.abs(balLeft)) + ' over contract');
+    }
+  }
+}
+
+// ── Read KB ERP schedule from form (called on project save) ──
+function kbErpGetSchedule() {
+  var net = _kbNetVal();
+  var stages = [];
+  var mode = _kbErpEventMode;
+
+  function addStage(key, label, type_id, val_id, date_id, gate, desc) {
+    var t = (document.getElementById(type_id)||{}).value || 'pct';
+    var v = parseFloat((document.getElementById(val_id)||{}).value) || 0;
+    var d = date_id ? ((document.getElementById(date_id)||{}).value || '') : '';
+    if (!v) return;
+    stages.push({
+      key: key, label: label,
+      type: t, val: v,
+      amount: _kbResolve(t, v, net),
+      dueDate: d, gate: gate, desc: desc || ''
+    });
+  }
+
+  addStage('kb_advance',    'Advance',               'kb-s1-type','kb-s1-val', null,       'project_create', 'To block the date — no project created without this');
+  if (mode === 'single') {
+    addStage('kb_event',    'Event Payment',         'kb-s2-type','kb-s2-val','kb-s2-date','none',           'Due on event day');
+  } else {
+    addStage('kb_prewed',   'Pre-Wedding Payment',   'kb-s2a-type','kb-s2a-val','kb-s2a-date','none',        'Due on pre-wedding day');
+    addStage('kb_mainevent','Main Event Payment',    'kb-s2b-type','kb-s2b-val','kb-s2b-date','none',        'Due on main event day');
+  }
+  addStage('kb_rawdata',    'Raw Data Payment',      'kb-s3-type','kb-s3-val', null,        'raw_data',      'Raw data locked until paid');
+  addStage('kb_teaser',     'Teaser & Highlight',    'kb-s4-type','kb-s4-val', null,        'teaser',        'Teaser locked until paid');
+  addStage('kb_final',      'Final Delivery',        'kb-s5-type','kb-s5-val', null,        'final_delivery','Final album/film locked until paid');
+
+  return { stages: stages, eventMode: mode };
+}
+
+// ── Load KB ERP schedule into form (when editing a project) ──
+function kbErpLoadSchedule(kbSchedule) {
+  if (!kbSchedule || !kbSchedule.stages) return;
+  var stages = kbSchedule.stages;
+
+  function fillStage(key, type_id, val_id, date_id) {
+    var s = stages.find(function(x){ return x.key === key; });
+    if (!s) return;
+    var tEl = document.getElementById(type_id);
+    var vEl = document.getElementById(val_id);
+    var dEl = date_id ? document.getElementById(date_id) : null;
+    if (tEl) tEl.value = s.type || 'pct';
+    if (vEl) vEl.value = s.val || '';
+    if (dEl && s.dueDate) dEl.value = s.dueDate;
+  }
+
+  var mode = kbSchedule.eventMode || 'single';
+  kbErpSetEventMode(mode);
+
+  fillStage('kb_advance',    'kb-s1-type','kb-s1-val', null);
+  if (mode === 'single') {
+    fillStage('kb_event',    'kb-s2-type','kb-s2-val','kb-s2-date');
+  } else {
+    fillStage('kb_prewed',   'kb-s2a-type','kb-s2a-val','kb-s2a-date');
+    fillStage('kb_mainevent','kb-s2b-type','kb-s2b-val','kb-s2b-date');
+  }
+  fillStage('kb_rawdata', 'kb-s3-type','kb-s3-val', null);
+  fillStage('kb_teaser',  'kb-s4-type','kb-s4-val', null);
+  fillStage('kb_final',   'kb-s5-type','kb-s5-val', null);
+
+  kbErpUpdateAll();
+}
+
+// ── Auto-fill event date into Stage 2 when event date changes ─
+(function() {
+  function _attachEventDateSync() {
+    var evDateEl = document.getElementById('f-date');
+    if (!evDateEl) { setTimeout(_attachEventDateSync, 1000); return; }
+    evDateEl.addEventListener('change', function() {
+      // Only auto-fill if user hasn't manually set a date
+      var s2d = document.getElementById('kb-s2-date');
+      if (s2d && !s2d.dataset.manuallySet) s2d.value = evDateEl.value;
+      // For main event in split mode — same logic
+      var s2bd = document.getElementById('kb-s2b-date');
+      if (s2bd && !s2bd.dataset.manuallySet) s2bd.value = evDateEl.value;
+      kbErpUpdateAll();
+    });
+    // Mark as manually set when user picks a date directly
+    ['kb-s2-date','kb-s2a-date','kb-s2b-date'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('change', function(){ el.dataset.manuallySet = '1'; });
+    });
+    // Also update preview when package value changes
+    ['f-value','f-discount'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', function(){ kbErpUpdateAll(); });
+    });
+  }
+  document.addEventListener('DOMContentLoaded', _attachEventDateSync);
+  setTimeout(_attachEventDateSync, 2000);
+})();
+
+// ═══════════════════════════════════════════════════════════════
+// KB ERP — 7-DAY REMINDER ENGINE
+// Checks all projects on load and fires in-app notifications
+// for event-linked payments due within 7 days.
+// Also surfaces in the notification bell + HC panel.
+// ═══════════════════════════════════════════════════════════════
+
+var _kbReminderFired = {};  // session de-dupe
+
+function kbErpRun7DayReminders(projectsList) {
+  if (!projectsList || !projectsList.length) return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var in7   = new Date(today); in7.setDate(in7.getDate() + 7);
+
+  // Reminder thresholds: fire at 7, 3, 1 days before and on the day
+  var REMINDER_DAYS = [7, 3, 1, 0];
+
+  projectsList.forEach(function(p) {
+    if (p.stage === 'complete') return;
+    var kbs = p.kbSchedule;
+    if (!kbs || !kbs.stages) return;
+
+    kbs.stages.forEach(function(s) {
+      if (!s.dueDate) return;
+      var due = new Date(s.dueDate + 'T00:00:00');
+      if (due < today || due > in7) return;
+
+      // Check if already paid via payLedger
+      var paid = (p.payLedger || []).filter(function(e){ return e.stage === s.key; })
+                  .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+      if (paid >= s.amount) return;
+
+      var daysLeft = Math.round((due - today) / 86400000);
+      // Only fire on exact threshold days
+      if (REMINDER_DAYS.indexOf(daysLeft) === -1) return;
+      var dedupeKey = p.id + '_' + s.key + '_remind' + daysLeft + 'd_' + s.dueDate;
+      if (_kbReminderFired[dedupeKey]) return;
+      _kbReminderFired[dedupeKey] = true;
+
+      var label = daysLeft === 0 ? 'TODAY' : daysLeft === 1 ? 'tomorrow' : 'in ' + daysLeft + ' days';
+      var balance = Math.max(0, s.amount - paid);
+
+      var notif = {
+        type: 'kb_7day_reminder',
+        title: '🔔 Payment due ' + label + ' — ' + (p.bride||'') + ' & ' + (p.groom||''),
+        body: s.label + ': ' + (balance).toLocaleString('en-IN', {style:'currency',currency:'INR',maximumFractionDigits:0}) + ' due on ' + s.dueDate,
+        projId: p.id,
+        stageKey: s.key,
+        dueDate: s.dueDate,
+        daysLeft: daysLeft,
+        severity: daysLeft === 0 ? 'critical' : daysLeft <= 3 ? 'high' : 'medium',
+        forRoles: ['admin','superadmin','accounts'],
+        at: new Date().toISOString(),
+        dismissed: false, read: false
+      };
+
+      // Push to Firebase notifications (de-duped server side by checking recent)
+      if (typeof db !== 'undefined' && db) {
+        db.ref('crm_notifications')
+          .orderByChild('type').equalTo('kb_7day_reminder')
+          .once('value', function(snap) {
+            var alreadyExists = false;
+            snap.forEach(function(c) {
+              var n = c.val();
+              if (n.projId === p.id && n.stageKey === s.key && n.dueDate === s.dueDate && n.daysLeft === daysLeft && !n.dismissed) {
+                alreadyExists = true;
+              }
+            });
+            if (!alreadyExists) {
+              var key = db.ref('crm_notifications').push().key;
+              notif.id = key;
+              notif.createdAt = new Date().toISOString();
+              db.ref('crm_notifications/' + key).set(notif, function() {
+                if (typeof loadAndRenderNotifications === 'function') loadAndRenderNotifications();
+              });
+            }
+          });
+      }
+    });
+  });
+}
+
+// ── WhatsApp / SMS reminder message generator ──────────────────
+function kbErpGetReminderMsg(p, stageKey) {
+  var kbs = p.kbSchedule;
+  if (!kbs) return '';
+  var s = (kbs.stages || []).find(function(x){ return x.key === stageKey; });
+  if (!s) return '';
+  var paid = (p.payLedger || []).filter(function(e){ return e.stage === s.key; })
+              .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+  var bal = Math.max(0, s.amount - paid);
+  var dueStr = s.dueDate ? (' on ' + s.dueDate) : '';
+  return 'Hello! 🙏\nGentle reminder from KB Studio Productions.\n\n' +
+    'Client: ' + (p.bride||'') + ' & ' + (p.groom||'') + '\n' +
+    'Payment: ' + s.label + '\n' +
+    'Amount due: ₹' + bal.toLocaleString('en-IN') + dueStr + '\n\n' +
+    'Please arrange the payment at your earliest convenience.\n' +
+    'Thank you! 🙏\n— KB Studio Productions';
+}
+
+// ── Hook: run reminders whenever projects list loads ──────────
+(function() {
+  function _hookReminders() {
+    if (typeof pl !== 'function') { setTimeout(_hookReminders, 2000); return; }
+    // Run once on load, then every 30 minutes
+    setTimeout(function() {
+      kbErpRun7DayReminders(pl());
+      setInterval(function(){ kbErpRun7DayReminders(pl()); }, 30 * 60 * 1000);
+    }, 4000);
+  }
+  _hookReminders();
+})();
+
+// ── Inject 7-day reminder HC check ────────────────────────────
+(function() {
+  function _add7DayHC() {
+    if (typeof HC_CHECKS === 'undefined') { setTimeout(_add7DayHC, 1000); return; }
+    var already = HC_CHECKS.some(function(c){ return c.key === 'kb_7day_event_pay'; });
+    if (already) return;
+    HC_CHECKS.push({
+      type: 'duedate', key: 'kb_7day_event_pay',
+      label: 'Event payment due within 7 days', icon: '🔔', severity: 'high',
+      test: function(p) {
+        if (p.stage === 'complete') return false;
+        var kbs = p.kbSchedule; if (!kbs || !kbs.stages) return false;
+        var today = new Date(); today.setHours(0,0,0,0);
+        var in7 = new Date(today); in7.setDate(in7.getDate()+7);
+        return kbs.stages.some(function(s) {
+          if (!s.dueDate) return false;
+          var d = new Date(s.dueDate+'T00:00:00');
+          if (d < today || d > in7) return false;
+          var paid = (p.payLedger||[]).filter(function(e){return e.stage===s.key;})
+                      .reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+          return paid < s.amount;
+        });
+      },
+      field: null,
+      inputHtml: function(p) {
+        var kbs = p.kbSchedule; if (!kbs || !kbs.stages) return '';
+        var today = new Date(); today.setHours(0,0,0,0);
+        var in7 = new Date(today); in7.setDate(in7.getDate()+7);
+        var due = kbs.stages.filter(function(s) {
+          if (!s.dueDate) return false;
+          var d = new Date(s.dueDate+'T00:00:00');
+          if (d < today || d > in7) return false;
+          var paid = (p.payLedger||[]).filter(function(e){return e.stage===s.key;})
+                      .reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+          return paid < s.amount;
+        });
+        var lines = due.map(function(s) {
+          var paid = (p.payLedger||[]).filter(function(e){return e.stage===s.key;})
+                      .reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+          var bal = Math.max(0, s.amount - paid);
+          var daysLeft = Math.round((new Date(s.dueDate+'T00:00:00') - today)/86400000);
+          var msg = kbErpGetReminderMsg(p, s.key);
+          var wa = 'https://wa.me/' + (p.whatsapp||p.phone||'').replace(/\D/g,'') + '?text=' + encodeURIComponent(msg);
+          return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">' +
+            '<strong style="font-size:11px">' + s.label + '</strong>' +
+            '<span style="font-size:11px;color:#dc2626">₹' + bal.toLocaleString('en-IN') + '</span>' +
+            '<span style="font-size:10px;color:#888">due ' + (daysLeft===0?'TODAY':daysLeft+'d') + '</span>' +
+            '<a href="' + wa + '" target="_blank" style="font-size:10px;background:#25d366;color:#fff;padding:2px 8px;border-radius:20px;text-decoration:none">WhatsApp</a>' +
+            '</div>';
+        }).join('');
+        return '<div style="background:#fef2f2;border-radius:6px;padding:8px 10px">' + lines +
+          '<button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px;margin-top:6px">Open Payments →</button>' +
+          '</div>';
+      }
+    });
+  }
+  setTimeout(_add7DayHC, 1500);
+})();
+
+// ═══════════════════════════════════════════════════════════════
+// KB ERP — GATE LOCK DISPLAY
+// Shows lock status on the project detail page for each stage
+// ═══════════════════════════════════════════════════════════════
+function kbErpGetGateStatus(p) {
+  var kbs = p.kbSchedule; if (!kbs || !kbs.stages) return null;
+  var ledger = p.payLedger || [];
+
+  // ── FIX: map kb_* keys → all equivalent legacy PAY_PRESETS keys ──
+  // When a project was created before kbSchedule existed, payLedger entries
+  // carry the old preset keys (p30, p50, p10a…). Gate status must count those too.
+  var KB_TO_LEGACY = {
+    kb_advance:    ['p30','p20','p50a','cp0'],          // Advance / deposit stage
+    kb_event:      ['p50','p60','p50b'],                // Event payment (single-wedding)
+    kb_prewed:     ['p50a','p40','p30b'],               // Pre-wed payment (dual mode)
+    kb_mainevent:  ['p50b','p60','p50'],                // Main event payment (dual mode)
+    kb_rawdata:    ['p10a','p10'],                      // Raw data release
+    kb_teaser:     ['p5a','p10b'],                      // Teaser & highlight
+    kb_final:      ['p5b','p10b','p10c','pfinal']       // Final delivery
+  };
+
+  return kbs.stages.map(function(s) {
+    var legacyKeys = KB_TO_LEGACY[s.key] || [];
+    var paid = ledger.filter(function(e) {
+      return e.stage === s.key || legacyKeys.indexOf(e.stage) !== -1;
+    }).reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+    return {
+      key: s.key, label: s.label, gate: s.gate,
+      amount: s.amount, paid: paid,
+      balance: Math.max(0, s.amount - paid),
+      cleared: paid >= s.amount
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// KB ERP — REVENUE FORECAST (monthly buckets from kbSchedule)
+// ═══════════════════════════════════════════════════════════════
+function kbErpGetForecastData(projectsList) {
+  var buckets = {}; // 'YYYY-MM' → { expected: 0, received: 0 }
+  projectsList.forEach(function(p) {
+    if (p.stage === 'complete') return;
+    var kbs = p.kbSchedule; if (!kbs || !kbs.stages) return;
+    var ledger = p.payLedger || [];
+    kbs.stages.forEach(function(s) {
+      if (!s.dueDate) return;
+      var ym = s.dueDate.substring(0,7);
+      if (!buckets[ym]) buckets[ym] = { expected: 0, received: 0 };
+      var paid = ledger.filter(function(e){ return e.stage===s.key; })
+                  .reduce(function(a,e){ return a+(parseInt(e.amount)||0); }, 0);
+      buckets[ym].expected += s.amount;
+      buckets[ym].received += Math.min(paid, s.amount);
+    });
+  });
+  return buckets;
+}
 function getPayTerms(p){
   var base;
   if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length) base=p.customPayTerms;
@@ -4650,7 +5386,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v60-2026-06-22-pay-pill-fix';
+var CRM_BUILD_VERSION = 'v64-ERP-2026-06-24-FINAL';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -4903,6 +5639,11 @@ function attachProjectListeners() {
         _notifPanelThrottle = null;
         renderEnhancedNotifPanel();
       }, 1500);
+    }
+    // Re-check 7-day reminders when any project updates
+    if (typeof kbErpRun7DayReminders === 'function') {
+      clearTimeout(window._kb7DayThrottle);
+      window._kb7DayThrottle = setTimeout(function(){ kbErpRun7DayReminders(pl()); }, 3000);
     }
   });
   // child_removed fires only when a project is deleted
@@ -5864,12 +6605,14 @@ function addEventDay(data) {
   sv2('.evd-endtime',   d.endTime);
   sv2('.evd-notes',     d.notes);
   sv2('.evd-prodlevel', d.prodLevel);
+  sv2('.evd-type',      d.type);   // ← FIX: restore event type dropdown
 
   // Update the inline type label when type changes
   var typeEl = card.querySelector('.evd-type');
   var typeLabel = card.querySelector('.evday-typename');
   function updateTypeLabel() { if (typeLabel) typeLabel.textContent = typeEl && typeEl.value ? '— ' + typeEl.value : ''; }
-  if (typeEl) { typeEl.addEventListener('change', updateTypeLabel); updateTypeLabel(); }
+  if (typeEl) { typeEl.addEventListener('change', updateTypeLabel); }
+  updateTypeLabel(); // ← FIX: run after sv2 so label reflects restored value
 }
 
 function removeEventDay(btn) {
@@ -8370,35 +9113,1130 @@ function renderPayClosedAlerts() {
   });
 }
 
-function renderAccounts(){
-  // Fire payment-closed alerts for accounts/superadmin
+// ══════════════════════════════════════════════════════════════════
+// ACCOUNTS ERP — Professional payment management engine
+// ══════════════════════════════════════════════════════════════════
+
+var _erpTab = 'schedule';
+var _erpPayCtx = null; // { projId, stageKey, stageLabel, expAmount, remainingAmt }
+var _erpDueCtx = null; // { projId, stageKey, stageLabel }
+
+function renderAccounts() {
   if (typeof renderPayClosedAlerts === 'function') renderPayClosedAlerts();
   if (typeof updatePayClosedBadge === 'function') updatePayClosedBadge();
-  var list=accList();
-  var canEdit = can('canManageAccounts');
-  var icons={current:'🏦',savings:'💳',upi:'📱',cash:'💵',other:'🔖'};
-  var typeLabel={current:'Current Account',savings:'Savings Account',upi:'UPI ID',cash:'Cash',other:'Other'};
-  var accTotals={};
-  pl().forEach(function(p){(p.payLedger||[]).forEach(function(e){if(e.account){accTotals[e.account]=(accTotals[e.account]||0)+(parseInt(e.amount)||0);}});});
-  $('accounts-list').innerHTML=list.length?
-    '<table class="tbl"><thead><tr><th>Account</th><th>Type</th><th>Account No. / UPI</th><th>Total Collected</th><th>Notes</th>'+(canEdit?'<th></th>':'')+'</tr></thead><tbody>'+
-    list.map(function(a){
-      var total=accTotals[a.name]||0;
-      return '<tr>'+
-        '<td><div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">'+(icons[a.type]||'🔖')+'</span><div style="font-weight:700">'+a.name+'</div></div></td>'+
-        '<td><span class="badge b-blue" style="font-size:10px">'+(typeLabel[a.type]||a.type)+'</span></td>'+
-        '<td style="font-family:monospace;font-size:12px;color:#6d28d9">'+(a.number||'—')+'</td>'+
-        '<td style="font-weight:700;color:'+(total>0?'#16a34a':'#aaa')+'">'+(total>0?fmt(total):'—')+'</td>'+
-        '<td style="font-size:12px;color:#888">'+(a.notes||'—')+'</td>'+
-        (canEdit?'<td><div style="display:flex;gap:5px">'+
-          '<button class="btn btn-sm" onclick="openEditAccount(&quot;' + a.id + '&quot;)">✏️ Edit</button>'+
-          '<button class="btn-danger" onclick="deleteAccount(&quot;' + a.id + '&quot;)">Remove</button>'+
-        '</div></td>':'') +
+  _erpPopulateFYFilter();
+  renderAccountsERP();
+}
+
+function erpSwitchTab(tab) {
+  _erpTab = tab;
+  ['schedule','forecast','aging','overdue','reminders','received','bankaccs'].forEach(function(t) {
+    var pane = document.getElementById('erp-tab-' + t);
+    var btn  = document.getElementById('erp-tab-btn-' + t);
+    if (pane) pane.style.display = (t === tab) ? '' : 'none';
+    if (btn)  btn.classList.toggle('active', t === tab);
+  });
+  renderAccountsERP();
+}
+
+function _erpPopulateFYFilter() {
+  var sel = document.getElementById('erp-filter-fy');
+  if (!sel) return;
+  var years = {};
+  pl().forEach(function(p) {
+    var d = p.date || p.bookdate;
+    if (d) { var y = d.split('-')[0]; if (y) years[y] = 1; }
+  });
+  var cur = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  Object.keys(years).sort(function(a,b){return b-a;}).forEach(function(y) {
+    var o = document.createElement('option');
+    o.value = y; o.textContent = 'FY ' + y + '-' + (parseInt(y)+1);
+    sel.appendChild(o);
+  });
+  sel.value = cur;
+}
+
+function _erpFilteredProjects() {
+  var search  = (document.getElementById('erp-search')        || {}).value || '';
+  var stageF  = (document.getElementById('erp-filter-stage')  || {}).value || '';
+  var regionF = (document.getElementById('erp-filter-region') || {}).value || '';
+  var fyF     = (document.getElementById('erp-filter-fy')     || {}).value || '';
+  var sq = search.toLowerCase();
+  return pl().filter(function(p) {
+    if (sq && !(p.bride||'').toLowerCase().includes(sq) && !(p.groom||'').toLowerCase().includes(sq) && !(p.refcode||'').toLowerCase().includes(sq)) return false;
+    if (stageF  && p.stage  !== stageF)  return false;
+    if (regionF && p.region !== regionF) return false;
+    if (fyF) { var d = p.date || p.bookdate; if (!d || d.split('-')[0] !== fyF) return false; }
+    return true;
+  });
+}
+
+// ── Core per-project instalment builder (no carry-forward inflation — accurate) ──
+// Each instalment is independent: its expected amount = net × pct/100 exactly.
+// Paid is the SUM of all ledger entries tagged to that stage (direct + split allocations).
+// Balance = max(0, expected − paid). Surplus on one stage does NOT reduce another's due.
+function _erpBuildInstalments(p) {
+  var terms  = getPayTerms(p);
+  var ledger = p.payLedger || [];
+  var net    = netVal(p);
+  var customLabels = p.payTermLabels || {};
+
+  // Collect "general" payments (untagged) — distribute sequentially to earliest pending stage
+  var generalPool = ledger
+    .filter(function(e){ return e.stage === 'general'; })
+    .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+  var generalUsed = 0;
+
+  return terms.map(function(t) {
+    var expected = Math.round(net * t.pct / 100);
+
+    var directPaid = ledger
+      .filter(function(e){ return e.stage === t.key; })
+      .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+
+    var splitPaid = ledger
+      .filter(function(e){ return e.splitAllocation; })
+      .reduce(function(a,e){
+        var alloc = e.splitAllocation.find(function(al){ return al.stage === t.key; });
+        return a + (alloc ? (parseInt(alloc.amount)||0) : 0);
+      }, 0);
+
+    var rawPaid = directPaid + splitPaid;
+    var remaining = Math.max(0, expected - rawPaid);
+    var genApplied = Math.max(0, Math.min(remaining, generalPool - generalUsed));
+    generalUsed += genApplied;
+    var paid = rawPaid + genApplied;
+
+    var balance  = Math.max(expected - paid, 0);
+    var surplus  = Math.max(paid - expected, 0);
+    var dueKey   = 'pay_' + t.key + '_due';
+    var dueNKey  = 'pay_' + t.key + '_due_notes';
+    var status   = paid === 0 ? 'pending' : balance === 0 ? 'paid' : 'partial';
+
+    return {
+      key:      t.key,
+      label:    customLabels[t.key + '_label'] || t.label,
+      desc:     t.desc || '',
+      pct:      t.pct,
+      expected: expected,
+      paid:     paid,
+      balance:  balance,
+      surplus:  surplus,
+      status:   status,
+      dueDate:  p[dueKey]  || '',
+      dueNotes: p[dueNKey] || ''
+    };
+  });
+}
+
+// ── KPI bar ──
+function _erpRenderKPI(list) {
+  var totalContract = list.reduce(function(a,p){ return a + netVal(p); }, 0);
+  var totalPaid     = list.reduce(function(a,p){ return a + paidTotal(p); }, 0);
+  var totalPending  = list.reduce(function(a,p){ return a + Math.max(0, balDue(p)); }, 0);
+
+  var today = new Date(); today.setHours(0,0,0,0);
+  var overdueAmt = 0, overdueCount = 0;
+  list.forEach(function(p) {
+    _erpBuildInstalments(p).forEach(function(ins) {
+      if (ins.status !== 'paid' && ins.dueDate) {
+        var dd = new Date(ins.dueDate + 'T00:00:00');
+        if (dd < today) { overdueAmt += ins.balance; overdueCount++; }
+      }
+    });
+  });
+
+  var next30 = 0;
+  var futureD = new Date(today); futureD.setDate(futureD.getDate() + 30);
+  list.forEach(function(p) {
+    _erpBuildInstalments(p).forEach(function(ins) {
+      if (ins.status !== 'paid' && ins.dueDate) {
+        var dd = new Date(ins.dueDate + 'T00:00:00');
+        if (dd >= today && dd <= futureD) next30 += ins.balance;
+      }
+    });
+  });
+
+  var el = document.getElementById('erp-kpi-row');
+  if (!el) return;
+  el.innerHTML =
+    _erpKPI('💰 Total Contract',   fmt(totalContract), list.length + ' clients', '#1d4ed8', '#eff6ff', '#bfdbfe') +
+    _erpKPI('✅ Total Collected',  fmt(totalPaid),      Math.round(totalPaid/Math.max(1,totalContract)*100) + '% of contract', '#16a34a', '#f0fdf4', '#bbf7d0') +
+    _erpKPI('⏳ Balance Pending',  fmt(totalPending),   'Across active clients', '#d97706', '#fffbeb', '#fde68a') +
+    _erpKPI('🔴 Overdue',          fmt(overdueAmt),     overdueCount + ' instalment(s)', '#dc2626', '#fef2f2', '#fecaca') +
+    _erpKPI('📅 Due in 30 Days',  fmt(next30),          'Expected incoming', '#7c3aed', '#f5f3ff', '#ddd6fe');
+}
+function _erpKPI(label, value, sub, tc, bg, border) {
+  return '<div style="background:'+bg+';border:1px solid '+border+';border-radius:10px;padding:12px 16px">' +
+    '<div style="font-size:10px;font-weight:700;color:'+tc+';text-transform:uppercase;letter-spacing:.05em">'+label+'</div>' +
+    '<div style="font-size:20px;font-weight:800;color:'+tc+';margin:2px 0">'+value+'</div>' +
+    '<div style="font-size:10px;color:'+tc+';opacity:.7">'+sub+'</div>' +
+  '</div>';
+}
+
+// ── Main dispatcher ──
+function renderAccountsERP() {
+  var list = _erpFilteredProjects();
+  _erpRenderKPI(list);
+  if (_erpTab === 'schedule')       _erpRenderSchedule(list);
+  else if (_erpTab === 'forecast')  _erpRenderForecastChart(list);
+  else if (_erpTab === 'aging')     _erpRenderAging(list);
+  else if (_erpTab === 'overdue')   _erpRenderOverdue(list);
+  else if (_erpTab === 'reminders') _erpRenderReminders(list);
+  else if (_erpTab === 'received')  _erpRenderReceived(list);
+  else if (_erpTab === 'bankaccs')  _erpRenderBankAccounts();
+}
+
+// ══ TAB 1: INSTALMENT SCHEDULE ══
+function _erpRenderSchedule(list) {
+  var el = document.getElementById('erp-schedule-content');
+  if (!el) return;
+  if (!list.length) { el.innerHTML = '<div class="empty">No projects match your filters.</div>'; return; }
+
+  var sorted = list.slice().sort(function(a,b){
+    var da = a.date || '9999'; var db = b.date || '9999';
+    return da.localeCompare(db);
+  });
+
+  var html = '';
+  sorted.forEach(function(p) {
+    var ins    = _erpBuildInstalments(p);
+    var net    = netVal(p);
+    var paid   = paidTotal(p);
+    var bal    = Math.max(0, net - paid);
+    var pct    = net > 0 ? Math.min(100, Math.round(paid / net * 100)) : 0;
+    var barCol = bal === 0 ? '#16a34a' : pct >= 50 ? '#1d4ed8' : '#d97706';
+
+    var pillsHtml = ins.map(function(s) {
+      if (!s.expected) return '';
+      var bg, tc, icon;
+      if (s.status === 'paid')    { bg='#dcfce7'; tc='#166534'; icon='✓'; }
+      else if (s.status==='partial') { bg='#fef9c3'; tc='#854d0e'; icon='~'; }
+      else                           { bg='#fee2e2'; tc='#991b1b'; icon='○'; }
+
+      var amtLine = s.status === 'partial'
+        ? fmt(s.paid) + ' / ' + fmt(s.expected)
+        : fmt(s.expected);
+      var dueTag = s.dueDate
+        ? '<div style="font-size:9px;color:'+tc+';opacity:.65;margin-top:1px">Due: '+fmtDate(s.dueDate)+'</div>'
+        : (s.status !== 'paid' ? '<div style="font-size:9px;color:#aaa;margin-top:1px;cursor:pointer" onclick="erpOpenDue(\''+p.id+'\',\''+s.key+'\',\''+s.label.replace(/'/g,'\\\'')+'\')" title="Set due date">+ Set date</div>' : '');
+
+      return '<div style="background:'+bg+';border-radius:7px;padding:5px 9px;min-width:95px;text-align:center;flex-shrink:0">' +
+        '<div style="font-size:9px;font-weight:700;color:'+tc+';text-transform:uppercase;letter-spacing:.5px">'+s.label+'</div>' +
+        '<div style="font-size:12px;font-weight:800;color:'+tc+'">'+icon+' '+amtLine+'</div>' +
+        (s.status !== 'paid' ? '<div style="font-size:9px;color:'+tc+';opacity:.8">Bal: '+fmt(s.balance)+'</div>' : '<div style="font-size:9px;color:'+tc+';opacity:.8">Paid ✓</div>') +
+        dueTag +
+      '</div>';
+    }).filter(Boolean).join('');
+
+    var actionBtns = '';
+    var pendingIns = ins.filter(function(s){ return s.status !== 'paid' && s.expected > 0; });
+    if (pendingIns.length) {
+      actionBtns += '<button class="btn btn-sm" onclick="erpOpenPay(\''+p.id+'\')" style="font-size:11px;padding:4px 10px;background:#16a34a;color:#fff;border-color:#16a34a">💳 Record</button>';
+    }
+    actionBtns += '<button class="btn btn-sm" onclick="openProjectPayments('+p.id+')" style="font-size:11px;padding:4px 10px">📋 Detail</button>';
+
+    html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:6px">' +
+        '<div>' +
+          '<div style="font-size:14px;font-weight:800;color:#111">'+(p.bride||'—')+' &amp; '+(p.groom||'—')+'</div>' +
+          '<div style="font-size:11px;color:#888;margin-top:2px">' +
+            (p.refcode ? '<span style="font-family:monospace;background:#f3f4f6;padding:1px 5px;border-radius:3px">'+p.refcode+'</span> · ' : '') +
+            (p.city||p.state||'') + (p.date ? ' · 📅 '+fmtDate(p.date) : '') + ' · ' + stageBadge(p.stage) +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'+actionBtns+'</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+pillsHtml+'</div>' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+        '<div style="flex:1;height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden">' +
+          '<div style="height:100%;background:'+barCol+';width:'+pct+'%;border-radius:3px"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:#888;white-space:nowrap">'+pct+'%</div>' +
+        '<div style="font-size:12px;font-weight:700;white-space:nowrap;color:'+(bal>0?'#dc2626':'#16a34a')+'">' +
+          (bal>0 ? 'Bal: '+fmt(bal) : '✓ Fully Paid') +
+        '</div>' +
+        '<div style="font-size:11px;color:#888;white-space:nowrap">Net: '+fmt(net)+'</div>' +
+      '</div>' +
+    '</div>';
+  });
+
+  el.innerHTML = '<div style="font-size:12px;color:#888;margin-bottom:10px">'+sorted.length+' project(s) shown · Each instalment is independent · Amounts = contract × stage %</div>' + html;
+}
+
+// ══ TAB 2: PAYMENT FORECAST (future expected cash inflows) ══
+function _erpRenderForecast(list) {
+  var el = document.getElementById('erp-forecast-content');
+  if (!el) return;
+
+  var today = new Date(); today.setHours(0,0,0,0);
+
+  // Collect all pending instalments that have a due date
+  var items = [];
+  list.forEach(function(p) {
+    _erpBuildInstalments(p).forEach(function(ins) {
+      if (ins.status === 'paid') return;
+      if (ins.expected <= 0) return;
+      items.push({
+        p:        p,
+        ins:      ins,
+        dueDate:  ins.dueDate,
+        balance:  ins.balance
+      });
+    });
+  });
+
+  var withDate    = items.filter(function(i){ return !!i.dueDate; }).sort(function(a,b){ return a.dueDate.localeCompare(b.dueDate); });
+  var withoutDate = items.filter(function(i){ return !i.dueDate; });
+
+  // Group by month
+  var groups = {};
+  withDate.forEach(function(item) {
+    var ym = item.dueDate.substring(0,7);
+    if (!groups[ym]) groups[ym] = [];
+    groups[ym].push(item);
+  });
+
+  var mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function ymLabel(ym) { var p=ym.split('-'); return mn[parseInt(p[1])-1]+' '+p[0]; }
+
+  var html = '';
+
+  // Summary forecast table
+  var sortedYMs = Object.keys(groups).sort();
+  if (sortedYMs.length) {
+    html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:16px">' +
+      '<div style="font-size:13px;font-weight:800;margin-bottom:10px">📊 Monthly Cash Inflow Forecast</div>' +
+      '<table class="tbl"><thead><tr><th>Month</th><th>Expected (₹)</th><th>Instalments</th><th>Clients</th></tr></thead><tbody>';
+    sortedYMs.forEach(function(ym) {
+      var g = groups[ym];
+      var total = g.reduce(function(a,i){ return a+i.balance; }, 0);
+      var clients = [...new Set(g.map(function(i){ return i.p.id; }))].length;
+      var isThis = ym === today.toISOString().substring(0,7);
+      html += '<tr style="'+(isThis?'background:#f5f3ff;':'')+'">'+
+        '<td style="font-weight:700'+(isThis?';color:#7c3aed':'')+'">'+(isThis?'▶ ':'')+ymLabel(ym)+(isThis?' <span style="background:#7c3aed;color:#fff;font-size:9px;padding:1px 6px;border-radius:8px">THIS MONTH</span>':'')+' </td>'+
+        '<td style="font-weight:800;color:#16a34a">'+fmt(total)+'</td>'+
+        '<td>'+g.length+'</td>'+
+        '<td>'+clients+'</td>'+
       '</tr>';
-    }).join('')+'</tbody></table>':
-    '<div class="empty">No accounts added yet.</div>';
-  var uc=document.getElementById('user-count');
-  if(uc)uc.textContent=Object.keys(users).length;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Detailed rows by month
+  sortedYMs.forEach(function(ym) {
+    var g = groups[ym];
+    var total = g.reduce(function(a,i){ return a+i.balance; }, 0);
+    html += '<div style="margin-bottom:16px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #e5e7eb;padding-bottom:6px;margin-bottom:8px">' +
+        '<div style="font-size:15px;font-weight:800">'+ymLabel(ym)+'</div>' +
+        '<div style="font-size:12px;color:#16a34a;font-weight:700">Expected: '+fmt(total)+'</div>' +
+      '</div>' +
+      '<table class="tbl"><thead><tr><th>Client</th><th>Instalment</th><th>Expected</th><th>Paid</th><th>Balance Due</th><th>Due Date</th><th>Actions</th></tr></thead><tbody>';
+
+    g.forEach(function(item) {
+      var dd = new Date(item.dueDate + 'T00:00:00');
+      var daysLeft = Math.round((dd - today) / 86400000);
+      var overdue = daysLeft < 0;
+      var urgent  = daysLeft >= 0 && daysLeft <= 7;
+      var rowBg   = overdue ? '#fef2f2' : urgent ? '#fffbeb' : '';
+      var dueLabel = overdue ? '<span style="color:#dc2626;font-weight:700">⚠ '+Math.abs(daysLeft)+'d overdue</span>'
+                   : daysLeft === 0 ? '<span style="color:#dc2626;font-weight:700">TODAY</span>'
+                   : urgent  ? '<span style="color:#d97706;font-weight:700">in '+daysLeft+'d</span>'
+                   : fmtDate(item.dueDate);
+      html += '<tr style="background:'+rowBg+'">'+
+        '<td><div style="font-weight:700;font-size:12px">'+(item.p.bride||'—')+' &amp; '+(item.p.groom||'—')+'</div><div style="font-size:10px;color:#888">'+(item.p.refcode||'')+'</div></td>'+
+        '<td><span class="badge b-blue" style="font-size:10px">'+item.ins.label+'</span></td>'+
+        '<td>'+fmt(item.ins.expected)+'</td>'+
+        '<td style="color:#16a34a">'+fmt(item.ins.paid)+'</td>'+
+        '<td style="font-weight:800;color:'+(overdue?'#dc2626':'#1d4ed8')+'">'+fmt(item.balance)+'</td>'+
+        '<td>'+dueLabel+'</td>'+
+        '<td><div style="display:flex;gap:4px">'+
+          '<button class="btn btn-sm" onclick="erpOpenPay(\''+item.p.id+'\')" style="font-size:10px;padding:3px 8px;background:#16a34a;color:#fff;border-color:#16a34a">💳</button>'+
+          '<button class="btn btn-sm" onclick="erpOpenDue(\''+item.p.id+'\',\''+item.ins.key+'\',\''+item.ins.label.replace(/'/g,'\\\'')+'\')" style="font-size:10px;padding:3px 8px">📅</button>'+
+        '</div></td>'+
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  });
+
+  if (withoutDate.length) {
+    html += '<div style="margin-bottom:16px">' +
+      '<div style="border-bottom:2px solid #f3f4f6;padding-bottom:6px;margin-bottom:8px;font-size:15px;font-weight:800;color:#999">📌 No Due Date Set ('+withoutDate.length+' instalments)</div>' +
+      '<table class="tbl"><thead><tr><th>Client</th><th>Instalment</th><th>Expected</th><th>Balance</th><th>Stage</th><th>Set Date</th></tr></thead><tbody>';
+    withoutDate.forEach(function(item) {
+      html += '<tr>'+
+        '<td><div style="font-weight:700;font-size:12px">'+(item.p.bride||'—')+' &amp; '+(item.p.groom||'—')+'</div><div style="font-size:10px;color:#888">'+(item.p.refcode||'')+'</div></td>'+
+        '<td><span class="badge b-blue" style="font-size:10px">'+item.ins.label+'</span></td>'+
+        '<td>'+fmt(item.ins.expected)+'</td>'+
+        '<td style="font-weight:700;color:#d97706">'+fmt(item.balance)+'</td>'+
+        '<td>'+stageBadge(item.p.stage)+'</td>'+
+        '<td><button class="btn btn-sm" onclick="erpOpenDue(\''+item.p.id+'\',\''+item.ins.key+'\',\''+item.ins.label.replace(/'/g,'\\\'')+'\')" style="font-size:11px">📅 Set Date</button></td>'+
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  if (!withDate.length && !withoutDate.length) {
+    html = '<div class="empty">No pending instalments found for selected filters.</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// ══ TAB 3: OVERDUE ══
+function _erpRenderOverdue(list) {
+  var el = document.getElementById('erp-overdue-content');
+  if (!el) return;
+
+  var today = new Date(); today.setHours(0,0,0,0);
+  var items = [];
+  list.forEach(function(p) {
+    _erpBuildInstalments(p).forEach(function(ins) {
+      if (ins.status === 'paid' || !ins.dueDate || ins.expected <= 0) return;
+      var dd = new Date(ins.dueDate + 'T00:00:00');
+      var daysLate = Math.round((today - dd) / 86400000);
+      if (daysLate > 0) items.push({ p:p, ins:ins, daysLate:daysLate });
+    });
+  });
+
+  items.sort(function(a,b){ return b.daysLate - a.daysLate; });
+
+  if (!items.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:#16a34a;font-size:15px">🎉 No overdue payments! All tracked instalments are on time.</div>';
+    return;
+  }
+
+  var totalOverdue = items.reduce(function(a,i){ return a+i.ins.balance; }, 0);
+  var html = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">' +
+    '<div><div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase">Total Overdue Amount</div>' +
+    '<div style="font-size:22px;font-weight:800;color:#dc2626">'+fmt(totalOverdue)+'</div></div>' +
+    '<div style="font-size:13px;color:#dc2626;font-weight:700">'+items.length+' overdue instalment(s)</div>' +
+  '</div>';
+
+  html += '<table class="tbl"><thead><tr><th>Client</th><th>Instalment</th><th>Expected</th><th>Balance</th><th>Due Date</th><th>Days Late</th><th>Actions</th></tr></thead><tbody>';
+  items.forEach(function(item) {
+    var severity = item.daysLate > 30 ? '#7f1d1d' : item.daysLate > 7 ? '#dc2626' : '#d97706';
+    html += '<tr style="background:#fef2f2">'+
+      '<td><div style="font-weight:700;font-size:12px">'+(item.p.bride||'—')+' &amp; '+(item.p.groom||'—')+'</div>'+
+        '<div style="font-size:10px;color:#888">'+(item.p.refcode||'')+' · '+(item.p.city||'')+' · '+stageBadge(item.p.stage)+'</div></td>'+
+      '<td><span class="badge b-red" style="font-size:10px">'+item.ins.label+'</span></td>'+
+      '<td>'+fmt(item.ins.expected)+'</td>'+
+      '<td style="font-weight:800;color:#dc2626">'+fmt(item.ins.balance)+'</td>'+
+      '<td>'+fmtDate(item.ins.dueDate)+'</td>'+
+      '<td style="font-weight:800;color:'+severity+'">'+item.daysLate+' days</td>'+
+      '<td><div style="display:flex;gap:4px">'+
+        '<button class="btn btn-sm" onclick="erpOpenPay(\''+item.p.id+'\')" style="font-size:10px;padding:3px 8px;background:#16a34a;color:#fff;border-color:#16a34a">💳 Record</button>'+
+        '<button class="btn btn-sm" onclick="erpOpenDue(\''+item.p.id+'\',\''+item.ins.key+'\',\''+item.ins.label.replace(/'/g,'\\\'')+'\')" style="font-size:10px;padding:3px 8px">📅 Reschedule</button>'+
+        '<button class="btn btn-sm" onclick="erpWhatsAppReminder(\''+item.p.id+'\')" style="font-size:10px;padding:3px 8px;background:#25d366;color:#fff;border-color:#25d366">💬 WA</button>'+
+      '</div></td>'+
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ══ TAB 4: RECEIVED HISTORY ══
+function _erpRenderReceived(list) {
+  var el = document.getElementById('erp-received-content');
+  if (!el) return;
+
+  var allEntries = [];
+  list.forEach(function(p) {
+    var terms = getPayTerms(p);
+    var customLabels = p.payTermLabels || {};
+    (p.payLedger||[]).forEach(function(e, idx) {
+      var isSplit = e.stage === 'split' && e.splitAllocation;
+      var term = terms.find(function(t){ return t.key === e.stage; });
+      var label = isSplit ? 'Smart Split'
+                : e.stage === 'general' ? 'General Payment'
+                : (customLabels[e.stage+'_label'] || (term ? term.label : (e.stage||'—')));
+      allEntries.push({ p:p, e:e, label:label, idx:idx });
+    });
+  });
+
+  allEntries.sort(function(a,b){
+    var da = a.e.date || ''; var db = b.e.date || '';
+    return db.localeCompare(da);
+  });
+
+  if (!allEntries.length) { el.innerHTML = '<div class="empty">No payments recorded yet.</div>'; return; }
+
+  var grandTotal = allEntries.reduce(function(a,i){ return a + (parseInt(i.e.amount)||0); }, 0);
+
+  var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+    '<div style="font-size:13px;color:#888">'+allEntries.length+' payments recorded</div>' +
+    '<div style="font-size:14px;font-weight:800;color:#16a34a">Grand Total: '+fmt(grandTotal)+'</div>' +
+  '</div>' +
+  '<table class="tbl"><thead><tr><th>Date</th><th>Client</th><th>Instalment</th><th>Amount</th><th>Mode</th><th>Account</th><th>UTR / Ref</th><th>Notes</th></tr></thead><tbody>';
+
+  allEntries.forEach(function(item) {
+    var e = item.e;
+    html += '<tr>'+
+      '<td style="white-space:nowrap">'+fmtDate(e.date||'')+'</td>'+
+      '<td><div style="font-weight:700;font-size:12px">'+(item.p.bride||'—')+' &amp; '+(item.p.groom||'—')+'</div>'+
+        '<div style="font-size:10px;color:#888">'+(item.p.refcode||'')+'</div></td>'+
+      '<td><span class="badge b-blue" style="font-size:10px">'+item.label+'</span></td>'+
+      '<td style="font-weight:800;color:#16a34a">'+fmt(e.amount)+'</td>'+
+      '<td style="font-size:11px">'+(e.mode||'—')+'</td>'+
+      '<td style="font-size:11px">'+(e.account||'—')+'</td>'+
+      '<td style="font-size:11px;color:#888;font-family:monospace">'+(e.ref||'—')+'</td>'+
+      '<td style="font-size:11px;color:#888">'+(e.notes||'—')+'</td>'+
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// ══ TAB 5: BANK ACCOUNTS ══
+
+// ══════════════════════════════════════════════════════════════════
+// KB ERP v64 — NEW TABS: Revenue Forecast Chart, Aging, Reminders
+// ══════════════════════════════════════════════════════════════════
+
+// ── TAB: REVENUE FORECAST CHART ──────────────────────────────────
+var _kbForecastChartInst = null;
+
+function _erpRenderForecastChart(list) {
+  var el = document.getElementById('erp-forecast-content');
+  if (!el) return;
+
+  // Build monthly buckets from kbSchedule stages
+  var today = new Date(); today.setHours(0,0,0,0);
+  var buckets = {};
+
+  list.forEach(function(p) {
+    var kbs = p.kbSchedule;
+    var ledger = p.payLedger || [];
+    var stages = kbs && kbs.stages ? kbs.stages : [];
+
+    stages.forEach(function(s) {
+      if (!s.dueDate) return;
+      var ym = s.dueDate.substring(0,7);
+      if (!buckets[ym]) buckets[ym] = { expected: 0, received: 0, clients: [] };
+      var paid = ledger.filter(function(e){ return e.stage === s.key; })
+                  .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+      buckets[ym].expected += s.amount;
+      buckets[ym].received += Math.min(paid, s.amount);
+      if (buckets[ym].clients.indexOf(p.bride + ' & ' + p.groom) === -1)
+        buckets[ym].clients.push(p.bride + ' & ' + p.groom);
+    });
+
+    // Also include general ledger payments by date
+    ledger.forEach(function(e) {
+      if (!e.date || e.stage !== 'general') return;
+      var ym = e.date.substring(0,7);
+      if (!buckets[ym]) buckets[ym] = { expected: 0, received: 0, clients: [] };
+      buckets[ym].received += parseInt(e.amount)||0;
+    });
+  });
+
+  var months = Object.keys(buckets).sort();
+  if (!months.length) { el.innerHTML = '<div class="empty">No payment schedules with due dates found. Set due dates in the Instalment Schedule tab.</div>'; return; }
+
+  var labels  = months.map(function(m) { var d = new Date(m+'-01'); return d.toLocaleString('en-IN',{month:'short',year:'numeric'}); });
+  var expData = months.map(function(m) { return Math.round(buckets[m].expected/1000); });
+  var recData = months.map(function(m) { return Math.round(buckets[m].received/1000); });
+  var gapData = months.map(function(m) { return Math.max(0, Math.round((buckets[m].expected - buckets[m].received)/1000)); });
+
+  var totalExp = months.reduce(function(a,m){ return a + buckets[m].expected; }, 0);
+  var totalRec = months.reduce(function(a,m){ return a + buckets[m].received; }, 0);
+  var totalGap = Math.max(0, totalExp - totalRec);
+
+  el.innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px">' +
+      '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px">' +
+        '<div style="font-size:10px;font-weight:700;color:#1d4ed8;text-transform:uppercase">Expected Revenue</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#1d4ed8;margin:3px 0">₹' + totalExp.toLocaleString('en-IN') + '</div>' +
+        '<div style="font-size:10px;color:#3b82f6">' + months.length + ' months tracked</div></div>' +
+      '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px">' +
+        '<div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase">Collected</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#16a34a;margin:3px 0">₹' + totalRec.toLocaleString('en-IN') + '</div>' +
+        '<div style="font-size:10px;color:#16a34a">' + (totalExp>0?Math.round(totalRec/totalExp*100):0) + '% of expected</div></div>' +
+      '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px">' +
+        '<div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase">Pending Collection</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#dc2626;margin:3px 0">₹' + totalGap.toLocaleString('en-IN') + '</div>' +
+        '<div style="font-size:10px;color:#dc2626">Across all stages</div></div>' +
+    '</div>' +
+    '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:16px">' +
+      '<div style="font-size:13px;font-weight:800;margin-bottom:12px">Monthly Expected vs Collected (₹ thousands)</div>' +
+      '<div style="position:relative;height:260px"><canvas id="kb-forecast-chart"></canvas></div>' +
+    '</div>' +
+    '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px">' +
+      '<div style="font-size:13px;font-weight:800;margin-bottom:10px">Month-by-Month Breakdown</div>' +
+      '<table class="tbl"><thead><tr><th>Month</th><th>Clients</th><th>Expected</th><th>Collected</th><th>Gap</th><th>Progress</th></tr></thead><tbody>' +
+      months.map(function(m) {
+        var b = buckets[m];
+        var pct = b.expected > 0 ? Math.min(100, Math.round(b.received/b.expected*100)) : 100;
+        var isPast = (m < today.toISOString().substring(0,7));
+        var gap = Math.max(0, b.expected - b.received);
+        return '<tr>' +
+          '<td style="font-weight:700">' + new Date(m+'-01').toLocaleString('en-IN',{month:'long',year:'numeric'}) + (isPast && gap > 0 ? ' <span style="color:#dc2626;font-size:9px;font-weight:700">OVERDUE</span>' : '') + '</td>' +
+          '<td style="font-size:11px;color:#888">' + b.clients.length + ' client(s)</td>' +
+          '<td style="font-weight:700">₹' + b.expected.toLocaleString('en-IN') + '</td>' +
+          '<td style="color:#16a34a;font-weight:700">₹' + b.received.toLocaleString('en-IN') + '</td>' +
+          '<td style="color:' + (gap>0?'#dc2626':'#16a34a') + ';font-weight:700">' + (gap>0?'₹'+gap.toLocaleString('en-IN'):'✓ Paid') + '</td>' +
+          '<td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+(pct===100?'#16a34a':pct>=50?'#3b82f6':'#f59e0b')+';border-radius:3px"></div></div><span style="font-size:10px;color:#888;white-space:nowrap">'+pct+'%</span></div></td>' +
+        '</tr>';
+      }).join('') +
+      '</tbody></table></div>';
+
+  // Draw Chart.js bar chart
+  setTimeout(function() {
+    var canvas = document.getElementById('kb-forecast-chart');
+    if (!canvas || typeof Chart === 'undefined') return;
+    if (_kbForecastChartInst) { _kbForecastChartInst.destroy(); _kbForecastChartInst = null; }
+    _kbForecastChartInst = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          { label: 'Expected (₹K)', data: expData, backgroundColor: 'rgba(59,130,246,0.25)', borderColor: '#3b82f6', borderWidth: 2, borderRadius: 4 },
+          { label: 'Collected (₹K)', data: recData, backgroundColor: 'rgba(22,163,74,0.35)', borderColor: '#16a34a', borderWidth: 2, borderRadius: 4 },
+          { label: 'Gap (₹K)', data: gapData, backgroundColor: 'rgba(220,38,38,0.2)', borderColor: '#dc2626', borderWidth: 1, borderRadius: 4, type: 'line', fill: false, tension: 0.3 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { font: { size: 11 } } }, tooltip: {
+          callbacks: { label: function(ctx){ return ctx.dataset.label + ': ₹' + (ctx.raw * 1000).toLocaleString('en-IN'); } }
+        }},
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: { grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 }, callback: function(v){ return '₹' + v + 'K'; } } }
+        }
+      }
+    });
+  }, 100);
+}
+
+// ── TAB: AGING REPORT ─────────────────────────────────────────
+function _erpRenderAging(list) {
+  var el = document.getElementById('erp-aging-content');
+  if (!el) return;
+
+  var today = new Date(); today.setHours(0,0,0,0);
+
+  // Buckets: current (not yet due), 0-30, 31-60, 61-90, 90+ days overdue
+  var buckets = { current: [], d30: [], d60: [], d90: [], d90plus: [] };
+  var totals  = { current: 0, d30: 0, d60: 0, d90: 0, d90plus: 0 };
+
+  list.forEach(function(p) {
+    if (p.stage === 'complete') return;
+    var net = (p.value || 0) - (p.discount || 0);
+    if (net <= 0) return;
+
+    // Use kbSchedule if available, else fall back to _erpBuildInstalments
+    var stages = [];
+    if (p.kbSchedule && p.kbSchedule.stages) {
+      var ledger = p.payLedger || [];
+      p.kbSchedule.stages.forEach(function(s) {
+        var paid = ledger.filter(function(e){ return e.stage===s.key; }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); }, 0);
+        var bal = Math.max(0, s.amount - paid);
+        if (bal <= 0) return;
+        stages.push({ label: s.label, dueDate: s.dueDate || '', balance: bal });
+      });
+    } else {
+      var ins = _erpBuildInstalments(p);
+      ins.forEach(function(s) {
+        if (s.status === 'paid' || s.balance <= 0) return;
+        stages.push({ label: s.label, dueDate: s.dueDate || '', balance: s.balance });
+      });
+    }
+
+    stages.forEach(function(s) {
+      var item = { p: p, label: s.label, balance: s.balance, dueDate: s.dueDate };
+      if (!s.dueDate) {
+        buckets.current.push(item); totals.current += s.balance;
+      } else {
+        var due = new Date(s.dueDate + 'T00:00:00');
+        var daysLate = Math.round((today - due) / 86400000);
+        if (daysLate <= 0)      { buckets.current.push(item); totals.current += s.balance; }
+        else if (daysLate <= 30){ buckets.d30.push(item);    totals.d30     += s.balance; }
+        else if (daysLate <= 60){ buckets.d60.push(item);    totals.d60     += s.balance; }
+        else if (daysLate <= 90){ buckets.d90.push(item);    totals.d90     += s.balance; }
+        else                    { buckets.d90plus.push(item);totals.d90plus += s.balance; }
+      }
+    });
+  });
+
+  var totalOverdue = totals.d30 + totals.d60 + totals.d90 + totals.d90plus;
+  var grandTotal   = totals.current + totalOverdue;
+
+  function renderBucket(items, label, color, bg, border) {
+    if (!items.length) return '<div style="background:'+bg+';border:1px solid '+border+';border-radius:10px;padding:12px;margin-bottom:10px;color:'+color+'"><b>'+label+'</b> — No entries</div>';
+    var rows = items.map(function(i) {
+      var wa = 'https://wa.me/' + (i.p.whatsapp||i.p.phone||'').replace(/\D/g,'') + '?text=' + encodeURIComponent('Hello! Gentle reminder from KB Studio Productions.\n\n'+i.p.bride+' & '+i.p.groom+' — '+i.label+': \u20b9'+i.balance.toLocaleString('en-IN')+' is outstanding.\nPlease arrange the payment.\nThank you! \u2014 KB Studio');
+      return '<tr><td style="font-weight:700">'+(i.p.bride||'')+'<br><span style="font-size:10px;color:#888;font-weight:400">'+(i.p.groom||'')+'</span></td>' +
+        '<td style="font-size:11px">'+i.label+'</td>' +
+        '<td>'+(i.dueDate ? i.dueDate : '<span style="color:#aaa">No date</span>')+'</td>' +
+        '<td style="font-weight:800;color:'+color+'">₹'+i.balance.toLocaleString('en-IN')+'</td>' +
+        '<td><a href="'+wa+'" target="_blank" style="font-size:10px;background:#25d366;color:#fff;padding:2px 8px;border-radius:20px;text-decoration:none;white-space:nowrap">WhatsApp</a></td>' +
+        '</tr>';
+    }).join('');
+    return '<div style="background:'+bg+';border:1px solid '+border+';border-radius:10px;padding:14px;margin-bottom:14px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+        '<div style="font-size:13px;font-weight:800;color:'+color+'">'+label+' <span style="font-size:11px;font-weight:600">('+items.length+' items)</span></div>' +
+        '<div style="font-size:16px;font-weight:800;color:'+color+'">₹'+items.reduce(function(a,i){return a+i.balance;},0).toLocaleString('en-IN')+'</div>' +
+      '</div>' +
+      '<table class="tbl" style="background:#fff;border-radius:8px;overflow:hidden">' +
+        '<thead><tr><th>Client</th><th>Stage</th><th>Due Date</th><th>Balance</th><th>Remind</th></tr></thead>' +
+        '<tbody>'+rows+'</tbody></table></div>';
+  }
+
+  el.innerHTML =
+    // Summary bar
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px">' +
+      '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:#16a34a;text-transform:uppercase">Current / Not Due</div><div style="font-size:18px;font-weight:800;color:#16a34a">₹'+totals.current.toLocaleString('en-IN')+'</div><div style="font-size:10px;color:#16a34a">'+buckets.current.length+' items</div></div>' +
+      '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:#d97706;text-transform:uppercase">1–30 Days Overdue</div><div style="font-size:18px;font-weight:800;color:#d97706">₹'+totals.d30.toLocaleString('en-IN')+'</div><div style="font-size:10px;color:#d97706">'+buckets.d30.length+' items</div></div>' +
+      '<div style="background:#fff7ed;border:1px solid #fdba74;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:#ea580c;text-transform:uppercase">31–60 Days Overdue</div><div style="font-size:18px;font-weight:800;color:#ea580c">₹'+totals.d60.toLocaleString('en-IN')+'</div><div style="font-size:10px;color:#ea580c">'+buckets.d60.length+' items</div></div>' +
+      '<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:#dc2626;text-transform:uppercase">61–90 Days Overdue</div><div style="font-size:18px;font-weight:800;color:#dc2626">₹'+totals.d90.toLocaleString('en-IN')+'</div><div style="font-size:10px;color:#dc2626">'+buckets.d90.length+' items</div></div>' +
+      '<div style="background:#fff1f2;border:1px solid #f43f5e;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;font-weight:700;color:#be123c;text-transform:uppercase">90+ Days Overdue</div><div style="font-size:18px;font-weight:800;color:#be123c">₹'+totals.d90plus.toLocaleString('en-IN')+'</div><div style="font-size:10px;color:#be123c">'+buckets.d90plus.length+' items</div></div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">' +
+      '<div style="font-size:14px;font-weight:800">Total Outstanding: <span style="color:'+( totalOverdue>0?'#dc2626':'#16a34a')+'}">₹'+grandTotal.toLocaleString('en-IN')+'</span></div>' +
+      '<button class="btn btn-sm" onclick="_erpExportAging()" style="background:#1d4ed8;color:#fff;border-color:#1d4ed8;font-size:11px">⬇️ Export Aging PDF</button>' +
+    '</div>' +
+    renderBucket(buckets.d90plus, '🚨 90+ Days Overdue', '#be123c', '#fff1f2', '#f43f5e') +
+    renderBucket(buckets.d90,     '🔴 61–90 Days Overdue', '#dc2626', '#fef2f2', '#fca5a5') +
+    renderBucket(buckets.d60,     '🟠 31–60 Days Overdue', '#ea580c', '#fff7ed', '#fdba74') +
+    renderBucket(buckets.d30,     '🟡 1–30 Days Overdue',  '#d97706', '#fffbeb', '#fde68a') +
+    renderBucket(buckets.current, '🟢 Current / Not Yet Due', '#16a34a', '#f0fdf4', '#bbf7d0');
+}
+
+function _erpExportAging() {
+  var content = document.getElementById('erp-aging-content');
+  if (!content) return;
+  if (typeof html2canvas !== 'undefined' && typeof jspdf !== 'undefined') {
+    showToast('Generating aging PDF…');
+    html2canvas(content).then(function(canvas) {
+      var pdf = new jspdf.jsPDF('p','mm','a4');
+      var imgW = 190;
+      var imgH = canvas.height * imgW / canvas.width;
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, imgW, imgH);
+      pdf.save('KB_Aging_Report_' + new Date().toISOString().substring(0,10) + '.pdf');
+    });
+  } else {
+    window.print();
+  }
+}
+
+// ── TAB: REMINDERS ───────────────────────────────────────────
+function _erpRenderReminders(list) {
+  var el = document.getElementById('erp-reminders-content');
+  if (!el) return;
+
+  var today = new Date(); today.setHours(0,0,0,0);
+
+  // Collect all pending stages with due dates, sorted by urgency
+  var items = [];
+  list.forEach(function(p) {
+    if (p.stage === 'complete') return;
+    var stages = [];
+    var ledger = p.payLedger || [];
+
+    if (p.kbSchedule && p.kbSchedule.stages) {
+      p.kbSchedule.stages.forEach(function(s) {
+        var paid = ledger.filter(function(e){return e.stage===s.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+        var bal = Math.max(0, s.amount - paid);
+        if (bal > 0) stages.push({ key: s.key, label: s.label, balance: bal, dueDate: s.dueDate || '' });
+      });
+    } else {
+      _erpBuildInstalments(p).forEach(function(s) {
+        if (s.balance > 0) stages.push({ key: s.key, label: s.label, balance: s.balance, dueDate: s.dueDate || '' });
+      });
+    }
+
+    stages.forEach(function(s) {
+      var daysLeft = s.dueDate ? Math.round((new Date(s.dueDate+'T00:00:00') - today) / 86400000) : null;
+      items.push({ p: p, s: s, daysLeft: daysLeft });
+    });
+  });
+
+  // Sort: overdue first, then by days left
+  items.sort(function(a,b) {
+    var da = a.daysLeft === null ? 9999 : a.daysLeft;
+    var db = b.daysLeft === null ? 9999 : b.daysLeft;
+    return da - db;
+  });
+
+  var overdue  = items.filter(function(i){ return i.daysLeft !== null && i.daysLeft < 0; });
+  var week     = items.filter(function(i){ return i.daysLeft !== null && i.daysLeft >= 0 && i.daysLeft <= 7; });
+  var month    = items.filter(function(i){ return i.daysLeft !== null && i.daysLeft > 7 && i.daysLeft <= 30; });
+  var later    = items.filter(function(i){ return i.daysLeft !== null && i.daysLeft > 30; });
+  var noDate   = items.filter(function(i){ return i.daysLeft === null; });
+
+  function buildReminderMsg(p, s) {
+    if (p.kbSchedule && typeof kbErpGetReminderMsg === 'function') return kbErpGetReminderMsg(p, s.key);
+    return 'Hello! Gentle reminder from KB Studio Productions.\n\n' + (p.bride||'') + ' & ' + (p.groom||'') + ' — ' + s.label + ': \u20b9' + s.balance.toLocaleString('en-IN') + ' is pending.' + (s.dueDate ? ' Due: ' + s.dueDate : '') + '\n\nKindly arrange. Thank you!';
+  }
+
+  function renderGroup(items, title, color, bg) {
+    if (!items.length) return '';
+    var rows = items.map(function(item) {
+      var p = item.p; var s = item.s;
+      var dl = item.daysLeft;
+      var dueLabel = dl === null ? '—' : dl < 0 ? '<span style="color:#dc2626;font-weight:700">'+Math.abs(dl)+'d overdue</span>' : dl === 0 ? '<span style="color:#dc2626;font-weight:700">TODAY</span>' : dl === 1 ? '<span style="color:#d97706;font-weight:700">Tomorrow</span>' : '<span style="color:#'+( dl<=7?'d97706':'374151')+'">in '+dl+' days</span>';
+      var msg = buildReminderMsg(p, s);
+      var waNum = (p.whatsapp || p.phone || '').replace(/\D/g,'');
+      var waLink = waNum ? 'https://wa.me/'+waNum+'?text='+encodeURIComponent(msg) : '';
+      var emailLink = p.email ? 'mailto:'+p.email+'?subject=Payment Reminder — KB Studio Productions&body='+encodeURIComponent(msg) : '';
+      return '<tr>' +
+        '<td><div style="font-weight:700;font-size:13px">'+(p.bride||'')+'<br><span style="font-size:10px;color:#888;font-weight:400">'+(p.groom||'')+(p.refcode?' · <span style="font-family:monospace;background:#f3f4f6;padding:1px 5px;border-radius:3px">'+p.refcode+'</span>':'')+'</span></div></td>' +
+        '<td style="font-size:12px;color:#555">'+s.label+'</td>' +
+        '<td style="font-size:12px">'+dueLabel+'</td>' +
+        '<td style="font-weight:800;color:'+color+'">₹'+s.balance.toLocaleString('en-IN')+'</td>' +
+        '<td>' +
+          (waLink ? '<a href="'+waLink+'" target="_blank" style="display:inline-block;margin:2px;font-size:10px;background:#25d366;color:#fff;padding:3px 8px;border-radius:20px;text-decoration:none;white-space:nowrap">WhatsApp</a>' : '') +
+          (emailLink ? '<a href="'+emailLink+'" style="display:inline-block;margin:2px;font-size:10px;background:#3b82f6;color:#fff;padding:3px 8px;border-radius:20px;text-decoration:none;white-space:nowrap">Email</a>' : '') +
+          '<button data-proj="'+p.id+'" data-stage="'+s.key+'" onclick="kbCopySmsMsg(this.dataset.proj,this.dataset.stage)" style="display:inline-block;margin:2px;font-size:10px;background:#7c3aed;color:#fff;padding:3px 8px;border-radius:20px;border:none;cursor:pointer;white-space:nowrap">Copy SMS</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+    return '<div style="background:'+bg+';border-radius:12px;padding:14px;margin-bottom:16px">' +
+      '<div style="font-size:13px;font-weight:800;color:'+color+';margin-bottom:10px">'+title+' <span style="font-size:11px;font-weight:600">('+items.length+')</span>' +
+        ' — Total: ₹'+items.reduce(function(a,i){return a+i.s.balance;},0).toLocaleString('en-IN')+'</div>' +
+      '<table class="tbl" style="background:#fff;border-radius:8px;overflow:hidden">' +
+        '<thead><tr><th>Client</th><th>Payment Stage</th><th>Due</th><th>Balance</th><th>Send Reminder</th></tr></thead>' +
+        '<tbody>'+rows+'</tbody></table></div>';
+  }
+
+  el.innerHTML =
+    '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+      '<div><span style="font-size:13px;font-weight:800;color:#dc2626">Total Outstanding: ₹'+(items.reduce(function(a,i){return a+i.s.balance;},0)).toLocaleString('en-IN')+'</span>' +
+      '<span style="font-size:11px;color:#888;margin-left:10px">'+items.length+' pending stage(s) across '+[...new Set(items.map(function(i){return i.p.id;}))].length+' client(s)</span></div>' +
+      '<div style="font-size:11px;color:#888">WhatsApp · Email · SMS reminders below</div>' +
+    '</div>' +
+    renderGroup(overdue, '🚨 Overdue', '#dc2626', '#fef2f2') +
+    renderGroup(week,    '🔔 Due within 7 days', '#d97706', '#fffbeb') +
+    renderGroup(month,   '📅 Due within 30 days', '#1d4ed8', '#eff6ff') +
+    renderGroup(later,   '🗓️ Due later (30+ days)', '#374151', '#f9fafb') +
+    renderGroup(noDate,  '⚠️ No due date set', '#6b7280', '#f3f4f6') +
+    (!items.length ? '<div class="empty">🎉 No pending payments found across active projects.</div>' : '');
+}
+
+// Copy SMS text helper
+function kbCopySmsMsg(projId, stageKey) {
+  var p = projects[projId]; if (!p) return;
+  var msg = typeof kbErpGetReminderMsg === 'function' ? kbErpGetReminderMsg(p, stageKey) :
+    'Payment reminder: ' + (p.bride||'') + ' & ' + (p.groom||'') + ' has a payment due. Please contact KB Studio Productions.';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(msg).then(function(){ showToast('SMS message copied!'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = msg; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('SMS message copied!');
+  }
+}
+
+// ── GATE LOCK UI — renders on project detail Payments tab ─────
+function kbRenderGateLocks() {
+  var el = document.getElementById('kb-gate-panel');
+  if (!el) return;
+  var p = editProjId ? projects[editProjId] : null;
+  if (!p || !p.kbSchedule || !p.kbSchedule.stages) { el.innerHTML = ''; return; }
+
+  var gates = kbErpGetGateStatus(p);
+  if (!gates || !gates.length) { el.innerHTML = ''; return; }
+
+  var gateInfo = {
+    project_create: { icon: '🔑', label: 'Project Creation Gate', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+    none:           { icon: '📅', label: 'Event Payment',          color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+    raw_data:       { icon: '💾', label: 'Raw Data Release Gate',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+    teaser:         { icon: '🎬', label: 'Teaser Delivery Gate',   color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+    final_delivery: { icon: '📦', label: 'Final Delivery Gate',    color: '#059669', bg: '#f0fdf4', border: '#bbf7d0' }
+  };
+
+  var html = '<div style="margin-bottom:14px">' +
+    '<div style="font-size:12px;font-weight:800;color:#374151;margin-bottom:8px">🔐 KB Payment Stage Gates</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px">';
+
+  gates.forEach(function(g) {
+    var gi = gateInfo[g.gate] || gateInfo['none'];
+    var cleared = g.cleared;
+    var pct = g.amount > 0 ? Math.min(100, Math.round(g.paid / g.amount * 100)) : 100;
+    html += '<div style="flex:1;min-width:130px;background:'+(cleared?'#f0fdf4':'#fff')+';border:1.5px solid '+(cleared?'#86efac':gi.border)+';border-radius:10px;padding:10px 12px">' +
+      '<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">' +
+        '<span style="font-size:14px">'+(cleared?'✅':gi.icon)+'</span>' +
+        '<span style="font-size:10px;font-weight:800;color:'+(cleared?'#16a34a':gi.color)+'">' + g.label + '</span>' +
+      '</div>' +
+      '<div style="font-size:11px;font-weight:700;color:'+(cleared?'#16a34a':'#374151')+'">' +
+        (cleared ? 'CLEARED ✓' : 'LOCKED 🔒') +
+      '</div>' +
+      '<div style="font-size:10px;color:#6b7280;margin-top:2px">' +
+        '₹'+g.paid.toLocaleString('en-IN')+' / ₹'+g.amount.toLocaleString('en-IN') +
+      '</div>' +
+      '<div style="height:4px;background:#f3f4f6;border-radius:2px;margin-top:6px;overflow:hidden">' +
+        '<div style="height:100%;width:'+pct+'%;background:'+(cleared?'#16a34a':gi.color)+';border-radius:2px"></div>' +
+      '</div>' +
+    '</div>';
+  });
+
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+// ── STAGE-LINKED INVOICE: generate receipt per KB stage ────────
+function kbGenerateStageReceipt(projId, stageKey) {
+  var p = projects[projId]; if (!p || !p.kbSchedule) return;
+  var stages = p.kbSchedule.stages || [];
+  var s = stages.find(function(x){ return x.key === stageKey; });
+  if (!s) { showToast('Stage not found'); return; }
+
+  var ledger = p.payLedger || [];
+  var payments = ledger.filter(function(e){ return e.stage === stageKey; });
+  var paid = payments.reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+
+  // Build a simple printable receipt
+  var receiptNum = 'KB-' + (p.refcode || projId.toString().slice(-4)) + '-' + stageKey.replace('kb_','').toUpperCase();
+  var dateStr = new Date().toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'});
+
+  var win = window.open('', '_blank');
+  if (!win) { showToast('Please allow popups to generate receipt'); return; }
+  win.document.write('<!DOCTYPE html><html><head><title>Receipt — '+receiptNum+'</title>' +
+    '<style>body{font-family:Georgia,serif;max-width:600px;margin:40px auto;padding:20px;color:#1a1a1a}' +
+    'h1{font-size:22px;font-weight:800;letter-spacing:-0.5px}.sub{font-size:13px;color:#666;margin-top:2px}' +
+    'table{width:100%;border-collapse:collapse;margin:20px 0}td,th{padding:10px 12px;border:1px solid #e5e5e5;font-size:13px}' +
+    'th{background:#f8f8f8;font-weight:700}.total-row td{font-weight:800;background:#f0fdf4;color:#15803d}' +
+    '.footer{margin-top:30px;font-size:11px;color:#888;text-align:center;border-top:1px solid #e5e5e5;padding-top:14px}' +
+    '.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;background:#dcfce7;color:#15803d}' +
+    '@media print{body{margin:0}button{display:none}}</style></head><body>' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+      '<div><h1>KB Studio Productions</h1><div class="sub">Wedding &amp; Events Photography</div></div>' +
+      '<div style="text-align:right"><div style="font-size:11px;color:#888">Receipt No.</div><div style="font-size:16px;font-weight:800">'+receiptNum+'</div><div style="font-size:11px;color:#888">'+dateStr+'</div></div>' +
+    '</div>' +
+    '<hr style="margin:20px 0;border:none;border-top:2px solid #1a1a1a">' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;font-size:13px">' +
+      '<div><b>Client</b><br>'+(p.bride||'—')+' &amp; '+(p.groom||'—')+'</div>' +
+      '<div><b>Event Date</b><br>'+(p.date||'—')+'</div>' +
+      '<div><b>City</b><br>'+(p.city||'—')+'</div>' +
+      '<div><b>Package</b><br>'+(p.package||'—')+'</div>' +
+    '</div>' +
+    '<table><thead><tr><th>Payment Stage</th><th>Expected</th><th>Received</th><th>Mode</th><th>Date</th></tr></thead><tbody>' +
+    (payments.length ? payments.map(function(e) {
+      return '<tr><td>'+s.label+'</td><td>₹'+s.amount.toLocaleString('en-IN')+'</td><td style="color:#16a34a;font-weight:700">₹'+(parseInt(e.amount)||0).toLocaleString('en-IN')+'</td><td>'+(e.mode||'—')+'</td><td>'+(e.date||'—')+'</td></tr>';
+    }).join('') : '<tr><td colspan="5" style="text-align:center;color:#aaa">No payments recorded for this stage yet</td></tr>') +
+    '<tr class="total-row"><td colspan="2"><b>Total Received — '+s.label+'</b></td><td colspan="3"><b>₹'+paid.toLocaleString('en-IN')+'</b> <span class="badge">'+( paid >= s.amount ? 'PAID IN FULL' : 'PARTIAL')+'</span></td></tr>' +
+    '</tbody></table>' +
+    (paid < s.amount ? '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:13px;color:#dc2626;font-weight:700">Balance Remaining: ₹'+(s.amount-paid).toLocaleString('en-IN')+'</div>' : '') +
+    '<div class="footer">KB Studio Productions · Thank you for choosing us to document your special day.<br>This is a computer-generated receipt.</div>' +
+    '<div style="margin-top:20px;text-align:center"><button onclick="window.print()" style="padding:10px 24px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer">🖨️ Print Receipt</button></div>' +
+    '</body></html>');
+  win.document.close();
+}
+
+function _erpRenderBankAccounts() {
+  var list = accList();
+  var canEdit = can('canManageAccounts');
+  var icons = { current:'🏦', savings:'💳', upi:'📱', cash:'💵', other:'🔖' };
+  var typeLabel = { current:'Current Account', savings:'Savings Account', upi:'UPI ID', cash:'Cash', other:'Other' };
+  var accTotals = {};
+  pl().forEach(function(p){ (p.payLedger||[]).forEach(function(e){ if(e.account){ accTotals[e.account]=(accTotals[e.account]||0)+(parseInt(e.amount)||0); } }); });
+
+  document.getElementById('accounts-list').innerHTML = list.length
+    ? '<table class="tbl"><thead><tr><th>Account</th><th>Type</th><th>Account No. / UPI</th><th>Total Collected</th><th>Notes</th>'+(canEdit?'<th></th>':'')+'</tr></thead><tbody>'+
+      list.map(function(a) {
+        var total = accTotals[a.name] || 0;
+        return '<tr>' +
+          '<td><div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">'+(icons[a.type]||'🔖')+'</span><div style="font-weight:700">'+a.name+'</div></div></td>' +
+          '<td><span class="badge b-blue" style="font-size:10px">'+(typeLabel[a.type]||a.type)+'</span></td>' +
+          '<td style="font-family:monospace;font-size:12px;color:#6d28d9">'+(a.number||'—')+'</td>' +
+          '<td style="font-weight:700;color:'+(total>0?'#16a34a':'#aaa')+'">'+(total>0?fmt(total):'—')+'</td>' +
+          '<td style="font-size:12px;color:#888">'+(a.notes||'—')+'</td>' +
+          (canEdit ? '<td><div style="display:flex;gap:5px"><button class="btn btn-sm" onclick="openEditAccount(&quot;'+a.id+'&quot;)">✏️ Edit</button><button class="btn-danger" onclick="deleteAccount(&quot;'+a.id+'&quot;)">Remove</button></div></td>' : '') +
+        '</tr>';
+      }).join('') + '</tbody></table>'
+    : '<div class="empty">No accounts added yet.</div>';
+}
+
+// ══ DUE DATE MODAL ══
+function erpOpenDue(projId, stageKey, stageLabel) {
+  var p = projects[projId]; if (!p) return;
+  var ins = _erpBuildInstalments(p).find(function(s){ return s.key === stageKey; });
+  if (!ins) return;
+  _erpDueCtx = { projId:projId, stageKey:stageKey, stageLabel:stageLabel };
+  var dueKey = 'pay_' + stageKey + '_due';
+  var notesKey = 'pay_' + stageKey + '_due_notes';
+  document.getElementById('erp-due-info').innerHTML =
+    '<strong>'+(p.bride||'—')+' &amp; '+(p.groom||'—')+'</strong><br>' +
+    'Instalment: <strong>'+stageLabel+'</strong> · Expected: <strong>'+fmt(ins.expected)+'</strong> · Balance: <strong style="color:#dc2626">'+fmt(ins.balance)+'</strong>';
+  var inp = document.getElementById('erp-due-date-inp');
+  var nInp = document.getElementById('erp-due-notes-inp');
+  if (inp) inp.value = p[dueKey] || '';
+  if (nInp) nInp.value = p[notesKey] || '';
+  openModal('erp-due-modal');
+}
+
+function erpSaveDueDate() {
+  if (!_erpDueCtx) return;
+  var projId = _erpDueCtx.projId;
+  var stageKey = _erpDueCtx.stageKey;
+  var date = (document.getElementById('erp-due-date-inp')||{}).value || '';
+  var notes = (document.getElementById('erp-due-notes-inp')||{}).value || '';
+  if (!date) { showToast('⚠️ Please select a date.'); return; }
+  var upd = {};
+  upd['pay_'+stageKey+'_due'] = date;
+  upd['pay_'+stageKey+'_due_notes'] = notes;
+  db.ref('crm_projects/' + projId).update(upd, function(err) {
+    if (err) { showToast('❌ Error saving: ' + err.message); return; }
+    if (projects[projId]) {
+      projects[projId]['pay_'+stageKey+'_due'] = date;
+      projects[projId]['pay_'+stageKey+'_due_notes'] = notes;
+    }
+    closeModal('erp-due-modal');
+    showToast('📅 Due date saved!');
+    renderAccountsERP();
+  });
+}
+
+// ══ RECORD PAYMENT MODAL ══
+function erpOpenPay(projId) {
+  var p = projects[projId]; if (!p) return;
+  var ins = _erpBuildInstalments(p);
+  var pending = ins.filter(function(s){ return s.status !== 'paid' && s.expected > 0; });
+  if (!pending.length) { showToast('✅ All instalments are fully paid!'); return; }
+
+  // Pre-select the first pending instalment
+  var first = pending[0];
+  _erpPayCtx = { projId:projId, stageKey:first.key, stageLabel:first.label, expAmount:first.balance };
+
+  document.getElementById('erp-pay-info').innerHTML =
+    '<strong>'+(p.bride||'—')+' &amp; '+(p.groom||'—')+'</strong> · <span style="font-family:monospace;font-size:11px">'+(p.refcode||'')+'</span><br>' +
+    pending.map(function(s){
+      return '<span style="background:'+(s.status==='partial'?'#fef9c3':'#fee2e2')+';border-radius:5px;padding:2px 7px;font-size:11px;margin-right:4px;cursor:pointer" onclick="erpSelectIns(\''+projId+'\',\''+s.key+'\',\''+s.label.replace(/'/g,'\\\'')+'\',' + s.balance + ')">'+
+        s.label+': <strong>'+fmt(s.balance)+'</strong></span>';
+    }).join('');
+
+  // Pre-fill amount with first pending balance
+  var amtEl = document.getElementById('erp-pay-amount');
+  var dateEl = document.getElementById('erp-pay-date');
+  var refEl  = document.getElementById('erp-pay-ref');
+  var notEl  = document.getElementById('erp-pay-notes');
+  if (amtEl) amtEl.value = first.balance || '';
+  if (dateEl) dateEl.value = tod();
+  if (refEl)  refEl.value = '';
+  if (notEl)  notEl.value = '';
+
+  // Populate accounts dropdown
+  var accSel = document.getElementById('erp-pay-account');
+  if (accSel) {
+    accSel.innerHTML = '<option value="">— Select Account —</option>' +
+      accList().map(function(a){ return '<option value="'+a.name+'">'+a.name+'</option>'; }).join('');
+  }
+
+  document.getElementById('erp-pay-preview').style.display = 'none';
+  openModal('erp-pay-modal');
+}
+
+function erpSelectIns(projId, stageKey, stageLabel, balance) {
+  _erpPayCtx = { projId:projId, stageKey:stageKey, stageLabel:stageLabel, expAmount:balance };
+  var amtEl = document.getElementById('erp-pay-amount');
+  if (amtEl) { amtEl.value = balance; erpPayPreview(); }
+  showToast('Selected: ' + stageLabel);
+}
+
+function erpPayPreview() {
+  var amt = parseInt((document.getElementById('erp-pay-amount')||{}).value) || 0;
+  var prev = document.getElementById('erp-pay-preview');
+  if (!prev || !_erpPayCtx || !amt) { if(prev) prev.style.display='none'; return; }
+  var p = projects[_erpPayCtx.projId]; if (!p) return;
+  var net = netVal(p); var paid = paidTotal(p); var newBal = Math.max(0, net - paid - amt);
+  prev.style.display = 'block';
+  prev.innerHTML = 'Recording <strong>'+fmt(amt)+'</strong> for <strong>'+_erpPayCtx.stageLabel+'</strong><br>' +
+    'After this payment — Balance remaining: <strong style="color:'+(newBal>0?'#dc2626':'#16a34a')+'">'+fmt(newBal)+'</strong>' +
+    (newBal === 0 ? ' <span style="color:#16a34a">✓ Fully cleared!</span>' : '');
+}
+
+function erpSubmitPayment() {
+  if (!_erpPayCtx) return;
+  var projId = _erpPayCtx.projId;
+  var p = projects[projId]; if (!p) { showToast('❌ Project not found.'); return; }
+
+  var amt  = parseInt((document.getElementById('erp-pay-amount')||{}).value) || 0;
+  var date = (document.getElementById('erp-pay-date')||{}).value  || tod();
+  var mode = (document.getElementById('erp-pay-mode')||{}).value  || '';
+  var acc  = (document.getElementById('erp-pay-account')||{}).value || '';
+  var ref  = (document.getElementById('erp-pay-ref')||{}).value   || '';
+  var note = (document.getElementById('erp-pay-notes')||{}).value || '';
+
+  if (!amt || amt <= 0) { showToast('⚠️ Enter a valid amount.'); return; }
+  if (!acc) { showToast('⚠️ Please select an account.'); return; }
+
+  var entry = {
+    stage:   _erpPayCtx.stageKey,
+    amount:  amt,
+    date:    date,
+    mode:    mode,
+    account: acc,
+    ref:     ref,
+    notes:   note,
+    recordedBy: CU ? (CU.name || CU.username) : 'Unknown',
+    recordedAt:  Date.now()
+  };
+
+  var ledger = (p.payLedger || []).concat([entry]);
+  db.ref('crm_projects/' + projId).update({ payLedger: ledger }, function(err) {
+    if (err) { showToast('❌ Error: ' + err.message); return; }
+    if (projects[projId]) projects[projId].payLedger = ledger;
+    closeModal('erp-pay-modal');
+    showToast('✅ Payment of ' + fmt(amt) + ' recorded!');
+    if (typeof logActivity === 'function') {
+      logActivity('payment', 'Payment recorded: '+fmt(amt)+' for '+_erpPayCtx.stageLabel+' — '+(p.bride||'')+' & '+(p.groom||''), projId);
+    }
+    renderAccountsERP();
+  });
+}
+
+// ══ WhatsApp reminder ══
+function erpWhatsAppReminder(projId) {
+  var p = projects[projId]; if (!p) return;
+  var ins = _erpBuildInstalments(p);
+  var overdue = ins.filter(function(s){ return s.status !== 'paid' && s.dueDate && new Date(s.dueDate+'T00:00:00') < new Date(); });
+  var msg = 'Hello! 🙏\nThis is a gentle reminder from KB Studio Productions.\n\n';
+  if (overdue.length) {
+    msg += 'We have a pending payment for your upcoming celebration:\n';
+    overdue.forEach(function(s){ msg += '• '+s.label+': ₹'+s.balance.toLocaleString('en-IN')+' (due: '+fmtDate(s.dueDate)+')\n'; });
+  } else {
+    var pending = ins.filter(function(s){ return s.status !== 'paid'; });
+    if (pending.length) { msg += 'Pending instalments:\n'; pending.forEach(function(s){ msg += '• '+s.label+': ₹'+s.balance.toLocaleString('en-IN')+'\n'; }); }
+  }
+  msg += '\nPlease confirm payment at your earliest convenience. Thank you! 🌟\n— KB Studio Productions';
+  var phone = (p.whatsapp||p.phone||'').replace(/[^0-9]/g,'');
+  if (phone && !phone.startsWith('91')) phone = '91' + phone;
+  var url = 'https://wa.me/' + phone + '?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
+}
+
+// ══ Export CSV ══
+function erpExportCSV() {
+  var list = _erpFilteredProjects();
+  var rows = [['Client','Ref','Event Date','Stage','Instalment','Expected','Paid','Balance','Due Date','Due Notes']];
+  list.forEach(function(p) {
+    _erpBuildInstalments(p).forEach(function(ins) {
+      if (!ins.expected) return;
+      rows.push([
+        (p.bride||'')+'&'+(p.groom||''),
+        p.refcode||'',
+        p.date||'',
+        p.stage||'',
+        ins.label,
+        ins.expected,
+        ins.paid,
+        ins.balance,
+        ins.dueDate||'',
+        ins.dueNotes||''
+      ]);
+    });
+  });
+  var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\n');
+  var blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a'); a.href=url; a.download='KB-Accounts-ERP-'+tod()+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast('📄 Accounts CSV exported!');
 }
 
 // ═══ EXPORT ══════════════════════════════════════════
@@ -8435,6 +10273,14 @@ $('btn-new-proj').addEventListener('click',function(){
   _stageManuallyTouched=false; _stageAtModalOpen='preprod';
   // Open modal first, THEN switch to details tab and reset star picker
   openModal('proj-modal');
+  // KB ERP: reset stage fields and auto-fill from default preset
+  setTimeout(function(){
+    ['kb-s1-val','kb-s2-val','kb-s2a-val','kb-s2b-val','kb-s3-val','kb-s4-val','kb-s5-val'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+    ['kb-s1-type','kb-s2-type','kb-s2a-type','kb-s2b-type','kb-s3-type','kb-s4-type','kb-s5-type'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='pct';});
+    ['kb-s2-date','kb-s2a-date','kb-s2b-date'].forEach(function(id){var el=document.getElementById(id);if(el){el.value='';delete el.dataset.manuallySet;}});
+    kbErpSetEventMode('single');
+    if(typeof onPayPresetChange==='function') onPayPresetChange();
+  }, 150);
   setTimeout(function(){
     var detailsTab=document.querySelector('#proj-modal [data-tab="t-details"]');
     if(detailsTab)detailsTab.click();
@@ -8589,7 +10435,7 @@ $('btn-save-proj').addEventListener('click',function(){
   for(var i=0;i<rawRowCount;i++){var ph=$('rdr-ph-'+i),sz=$('rdr-sz-'+i),un=$('rdr-un-'+i),loc=$('rdr-loc-'+i),bk=$('rdr-bk-'+i);if(ph&&ph.value)raws.push({photographer:ph.value,size:sz?sz.value:'',unit:un?un.value:'GB',location:loc?loc.value:'',backup:bk?bk.value:'no'});}
   var state=gv('f-state');
   var region=gv('f-region')||getRegionForState(state);
-  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:ex.shootDays||[],dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now(),strictPayments:editProjId?(ex.strictPayments||false):true};
+  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:ex.shootDays||[],dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now(),strictPayments:editProjId?(ex.strictPayments||false):true,kbSchedule:(typeof kbErpGetSchedule==='function'?kbErpGetSchedule():(ex.kbSchedule||null)),kbEventMode:_kbErpEventMode||'single'};
   Object.assign(p,deliv);
   db.ref('crm_projects/'+id).set(p,function(err){
     _projSaving=false;
@@ -8945,7 +10791,7 @@ function renderPaymentPipeline() {
     var tag = isThis ? ' <span style="background:#7c3aed;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;vertical-align:middle">THIS MONTH</span>'
              : isNext ? ' <span style="background:#1d4ed8;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px;vertical-align:middle">NEXT MONTH</span>' : '';
     var monthPending = groups[ym].reduce(function(a, r) {
-      return a + r.schedule.reduce(function(s, st) { return s + Math.max(0, st.exp - st.paid); }, 0);
+      return a + Math.max(0, balDue(r.p));
     }, 0);
     groupsHtml += '<div style="margin-bottom:18px">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #e5e7eb">' +
@@ -9243,6 +11089,8 @@ function getPaymentScheduleWithCarryForward(p){
 function renderPayLedger(){
   var p=editProjId?projects[editProjId]:null;
   if(!p){$('pay-ledger').innerHTML='<div class="empty">Save the project first.</div>';return;}
+  // KB ERP: render gate locks at top of payments tab
+  if (typeof kbRenderGateLocks === 'function') kbRenderGateLocks();
   var terms=getPayTerms(p);
   var customLabels=p.payTermLabels||{};
   var net=netVal(p);var paid=paidTotal(p);var bal=Math.max(0,net-paid);
@@ -9258,7 +11106,10 @@ function renderPayLedger(){
       var proofCell = e.proofDocId
         ? '<button class="btn btn-sm" style="font-size:10px;padding:3px 7px" onclick="viewPaymentProof(\''+editProjId+'\',\''+e.proofDocId+'\')">📎 View</button>'
         : ((e.mode||'').toLowerCase()==='cash' ? '<span style="color:#aaa;font-size:11px">Cash</span>' : '<span style="color:#ccc;font-size:11px">—</span>');
-      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
+      var receiptBtn = (e.stage && e.stage.indexOf('kb_') === 0 && editProjId)
+        ? '<button class="btn btn-sm" style="font-size:9px;padding:2px 6px;margin-bottom:2px;display:block" onclick="kbGenerateStageReceipt(\'' + editProjId + '\',\'' + e.stage + '\')">🧾 Receipt</button>'
+        : '';
+      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td>'+receiptBtn+'<button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
     }).join('')+'</tbody></table>':
     '<div class="empty" style="padding:16px">No payments recorded yet.</div>';
 
@@ -9913,7 +11764,45 @@ function waPopupOpen() {
 
 // ═══ PAY PRESET PREVIEW ══════════════════════════════
 [$('f-value'),$('f-discount'),$('f-pay-preset')].forEach(function(el){if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',updatePayPresetPreview);});
-function onPayPresetChange(){var preset=gv('f-pay-preset');var builder=$('custom-pay-builder');if(builder)builder.style.display=preset==='custom'?'block':'none';if(preset==='custom'){if(!$('custom-pay-rows').children.length){addCustomPayRow();addCustomPayRow();addCustomPayRow();}updateCustomPayTotal();}updatePayPresetPreview();}
+function onPayPresetChange(){
+  var preset=gv('f-pay-preset');
+  var builder=$('custom-pay-builder');
+  if(builder)builder.style.display=preset==='custom'?'block':'none';
+  if(preset==='custom'){if(!$('custom-pay-rows').children.length){addCustomPayRow();addCustomPayRow();addCustomPayRow();}updateCustomPayTotal();}
+  updatePayPresetPreview();
+
+  // ── KB ERP: auto-fill stage fields from preset ──
+  var presetMap = {
+    '30-50-10-5-5': { s1:30, s2:50, s3:10, s4:5,  s5:5  },
+    '30-50-10-10':  { s1:30, s2:50, s3:10, s4:null,s5:10 },
+    '20-60-10-10':  { s1:20, s2:60, s3:10, s4:null,s5:10 },
+    '50-50':        { s1:50, s2:null,s3:null,s4:null,s5:50 }
+  };
+  var map = presetMap[preset];
+  if (!map) return;
+
+  function setStage(valId, typeId, val) {
+    var vEl = document.getElementById(valId);
+    var tEl = document.getElementById(typeId);
+    if (vEl) vEl.value = val !== null ? val : '';
+    if (tEl) tEl.value = 'pct';
+  }
+
+  setStage('kb-s1-val',  'kb-s1-type',  map.s1);
+  setStage('kb-s2-val',  'kb-s2-type',  map.s2);
+  setStage('kb-s3-val',  'kb-s3-type',  map.s3);
+  setStage('kb-s4-val',  'kb-s4-type',  map.s4);
+  setStage('kb-s5-val',  'kb-s5-type',  map.s5);
+
+  // Also set split fields to match s2 if in split mode
+  if (_kbErpEventMode === 'split' && map.s2) {
+    var half = map.s2 / 2;
+    setStage('kb-s2a-val','kb-s2a-type', half);
+    setStage('kb-s2b-val','kb-s2b-type', half);
+  }
+
+  if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
+}
 function addCustomPayRow(){var idx=($('custom-pay-rows').children.length);var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 80px 80px auto;gap:8px;align-items:center;margin-bottom:8px';row.innerHTML='<input type="text" class="fi" placeholder="Label (e.g. Advance)" style="padding:6px 10px;font-size:12px" oninput="updateCustomPayTotal()"><input type="number" class="fi" placeholder="%" min="1" max="100" style="padding:6px 8px;font-size:12px;text-align:center" oninput="updateCustomPayTotal()"><select class="fi" style="padding:6px 8px;font-size:12px"><option value="booking">On Booking</option><option value="event">Shoot Day</option><option value="raw">Raw Data</option><option value="delivery">On Delivery</option><option value="other">Other</option></select><button type="button" class="btn-danger" onclick="this.parentElement.remove();updateCustomPayTotal()">✕</button>';$('custom-pay-rows').appendChild(row);}
 function updateCustomPayTotal(){var rows=Array.from($('custom-pay-rows').children);var total=rows.reduce(function(a,r){return a+(parseInt(r.children[1].value)||0);},0);var tot=$('custom-pay-total');var err=$('custom-pay-error');if(tot)tot.textContent='Total: '+total+'% '+(total===100?'✅':'(must be 100%)');if(err)err.style.display=total>0&&total!==100?'block':'none';}
 function getCustomPayTerms(){var rows=Array.from($('custom-pay-rows').children);var terms=[];rows.forEach(function(r,i){var label=r.children[0].value||('Installment '+(i+1));var pct=parseInt(r.children[1].value)||0;var desc=r.children[2].value;if(pct>0)terms.push({key:'cp'+i,label:label,pct:pct,desc:desc});});return terms;}
@@ -11856,7 +13745,7 @@ function renderFieldVisibilityPanel() {
   var roles = [
     { key:'admin',          label:'🔧 Admin' },
     { key:'intern',         label:'🔑 Intern' },
-    { key:'accounts',       label:'💰 Accounts' },
+    { key:'accounts',       label:'💰 Accounts ERP' },
     { key:'preprodmanager', label:'📋 Pre-Prod Mgr' },
     { key:'postprod',       label:'🎬 Post Production' },
     { key:'editor',         label:'✂️ Editor' },
@@ -12418,6 +14307,12 @@ function openProject(id, tabId) {
   sv('f-stage', p.stage); sv('f-pay-preset', p.payPreset || '30-50-10-5-5');
   _stageAtModalOpen = p.stage || 'preprod'; _stageManuallyTouched = false;
   if (p.payPreset === 'custom') { var cpb = document.getElementById('custom-pay-builder'); if (cpb) cpb.style.display = 'block'; if (p.customPayTerms && p.customPayTerms.length) loadCustomPayRows(p.customPayTerms); }
+  // KB ERP — load 5-stage schedule if present
+  if (p.kbSchedule && typeof kbErpLoadSchedule === 'function') {
+    setTimeout(function(){ kbErpLoadSchedule(p.kbSchedule); }, 100);
+  } else if (typeof kbErpUpdateAll === 'function') {
+    setTimeout(kbErpUpdateAll, 100);
+  }
   else { var cpb2 = document.getElementById('custom-pay-builder'); if (cpb2) cpb2.style.display = 'none'; }
   sv('f-requirements', p.requirements); sv('f-general-notes', p.generalNotes); sv('f-stage-notes', p.stageNotes);
   sv('f-del-date', p.deliveryDate); sv('f-act-del', p.actualDelivery); sv('f-shotlist', p.shotlist);
@@ -12447,7 +14342,25 @@ function openProject(id, tabId) {
 
   // Show/hide the sync-from-quotation button
   var syncBtn = document.getElementById('btn-sync-from-quot');
-  if (syncBtn) syncBtn.style.display = (p.quotationId && !isPPM) ? 'inline-flex' : 'none';
+  // Show sync button on all existing projects (not just ones with quotationId)
+  if (syncBtn && !isPPM) {
+    syncBtn.style.display = 'inline-flex';
+    if (p.quotationId) {
+      syncBtn.title = 'Pull latest details from the original quotation (ID: ' + p.quotationId + ')';
+      syncBtn.innerHTML = '🔄 Sync from Quotation';
+      syncBtn.style.background = '#eff6ff';
+      syncBtn.style.color = '#1d4ed8';
+      syncBtn.style.borderColor = '#bfdbfe';
+    } else {
+      syncBtn.title = 'Link this project to a quotation';
+      syncBtn.innerHTML = '🔗 Link Quotation';
+      syncBtn.style.background = '#fffbeb';
+      syncBtn.style.color = '#92400e';
+      syncBtn.style.borderColor = '#fde68a';
+    }
+  } else if (syncBtn) {
+    syncBtn.style.display = 'none';
+  }
 
   // Jump to target tab
   var targetTab = tabId || (allowed ? allowed[0] : 't-details');
@@ -17318,6 +19231,110 @@ function convertQuotToProject(overrideId) {
 // ── SYNC PROJECT FROM QUOTATION ─────────────────────────────────
 // Pulls latest data from the linked quotation and updates the project.
 // Never overwrites: payLedger, stage, refcode, createdAt, team assignments.
+// ── Smart sync/link handler ──────────────────────────────────────
+function kbSyncOrLinkQuotation(projId) {
+  var p = projects[projId]; if (!p) return;
+
+  // If already linked — go straight to sync
+  if (p.quotationId) {
+    syncProjectFromQuotation(projId);
+    return;
+  }
+
+  // Not linked — show a search dialog to find & link the right quotation
+  var allQuots = Object.values(quotations || {}).filter(function(q) {
+    return !q.deleted;
+  }).sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+
+  if (!allQuots.length) {
+    showToast('No quotations found in the system.');
+    return;
+  }
+
+  // Build modal HTML
+  var opts = allQuots.map(function(q) {
+    var label = (q.bride||'?') + ' & ' + (q.groom||'?') + ' — ' + (q.city||'') + (q.date ? ' · ' + q.date : '') + (q.status ? ' [' + q.status + ']' : '');
+    return '<option value="' + q.id + '">' + label + '</option>';
+  }).join('');
+
+  // Remove any existing link modal
+  var existing = document.getElementById('kb-link-quot-modal');
+  if (existing) existing.remove();
+
+  // Store projId in module-level var so confirm button can access it safely
+  window._kbLinkTargetProjId = projId;
+
+  var modal = document.createElement('div');
+  modal.id = 'kb-link-quot-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:24px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.3)">' +
+      '<div style="font-size:15px;font-weight:800;margin-bottom:6px">🔗 Link Quotation to Project</div>' +
+      '<div style="font-size:12px;color:#888;margin-bottom:16px">Project: <strong>' + (p.bride||'') + ' & ' + (p.groom||'') + '</strong> · ' + (p.refcode||projId) + '</div>' +
+      '<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">Search quotation:</div>' +
+      '<input type="text" id="kb-link-search" placeholder="Type bride or groom name..." style="width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box" oninput="kbLinkQuotFilter()">' +
+      '<select id="kb-link-quot-sel" size="7" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;padding:4px;margin-bottom:14px;box-sizing:border-box">' + opts + '</select>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button onclick="kbConfirmLinkQuot(window._kbLinkTargetProjId)" style="flex:1;padding:10px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🔗 Link & Sync</button>' +
+        '<button onclick="kbCloseLinkModal()" style="padding:10px 18px;background:#f3f4f6;color:#374151;border:none;border-radius:8px;font-size:13px;cursor:pointer">Cancel</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  document.getElementById('kb-link-search').focus();
+
+  // Store full list for filtering
+  modal._allOpts = opts;
+  modal._allQuots = allQuots;
+}
+
+function kbLinkQuotFilter() {
+  var q = (document.getElementById('kb-link-search').value || '').toLowerCase();
+  var modal = document.getElementById('kb-link-quot-modal');
+  if (!modal) return;
+  var sel = document.getElementById('kb-link-quot-sel');
+  var filtered = modal._allQuots.filter(function(qt) {
+    return !q || (qt.bride||'').toLowerCase().indexOf(q) >= 0 ||
+                  (qt.groom||'').toLowerCase().indexOf(q) >= 0 ||
+                  (qt.city||'').toLowerCase().indexOf(q) >= 0 ||
+                  (qt.refcode||'').toLowerCase().indexOf(q) >= 0;
+  });
+  sel.innerHTML = filtered.map(function(qt) {
+    var label = (qt.bride||'?') + ' & ' + (qt.groom||'?') + ' — ' + (qt.city||'') + (qt.date?' · '+qt.date:'') + (qt.status?' ['+qt.status+']':'');
+    return '<option value="' + qt.id + '">' + label + '</option>';
+  }).join('');
+}
+
+function kbCloseLinkModal() {
+  var m = document.getElementById('kb-link-quot-modal');
+  if (m) m.remove();
+}
+
+function kbConfirmLinkQuot(projId) {
+  projId = projId || window._kbLinkTargetProjId;
+  if (!projId) { showToast('Error: project ID not found. Please close and try again.'); return; }
+  var sel = document.getElementById('kb-link-quot-sel');
+  if (!sel || !sel.value) { showToast('Please select a quotation first.'); return; }
+  var quotId = sel.value;
+  var modal = document.getElementById('kb-link-quot-modal');
+
+  // Save quotationId to Firebase then sync
+  db.ref('crm_projects/' + projId).update({ quotationId: quotId }, function(err) {
+    if (err) { showToast('❌ Could not link: ' + err.message); return; }
+    projects[projId].quotationId = quotId;
+    if (modal) modal.remove();
+    showToast('✅ Quotation linked! Syncing now…');
+    // Update button appearance
+    var btn = document.getElementById('btn-sync-from-quot');
+    if (btn) {
+      btn.innerHTML = '🔄 Sync from Quotation';
+      btn.style.background = '#eff6ff';
+      btn.style.color = '#1d4ed8';
+      btn.style.borderColor = '#bfdbfe';
+    }
+    setTimeout(function(){ syncProjectFromQuotation(projId); }, 400);
+  });
+}
+
 function syncProjectFromQuotation(projId) {
   var p = projects[projId]; if (!p) return;
   var quotId = p.quotationId;
@@ -17337,9 +19354,21 @@ function syncProjectFromQuotation(projId) {
     if (q.venue && q.venue !== p.venue)       changes.push('Venue: ' + (p.venue||'—') + ' → ' + q.venue);
     if (q.value && q.value !== p.value)       changes.push('Package value: ₹' + (p.value||0).toLocaleString('en-IN') + ' → ₹' + (q.value||0).toLocaleString('en-IN'));
     if (q.discount !== undefined && q.discount !== p.discount) changes.push('Discount: ₹' + (p.discount||0).toLocaleString('en-IN') + ' → ₹' + (q.discount||0).toLocaleString('en-IN'));
-    if (q.days && q.days.length)              changes.push('Event days: ' + q.days.length + ' day(s) with sessions will be synced');
+    if (q.days && q.days.length) {
+      if (p.eventDays && p.eventDays.length) {
+        changes.push('Event days: ' + q.days.length + ' quot day(s) found — dates will be merged, existing crew & production plan will be PRESERVED');
+      } else {
+        changes.push('Event days: ' + q.days.length + ' day(s) will be imported from quotation');
+      }
+    }
     if (q.deliverables)                       changes.push('Deliverables & deliverable notes will be updated');
     if (q.notes)                              changes.push('Notes updated from quotation');
+    if (q.payterms && q.payterms !== p.payPreset) changes.push('Payment terms: ' + (p.payPreset||'—') + ' → ' + q.payterms);
+    if (q.days && q.days.length) {
+      var occs2 = [];
+      q.days.forEach(function(d){ (d.sessions||[]).forEach(function(s){ var o=s.occasion||s.name||''; if(o&&occs2.indexOf(o)===-1)occs2.push(o); }); });
+      if (occs2.length) changes.push('Event type synced from sessions: ' + occs2.join(' + '));
+    }
 
     if (!changes.length) {
       showToast('✅ Project is already up to date with the quotation. Nothing to sync.');
@@ -17369,6 +19398,61 @@ function syncProjectFromQuotation(projId) {
       });
     }
 
+    // Derive event type from quotation day sessions
+    var quotEventType = '';
+    if (q.days && q.days.length) {
+      // Collect all unique occasions across all sessions
+      var occasions = [];
+      q.days.forEach(function(day) {
+        var sessions = day.sessions || [];
+        sessions.forEach(function(sess) {
+          var occ = sess.occasion || sess.name || '';
+          if (occ && occasions.indexOf(occ) === -1) occasions.push(occ);
+        });
+      });
+      if (occasions.length === 1) quotEventType = occasions[0];
+      else if (occasions.length > 1) quotEventType = occasions.join(' + ');
+    }
+
+    // ── FIX: NEVER overwrite eventDays that already have production data ──
+    // Only sync dates from quotation days, preserve crew/production settings
+    var safeEventDays = p.eventDays || [];
+    if (newEventDays.length && (!safeEventDays.length)) {
+      // Project has no event days yet — safe to import from quotation
+      safeEventDays = newEventDays;
+    } else if (newEventDays.length && safeEventDays.length) {
+      // Project already has event days — only update dates/type, never wipe crew
+      // Match by position: update date, type and label if quotation has them, keep everything else
+      safeEventDays = safeEventDays.map(function(existing, i) {
+        var fromQuot = newEventDays[i];
+        if (!fromQuot) return existing; // no matching quot day, keep as is
+        return Object.assign({}, existing, {
+          date:  fromQuot.date  || existing.date,
+          type:  existing.type  || fromQuot.type,   // ← FIX: fill type from quot if existing is empty
+          label: existing.label || fromQuot.label   // only fill if empty
+          // crew, notes, productionLevel etc are ALL preserved from existing
+        });
+      });
+    }
+
+    // ── FIX: Match event type to dropdown options ──
+    var validTypes = typeof DEFAULT_EVENT_TYPES !== 'undefined' ? DEFAULT_EVENT_TYPES : [];
+    var matchedType = p.type || 'Full Package';
+    if (quotEventType) {
+      // Try exact match first
+      var exact = validTypes.find(function(t){ return t === quotEventType; });
+      if (exact) {
+        matchedType = exact;
+      } else {
+        // Try partial match — find a valid type contained in quotEventType
+        var partial = validTypes.find(function(t){
+          return quotEventType.toLowerCase().indexOf(t.toLowerCase()) >= 0 ||
+                 t.toLowerCase().indexOf(quotEventType.toLowerCase()) >= 0;
+        });
+        matchedType = partial || p.type || 'Full Package';
+      }
+    }
+
     // Build update object — only touch fields that come from the quotation
     var upd = {
       bride:         q.bride         || p.bride,
@@ -17384,13 +19468,18 @@ function syncProjectFromQuotation(projId) {
       notes:         q.notes         || p.notes  || '',
       delivNotes:    buildDelivNotesFromQuot(q),
       customDelivs:  buildCustomDelivsFromQuot(q),
-      eventDays:     newEventDays.length ? newEventDays : (p.eventDays || []),
+      eventDays:     safeEventDays,   // ← safe merge, never wipes production data
+      type:          matchedType,     // ← matched to valid dropdown option
+      payPreset:     (q.payterms && q.payterms !== 'custom' && PAY_PRESETS[q.payterms]) ? q.payterms : (p.payPreset || '30-50-10-5-5'),
+      customPayTerms:(q.payterms === 'custom' && Array.isArray(q.paytermsCustom)) ? q.paytermsCustom : (p.customPayTerms || []),
+      priceNotes:    q.priceNotes    || p.priceNotes || '',
+      salesperson:   q.salesperson   || p.salesperson || '',
       updatedAt:     Date.now(),
       lastQuotSync:  Date.now()
     };
 
-    // First event day date → project event date (if quotation has days)
-    if (q.days && q.days.length && q.days[0].date) upd.date = q.days[0].date;
+    // First event day date → project event date only if not already set
+    if (q.days && q.days.length && q.days[0].date) upd.date = upd.date || q.days[0].date;
 
     db.ref('crm_projects/' + projId).update(upd, function(err) {
       if (err) { showToast('❌ Sync error: ' + err.message); return; }
