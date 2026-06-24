@@ -8899,9 +8899,9 @@ function onUserRoleChange(){
   var role=document.getElementById('u-role').value;
   var desc={
     superadmin:'Full access to all features including delete, user management, and all financial data.',
-    intern:'Full visibility across all pages. Can edit projects, view financials and reports. Cannot delete projects, cannot record or delete payments, cannot access Settings or Users.',
+    intern:'Full visibility across all pages. Can edit projects, view financials and reports. Full access to Health Check (Issues, Duplicates, Assign Tasks). Cannot delete projects, cannot record or delete payments, cannot access Settings or Users.',
     admin:'Access to projects, team, referrals, reports, and settings. Cannot delete projects or manage users.',
-    accounts:'Full project access — can create and edit projects, upload documents, manage all tabs, record payments, and view reports. Cannot delete projects or manage users.',
+    accounts:'Full project access — can create, edit, and record payments. Can delete payment entries they personally recorded. Can view all financial reports and manage bank accounts. Cannot delete projects or manage users.',
     postprod:'Post Production In-Charge — Full access to the Post-Production pipeline. Can view ALL post-prod clients (sorted FIFO by event date), assign editors, manage deliverables, review briefs, and update statuses. Cannot see financials, phone numbers, or other confidential client details.',
     editor:'Limited to their own assigned deliverables via Editor Portal. No general CRM access.',
     referral:'Access to referral section and WhatsApp only.',
@@ -11109,7 +11109,11 @@ function renderPayLedger(){
       var receiptBtn = (e.stage && e.stage.indexOf('kb_') === 0 && editProjId)
         ? '<button class="btn btn-sm" style="font-size:9px;padding:2px 6px;margin-bottom:2px;display:block" onclick="kbGenerateStageReceipt(\'' + editProjId + '\',\'' + e.stage + '\')">🧾 Receipt</button>'
         : '';
-      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td>'+receiptBtn+'<button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button></td></tr>';
+      var isSA = CU && CU.role === 'superadmin';
+      var isAccOwnEntry = CU && CU.role === 'accounts' && e.recordedBy && (e.recordedBy === CU.name || e.recordedBy === CU.username);
+      var canDeleteThis = isSA || isAccOwnEntry;
+      var deleteBtn = canDeleteThis ? '<button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button>' : '';
+      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td>'+receiptBtn+deleteBtn+'</td></tr>';
     }).join('')+'</tbody></table>':
     '<div class="empty" style="padding:16px">No payments recorded yet.</div>';
 
@@ -11471,7 +11475,7 @@ $('btn-save-pay-entry').addEventListener('click',function(){
     });
   }
 });
-function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
+function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin or Accounts.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
 
 $('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');}).map(function(p){var pid=p.id||Object.keys(projects).find(function(k){return projects[k]===p;});return '<option value="'+pid+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');sv('rp-mode','UPI');var rpf=$('rp-proof-file');if(rpf)rpf.value='';var rpp=$('rp-proof-preview');if(rpp)rpp.style.display='none';toggleProofRow('rp');$('rp-client-info').style.display='none';openModal('rp-modal');});
 $('rp-client').addEventListener('change',function(){
@@ -13366,7 +13370,7 @@ function hcRenderFailureCard(p, failures, idSuffix) {
 // every client in the CRM, not just a department's own work. Every
 // other role only ever sees "My Tasks": the specific items a Super
 // Admin has explicitly assigned to their role. ──────────────────────
-function hcIsFullAccess() { return !!(CU && CU.role === 'superadmin'); }
+function hcIsFullAccess() { return !!(CU && (CU.role === 'superadmin' || CU.role === 'intern')); }
 
 function hcApplyRBAC() {
   var full = hcIsFullAccess();
@@ -13609,7 +13613,7 @@ var ROLE_ACCESS = {
   },
   accounts: {
     pages: ['dashboard','pipeline','projects','postprod','payments','reports','invoice','calendar','users','healthcheck'],
-    canEditProjects:true, canDeleteProjects:false, canRecordPayments:true,
+    canEditProjects:true, canDeleteProjects:false, canRecordPayments:true, canDeletePayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
     canSeeAllTabs:true, allowedTabs:null,
@@ -24182,7 +24186,7 @@ console.log('[KB CRM v37] Phase 1 — Role-Based Field Hiding ✅ | Phase 2 — 
 // HEALTH CHECK — EXPORT CSV
 // ══════════════════════════════════════════════════════════════════
 function hcExportCSV() {
-  if (!hcIsFullAccess()) { showToast('⛔ Only Super Admin can export the full health check.'); return; }
+  if (!hcIsFullAccess()) { showToast('⛔ Only Super Admin or Intern can export the full health check.'); return; }
   var allProjects = pl();
   var filterType  = _hcActiveType || '';
   var filterStage = _hcStageFilter || '';
@@ -24259,7 +24263,7 @@ function hcUpdateTaskBadge() {
 }
 
 function hcOpenAssignModal() {
-  if (!hcIsFullAccess()) { showToast('⛔ Only Super Admin can assign health check tasks.'); return; }
+  if (!hcIsFullAccess()) { showToast('⛔ Only Super Admin or Intern can assign health check tasks.'); return; }
   // Role dropdown is static HTML — no rebuild needed
   // Populate Issue Category from HC_TILES — live counts, skip __clean
   var counts = hcCountByType();
@@ -25391,17 +25395,25 @@ console.log('[KB Security] ✅ Module active — brute force, idle timeout, audi
     var _origDelete = window.deletePayEntry;
 
     window.deletePayEntry = function(idx) {
-      // Permission check (same as original)
-      if (window.CU && (CU.role === 'admin' || CU.role === 'intern')) {
-        if (typeof window.showToast === 'function') showToast('You cannot delete payments. Contact Super Admin.');
-        return;
-      }
+      // Permission check (same as FINAL wrapper)
+      var role = window.CU ? window.CU.role : '';
+      var myName = window.CU ? (window.CU.name || window.CU.username || '') : '';
       if (!window.editProjId) return;
       var p = window.projects && window.projects[editProjId];
       if (!p) return;
       var ledger  = p.payLedger || [];
       var entry   = ledger[idx];
       if (!entry) return;
+      var isSA = role === 'superadmin';
+      var isAccOwnEntry = role === 'accounts' && myName && entry.recordedBy && entry.recordedBy === myName;
+      if (!isSA && !isAccOwnEntry) {
+        if (role === 'accounts') {
+          if (typeof window.showToast === 'function') showToast('You can only delete payments you recorded yourself.');
+        } else {
+          if (typeof window.showToast === 'function') showToast('You cannot delete payments. Contact Super Admin.');
+        }
+        return;
+      }
 
       var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
       var amt    = (entry.amount || 0).toLocaleString('en-IN');
@@ -25952,10 +25964,8 @@ function saveInstDueDate(projId, stageKey, dateVal) {
   function setup() {
     window.deletePayEntry = function(idx) {
       // Permission check
-      if (window.CU && (CU.role === 'admin' || CU.role === 'intern')) {
-        showToast('You cannot delete payments. Contact Super Admin.');
-        return;
-      }
+      var role = window.CU ? window.CU.role : '';
+      var myName = window.CU ? (window.CU.name || window.CU.username || '') : '';
       var projId = window.editProjId;
       if (!projId) { alert('No project open. Please try again.'); return; }
       // Firebase keys are strings — coerce
@@ -25964,6 +25974,20 @@ function saveInstDueDate(projId, stageKey, dateVal) {
       var ledger = (p.payLedger || []).slice();
       var entry  = ledger[idx];
       if (!entry) { alert('Entry not found at index ' + idx); return; }
+
+      // Superadmin: can delete any entry
+      // Accounts: can only delete entries they personally recorded
+      // All others: blocked
+      var isSA = role === 'superadmin';
+      var isAccOwnEntry = role === 'accounts' && myName && entry.recordedBy && entry.recordedBy === myName;
+      if (!isSA && !isAccOwnEntry) {
+        if (role === 'accounts') {
+          showToast('You can only delete payments you recorded yourself.');
+        } else {
+          showToast('You cannot delete payments. Contact Super Admin.');
+        }
+        return;
+      }
 
       // Use native confirm — zero z-index issues, zero callback timing issues
       var amtStr = (entry.amount || 0).toLocaleString('en-IN');
