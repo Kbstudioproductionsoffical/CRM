@@ -1401,7 +1401,7 @@ document.addEventListener('wheel', function(e) {
       </div>
       <!-- Row 2: Date Filters -->
       <div style="background:#f9f9fb;border:1px solid #e8e8ee;border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-        <span style="font-size:11px;font-weight:700;color:#555;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">📅 Booking Date</span>
+        <span id="proj-datetype-label" style="font-size:11px;font-weight:700;color:#555;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap">📅 Booking Date</span>
         <!-- Indian Financial Year quick select -->
         <select class="fi" id="proj-fy-f" style="flex:0;width:auto;padding:5px 10px;font-size:12px" onchange="onProjFYChange()">
           <option value="">All Financial Years</option>
@@ -1418,6 +1418,10 @@ document.addEventListener('wheel', function(e) {
         </div>
         <!-- Custom date range -->
         <span style="font-size:11px;color:#888;white-space:nowrap">Custom:</span>
+        <div style="display:flex;gap:0;border:1px solid #ddd;border-radius:7px;overflow:hidden;flex:0">
+          <button type="button" id="proj-datetype-booking" class="btn btn-sm" style="font-size:10.5px;padding:4px 9px;border:none;border-radius:0;background:#1a1a1a;color:#fff" onclick="setProjDateType('booking')">Booking</button>
+          <button type="button" id="proj-datetype-event" class="btn btn-sm" style="font-size:10.5px;padding:4px 9px;border:none;border-radius:0;background:#fff;color:#555" onclick="setProjDateType('event')">Event</button>
+        </div>
         <input type="date" class="fi" id="proj-date-from" style="flex:0;width:130px;padding:5px 8px;font-size:12px" onchange="onProjCustomDate()" placeholder="From">
         <span style="font-size:12px;color:#aaa">→</span>
         <input type="date" class="fi" id="proj-date-to" style="flex:0;width:130px;padding:5px 8px;font-size:12px" onchange="onProjCustomDate()" placeholder="To">
@@ -1478,6 +1482,10 @@ document.addEventListener('wheel', function(e) {
           <button class="pay-range-btn btn btn-sm" data-range="cfy" onclick="setPayRange(this,'cfy')" style="font-size:11px;padding:4px 9px">Current FY</button>
           <button class="pay-range-btn btn btn-sm" data-range="lfy" onclick="setPayRange(this,'lfy')" style="font-size:11px;padding:4px 9px">Last FY</button>
           <span style="font-size:11px;color:#aaa;margin:0 4px">Custom:</span>
+          <div style="display:flex;gap:0;border:1px solid #ddd;border-radius:7px;overflow:hidden;flex:0">
+            <button type="button" id="pay-datetype-payment" class="btn btn-sm" style="font-size:10.5px;padding:4px 9px;border:none;border-radius:0;background:#1a1a1a;color:#fff" onclick="setPayDateType('payment')">Payment</button>
+            <button type="button" id="pay-datetype-event" class="btn btn-sm" style="font-size:10.5px;padding:4px 9px;border:none;border-radius:0;background:#fff;color:#555" onclick="setPayDateType('event')">Event</button>
+          </div>
           <input type="date" class="fi" id="pay-date-from" style="flex:0;width:130px;padding:5px 8px;font-size:12px" onchange="onPayCustomDate()">
           <span style="font-size:12px;color:#aaa">→</span>
           <input type="date" class="fi" id="pay-date-to" style="flex:0;width:130px;padding:5px 8px;font-size:12px" onchange="onPayCustomDate()">
@@ -8635,13 +8643,16 @@ function renderPayments(){
   // Resolve filter state
   var accF    = (document.getElementById('pay-acc-f')||{value:''}).value;
   var dateRange = getPayDateRange();
+  var isCustomRange = !!(_payDateFrom || _payDateTo);
+  var useEventDate = isCustomRange && _payDateType === 'event';
 
   // Build filtered payment entries across all projects
   var allEntries = []; // { entry, proj }
   pl().forEach(function(p){
+    if (useEventDate && dateRange && !inDateRange(firstEventDate(p) || '', dateRange)) return;
     (p.payLedger||[]).forEach(function(e){
       if(accF && e.account !== accF) return;
-      if(dateRange && !inDateRange(e.date||'', dateRange)) return;
+      if(dateRange && !useEventDate && !inDateRange(e.date||'', dateRange)) return;
       allEntries.push({ entry:e, proj:p });
     });
   });
@@ -8668,7 +8679,7 @@ function renderPayments(){
   if(summaryEl){
     var parts = [];
     if(accF) parts.push('Account: <b>' + accF + '</b>');
-    if(dateRange) parts.push('Period: <b>' + dateRange.from + '</b> → <b>' + dateRange.to + '</b>');
+    if(dateRange) parts.push((useEventDate?'Event Date':'Period') + ': <b>' + dateRange.from + '</b> → <b>' + dateRange.to + '</b>');
     if(parts.length){
       summaryEl.innerHTML = '🔍 Showing ' + parts.join(' &nbsp;|&nbsp; ') + ' — <b style="color:#16a34a">' + fmt(tFiltered) + '</b> collected in ' + allEntries.length + ' payment(s) from ' + [...new Set(allEntries.map(function(x){return x.proj.id;}))].length + ' project(s)';
     } else {
@@ -12384,10 +12395,25 @@ function populateIndiaFYSelects() {
 // ── Projects page filter state ──────────────────────────────────
 var _projRange = ''; // '', '1m', '3m', '6m', 'cfy', 'lfy', 'latest'
 var _projDateFrom = ''; var _projDateTo = '';
+var _projDateType = 'booking'; // 'booking' | 'event'
+
+function setProjDateType(t) {
+  _projDateType = t;
+  var bBtn = document.getElementById('proj-datetype-booking');
+  var eBtn = document.getElementById('proj-datetype-event');
+  if (bBtn && eBtn) {
+    if (t === 'booking') { bBtn.style.background='#1a1a1a'; bBtn.style.color='#fff'; eBtn.style.background='#fff'; eBtn.style.color='#555'; }
+    else { eBtn.style.background='#1a1a1a'; eBtn.style.color='#fff'; bBtn.style.background='#fff'; bBtn.style.color='#555'; }
+  }
+  var lbl = document.getElementById('proj-datetype-label');
+  if (lbl) lbl.textContent = t === 'booking' ? '📅 Booking Date' : '🎬 Event Date';
+  renderProjects();
+}
 
 function setProjRange(btn, range) {
   _projRange = range;
   _projDateFrom = ''; _projDateTo = '';
+  _projDateType = 'booking'; resetProjDateTypeUI();
   var fromEl = document.getElementById('proj-date-from'); if (fromEl) fromEl.value = '';
   var toEl   = document.getElementById('proj-date-to');   if (toEl)   toEl.value   = '';
   var fyEl   = document.getElementById('proj-fy-f');      if (fyEl)   fyEl.value   = '';
@@ -12400,9 +12426,18 @@ function setProjRange(btn, range) {
   renderProjects();
 }
 
+function resetProjDateTypeUI() {
+  var bBtn = document.getElementById('proj-datetype-booking');
+  var eBtn = document.getElementById('proj-datetype-event');
+  if (bBtn && eBtn) { bBtn.style.background='#1a1a1a'; bBtn.style.color='#fff'; eBtn.style.background='#fff'; eBtn.style.color='#555'; }
+  var lbl = document.getElementById('proj-datetype-label');
+  if (lbl) lbl.textContent = '📅 Booking Date';
+}
+
 function onProjFYChange() {
   _projRange = '';
   _projDateFrom = ''; _projDateTo = '';
+  _projDateType = 'booking'; resetProjDateTypeUI();
   var fromEl = document.getElementById('proj-date-from'); if (fromEl) fromEl.value = '';
   var toEl   = document.getElementById('proj-date-to');   if (toEl)   toEl.value   = '';
   document.querySelectorAll('.proj-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
@@ -12420,6 +12455,7 @@ function onProjCustomDate() {
 
 function clearProjDateFilter() {
   _projRange = ''; _projDateFrom = ''; _projDateTo = '';
+  _projDateType = 'booking'; resetProjDateTypeUI();
   var fromEl = document.getElementById('proj-date-from'); if (fromEl) fromEl.value = '';
   var toEl   = document.getElementById('proj-date-to');   if (toEl)   toEl.value   = '';
   var fyEl   = document.getElementById('proj-fy-f');      if (fyEl)   fyEl.value   = '';
@@ -12431,10 +12467,27 @@ function clearProjDateFilter() {
 
 // ── Payments page filter state ──────────────────────────────────
 var _payRange = ''; var _payDateFrom = ''; var _payDateTo = '';
+var _payDateType = 'payment'; // 'payment' | 'event'
+
+function setPayDateType(t) {
+  _payDateType = t;
+  resetPayDateTypeUI();
+  renderPayments();
+}
+
+function resetPayDateTypeUI() {
+  var pBtn = document.getElementById('pay-datetype-payment');
+  var eBtn = document.getElementById('pay-datetype-event');
+  if (pBtn && eBtn) {
+    if (_payDateType === 'payment') { pBtn.style.background='#1a1a1a'; pBtn.style.color='#fff'; eBtn.style.background='#fff'; eBtn.style.color='#555'; }
+    else { eBtn.style.background='#1a1a1a'; eBtn.style.color='#fff'; pBtn.style.background='#fff'; pBtn.style.color='#555'; }
+  }
+}
 
 function setPayRange(btn, range) {
   _payRange = range;
   _payDateFrom = ''; _payDateTo = '';
+  _payDateType = 'payment'; resetPayDateTypeUI();
   var fromEl = document.getElementById('pay-date-from'); if (fromEl) fromEl.value = '';
   var toEl   = document.getElementById('pay-date-to');   if (toEl)   toEl.value   = '';
   var fyEl   = document.getElementById('pay-fy-f');      if (fyEl)   fyEl.value   = '';
@@ -12446,6 +12499,7 @@ function setPayRange(btn, range) {
 function onPayFYChange() {
   _payRange = '';
   _payDateFrom = ''; _payDateTo = '';
+  _payDateType = 'payment'; resetPayDateTypeUI();
   var fromEl = document.getElementById('pay-date-from'); if (fromEl) fromEl.value = '';
   var toEl   = document.getElementById('pay-date-to');   if (toEl)   toEl.value   = '';
   document.querySelectorAll('.pay-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
@@ -12463,6 +12517,7 @@ function onPayCustomDate() {
 
 function clearPayDateFilter() {
   _payRange = ''; _payDateFrom = ''; _payDateTo = '';
+  _payDateType = 'payment'; resetPayDateTypeUI();
   var fromEl = document.getElementById('pay-date-from'); if (fromEl) fromEl.value = '';
   var toEl   = document.getElementById('pay-date-to');   if (toEl)   toEl.value   = '';
   var fyEl   = document.getElementById('pay-fy-f');      if (fyEl)   fyEl.value   = '';
@@ -16074,10 +16129,10 @@ function renderProjects() {
     if (rf && p.region !== rf) return false;
     if (stf && (p.state || '') !== stf) return false;
     if (q) { var hay = ((p.bride||'')+(p.groom||'')+(p.phone||'')+(p.city||'')+(p.refcode||'')+(p.state||'')).toLowerCase(); if (!hay.includes(q)) return false; }
-    // Date filter on booking date
+    // Date filter — booking date or event date, depending on toggle
     if (dateRange) {
-      var bd = p.bookdate || p.date || '';
-      if (!inDateRange(bd, dateRange)) return false;
+      var fdate = _projDateType === 'event' ? firstEventDate(p) : (p.bookdate || p.date || '');
+      if (!inDateRange(fdate || '', dateRange)) return false;
     }
     return true;
   }).sort(function(a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
@@ -16089,8 +16144,9 @@ function renderProjects() {
   var badge = document.getElementById('proj-filter-badge');
   if (badge) {
     if (dateRange || isLatest) {
+      var dateTypeLabel = (_projDateFrom || _projDateTo) ? (_projDateType === 'event' ? 'Event' : 'Booking') : 'Booking';
       var label = isLatest ? 'Latest 20 projects' :
-        'Booking: ' + (dateRange.from || '') + ' → ' + (dateRange.to || '');
+        dateTypeLabel + ': ' + (dateRange.from || '') + ' → ' + (dateRange.to || '');
       badge.textContent = list.length + ' project(s) — ' + label;
     } else {
       badge.textContent = '';
