@@ -6042,49 +6042,221 @@ function renderDataVault() {
 
 // ═══ DATA MANAGER DASHBOARD — production projects only ═════════════════════
 function renderDataManagerDashboard(dc) {
+  var today = new Date();
   var prodProjects = pl().filter(function(p) { return p.stage === 'production'; });
-  var approved = prodProjects.filter(function(p) { return p.dataLogApproved; });
-  var pending   = prodProjects.filter(function(p) { return !p.dataLogApproved; });
+
+  // Separate: events with a past/present date vs future vs no date at all
+  // Uses firstEventDate() so projects scheduled via the Event Days tab
+  // (no legacy p.date set) are still correctly classified instead of
+  // falling through to "no date".
+  var pastEvents = prodProjects.filter(function(p) {
+    var d = firstEventDate(p);
+    if (!d) return false; // no date — handled separately
+    var evtDate = new Date(d + 'T23:59:59');
+    return evtDate <= today;
+  });
+  var noDateEvents = prodProjects.filter(function(p) { return !firstEventDate(p); });
+  var futureEvents = prodProjects.filter(function(p) {
+    var d = firstEventDate(p);
+    if (!d) return false;
+    var evtDate = new Date(d + 'T23:59:59');
+    return evtDate > today;
+  });
+
+  var approved = pastEvents.filter(function(p) { return p.dataLogApproved; });
+  var pending   = pastEvents.filter(function(p) { return !p.dataLogApproved; });
+
+  // Also include no-date projects in "pending" count (they need data too)
+  var pendingNoDate = noDateEvents.filter(function(p) { return !p.dataLogApproved; });
+  var totalPending = pending.length + pendingNoDate.length;
+
+  // Sort pending: most recently past event first; no-date at end
+  pending.sort(function(a, b) {
+    var da = firstEventDate(a) ? new Date(firstEventDate(a)) : new Date(0);
+    var db = firstEventDate(b) ? new Date(firstEventDate(b)) : new Date(0);
+    return db - da;
+  });
+  // Sort future events soonest first
+  futureEvents.sort(function(a, b) { return new Date(firstEventDate(a)) - new Date(firstEventDate(b)); });
 
   dc.innerHTML =
     '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' +
-      '<div class="metric blue"><div class="ml">In Production</div><div class="mv">' + prodProjects.length + '</div></div>' +
-      '<div class="metric amber"><div class="ml">Data Pending</div><div class="mv">' + pending.length + '</div></div>' +
-      '<div class="metric green"><div class="ml">Data Approved</div><div class="mv">' + approved.length + '</div></div>' +
+      '<div class="metric amber" style="cursor:pointer" onclick="openDMDrill(\'pending\')" title="View pending entries">' +
+        '<div class="ml">⏳ Pending Entry</div><div class="mv">' + totalPending + '</div>' +
+        '<div class="ms">↗ Shoot done, data needed</div>' +
+      '</div>' +
+      '<div class="metric green" style="cursor:pointer" onclick="openDMDrill(\'approved\')" title="View approved data">' +
+        '<div class="ml">✅ Data Approved</div><div class="mv">' + approved.length + '</div>' +
+        '<div class="ms">↗ Moved to post-prod</div>' +
+      '</div>' +
+      '<div class="metric blue" style="cursor:pointer" onclick="openDMDrill(\'upcoming\')" title="View upcoming shoots">' +
+        '<div class="ml">📅 Upcoming Shoots</div><div class="mv">' + futureEvents.length + '</div>' +
+        '<div class="ms">↗ Not yet due</div>' +
+      '</div>' +
     '</div>' +
     '<div class="card">' +
-      '<div class="card-hdr"><span class="card-title">🎬 Production Projects — Awaiting Data Entry</span></div>' +
+      '<div class="card-hdr"><span class="card-title">⏳ Pending Data Entry — Shoot Completed</span>' +
+        '<span style="font-size:11px;color:#888;margin-left:8px">Events whose shoot date has passed</span>' +
+      '</div>' +
       (pending.length ?
-        '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>Event Date</th><th>City</th><th>Type</th><th>Data Status</th><th></th></tr></thead><tbody>' +
+        '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>Event Date</th><th>Days Since Shoot</th><th>City</th><th>Type</th><th>Data Status</th><th></th></tr></thead><tbody>' +
         pending.map(function(p) {
+          var pDate = firstEventDate(p);
+          var daysPast = Math.abs(daysUntil(pDate));
+          var urgency = daysPast >= 7 ? '#dc2626' : daysPast >= 3 ? '#d97706' : '#16a34a';
           var entries = (p.dataEntries || []).length;
-          var days = p.date ? daysUntil(p.date) : null;
-          var col = days !== null && days <= 7 ? '#dc2626' : days !== null && days <= 30 ? '#d97706' : '#1a1a1a';
           return '<tr>' +
             '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
             '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
-            '<td style="color:' + col + ';font-weight:600">' + (p.date || '—') + (days !== null ? ' <span style="font-size:11px">(' + days + 'd)</span>' : '') + '</td>' +
+            '<td style="font-size:12px">' + pDate + '</td>' +
+            '<td style="color:' + urgency + ';font-weight:700">' + daysPast + 'd ago</td>' +
             '<td>' + (p.city || '—') + '</td>' +
             '<td style="font-size:12px">' + (p.type || '—') + '</td>' +
             '<td>' + (entries ? '<span style="color:#d97706;font-weight:700">' + entries + ' entries, not approved</span>' : '<span style="color:#dc2626">No entries yet</span>') + '</td>' +
             '<td><button class="btn btn-primary btn-sm" onclick="openProject(' + p.id + ')">Enter Data</button></td>' +
           '</tr>';
         }).join('') + '</tbody></table>' :
-        '<div class="empty">All production projects have been approved. 🎉</div>') +
+        '<div class="empty" style="padding:20px;color:#16a34a;font-weight:600">🎉 All completed shoots have been processed!</div>') +
     '</div>' +
+    (pendingNoDate.length ?
+      '<div class="card" style="margin-top:12px;border-left:3px solid #d97706">' +
+        '<div class="card-hdr"><span class="card-title">⚠️ Production Projects — No Shoot Date Set</span>' +
+          '<span style="font-size:11px;color:#d97706;margin-left:8px;font-weight:600">' + pendingNoDate.length + ' project' + (pendingNoDate.length !== 1 ? 's' : '') + ' missing date</span>' +
+        '</div>' +
+        '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>City</th><th>Type</th><th>Data Status</th><th></th></tr></thead><tbody>' +
+        pendingNoDate.map(function(p) {
+          var entries = (p.dataEntries || []).length;
+          return '<tr>' +
+            '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+            '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
+            '<td>' + (p.city || '—') + '</td>' +
+            '<td style="font-size:12px">' + (p.type || '—') + '</td>' +
+            '<td>' + (entries ? '<span style="color:#d97706;font-weight:700">' + entries + ' entries, not approved</span>' : '<span style="color:#dc2626">No entries yet</span>') + '</td>' +
+            '<td><button class="btn btn-primary btn-sm" onclick="openProject(' + p.id + ')">Enter Data</button></td>' +
+          '</tr>';
+        }).join('') + '</tbody></table>' +
+      '</div>' : '') +
     (approved.length ? '<div class="card" style="margin-top:12px">' +
-      '<div class="card-hdr"><span class="card-title">✅ Data Approved</span></div>' +
+      '<div class="card-hdr"><span class="card-title">✅ Approved Data — Consolidated</span>' +
+        '<span style="font-size:11px;color:#16a34a;margin-left:8px;font-weight:600">' + approved.length + ' projects approved</span>' +
+      '</div>' +
       '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>Event Date</th><th>Approved By</th><th>Approved On</th><th></th></tr></thead><tbody>' +
       approved.map(function(p) {
         return '<tr>' +
           '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
           '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
-          '<td>' + (p.date || '—') + '</td>' +
+          '<td>' + (firstEventDate(p) || '—') + '</td>' +
           '<td>' + (p.dataLogApprovedBy || '—') + '</td>' +
           '<td style="font-size:12px">' + (p.dataLogApprovedAt ? fmtDate(p.dataLogApprovedAt) : '—') + '</td>' +
           '<td><button class="btn btn-sm" onclick="openProject(' + p.id + ')">View</button></td>' +
         '</tr>';
       }).join('') + '</tbody></table></div>' : '');
+}
+
+function openDMDrill(type) {
+  var today = new Date();
+  var prodProjects = pl().filter(function(p) { return p.stage === 'production'; });
+  var title = '', rows = '', emptyMsg = '';
+
+  if (type === 'pending') {
+    title = '⏳ Pending Data Entry';
+    var pastPending = prodProjects.filter(function(p) {
+      var d = firstEventDate(p);
+      if (!d) return !p.dataLogApproved;
+      return new Date(d + 'T23:59:59') <= today && !p.dataLogApproved;
+    }).sort(function(a, b) {
+      var da = firstEventDate(a), db = firstEventDate(b);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return new Date(db) - new Date(da);
+    });
+    emptyMsg = '🎉 No pending entries!';
+    rows = pastPending.map(function(p) {
+      var pDate = firstEventDate(p);
+      var daysPast = pDate ? Math.abs(daysUntil(pDate)) : null;
+      var urgency = daysPast !== null && daysPast >= 7 ? '#dc2626' : daysPast !== null && daysPast >= 3 ? '#d97706' : '#555';
+      var entries = (p.dataEntries || []).length;
+      return '<tr>' +
+        '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+        '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
+        '<td style="font-size:12px">' + (pDate || '<span style="color:#d97706">⚠️ Not set</span>') + '</td>' +
+        '<td style="color:' + urgency + ';font-weight:700">' + (daysPast !== null ? daysPast + 'd ago' : '—') + '</td>' +
+        '<td>' + (p.city || '—') + '</td>' +
+        '<td style="font-size:12px">' + (p.type || '—') + '</td>' +
+        '<td>' + (entries ? '<span style="color:#d97706;font-weight:700">' + entries + ' entries</span>' : '<span style="color:#dc2626">No entries yet</span>') + '</td>' +
+        '<td><button class="btn btn-primary btn-sm" onclick="openProject(' + p.id + ');closeDMDrill()">Enter Data</button></td>' +
+      '</tr>';
+    }).join('');
+    rows = '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>Event Date</th><th>Days Since</th><th>City</th><th>Type</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  if (type === 'approved') {
+    title = '✅ Data Approved — Moved to Post-Prod';
+    var approvedList = pl().filter(function(p) { return p.dataLogApproved; })
+      .sort(function(a, b) { return (b.dataLogApprovedAt || 0) - (a.dataLogApprovedAt || 0); });
+    emptyMsg = 'No approvals yet.';
+    rows = approvedList.map(function(p) {
+      return '<tr>' +
+        '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+        '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
+        '<td style="font-size:12px">' + (firstEventDate(p) || '—') + '</td>' +
+        '<td>' + (p.dataLogApprovedBy || '—') + '</td>' +
+        '<td style="font-size:12px">' + (p.dataLogApprovedAt ? fmtDate(p.dataLogApprovedAt) : '—') + '</td>' +
+        '<td><button class="btn btn-sm" onclick="openProject(' + p.id + ');closeDMDrill()">View</button></td>' +
+      '</tr>';
+    }).join('');
+    rows = '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>Event Date</th><th>Approved By</th><th>Approved On</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  if (type === 'upcoming') {
+    title = '📅 Upcoming Shoots';
+    var upcoming = prodProjects.filter(function(p) {
+      var d = firstEventDate(p);
+      if (!d) return false;
+      return new Date(d + 'T23:59:59') > today;
+    }).sort(function(a, b) { return new Date(firstEventDate(a)) - new Date(firstEventDate(b)); });
+    emptyMsg = 'No upcoming shoots scheduled.';
+    rows = upcoming.map(function(p) {
+      var pDate = firstEventDate(p);
+      var dLeft = daysUntil(pDate);
+      var col = dLeft <= 7 ? '#dc2626' : dLeft <= 14 ? '#d97706' : '#1d4ed8';
+      return '<tr>' +
+        '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+        '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
+        '<td style="font-size:12px;font-weight:600">' + pDate + '</td>' +
+        '<td style="color:' + col + ';font-weight:800">' + dLeft + ' days</td>' +
+        '<td>' + (p.city || '—') + '</td>' +
+        '<td style="font-size:12px">' + (p.type || '—') + '</td>' +
+        '<td><button class="btn btn-sm" onclick="openProject(' + p.id + ');closeDMDrill()">View</button></td>' +
+      '</tr>';
+    }).join('');
+    rows = '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>Shoot Date</th><th>Days Left</th><th>City</th><th>Type</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  var ex = document.getElementById('dm-drill-modal'); if (ex) ex.remove();
+  var modal = document.createElement('div');
+  modal.id = 'dm-drill-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+  modal.onclick = function(e) { if (e.target === modal) closeDMDrill(); };
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:14px;width:100%;max-width:900px;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #f0f0f0;position:sticky;top:0;background:#fff;z-index:10;border-radius:14px 14px 0 0">' +
+        '<div style="font-size:16px;font-weight:800">' + title + '</div>' +
+        '<button onclick="closeDMDrill()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:14px;font-weight:600">✕ Close</button>' +
+      '</div>' +
+      '<div style="padding:20px;overflow-x:auto">' +
+        (rows || '<div class="empty" style="padding:32px;color:#16a34a;font-weight:600">' + emptyMsg + '</div>') +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDMDrill() {
+  var m = document.getElementById('dm-drill-modal');
+  if (m) m.remove();
+  document.body.style.overflow = '';
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -12748,9 +12920,27 @@ var HC_CHECKS = [
   {
     type: 'eventdate', key: 'no_event_date',
     label: 'No event date set', icon: '📅', severity: 'high',
-    test: function(p){ return !firstEventDate(p) && !p.date; },
+    test: function(p){
+      // If project uses eventDays, handled separately by no_eventday_date check
+      if (p.eventDays && p.eventDays.length > 0) return false;
+      return !p.date || p.date.trim() === '';
+    },
     field: 'date',
     inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="date" data-id="'+p.id+'" value="'+(p.date||'')+'">'; }
+  },
+  {
+    type: 'eventdate', key: 'no_eventday_date',
+    label: 'Event days added but no shoot date set', icon: '📅', severity: 'high',
+    test: function(p){
+      // Only applies if eventDays exists but none have a valid date
+      if (!p.eventDays || p.eventDays.length === 0) return false;
+      var hasValidDate = p.eventDays.some(function(ed){
+        return ed.date && /^\d{4}-\d{2}-\d{2}$/.test(ed.date);
+      });
+      return !hasValidDate;
+    },
+    field: null,
+    inputHtml: function(p){ return '<div style="background:#fef9c3;border-radius:6px;padding:8px 10px;font-size:11px;color:#854d0e">This project has <strong>'+((p.eventDays||[]).length)+' event day(s)</strong> with no dates set.<br><div style="margin-top:6px"><button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Set Event Dates</button></div></div>'; }
   },
   {
     type: 'bookdate', key: 'no_booking_date',
@@ -14347,7 +14537,9 @@ function openProject(id, tabId) {
   // Show/hide the sync-from-quotation button
   var syncBtn = document.getElementById('btn-sync-from-quot');
   // Show sync button on all existing projects (not just ones with quotationId)
-  if (syncBtn && !isPPM) {
+  // Data Manager cannot link/sync quotations
+  var isDM_sync = CU && CU.role === 'datamanager';
+  if (syncBtn && !isPPM && !isDM_sync) {
     syncBtn.style.display = 'inline-flex';
     if (p.quotationId) {
       syncBtn.title = 'Pull latest details from the original quotation (ID: ' + p.quotationId + ')';
@@ -15742,7 +15934,15 @@ function renderProjects() {
   var isLatest  = (_projRange === 'latest' && !_projDateFrom && !_projDateTo && !(document.getElementById('proj-fy-f')||{value:''}).value);
 
   var list = pl().filter(function(p) {
-    if (CU && CU.role === 'datamanager' && p.stage !== 'production') return false;
+    if (CU && CU.role === 'datamanager') {
+      if (p.stage !== 'production') return false;
+      // Only show events where the event date has already passed (or is today)
+      if (p.date) {
+        var evtDate = new Date(p.date + 'T23:59:59');
+        var today = new Date();
+        if (evtDate > today) return false; // future event — not yet a pending entry
+      }
+    }
     if (isPPM && p.stage !== 'preprod') return false;
     if (sf && p.stage !== sf) return false;
     if (rf && p.region !== rf) return false;
@@ -22925,6 +23125,8 @@ if (_origRenderDash2) {
 
 function injectDashboardWidgets() {
   var dc = document.getElementById('dash-content'); if (!dc) return;
+  // Data Manager has their own dashboard — no health/revenue/deadline widgets needed
+  if (CU && CU.role === 'datamanager') return;
 
   // Don't inject twice
   if (document.getElementById('health-summary-widget')) {
@@ -23003,6 +23205,8 @@ function injectProjectPortalButtons(projId) {
   var foot = document.querySelector('#proj-modal .modal-foot');
   if (!foot || document.getElementById('proj-portal-btn')) return;
   var p = projects[projId]; if (!p) return;
+  // Data Manager does not need client-facing buttons
+  if (CU && CU.role === 'datamanager') return;
 
   var portalBtn = document.createElement('button');
   portalBtn.id = 'proj-portal-btn';
