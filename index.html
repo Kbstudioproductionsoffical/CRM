@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v67</title>
+<title>KB Studio CRM v69</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2822,6 +2822,7 @@ document.addEventListener('wheel', function(e) {
         <div id="quot-approval-banner" style="display:none;font-size:12px;padding:5px 10px;border-radius:6px;font-weight:600"></div>
       </div>
       <button class="btn" data-close="quot-modal">Cancel</button>
+      <button class="btn" id="btn-save-quot-draft" style="font-size:13px;padding:9px 18px;background:#f1f5f9;border-color:#e2e8f0;color:#334155;font-weight:600">📝 Save as Draft</button>
       <button class="btn btn-primary" id="btn-save-quot" style="font-size:13px;padding:9px 22px">💾 Save &amp; Download PDF</button>
     </div>
   </div>
@@ -5579,6 +5580,22 @@ document.body.addEventListener('click', function(e) {
     saveQuotation();
     // Restore button after a short delay (Firebase callback restores it properly below)
     setTimeout(function(){ _quotSaving = false; _bsq.disabled = false; _bsq.textContent = origText; }, 4000);
+  });
+})();
+
+// Wire "Save as Draft" button — saves current state without auto-downloading a PDF
+(function(){
+  var _bsd = document.getElementById('btn-save-quot-draft');
+  if(!_bsd) return;
+  var _draftSaving = false;
+  _bsd.addEventListener('click', function(){
+    if(_draftSaving) return;
+    _draftSaving = true;
+    _bsd.disabled = true;
+    var origText = _bsd.textContent;
+    _bsd.textContent = 'Saving…';
+    saveQuotation('draft');
+    setTimeout(function(){ _draftSaving = false; _bsd.disabled = false; _bsd.textContent = origText; }, 4000);
   });
 })();
 
@@ -11311,11 +11328,25 @@ function getPaymentScheduleWithCarryForward(p){
   var totalGeneral=ledger.filter(function(e){return e.stage==='general';}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
   var generalUsed=0;
   var carry=0;
+  // BUG FIX v69: Build a reverse map so that legacy preset keys (p30, p50…) also
+  // match payments recorded under the new kb_* stage keys (kb_advance, kb_event…).
+  // Without this, a payment saved as "kb_advance" was invisible to the schedule row
+  // keyed "p30", causing the Advance row to always show ₹0 / Pending even after payment.
+  var LEGACY_TO_KB={
+    p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', cp0:'kb_advance',
+    p50:'kb_event',   p60:'kb_event',   p50b:'kb_event',
+    p40:'kb_prewed',  p30b:'kb_prewed',
+    p10a:'kb_rawdata',p10:'kb_rawdata',
+    p5a:'kb_teaser',  p10b:'kb_teaser',
+    p5b:'kb_final',   p10c:'kb_final',  pfinal:'kb_final'
+  };
   return terms.map(function(t){
     var baseExp=Math.round(net*t.pct/100);
-    var directPaid=ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+    // Match payments recorded under this exact key OR its kb_* equivalent
+    var kbEquiv=LEGACY_TO_KB[t.key];
+    var directPaid=ledger.filter(function(e){return e.stage===t.key||(kbEquiv&&e.stage===kbEquiv);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var splitPaid=ledger.filter(function(e){return e.splitAllocation;}).reduce(function(a,e){
-      var alloc=e.splitAllocation.find(function(al){return al.stage===t.key;});
+      var alloc=e.splitAllocation.find(function(al){return al.stage===t.key||(kbEquiv&&al.stage===kbEquiv);});
       return a+(alloc?parseInt(alloc.amount)||0:0);
     },0);
     var exp=baseExp+carry;
@@ -11362,13 +11393,14 @@ function renderPayLedger(){
         ? '<button class="btn btn-sm" style="font-size:10px;padding:3px 7px" onclick="viewPaymentProof(\''+editProjId+'\',\''+e.proofDocId+'\')">📎 View</button>'
         : ((e.mode||'').toLowerCase()==='cash' ? '<span style="color:#aaa;font-size:11px">Cash</span>' : '<span style="color:#ccc;font-size:11px">—</span>');
       var receiptBtn = (e.stage && e.stage.indexOf('kb_') === 0 && editProjId)
-        ? '<button class="btn btn-sm" style="font-size:9px;padding:2px 6px;margin-bottom:2px;display:block" onclick="kbGenerateStageReceipt(\'' + editProjId + '\',\'' + e.stage + '\')">🧾 Receipt</button>'
+        ? '<button class="btn btn-sm" style="font-size:9px;padding:3px 7px;white-space:nowrap" onclick="kbGenerateStageReceipt(\'' + editProjId + '\',\'' + e.stage + '\')">🧾 Receipt</button>'
         : '';
       var isSA = CU && CU.role === 'superadmin';
       var isAccOwnEntry = CU && CU.role === 'accounts' && e.recordedBy && (e.recordedBy === CU.name || e.recordedBy === CU.username);
       var canDeleteThis = isSA || isAccOwnEntry;
       var deleteBtn = canDeleteThis ? '<button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button>' : '';
-      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td>'+receiptBtn+deleteBtn+'</td></tr>';
+      var editBtn = isSA ? '<button class="btn btn-sm" style="font-size:9px;padding:3px 7px;white-space:nowrap;background:#f0f4ff;border-color:#c7d7ff;color:#1d4ed8" onclick="editPayEntry('+i+')">✏️ Edit</button>' : '';
+      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">'+receiptBtn+editBtn+deleteBtn+'</div></td></tr>';
     }).join('')+'</tbody></table>':
     '<div class="empty" style="padding:16px">No payments recorded yet.</div>';
 
@@ -19494,8 +19526,11 @@ function qdLoadFromData(deliverables, customDelivsArr) {
 // ── Save Quotation ───────────────────────────────────────────────
 function saveQuotation(silent) {
   var bride = (document.getElementById('qf-bride') || {value:''}).value.trim();
-  if (!bride && !silent) { alert('Please enter the client / bride name.'); return; }
-  if (!bride) return; // silent mode — skip if no name
+  if (!bride) {
+    if (silent === true) return; // true background autosave — skip quietly if no name yet
+    alert('Please enter the client / bride name.');
+    return;
+  }
 
   // Sync any unsaved day date inputs (in case user typed but didn't blur)
   document.querySelectorAll('.qday-date').forEach(function(el) { var i = parseInt(el.dataset.idx); if (quotDays[i]) quotDays[i].date = el.value; });
@@ -19503,6 +19538,23 @@ function saveQuotation(silent) {
   quotDays.forEach(function(d) { _migrateDaySessions(d); });
 
   var gv2 = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
+
+  // ── Safety net: if a tab/field hasn't been rendered into the DOM yet
+  // (e.g. user saves quickly before a tab loads), fall back to the
+  // previously saved value instead of writing empty/zero over real data.
+  var prevQ = editQuotId ? (quotations[editQuotId] || null) : null;
+  var rawValue   = gv2('qf-value');
+  var rawDiscount= gv2('qf-discount');
+  var rawGst     = gv2('qf-gst');
+  var rawPayterms= gv2('qf-payterms');
+  var value    = rawValue    !== '' ? (parseFloat(rawValue)||0)    : (prevQ ? (parseFloat(prevQ.value)||0) : 0);
+  var discount = rawDiscount !== '' ? (parseFloat(rawDiscount)||0) : (prevQ ? (parseFloat(prevQ.discount)||0) : 0);
+  var gst      = rawGst      || (prevQ ? prevQ.gst : '') || 'excluded';
+  var payterms = rawPayterms || (prevQ ? prevQ.payterms : '') || '30-50-10-5-5';
+  // Timeline/terms live in module-level arrays (quotTimeline/quotTerms) rather than
+  // simple inputs — if they're empty in memory but a previous save had data, keep the old data.
+  var timelineOut = (quotTimeline && quotTimeline.length) ? JSON.parse(JSON.stringify(quotTimeline)) : (prevQ && prevQ.timeline ? prevQ.timeline : []);
+  var termsOut    = (quotTerms && (Object.keys(quotTerms.preset||{}).length || (quotTerms.custom||[]).length)) ? collectQuotTerms() : (prevQ && prevQ.terms ? prevQ.terms : { preset:{}, custom:[] });
 
   var data = {
     bride: bride,
@@ -19525,13 +19577,15 @@ function saveQuotation(silent) {
       customNotes: gv2('qd-custom-notes')
     },
     quotDeliverables: JSON.parse(JSON.stringify(quotDeliverables)),
-    value: parseFloat(gv2('qf-value')) || 0,
-    discount: parseFloat(gv2('qf-discount')) || 0,
-    gst: gv2('qf-gst') || 'excluded',
+    value: value,
+    discount: discount,
+    gst: gst,
     currency: gv2('qf-currency') || 'INR',
-    payterms: gv2('qf-payterms') || '30-50-10-5-5',
-    paytermsCustom: (gv2('qf-payterms') === 'custom') ? getQuotCustomPayTerms() : [],
-    priceNotes: gv2('qf-price-notes'),
+    payterms: payterms,
+    paytermsCustom: (rawPayterms === 'custom') ? getQuotCustomPayTerms() : (prevQ ? (prevQ.paytermsCustom||[]) : []),
+    timeline: timelineOut,
+    terms: termsOut,
+    priceNotes: gv2('qf-price-notes') || (prevQ ? prevQ.priceNotes : ''),
     addlServices: quotAddlEnabled ? JSON.parse(JSON.stringify(quotAddlServices)) : [],
     addlServicesEnabled: quotAddlEnabled,
     coverImageUrl: isStorageUrl(quotCoverImageB64) ? quotCoverImageB64 : '',
@@ -19548,8 +19602,12 @@ function saveQuotation(silent) {
     // Restore save button immediately
     var btn = document.getElementById('btn-save-quot');
     if (btn) { btn.disabled = false; btn.textContent = '💾 Save & Download PDF'; }
-    if (err) { if (!silent) showToast('❌ Error saving: ' + err.message); return; }
-    if (!silent) {
+    var draftBtn = document.getElementById('btn-save-quot-draft');
+    if (draftBtn) { draftBtn.disabled = false; draftBtn.textContent = '📝 Save as Draft'; }
+    if (err) { if (silent !== 'draft') showToast('❌ Error saving: ' + err.message); else showToast('❌ Error saving draft: ' + err.message); return; }
+    if (silent === 'draft') {
+      showToast('📝 Draft saved!');
+    } else if (!silent) {
       showToast('✅ Quotation saved!');
       // Auto-download PDF after successful save
       setTimeout(function() {
@@ -19640,6 +19698,7 @@ function convertQuotToProject(overrideId) {
       amount: advAmt,
       date: advPayment.date || '',
       mode: advPayment.mode || 'UPI',
+      account: advPayment.account || '',
       ref: advPayment.ref || '',
       notes: advPayment.note || 'Advance — converted from quotation',
       proofDocId: advPayment.proofDocId || '',
@@ -21929,6 +21988,7 @@ function showPaymentGate(quotId, q, event) {
           '<div><label class="fl">Transaction / UTR No.</label><input class="fi" id="pg-ref" placeholder="Optional"></div>' +
         '</div>' +
         '<div style="margin-bottom:10px"><label class="fl">Note</label><input class="fi" id="pg-note" placeholder="e.g. Advance booking amount"></div>' +
+        '<div style="margin-bottom:10px"><label class="fl">Account Received In *</label><select class="fi" id="pg-account"></select></div>' +
         '<div id="pg-proof-row" style="margin-bottom:4px">' +
           '<label class="fl">Payment Proof (Screenshot) *</label>' +
           '<input class="fi" type="file" id="pg-proof-file" accept="image/*" style="padding:4px">' +
@@ -21941,6 +22001,14 @@ function showPaymentGate(quotId, q, event) {
       '</div>' +
     '</div>';
   document.body.appendChild(modal);
+  // Populate account dropdown in payment gate
+  (function() {
+    var sel = document.getElementById('pg-account');
+    if (!sel) return;
+    var list = typeof accList === 'function' ? accList() : [];
+    sel.innerHTML = '<option value="">— Select Account —</option>' +
+      list.map(function(a){ return '<option value="'+a.name+'">'+a.name+'</option>'; }).join('');
+  })();
   setTimeout(function(){ var a=document.getElementById('pg-amount');if(a)a.focus();},100);
 }
 
@@ -21950,9 +22018,11 @@ function confirmPaymentGate(quotId) {
   var mode = (document.getElementById('pg-mode')||{}).value||'UPI';
   var ref = (document.getElementById('pg-ref')||{}).value||'';
   var note = (document.getElementById('pg-note')||{}).value||'Advance booking payment';
+  var acc  = (document.getElementById('pg-account')||{}).value||'';
   var proofFile = document.getElementById('pg-proof-file');
   if (!amt || amt <= 0) { alert('Please enter a valid advance amount.'); return; }
   if (!date) { alert('Please enter the payment date.'); return; }
+  if (!acc) { alert('Please select the account the payment was received in.'); return; }
   // Proof required for non-cash payments
   var isCash = mode.toLowerCase() === 'cash';
   if (!isCash && (!proofFile || !proofFile.files || !proofFile.files.length)) {
@@ -21961,7 +22031,7 @@ function confirmPaymentGate(quotId) {
   }
 
   var payRecord = {
-    amount: amt, mode: mode, date: date, ref: ref, note: note,
+    amount: amt, mode: mode, date: date, ref: ref, note: note, account: acc,
     recordedBy: CU ? (CU.name||CU.username) : 'System',
     recordedAt: new Date().toISOString()
   };
@@ -26528,6 +26598,101 @@ function saveInstDueDate(projId, stageKey, dateVal) {
   if (document.readyState === 'complete') { setup(); }
   else { window.addEventListener('load', setup); }
 })();
+</script>
+
+<script>
+// ── Super Admin: Edit Payment Ledger Entry ──────────────────────────
+window.editPayEntry = function(idx) {
+  var role = window.CU ? window.CU.role : '';
+  if (role !== 'superadmin') { showToast('Only Super Admin can edit payment entries.'); return; }
+  var projId = window.editProjId;
+  if (!projId) { alert('No project open.'); return; }
+  var p = window.projects && (window.projects[projId] || window.projects[String(projId)]);
+  if (!p) { alert('Project not found.'); return; }
+  var ledger = (p.payLedger || []).slice();
+  var entry = ledger[idx];
+  if (!entry) { alert('Entry not found.'); return; }
+
+  // Build account options
+  var accOpts = (typeof accList === 'function' ? accList() : [])
+    .map(function(a){ return '<option value="'+a.name+'"'+(entry.account===a.name?' selected':'')+'>'+a.name+'</option>'; }).join('');
+
+  // Build mode options
+  var modes = ['UPI','Bank Transfer','Cash','Cheque','Mixed'];
+  var modeOpts = modes.map(function(m){ return '<option'+(entry.mode===m?' selected':'')+'>'+m+'</option>'; }).join('');
+
+  var ex = document.getElementById('edit-pay-entry-modal');
+  if (ex) ex.remove();
+  var modal = document.createElement('div');
+  modal.id = 'edit-pay-entry-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-height:90vh;overflow-y:auto">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">' +
+        '<div style="font-size:15px;font-weight:800">✏️ Edit Payment Entry</div>' +
+        '<button onclick="document.getElementById(&apos;edit-pay-entry-modal&apos;).remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888">✕</button>' +
+      '</div>' +
+      '<div style="background:#fef9c3;border-radius:8px;padding:8px 12px;font-size:11px;color:#854d0e;margin-bottom:16px">⚠️ Super Admin only — changes are saved directly to Firebase.</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
+        '<div><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="epe-amount" value="'+(entry.amount||0)+'"></div>' +
+        '<div><label class="fl">Date *</label><input class="fi" type="date" id="epe-date" value="'+(entry.date||'')+'"></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
+        '<div><label class="fl">Payment Mode</label><select class="fi" id="epe-mode">'+modeOpts+'</select></div>' +
+        '<div><label class="fl">Account Received In *</label><select class="fi" id="epe-account"><option value="">— Select —</option>'+accOpts+'</select></div>' +
+      '</div>' +
+      '<div style="margin-bottom:10px"><label class="fl">Ref / UTR No.</label><input class="fi" id="epe-ref" value="'+(entry.ref||'')+'"></div>' +
+      '<div style="margin-bottom:16px"><label class="fl">Notes</label><input class="fi" id="epe-notes" value="'+(entry.notes||'')+'"></div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button onclick="document.getElementById(&apos;edit-pay-entry-modal&apos;).remove()" style="flex:1;padding:11px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>' +
+        '<button onclick="saveEditPayEntry('+idx+')" style="flex:2;padding:11px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 Save Changes</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+};
+
+window.saveEditPayEntry = function(idx) {
+  var role = window.CU ? window.CU.role : '';
+  if (role !== 'superadmin') { showToast('Only Super Admin can edit payment entries.'); return; }
+  var projId = window.editProjId;
+  if (!projId) { alert('No project open.'); return; }
+  var p = window.projects && (window.projects[projId] || window.projects[String(projId)]);
+  if (!p) { alert('Project not found.'); return; }
+  var ledger = (p.payLedger || []).slice();
+  if (!ledger[idx]) { alert('Entry not found.'); return; }
+
+  var amt  = parseFloat((document.getElementById('epe-amount')||{}).value||0);
+  var date = (document.getElementById('epe-date')||{}).value||'';
+  var mode = (document.getElementById('epe-mode')||{}).value||'';
+  var acc  = (document.getElementById('epe-account')||{}).value||'';
+  var ref  = (document.getElementById('epe-ref')||{}).value||'';
+  var notes= (document.getElementById('epe-notes')||{}).value||'';
+
+  if (!amt || amt <= 0) { alert('Please enter a valid amount.'); return; }
+  if (!date) { alert('Please enter a date.'); return; }
+  if (!acc) { alert('Please select an account.'); return; }
+
+  var updated = Object.assign({}, ledger[idx], {
+    amount: amt, date: date, mode: mode, account: acc, ref: ref, notes: notes,
+    editedAt: Date.now(),
+    editedBy: CU ? (CU.name || CU.username || 'Super Admin') : 'Super Admin'
+  });
+  ledger[idx] = updated;
+
+  window.db.ref('crm_projects/' + projId + '/payLedger').set(ledger, function(err) {
+    if (err) { alert('Firebase error: ' + err.message); return; }
+    p.payLedger = ledger;
+    document.getElementById('edit-pay-entry-modal').remove();
+    showToast('✅ Payment entry updated.');
+    if (typeof logActivity === 'function') {
+      var couple = (p.bride||'') + (p.groom ? ' & ' + p.groom : '');
+      logActivity('payment', 'Payment Entry Edited',
+        'Entry #'+(idx+1)+' updated in ' + couple + ' [' + (p.refcode||'') + ']',
+        { refcode: p.refcode, amount: amt });
+    }
+    if (typeof renderPayLedger === 'function') renderPayLedger();
+  });
+};
 </script>
 </body>
 </html>
