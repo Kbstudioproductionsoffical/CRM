@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v64</title>
+<title>KB Studio CRM v67</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2481,21 +2481,31 @@ document.addEventListener('wheel', function(e) {
     '<div class="metrics" id="sales-metrics" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:16px"></div>' +
     '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">' +
       '<button class="btn btn-primary" onclick="openNewQuotation()">+ New Quotation</button>' +
-      '<select class="fi" id="sales-status-f" style="flex:0;width:auto" onchange="renderSalesDash()">' +
-        '<option value="">All Status</option>' +
-        '<option value="draft">📝 Draft</option>' +
-        '<option value="pending_approval">🕐 Pending Approval</option>' +
-        '<option value="approved">✅ Approved</option>' +
-        '<option value="sent">📤 Sent</option>' +
-        '<option value="negotiating">🤝 Negotiating</option>' +
-        '<option value="won">🏆 Won</option>' +
-        '<option value="lost">❌ Lost</option>' +
-      '</select>' +
-      '<select class="fi" id="sales-person-f" style="flex:0;width:auto" onchange="renderSalesDash()"><option value="">All Salespersons</option></select>' +
-      '<input type="text" class="fi" id="sales-search" placeholder="Search client, city…" oninput="renderSalesDash()">' +
     '</div>' +
-    '<div class="card" style="padding:0;margin-bottom:16px"><div class="card-hdr" style="padding:14px 16px"><span class="card-title">📊 Pipeline View</span></div><div class="quot-pipeline" id="sales-pipeline" style="padding:0 12px 12px"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>' +
-    '<div class="card" style="padding:0"><div class="card-hdr" style="padding:14px 16px"><span class="card-title">📋 All Quotations</span></div><div id="sales-table"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>';
+    '<div class="tabs" id="ql-page-tabs" style="margin-bottom:0;border-bottom:2px solid #e5e5e5">' +
+      '<button class="tab-btn active" id="ql-tab-pipeline" onclick="switchQLTab(\'pipeline\')" style="font-size:13px">📊 Pipeline</button>' +
+      '<button class="tab-btn" id="ql-tab-all" onclick="switchQLTab(\'all\')" style="font-size:13px">📋 All Quotations</button>' +
+    '</div>' +
+    '<div id="ql-pane-pipeline" style="padding-top:12px">' +
+      '<div class="card" style="padding:0"><div class="card-hdr" style="padding:14px 16px"><span class="card-title">📊 Pipeline View</span></div><div class="quot-pipeline" id="sales-pipeline" style="padding:0 12px 12px"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>' +
+    '</div>' +
+    '<div id="ql-pane-all" style="display:none;padding-top:12px">' +
+      '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">' +
+        '<select class="fi" id="sales-status-f" style="flex:0;width:auto" onchange="renderSalesDash()">' +
+          '<option value="">All Status</option>' +
+          '<option value="draft">📝 Draft</option>' +
+          '<option value="pending_approval">🕐 Pending Approval</option>' +
+          '<option value="approved">✅ Approved</option>' +
+          '<option value="sent">📤 Sent</option>' +
+          '<option value="negotiating">🤝 Negotiating</option>' +
+          '<option value="won">🏆 Won</option>' +
+          '<option value="lost">❌ Lost</option>' +
+        '</select>' +
+        '<select class="fi" id="sales-person-f" style="flex:0;width:auto" onchange="renderSalesDash()"><option value="">All Salespersons</option></select>' +
+        '<input type="text" class="fi" id="sales-search" placeholder="🔍 Search client, city, phone…" oninput="renderSalesDash()" style="min-width:220px">' +
+      '</div>' +
+      '<div class="card" style="padding:0"><div id="sales-table"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>' +
+    '</div>';
   mainDiv.appendChild(salesDash);
 
   // Page: Sales Settings (Sales Head — quotation/lead settings only)
@@ -17082,11 +17092,16 @@ saveInvoiceAsPDF = function() {
   win.document.write('<!DOCTYPE html><html><head>' +
     '<title>Invoice '+escHtml(data.invoiceNo||'')+' — KB Studio Productions</title>' +
     '<meta charset="UTF-8">' +
-    '<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#fff;print-color-adjust:exact;-webkit-print-color-adjust:exact}@page{margin:0;size:A4}.inv-wrap{width:210mm;min-height:297mm}</style>' +
-    // Inject script to trigger save-as-PDF dialog hint
+    '<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#fff;print-color-adjust:exact;-webkit-print-color-adjust:exact}@page{margin:0;size:A4}.inv-wrap{width:210mm;min-height:297mm}' +
+    '.pdf-hint-banner{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:10px 16px;font-size:12px;font-family:sans-serif;z-index:9999;text-align:center}' +
+    '.pdf-hint-spacer{height:40px}' +
+    '@media print{.pdf-hint-banner{display:none !important}.pdf-hint-spacer{display:none !important}}' +
+    '</style>' +
+    // Inject script to trigger save-as-PDF dialog hint (on-screen only — hidden from the printed/saved output)
     '</head><body onload="setTimeout(function(){window.print();},800)">' +
-    '<div style="position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:10px 16px;font-size:12px;font-family:sans-serif;z-index:9999;text-align:center">📄 In the print dialog → Change <b>Destination</b> to <b>"Save as PDF"</b> → Click Save</div>' +
-    '<div style="margin-top:40px">' + buildInvoiceHTML(data, showTerms) + '</div></body></html>');
+    '<div class="pdf-hint-banner">📄 In the print dialog → Change <b>Destination</b> to <b>"Save as PDF"</b> → Click Save</div>' +
+    '<div class="pdf-hint-spacer"></div>' +
+    buildInvoiceHTML(data, showTerms) + '</body></html>');
   win.document.close();
 };
 
@@ -17801,6 +17816,25 @@ function deleteEscalation(key) {
 }
 
 
+function switchQLTab(tab) {
+  var pipeline = document.getElementById('ql-pane-pipeline');
+  var all = document.getElementById('ql-pane-all');
+  var btnP = document.getElementById('ql-tab-pipeline');
+  var btnA = document.getElementById('ql-tab-all');
+  if (!pipeline || !all) return;
+  if (tab === 'pipeline') {
+    pipeline.style.display = ''; all.style.display = 'none';
+    if (btnP) btnP.classList.add('active');
+    if (btnA) btnA.classList.remove('active');
+  } else {
+    pipeline.style.display = 'none'; all.style.display = '';
+    if (btnA) btnA.classList.add('active');
+    if (btnP) btnP.classList.remove('active');
+    // Focus search box
+    setTimeout(function(){ var s=document.getElementById('sales-search'); if(s) s.focus(); }, 100);
+  }
+}
+
 function renderSalesDash() {
   if (!_quotDataLoaded) {
     var pipeLoad = document.getElementById('sales-pipeline');
@@ -17883,19 +17917,8 @@ function renderSalesDash() {
   }
 
   // Filtered list for table
-  var filtered = list.filter(function(q) {
-    if (statusF && q.status !== statusF) return false;
-    if (personF && (q.salesperson || '') !== personF) return false;
-    if (q_search) {
-      var hay = ((q.bride||'')+(q.groom||'')+(q.city||'')+(q.phone||'')).toLowerCase();
-      if (!hay.includes(q_search)) return false;
-    }
-    return true;
-  });
   var q_search = q;
-
-  // Re-filter with search
-  filtered = list.filter(function(qt) {
+  var filtered = list.filter(function(qt) {
     if (statusF && qt.status !== statusF) return false;
     if (personF && (qt.salesperson || '') !== personF) return false;
     if (q) {
@@ -17939,8 +17962,24 @@ function renderSalesDash() {
               '<div style="display:flex;gap:4px;align-items:center">' +
               (nextS ? '<button class="btn btn-sm" style="background:' + QT_STATUS_COLORS[nextS] + '18;color:' + QT_STATUS_COLORS[nextS] + ';border-color:' + QT_STATUS_COLORS[nextS] + '55;font-size:10px;white-space:nowrap" onclick="quickChangeStatus(\'' + qt.id + '\',\'' + nextS + '\',event)" title="Advance to ' + QT_STATUS_LABELS[nextS] + '">→ ' + QT_STATUS_LABELS[nextS] + '</button>' : '') +
               '<button class="btn btn-sm" onclick="openEditQuotation(\'' + qt.id + '\')">✏️</button>' +
-              (!(CU && CU.role === 'salesperson') && qt.status === 'won' ? '<button class="btn btn-sm" style="background:#134e50;color:#fff;border-color:#134e50" onclick="convertQuotToProject(\'' + qt.id + '\')" title="Convert to Project">🚀 Convert</button>' + (qt.advancePaid ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ₹' + parseInt(qt.advancePaid).toLocaleString('en-IN') + ' paid</span>' : '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>') : '') +
-              (CU && CU.role === 'superadmin' ? '<button class="btn-danger" onclick="deleteQuotation(\'' + qt.id + '\')">✕</button>' : '') +
+              (!(CU && CU.role === 'salesperson') && qt.status === 'won' ? (function(){
+                var paidBadge = '';
+                if (qt.convertedToProject && qt.projectId && projects[qt.projectId]) {
+                  // BUG FIX #2: Show only the advance amount recorded on the quotation itself.
+                  // Using paidTotal(linkedProj) incorrectly showed ALL project payments
+                  // (e.g. ₹3,00,000 total instead of ₹30,000 advance), misleading the sales team.
+                  var advanceAmt = qt.advancePaid || 0;
+                  paidBadge = advanceAmt > 0
+                    ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ₹' + parseInt(advanceAmt).toLocaleString('en-IN') + ' advance</span>'
+                    : '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>';
+                } else if (qt.advancePaid) {
+                  paidBadge = '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ₹' + parseInt(qt.advancePaid).toLocaleString('en-IN') + ' paid</span>';
+                } else {
+                  paidBadge = '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>';
+                }
+                return '<button class="btn btn-sm" style="background:#134e50;color:#fff;border-color:#134e50" onclick="convertQuotToProject(\'' + qt.id + '\')" title="Convert to Project">🚀 Convert</button>' + paidBadge;
+              })() : '') +
+              (CU && (CU.role === 'superadmin' || CU.role === 'sales_head') ? '<button class="btn-danger" onclick="deleteQuotation(\'' + qt.id + '\')">✕</button>' : '') +
               '</div></td></tr>';
         }).join('') + '</tbody></table>';
     }
@@ -19527,7 +19566,7 @@ function saveQuotation(silent) {
 }
 
 function deleteQuotation(id) {
-  if (!CU || CU.role !== 'superadmin') { showToast('⛔ Only Super Admin can delete quotations.'); return; }
+  if (!CU || (CU.role !== 'superadmin' && CU.role !== 'sales_head')) { showToast('⛔ Only Super Admin or Sales Head can delete quotations.'); return; }
   if (!id || id === 'undefined') { showToast('❌ ID missing — please refresh.'); return; }
   var q = quotations[id] || Object.values(quotations).find(function(r){ return r.id===id; });
   if (!q) { showToast('❌ Quotation not found.'); return; }
@@ -19597,7 +19636,7 @@ function convertQuotToProject(overrideId) {
   var advAmt = q.advancePaid || 0;
   if (advAmt > 0 && advPayment) {
     projData.payLedger = [{
-      stage: 'p30',   // maps to first advance stage
+      stage: 'kb_advance',   // matches kbSchedule stage key (legacy 'p30' is also mapped via KB_TO_LEGACY)
       amount: advAmt,
       date: advPayment.date || '',
       mode: advPayment.mode || 'UPI',
@@ -19609,6 +19648,55 @@ function convertQuotToProject(overrideId) {
     }];
     projData.bookdate = advPayment.date || '';
   }
+
+  // ── BUG FIX #1: Build kbSchedule from payPreset so payment gate amounts are correct ──
+  // Without this, kbSchedule is missing on converted projects, causing Event Payment
+  // to display a wildly incorrect amount (e.g. ₹22,00,00,000) when the gate panel
+  // tries to resolve stage amounts from an empty form on next open.
+  (function() {
+    var net = (parseInt(projData.value) || 0) - (parseInt(projData.discount) || 0);
+    if (net <= 0) return;
+
+    // Map PAY_PRESETS keys to kb stage keys and gate labels
+    var PRESET_TO_KB = {
+      p30:  { key:'kb_advance',  label:'Advance',       gate:'project_create', desc:'To block the date' },
+      p20:  { key:'kb_advance',  label:'Advance',       gate:'project_create', desc:'To block the date' },
+      p50a: { key:'kb_advance',  label:'Advance',       gate:'project_create', desc:'To block the date' },
+      p50:  { key:'kb_event',    label:'Event Payment', gate:'none',           desc:'Due on event day' },
+      p60:  { key:'kb_event',    label:'Event Payment', gate:'none',           desc:'Due on event day' },
+      p50b: { key:'kb_event',    label:'Event Payment', gate:'none',           desc:'Due on event day' },
+      p10a: { key:'kb_rawdata',  label:'Raw Data Payment',   gate:'raw_data',      desc:'Raw data locked until paid' },
+      p10:  { key:'kb_rawdata',  label:'Raw Data Payment',   gate:'raw_data',      desc:'Raw data locked until paid' },
+      p10b: { key:'kb_teaser',   label:'Teaser & Highlight', gate:'teaser',        desc:'Teaser locked until paid' },
+      p5a:  { key:'kb_teaser',   label:'Teaser & Highlight', gate:'teaser',        desc:'Teaser locked until paid' },
+      p5b:  { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery',desc:'Final delivery locked until paid' },
+      p10c: { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery',desc:'Final delivery locked until paid' }
+    };
+
+    var preset = projData.payPreset || '30-50-10-5-5';
+    var terms = PAY_PRESETS[preset] || PAY_PRESETS['30-50-10-5-5'];
+    var stages = [];
+    terms.forEach(function(t) {
+      var kb = PRESET_TO_KB[t.key];
+      if (!kb) return;
+      // Avoid duplicate kb stage keys (e.g. two custom terms mapping to same kb key)
+      if (stages.find(function(s){ return s.key === kb.key; })) return;
+      stages.push({
+        key:     kb.key,
+        label:   t.label || kb.label,
+        type:    'pct',
+        val:     t.pct,
+        amount:  Math.round(net * t.pct / 100),
+        dueDate: (kb.key === 'kb_event' && projData.date) ? projData.date : '',
+        gate:    kb.gate,
+        desc:    kb.desc
+      });
+    });
+
+    if (stages.length) {
+      projData.kbSchedule = { stages: stages, eventMode: 'single' };
+    }
+  })();
 
   // Auto-generate refcode
   var initials = ((q.bride||'X').substring(0,1) + (q.groom||'Y').substring(0,1)).toUpperCase();
