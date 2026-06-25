@@ -6259,6 +6259,68 @@ function closeDMDrill() {
   document.body.style.overflow = '';
 }
 
+// ── Future / Pending Work Drill-down ──
+// Lists every non-archived project whose event hasn't happened yet or
+// whose work isn't finished (stage !== 'complete'). Sorted by event date
+// (soonest first), using firstEventDate() so Event-Days-only projects are
+// resolved correctly. No-date projects are listed last.
+function openFutureWorkDrill() {
+  var list = pl().filter(function(p) { return p.stage !== 'complete'; });
+
+  list.sort(function(a, b) {
+    var da = firstEventDate(a), db = firstEventDate(b);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return new Date(da) - new Date(db);
+  });
+
+  var rows = list.map(function(p) {
+    var pDate = firstEventDate(p);
+    var dLeft = pDate ? daysUntil(pDate) : null;
+    var dCol = dLeft === null ? '#888' : dLeft < 0 ? '#dc2626' : dLeft <= 7 ? '#dc2626' : dLeft <= 30 ? '#d97706' : '#1d4ed8';
+    var dLabel = pDate ? (dLeft < 0 ? Math.abs(dLeft) + 'd ago' : dLeft + 'd left') : '⚠️ Not set';
+    var bal = balDue(p);
+    return '<tr>' +
+      '<td style="font-weight:700">' + priorityBadge(p) + ' ' + p.bride + ' & ' + p.groom + '</td>' +
+      '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
+      '<td style="font-size:12px">' + (pDate || '<span style="color:#d97706">⚠️ Not set</span>') + '</td>' +
+      '<td style="color:' + dCol + ';font-weight:700;font-size:12px">' + dLabel + '</td>' +
+      '<td>' + stageBadge(p.stage) + '</td>' +
+      '<td>' + (p.city || '—') + '</td>' +
+      '<td>' + regionBadge(p.region) + '</td>' +
+      '<td style="font-weight:700;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">' + (can('canSeeFinancials') ? (bal > 0 ? fmt(bal) + ' due' : 'Paid ✓') : '—') + '</td>' +
+      '<td><button class="btn btn-sm" onclick="openProject(' + p.id + ');closeFutureWorkDrill()">View</button></td>' +
+    '</tr>';
+  }).join('');
+
+  var ex = document.getElementById('future-work-modal'); if (ex) ex.remove();
+  var modal = document.createElement('div');
+  modal.id = 'future-work-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';
+  modal.onclick = function(e) { if (e.target === modal) closeFutureWorkDrill(); };
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:14px;width:100%;max-width:980px;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #f0f0f0;position:sticky;top:0;background:#fff;z-index:10;border-radius:14px 14px 0 0">' +
+        '<div style="font-size:16px;font-weight:800">🚧 Pending / Future Work — ' + list.length + ' project' + (list.length !== 1 ? 's' : '') + '</div>' +
+        '<button onclick="closeFutureWorkDrill()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:14px;font-weight:600">✕ Close</button>' +
+      '</div>' +
+      '<div style="padding:20px;overflow-x:auto">' +
+        (rows ?
+          '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>Event Date</th><th>Countdown</th><th>Stage</th><th>City</th><th>Region</th><th>Balance</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' :
+          '<div class="empty" style="padding:32px;color:#16a34a;font-weight:600">🎉 Nothing pending — everything is complete!</div>') +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  document.body.style.overflow = 'hidden';
+}
+
+function closeFutureWorkDrill() {
+  var m = document.getElementById('future-work-modal');
+  if (m) m.remove();
+  document.body.style.overflow = '';
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // PHASE 3 — ARCHIVE SYSTEM
 // ═══════════════════════════════════════════════════════════════════
@@ -8919,7 +8981,7 @@ function renderReports(){
 
   // KPI Metrics Row
   html+='<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px">'+
-    '<div class="metric blue"><div class="ml">Total Bookings</div><div class="mv">'+list.length+'</div><div class="ms">'+activeCount+' active · '+completeCount+' complete</div></div>'+
+    '<div class="metric blue"><div class="ml">Total Bookings</div><div class="mv">'+list.length+'</div><div class="ms"><span style="cursor:pointer;text-decoration:underline" onclick="openFutureWorkDrill()" title="View projects still pending completion">'+activeCount+' active</span> · '+completeCount+' complete</div></div>'+
     '<div class="metric green"><div class="ml">Gross Revenue</div><div class="mv">'+fmtL(tR)+'</div><div class="ms">Before discounts</div></div>'+
     '<div class="metric green"><div class="ml">Net Revenue</div><div class="mv">'+fmtL(tNet)+'</div><div class="ms">After ₹'+fmtL(tDiscount)+' disc.</div></div>'+
     '<div class="metric green"><div class="ml">Total Collected</div><div class="mv">'+fmtL(tPd)+'</div><div class="ms">'+collRate+'% collection rate</div></div>'+
@@ -14807,7 +14869,8 @@ function openDashDrill(type) {
   var thisMonth = new Date().toISOString().substring(0, 7);
   var title = '', projects = [];
   if (type === 'all') { title = '📁 All Projects (' + list.length + ')'; projects = list.slice().sort(function(a,b){return(b.createdAt||0)-(a.createdAt||0);}); }
-  else if (type === 'active') { projects = list.filter(function(p){return p.stage!=='complete';}).sort(function(a,b){return new Date(a.date||'9999')-new Date(b.date||'9999');}); title='⚡ Active Projects ('+projects.length+')'; }
+  else if (type === 'active') { projects = list.filter(function(p){return p.stage!=='complete';}).sort(function(a,b){return new Date(firstEventDate(a)||'9999')-new Date(firstEventDate(b)||'9999');}); title='⚡ Active Projects ('+projects.length+')'; }
+  else if (type === 'prodlive') { projects = list.filter(function(p){return p.stage==='preprod'||p.stage==='production';}).sort(function(a,b){return new Date(firstEventDate(a)||'9999')-new Date(firstEventDate(b)||'9999');}); title='🎬 Pre-Prod + Production ('+projects.length+')'; }
   else if (type === 'booked') { projects = list.filter(function(p){return p.bookdate&&p.bookdate.startsWith(thisMonth);}).sort(function(a,b){return(b.createdAt||0)-(a.createdAt||0);}); title='📅 Booked This Month ('+projects.length+')'; }
   else if (type === 'overdue') { var alerts=getDueAlerts().filter(function(a){return a.days<0;}); var seen={}; projects=alerts.map(function(a){return a.p;}).filter(function(p){if(seen[p.id])return false;seen[p.id]=true;return true;}); title='⚠️ Overdue ('+projects.length+')'; }
   else if (type === 'revenue') { projects=list.slice().sort(function(a,b){return netVal(b)-netVal(a);}); title='💰 By Revenue ('+projects.length+')'; }
@@ -14815,26 +14878,86 @@ function openDashDrill(type) {
   else if (type === 'balance') { projects=list.filter(function(p){return balDue(p)>0;}).sort(function(a,b){return balDue(b)-balDue(a);}); title='🔴 Balance Due ('+projects.length+')'; }
 
   var sf = ac.canSeeFinancials;
+  var totRev = 0, totPaid = 0, totBal = 0;
   var rows = projects.map(function(p) {
-    var d=daysUntil(p.date);
-    var dLabel=p.date?(d<0?'<span style="color:#dc2626;font-weight:700">⚠️ '+Math.abs(d)+'d ago</span>':d===0?'<span style="color:#dc2626;font-weight:700">TODAY</span>':d<=7?'<span style="color:#d97706;font-weight:700">'+d+'d left</span>':'<span style="color:#1d4ed8">'+fmtDate(p.date)+'</span>'):'<span style="color:#aaa">—</span>';
-    var fc=sf?'<td style="text-align:right;font-weight:700;color:#16a34a">'+fmt(netVal(p))+'</td><td style="text-align:right;color:#16a34a">'+fmt(paidTotal(p))+'</td><td style="text-align:right;color:'+(balDue(p)>0?'#dc2626':'#aaa')+'>'+(balDue(p)>0?fmt(balDue(p)):'—')+'</td>':'';
-    return '<tr style="cursor:pointer" onclick="closeDashDrill();setTimeout(function(){editProject(\''+p.id+'\')},100)">' +
-      '<td><div style="font-weight:600;font-size:13px">'+(p.bride||'—')+' & '+(p.groom||'—')+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+(p.type?' · '+p.type:'')+'</div></td>' +
-      '<td>'+stageBadge(p.stage)+'</td><td>'+dLabel+'</td>'+fc+'</tr>';
-  }).join('')||'<tr><td colspan="6" style="text-align:center;color:#aaa;padding:20px">No projects.</td></tr>';
-  var fh=sf?'<th style="text-align:right">Revenue</th><th style="text-align:right">Collected</th><th style="text-align:right">Balance</th>':'';
+    var pDate = firstEventDate(p);
+    var d=daysUntil(pDate);
+    var dLabel=pDate?(d<0?'<span class="dd-tag dd-tag-red">⚠️ '+Math.abs(d)+'d ago</span>':d===0?'<span class="dd-tag dd-tag-red">TODAY</span>':d<=7?'<span class="dd-tag dd-tag-amber">'+d+'d left</span>':'<span class="dd-date">'+fmtDate(pDate)+'</span>'):'<span class="dd-muted">—</span>';
+    var bal = balDue(p);
+    totRev += netVal(p); totPaid += paidTotal(p); totBal += Math.max(0, bal);
+    var fc=sf?(
+      '<td class="dd-num dd-rev">'+fmt(netVal(p))+'</td>'+
+      '<td class="dd-num dd-paid">'+fmt(paidTotal(p))+'</td>'+
+      '<td class="dd-num '+(bal>0?'dd-bal':'dd-muted')+'">'+(bal>0?fmt(bal):'Paid ✓')+'</td>'
+    ):'';
+    return '<tr class="dd-row" onclick="closeDashDrill();setTimeout(function(){editProject(\''+p.id+'\')},100)">' +
+      '<td class="dd-client"><div class="dd-name">'+(p.bride||'—')+' & '+(p.groom||'—')+'</div><div class="dd-sub">'+(p.refcode?'<span class="dd-ref">'+p.refcode+'</span> · ':'')+(p.city||'')+(p.type?' · '+p.type:'')+'</div></td>' +
+      '<td>'+stageBadge(p.stage)+'</td><td class="dd-event">'+dLabel+'</td>'+fc+
+      '<td class="dd-arrow">→</td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:#aaa;padding:32px">No projects.</td></tr>';
+  var totBar = (sf && projects.length) ?
+    '<div class="dd-totals">' +
+      '<span class="dd-totals-label">Total — '+projects.length+' project'+(projects.length!==1?'s':'')+'</span>' +
+      '<span class="dd-totals-item"><span class="dd-totals-k">Revenue</span><span class="dd-totals-v dd-total-rev">'+fmt(totRev)+'</span></span>' +
+      '<span class="dd-totals-item"><span class="dd-totals-k">Collected</span><span class="dd-totals-v dd-total-paid">'+fmt(totPaid)+'</span></span>' +
+      '<span class="dd-totals-item"><span class="dd-totals-k">Balance</span><span class="dd-totals-v dd-total-bal">'+fmt(totBal)+'</span></span>' +
+    '</div>' : '';
+  var fh=sf?'<th class="dd-num">Revenue</th><th class="dd-num">Collected</th><th class="dd-num">Balance</th>':'';
 
   var modal=document.getElementById('dash-drill-modal');
-  if(!modal){modal=document.createElement('div');modal.id='dash-drill-modal';modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto';modal.onclick=function(e){if(e.target===modal)closeDashDrill();};document.body.appendChild(modal);}
-  modal.innerHTML='<div style="background:#fff;border-radius:16px;width:100%;max-width:860px;margin:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden">' +
-    '<div style="background:#1a1a1a;padding:16px 20px;display:flex;justify-content:space-between;align-items:center">' +
-      '<span style="color:#fff;font-size:16px;font-weight:800">'+title+'</span>' +
-      '<button onclick="closeDashDrill()" style="background:#333;border:none;color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit">✕ Close</button>' +
-    '</div><div style="padding:16px;overflow-x:auto">' +
-      '<table class="tbl" style="width:100%"><thead><tr><th>Client</th><th>Stage</th><th>Event</th>'+fh+'</tr></thead><tbody>'+rows+'</tbody></table>' +
+  if(!modal){modal=document.createElement('div');modal.id='dash-drill-modal';modal.style.cssText='position:fixed;inset:0;background:rgba(15,15,18,.6);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:32px 20px;overflow-y:auto';modal.onclick=function(e){if(e.target===modal)closeDashDrill();};document.body.appendChild(modal);}
+  modal.innerHTML='<style>'+
+    '.dd-card{background:#fff;border-radius:16px;width:100%;max-width:1240px;margin:auto;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden}'+
+    '.dd-head{background:#16161a;padding:18px 24px;display:flex;justify-content:space-between;align-items:center}'+
+    '.dd-title{color:#fff;font-size:17px;font-weight:800;letter-spacing:.2px}'+
+    '.dd-close{background:#2a2a2f;border:none;color:#fff;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit}'+
+    '.dd-close:hover{background:#3a3a40}'+
+    '.dd-body{overflow:auto;max-height:calc(100vh - 180px)}'+
+    '.dd-table{width:100%;border-collapse:collapse;min-width:920px}'+
+    '.dd-table thead th{position:sticky;top:0;background:#f7f7f8;padding:12px 20px;text-align:left;font-size:11px;font-weight:700;color:#8a8a8f;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #ececee;z-index:1}'+
+    '.dd-table thead th.dd-num{text-align:right}'+
+    '.dd-row{cursor:pointer;transition:background .12s}'+
+    '.dd-row:hover{background:#f7f9ff}'+
+    '.dd-row td{padding:14px 20px;border-bottom:1px solid #f2f2f4;font-size:13px;vertical-align:middle;white-space:nowrap}'+
+    '.dd-totals{display:flex;align-items:center;gap:28px;padding:14px 24px;background:#f7f7f8;border-top:2px solid #e4e4e7;flex-wrap:wrap}'+
+    '.dd-totals-label{font-weight:800;color:#1a1a1f;text-transform:uppercase;font-size:11px;letter-spacing:.4px;margin-right:auto}'+
+    '.dd-totals-item{display:flex;align-items:baseline;gap:10px;padding-left:24px;border-left:1px solid #e4e4e7}'+
+    '.dd-totals-item:first-of-type{border-left:none;padding-left:0}'+
+    '.dd-totals-k{font-size:11px;color:#8a8a8f;text-transform:uppercase;letter-spacing:.4px;font-weight:700}'+
+    '.dd-totals-v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}'+
+    '.dd-total-rev{color:#1a1a1f}'+
+    '.dd-total-paid{color:#15803d}'+
+    '.dd-total-bal{color:#b91c1c}'+
+    '.dd-client{min-width:240px;white-space:normal}'+
+    '.dd-name{font-weight:700;font-size:13.5px;color:#1a1a1f}'+
+    '.dd-sub{font-size:11.5px;color:#93939a;margin-top:2px}'+
+    '.dd-ref{font-family:ui-monospace,monospace;color:#6d6d75}'+
+    '.dd-event{min-width:120px}'+
+    '.dd-date{color:#1d4ed8;font-weight:600}'+
+    '.dd-tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}'+
+    '.dd-tag-red{background:#fee2e2;color:#dc2626}'+
+    '.dd-tag-amber{background:#fef3c7;color:#b45309}'+
+    '.dd-muted{color:#b5b5ba}'+
+    '.dd-num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}'+
+    '.dd-rev{color:#1a1a1f}'+
+    '.dd-paid{color:#16a34a}'+
+    '.dd-bal{color:#dc2626;font-weight:800}'+
+    '.dd-arrow{color:#d0d0d4;text-align:center;font-size:14px;width:32px}'+
+    '.dd-foot{padding:14px 24px;border-top:1px solid #f0f0f0;text-align:right;background:#fff}'+
+    '.dd-cta{background:#16161a;color:#fff;border:none;border-radius:9px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}'+
+    '.dd-cta:hover{background:#2a2a2f}'+
+    '@media (max-width:720px){.dd-table{min-width:760px}.dd-totals{gap:16px}.dd-totals-label{margin-right:0;width:100%}}'+
+  '</style>'+
+  '<div class="dd-card">' +
+    '<div class="dd-head">' +
+      '<span class="dd-title">'+title+'</span>' +
+      '<button class="dd-close" onclick="closeDashDrill()">✕ Close</button>' +
     '</div>' +
-    (type!=='overdue'?'<div style="padding:12px 20px;border-top:1px solid #f0f0f0;text-align:right"><button onclick="navTo(\'projects\');closeDashDrill()" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Open All Projects →</button></div>':'') +
+    '<div class="dd-body">' +
+      '<table class="dd-table"><thead><tr><th>Client</th><th>Stage</th><th>Event</th>'+fh+'<th></th></tr></thead><tbody>'+rows+'</tbody></table>' +
+    '</div>' +
+    totBar +
+    (type!=='overdue'?'<div class="dd-foot"><button class="dd-cta" onclick="navTo(\'projects\');closeDashDrill()">Open All Projects →</button></div>':'') +
   '</div>';
   modal.style.display='flex'; document.body.style.overflow='hidden';
 }
@@ -14849,6 +14972,7 @@ function renderDashboard() {
   renderDueAlerts('due-alerts');
 
   var total = list.length, active = list.filter(function(p) { return p.stage !== 'complete'; }).length;
+  var prepLive = list.filter(function(p) { return p.stage === 'preprod' || p.stage === 'production'; }).length;
   var tVal = list.reduce(function(a, p) { return a + netVal(p); }, 0);
   var tPaid = list.reduce(function(a, p) { return a + paidTotal(p); }, 0);
   var tBal = list.reduce(function(a, p) { return a + Math.max(0, balDue(p)); }, 0);
@@ -15060,6 +15184,8 @@ function renderDashboard() {
         '<div class="ml">Total Projects</div><div class="mv">' + total + '</div><div class="ms">↗ View all</div></div>' +
       '<div class="metric amber" style="cursor:pointer" onclick="openDashDrill(\'active\')">' +
         '<div class="ml">Active</div><div class="mv">' + active + '</div><div class="ms">↗ View active</div></div>' +
+      '<div class="metric amber" style="cursor:pointer" onclick="openDashDrill(\'prodlive\')" title="Pre-Production + Production stage projects">' +
+        '<div class="ml">🎬 Pre-Prod + Production</div><div class="mv">' + prepLive + '</div><div class="ms">↗ View these</div></div>' +
       finHTML2 +
       '<div class="metric blue" style="cursor:pointer" onclick="openDashDrill(\'booked\')">' +
         '<div class="ml">Booked This Month</div><div class="mv">' + newThis + '</div><div class="ms">↗ View bookings</div></div>' +
