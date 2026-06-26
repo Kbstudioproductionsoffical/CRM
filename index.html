@@ -2878,169 +2878,8 @@ document.addEventListener('wheel', function(e) {
 
         </div>
         <div class="fg"><div class="fr"><label class="fl">Package Value (₹) *</label><input class="fi" type="number" id="f-value" placeholder="e.g. 250000"></div><div class="fr"><label class="fl">Discount (₹)</label><input class="fi" type="number" id="f-discount" placeholder="0"></div></div>
-        <div class="fr"><label class="fl">Payment Terms</label><select class="fi" id="f-pay-preset" onchange="onPayPresetChange()"><option value="30-50-10-5-5">30% + 50% + 10% + 5% + 5% (Default)</option><option value="30-50-10-10">30% + 50% + 10% + 10%</option><option value="20-60-10-10">20% + 60% + 10% + 10%</option><option value="50-50">50% + 50%</option><option value="custom">✏️ Custom Payment Split</option></select></div>
-        <div id="pay-preset-preview" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:12px;margin-bottom:12px;display:none"></div>
-        <div id="custom-pay-builder" style="display:none;background:#f8f8f8;border:1px solid #e5e5e5;border-radius:10px;padding:14px;margin-bottom:12px">
-          <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:10px">✏️ Custom Payment Split</div>
-          <div id="custom-pay-rows"></div>
-          <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
-            <button type="button" class="btn btn-sm" onclick="addCustomPayRow()">+ Add Installment</button>
-            <span id="custom-pay-total" style="font-size:12px;color:#888;margin-left:4px"></span>
-          </div>
-          <div id="custom-pay-error" style="color:#dc2626;font-size:11px;margin-top:6px;display:none">Total must equal 100%</div>
-        </div>
-
-        <!-- ═══ KB ERP: 5-STAGE PAYMENT STRUCTURE BUILDER ═══ -->
-        <div id="kb-erp-pay-builder" style="background:#f8f8ff;border:1.5px solid #c7d2fe;border-radius:12px;padding:16px;margin-bottom:14px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <div style="font-size:13px;font-weight:800;color:#3730a3">📋 KB Payment Schedule</div>
-            <div id="kb-erp-total-check" style="font-size:11px;font-weight:700;color:#6b7280"></div>
-          </div>
-
-          <!-- Stage 1: Advance (always required) -->
-          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-              <span style="background:#1d4ed8;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">1</span>
-              <span style="font-size:12px;font-weight:700;color:#1d4ed8">Advance</span>
-              <span style="font-size:10px;color:#6b7280;margin-left:2px">— required to create project</span>
-              <span style="margin-left:auto;background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Gate 1</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
-                <select class="fi" id="kb-s1-type" onchange="kbErpUpdateStage(1)" style="font-size:12px;padding:6px 8px">
-                  <option value="pct">Percentage (%)</option>
-                  <option value="fixed">Fixed Amount (₹)</option>
-                </select></div>
-              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
-                <input class="fi" type="number" id="kb-s1-val" placeholder="e.g. 30" oninput="kbErpUpdateStage(1)" style="font-size:12px;padding:6px 8px"></div>
-            </div>
-            <div id="kb-s1-preview" style="font-size:11px;color:#15803d;font-weight:600;margin-top:5px"></div>
-          </div>
-
-          <!-- Stage 2: Event Payment(s) -->
-          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-              <span style="background:#7c3aed;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">2</span>
-              <span style="font-size:12px;font-weight:700;color:#7c3aed">Event Payment</span>
-              <span style="font-size:10px;color:#6b7280;margin-left:2px">— date auto-fetched from event</span>
-              <span style="margin-left:auto;background:#f3e8ff;color:#7c3aed;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">📅 Date-linked</span>
-            </div>
-            <!-- Split toggle -->
-            <div style="display:flex;gap:8px;margin-bottom:10px">
-              <button type="button" id="kb-s2-single-btn" onclick="kbErpSetEventMode('single')" style="flex:1;padding:7px;font-size:11px;font-weight:700;border-radius:8px;border:2px solid #7c3aed;background:#7c3aed;color:#fff;cursor:pointer">Single Event</button>
-              <button type="button" id="kb-s2-split-btn" onclick="kbErpSetEventMode('split')" style="flex:1;padding:7px;font-size:11px;font-weight:700;border-radius:8px;border:2px solid #e5e7eb;background:#fff;color:#6b7280;cursor:pointer">Split: Pre-Wedding + Main Event</button>
-            </div>
-            <!-- Single event -->
-            <div id="kb-s2-single" style="">
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
-                  <select class="fi" id="kb-s2-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
-                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
-                  </select></div>
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
-                  <input class="fi" type="number" id="kb-s2-val" placeholder="e.g. 50" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Due Date (or auto from event)</label>
-                  <input class="fi" type="date" id="kb-s2-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
-              </div>
-              <div id="kb-s2-preview" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:5px"></div>
-            </div>
-            <!-- Split events -->
-            <div id="kb-s2-split" style="display:none">
-              <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">Pre-Wedding Payment</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
-                  <select class="fi" id="kb-s2a-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
-                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
-                  </select></div>
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
-                  <input class="fi" type="number" id="kb-s2a-val" placeholder="e.g. 25" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Pre-Wedding Date</label>
-                  <input class="fi" type="date" id="kb-s2a-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
-              </div>
-              <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">Main Event Payment</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
-                  <select class="fi" id="kb-s2b-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
-                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
-                  </select></div>
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
-                  <input class="fi" type="number" id="kb-s2b-val" placeholder="e.g. 25" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
-                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Main Event Date</label>
-                  <input class="fi" type="date" id="kb-s2b-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
-              </div>
-              <div id="kb-s2-split-preview" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:5px"></div>
-            </div>
-          </div>
-
-          <!-- Stage 3: Raw Data Payment -->
-          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-              <span style="background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">3</span>
-              <span style="font-size:12px;font-weight:700;color:#dc2626">Raw Data Payment</span>
-              <span style="font-size:10px;color:#6b7280;margin-left:2px">— before handing over files</span>
-              <span style="margin-left:auto;background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
-                <select class="fi" id="kb-s3-type" onchange="kbErpUpdateStage(3)" style="font-size:12px;padding:6px 8px">
-                  <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
-                </select></div>
-              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
-                <input class="fi" type="number" id="kb-s3-val" placeholder="e.g. 10" oninput="kbErpUpdateStage(3)" style="font-size:12px;padding:6px 8px"></div>
-            </div>
-            <div id="kb-s3-preview" style="font-size:11px;color:#dc2626;font-weight:600;margin-top:5px"></div>
-          </div>
-
-          <!-- Stage 4: Teaser & Highlight -->
-          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-              <span style="background:#d97706;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">4</span>
-              <span style="font-size:12px;font-weight:700;color:#d97706">Teaser &amp; Highlight Delivery</span>
-              <span style="font-size:10px;color:#6b7280;margin-left:2px">— before sharing teaser</span>
-              <span style="margin-left:auto;background:#fffbeb;color:#d97706;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
-                <select class="fi" id="kb-s4-type" onchange="kbErpUpdateStage(4)" style="font-size:12px;padding:6px 8px">
-                  <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
-                </select></div>
-              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
-                <input class="fi" type="number" id="kb-s4-val" placeholder="e.g. 5" oninput="kbErpUpdateStage(4)" style="font-size:12px;padding:6px 8px"></div>
-            </div>
-            <div id="kb-s4-preview" style="font-size:11px;color:#d97706;font-weight:600;margin-top:5px"></div>
-          </div>
-
-          <!-- Stage 5: Final Delivery -->
-          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
-              <span style="background:#059669;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">5</span>
-              <span style="font-size:12px;font-weight:700;color:#059669">Final Delivery</span>
-              <span style="font-size:10px;color:#6b7280;margin-left:2px">— full balance cleared</span>
-              <span style="margin-left:auto;background:#dcfce7;color:#059669;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
-                <select class="fi" id="kb-s5-type" onchange="kbErpUpdateStage(5)" style="font-size:12px;padding:6px 8px">
-                  <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
-                </select></div>
-              <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
-                <input class="fi" type="number" id="kb-s5-val" placeholder="e.g. 5" oninput="kbErpUpdateStage(5)" style="font-size:12px;padding:6px 8px"></div>
-            </div>
-            <div id="kb-s5-preview" style="font-size:11px;color:#059669;font-weight:600;margin-top:5px"></div>
-          </div>
-
-          <!-- Running total check -->
-          <div id="kb-erp-sum-bar" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 12px;font-size:12px;color:#1d4ed8;font-weight:700;display:flex;justify-content:space-between;align-items:center">
-            <span>Total assigned: <span id="kb-erp-assigned">0%</span></span>
-            <span id="kb-erp-remaining" style="font-size:11px;color:#6b7280;font-weight:600"></span>
-          </div>
-
-          <!-- 7-day reminder note -->
-          <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:11px;color:#92400e;margin-top:8px">
-            🔔 <strong>7-day reminder</strong> will auto-fire for all event-linked payments · Other payments trigger after prior stage clears
-          </div>
-        </div>
-        <!-- ═══ END KB ERP BUILDER ═══ -->
+        <!-- Payment Terms & KB Schedule builder now in Payments tab -->
+        <!-- KB ERP builder lives in Payments tab -->
         <div id="new-proj-advance-block" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;margin-bottom:12px">
           <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:3px">💰 Advance Payment Required</div>
           <div style="font-size:11px;color:#a16207;margin-bottom:10px">A new project cannot be saved without recording the first payment. Enter the advance received below.</div>
@@ -3170,7 +3009,180 @@ document.addEventListener('wheel', function(e) {
       <div id="t-payments" class="tab-pane">
         <div class="info info-green" id="t-pay-summary"></div>
 
-        <!-- Gates are now shown inline in the Payment Schedule below -->
+        <!-- ═══ Payment Terms & KB Schedule Builder (moved here from Details tab) ═══ -->
+        <div id="pay-terms-builder-panel" style="background:#f8f8ff;border:1.5px solid #c7d2fe;border-radius:12px;margin-bottom:16px;overflow:hidden">
+          <!-- Collapsed header / toggle bar -->
+          <div id="pay-builder-header" onclick="togglePayBuilder()" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;user-select:none">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div style="font-size:13px;font-weight:800;color:#3730a3">💳 Payment Terms & Schedule</div>
+              <div id="kb-erp-total-check" style="font-size:11px;font-weight:700;color:#6b7280"></div>
+              <span id="pay-builder-preset-badge" style="font-size:10px;color:#6b7280;background:#ede9fe;padding:2px 8px;border-radius:20px;font-weight:600;display:none"></span>
+            </div>
+            <button type="button" id="pay-builder-toggle-btn" onclick="togglePayBuilder();event.stopPropagation()" style="background:#3730a3;color:#fff;border:none;border-radius:7px;padding:5px 13px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">✏️ Edit Schedule</button>
+          </div>
+          <!-- Collapsible body -->
+          <div id="pay-builder-body" style="display:none;padding:0 16px 16px;border-top:1px solid #c7d2fe">
+          <div class="fr" style="margin-bottom:10px;margin-top:12px">
+            <label class="fl">Payment Split</label>
+            <select class="fi" id="f-pay-preset" onchange="onPayPresetChange()" style="max-width:340px">
+              <option value="30-50-10-5-5">30% + 50% + 10% + 5% + 5% (Default)</option>
+              <option value="30-50-10-10">30% + 50% + 10% + 10%</option>
+              <option value="20-60-10-10">20% + 60% + 10% + 10%</option>
+              <option value="50-50">50% + 50%</option>
+              <option value="custom">✏️ Custom Payment Split</option>
+            </select>
+          </div>
+          <div id="pay-preset-preview" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:12px;margin-bottom:10px;display:none"></div>
+
+          <!-- Custom split rows (shown only when custom is selected) -->
+          <div id="custom-pay-full-builder" style="display:none;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:10px">
+            <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:10px">✏️ Custom Payment Split</div>
+            <div id="custom-pay-rows"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+              <button type="button" class="btn btn-sm" onclick="addCustomPayRow()">+ Add Installment</button>
+              <span id="custom-pay-total" style="font-size:12px;color:#888;margin-left:4px"></span>
+            </div>
+            <div id="custom-pay-error" style="color:#dc2626;font-size:11px;margin-top:6px;display:none">Total must equal 100%</div>
+          </div>
+
+          <!-- 5-Stage KB ERP builder (shown for all presets, locked/auto-filled from preset) -->
+          <div id="kb-erp-pay-builder" style="display:none">
+            <!-- Stage 1: Advance -->
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px" id="kb-stage-row-1">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+                <span style="background:#1d4ed8;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">1</span>
+                <span style="font-size:12px;font-weight:700;color:#1d4ed8">Advance</span>
+                <span style="font-size:10px;color:#6b7280;margin-left:2px">— required to create project</span>
+                <span style="margin-left:auto;background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Gate 1</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                  <select class="fi" id="kb-s1-type" onchange="kbErpUpdateStage(1)" style="font-size:12px;padding:6px 8px">
+                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                  </select></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                  <input class="fi" type="number" id="kb-s1-val" placeholder="e.g. 30" oninput="kbErpUpdateStage(1)" style="font-size:12px;padding:6px 8px"></div>
+              </div>
+              <div id="kb-s1-preview" style="font-size:11px;color:#15803d;font-weight:600;margin-top:5px"></div>
+            </div>
+            <!-- Stage 2: Event Payment -->
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px" id="kb-stage-row-2">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+                <span style="background:#7c3aed;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">2</span>
+                <span style="font-size:12px;font-weight:700;color:#7c3aed">Event Payment</span>
+                <span style="font-size:10px;color:#6b7280;margin-left:2px">— date auto-fetched from event</span>
+                <span style="margin-left:auto;background:#f3e8ff;color:#7c3aed;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">📅 Date-linked</span>
+              </div>
+              <div style="display:flex;gap:8px;margin-bottom:10px">
+                <button type="button" id="kb-s2-single-btn" onclick="kbErpSetEventMode('single')" style="flex:1;padding:7px;font-size:11px;font-weight:700;border-radius:8px;border:2px solid #7c3aed;background:#7c3aed;color:#fff;cursor:pointer">Single Event</button>
+                <button type="button" id="kb-s2-split-btn" onclick="kbErpSetEventMode('split')" style="flex:1;padding:7px;font-size:11px;font-weight:700;border-radius:8px;border:2px solid #e5e7eb;background:#fff;color:#6b7280;cursor:pointer">Split: Pre-Wedding + Main Event</button>
+              </div>
+              <div id="kb-s2-single">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                    <select class="fi" id="kb-s2-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
+                      <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                    </select></div>
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                    <input class="fi" type="number" id="kb-s2-val" placeholder="e.g. 50" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Due Date (auto from event)</label>
+                    <input class="fi" type="date" id="kb-s2-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
+                </div>
+                <div id="kb-s2-preview" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:5px"></div>
+              </div>
+              <div id="kb-s2-split" style="display:none">
+                <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">Pre-Wedding Payment</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                    <select class="fi" id="kb-s2a-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
+                      <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                    </select></div>
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                    <input class="fi" type="number" id="kb-s2a-val" placeholder="e.g. 25" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Pre-Wedding Date</label>
+                    <input class="fi" type="date" id="kb-s2a-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
+                </div>
+                <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">Main Event Payment</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                    <select class="fi" id="kb-s2b-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
+                      <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                    </select></div>
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                    <input class="fi" type="number" id="kb-s2b-val" placeholder="e.g. 25" oninput="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px"></div>
+                  <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Main Event Date</label>
+                    <input class="fi" type="date" id="kb-s2b-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
+                </div>
+                <div id="kb-s2-split-preview" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:5px"></div>
+              </div>
+            </div>
+            <!-- Stage 3: Raw Data -->
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px" id="kb-stage-row-3">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+                <span style="background:#dc2626;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">3</span>
+                <span style="font-size:12px;font-weight:700;color:#dc2626">Raw Data Payment</span>
+                <span style="font-size:10px;color:#6b7280;margin-left:2px">— before handing over files</span>
+                <span style="margin-left:auto;background:#fee2e2;color:#dc2626;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                  <select class="fi" id="kb-s3-type" onchange="kbErpUpdateStage(3)" style="font-size:12px;padding:6px 8px">
+                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                  </select></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                  <input class="fi" type="number" id="kb-s3-val" placeholder="e.g. 10" oninput="kbErpUpdateStage(3)" style="font-size:12px;padding:6px 8px"></div>
+              </div>
+              <div id="kb-s3-preview" style="font-size:11px;color:#dc2626;font-weight:600;margin-top:5px"></div>
+            </div>
+            <!-- Stage 4: Teaser -->
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px" id="kb-stage-row-4">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+                <span style="background:#d97706;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">4</span>
+                <span style="font-size:12px;font-weight:700;color:#d97706">Teaser &amp; Highlight Delivery</span>
+                <span style="font-size:10px;color:#6b7280;margin-left:2px">— before sharing teaser</span>
+                <span style="margin-left:auto;background:#fffbeb;color:#d97706;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                  <select class="fi" id="kb-s4-type" onchange="kbErpUpdateStage(4)" style="font-size:12px;padding:6px 8px">
+                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                  </select></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                  <input class="fi" type="number" id="kb-s4-val" placeholder="e.g. 5" oninput="kbErpUpdateStage(4)" style="font-size:12px;padding:6px 8px"></div>
+              </div>
+              <div id="kb-s4-preview" style="font-size:11px;color:#d97706;font-weight:600;margin-top:5px"></div>
+            </div>
+            <!-- Stage 5: Final -->
+            <div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:11px 13px;margin-bottom:8px" id="kb-stage-row-5">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+                <span style="background:#059669;color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">5</span>
+                <span style="font-size:12px;font-weight:700;color:#059669">Final Delivery</span>
+                <span style="font-size:10px;color:#6b7280;margin-left:2px">— full balance cleared</span>
+                <span style="margin-left:auto;background:#dcfce7;color:#059669;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🔒 Hard Gate</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
+                  <select class="fi" id="kb-s5-type" onchange="kbErpUpdateStage(5)" style="font-size:12px;padding:6px 8px">
+                    <option value="pct">Percentage (%)</option><option value="fixed">Fixed Amount (₹)</option>
+                  </select></div>
+                <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Value</label>
+                  <input class="fi" type="number" id="kb-s5-val" placeholder="e.g. 5" oninput="kbErpUpdateStage(5)" style="font-size:12px;padding:6px 8px"></div>
+              </div>
+              <div id="kb-s5-preview" style="font-size:11px;color:#059669;font-weight:600;margin-top:5px"></div>
+            </div>
+            <!-- Running total -->
+            <div id="kb-erp-sum-bar" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:9px 12px;font-size:12px;color:#1d4ed8;font-weight:700;display:flex;justify-content:space-between;align-items:center">
+              <span>Total assigned: <span id="kb-erp-assigned">0%</span></span>
+              <span id="kb-erp-remaining" style="font-size:11px;color:#6b7280;font-weight:600"></span>
+            </div>
+            <div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:11px;color:#92400e;margin-top:8px">
+              🔔 <strong>7-day reminder</strong> will auto-fire for all event-linked payments · Other payments trigger after prior stage clears
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveKbScheduleOnly()" style="margin-top:10px;width:100%">💾 Save Payment Schedule</button>
+          </div>
+        </div>
+          </div><!-- /#pay-builder-body -->
+        <!-- ═══ END Payment Terms & KB Schedule Builder ═══ -->
 
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div style="font-size:13px;font-weight:700">Payment Ledger</div>
@@ -5118,20 +5130,91 @@ function kbErpGetSchedule() {
   return { stages: stages, eventMode: mode };
 }
 
+// ── Toggle Payment Terms builder panel (collapsed by default) ──
+function togglePayBuilder() {
+  var body = document.getElementById('pay-builder-body');
+  var btn  = document.getElementById('pay-builder-toggle-btn');
+  if (!body) return;
+  var isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (btn) btn.textContent = isOpen ? '✏️ Edit Schedule' : '✕ Close Editor';
+}
+// ── Update preset badge in collapsed builder header ──
+function updatePayBuilderBadge() {
+  var badge = document.getElementById('pay-builder-preset-badge');
+  if (!badge) return;
+  var sel = document.getElementById('f-pay-preset');
+  if (!sel) return;
+  var val = sel.value || '';
+  var labels = {
+    '30-50-10-5-5': '30·50·10·5·5%',
+    '30-50-10-10':  '30·50·10·10%',
+    '20-60-10-10':  '20·60·10·10%',
+    '50-50':        '50·50%',
+    'custom':       'Custom Split'
+  };
+  var label = labels[val] || val;
+  badge.textContent = label;
+  badge.style.display = label ? 'inline-block' : 'none';
+}
+
+// ── Save KB Schedule from Payments tab without full project save ──
+function saveKbScheduleOnly() {
+  if (!editProjId) { showToast('Save the project first.'); return; }
+  var p = projects[editProjId]; if (!p) return;
+  if (typeof kbErpGetSchedule !== 'function') return;
+  var newSched = kbErpGetSchedule();
+  if (!newSched || !newSched.stages || !newSched.stages.length) {
+    showToast('⚠️ No schedule to save. Fill in at least the Advance stage.'); return;
+  }
+  db.ref('crm_projects/'+editProjId).update({
+    kbSchedule: newSched,
+    kbEventMode: _kbErpEventMode||'single',
+    payPreset: gv('f-pay-preset')||p.payPreset||'30-50-10-5-5',
+    updatedAt: Date.now()
+  }, function(err) {
+    if (err) { showToast('Error: '+err.message); return; }
+    p.kbSchedule = newSched;
+    p.kbEventMode = _kbErpEventMode||'single';
+    p.payPreset = gv('f-pay-preset')||p.payPreset;
+    showToast('✅ Payment schedule saved!');
+    // Auto-collapse the builder after saving
+    var _body = document.getElementById('pay-builder-body');
+    var _btn  = document.getElementById('pay-builder-toggle-btn');
+    if (_body) { _body.style.display = 'none'; }
+    if (_btn)  { _btn.textContent = '✏️ Edit Schedule'; }
+    setTimeout(renderPayLedger, 200);
+  });
+}
+
 // ── Load KB ERP schedule into form (when editing a project) ──
 function kbErpLoadSchedule(kbSchedule) {
-  if (!kbSchedule || !kbSchedule.stages) return;
+  if (!kbSchedule || !kbSchedule.stages) {
+    // No saved schedule — just apply preset defaults
+    onPayPresetChange();
+    kbErpAutoFillEventDate();
+    return;
+  }
   var stages = kbSchedule.stages;
 
+  // First apply preset lock/hide logic (populates fields from preset)
+  onPayPresetChange();
+
+  // Then overlay saved values (including fixed-amount overrides and saved dates)
   function fillStage(key, type_id, val_id, date_id) {
     var s = stages.find(function(x){ return x.key === key; });
     if (!s) return;
     var tEl = document.getElementById(type_id);
     var vEl = document.getElementById(val_id);
     var dEl = date_id ? document.getElementById(date_id) : null;
-    if (tEl) tEl.value = s.type || 'pct';
-    if (vEl) vEl.value = s.val || '';
-    if (dEl && s.dueDate) dEl.value = s.dueDate;
+    if (tEl) { tEl.value = s.type || 'pct'; }
+    if (vEl) { vEl.value = s.val || ''; }
+    if (dEl && s.dueDate) { dEl.value = s.dueDate; dEl.dataset.manuallySet = '1'; }
+    // Show the row even if preset would hide it (project was saved with this stage)
+    var rowMap = { kb_advance:'kb-stage-row-1', kb_event:'kb-stage-row-2', kb_prewed:'kb-stage-row-2',
+                   kb_mainevent:'kb-stage-row-2', kb_rawdata:'kb-stage-row-3', kb_teaser:'kb-stage-row-4', kb_final:'kb-stage-row-5' };
+    var row = document.getElementById(rowMap[key]);
+    if (row && s.val) row.style.display = '';
   }
 
   var mode = kbSchedule.eventMode || 'single';
@@ -5148,37 +5231,62 @@ function kbErpLoadSchedule(kbSchedule) {
   fillStage('kb_teaser',  'kb-s4-type','kb-s4-val', null);
   fillStage('kb_final',   'kb-s5-type','kb-s5-val', null);
 
+  // Auto-fill event date if not already manually set
+  kbErpAutoFillEventDate();
   kbErpUpdateAll();
 }
 
-// ── Auto-fill event date into Stage 2 when event date changes ─
-(function() {
-  function _attachEventDateSync() {
-    var evDateEl = document.getElementById('f-date');
-    if (!evDateEl) { setTimeout(_attachEventDateSync, 1000); return; }
+// ── Auto-fill event date into Stage 2 date fields ──
+// Safe to call at any time; does not overwrite manually-set dates.
+function kbErpAutoFillEventDate() {
+  var evDate = (document.getElementById('f-date')||{}).value || '';
+  if (!evDate) return;
+  var s2d = document.getElementById('kb-s2-date');
+  if (s2d && !s2d.dataset.manuallySet && !s2d.value) s2d.value = evDate;
+  var s2bd = document.getElementById('kb-s2b-date');
+  if (s2bd && !s2bd.dataset.manuallySet && !s2bd.value) s2bd.value = evDate;
+}
+
+// ── KB ERP listeners — wired once after Payments tab first renders ──
+var _kbErpListenersAttached = false;
+function _attachKbErpListeners() {
+  if (_kbErpListenersAttached) return;
+  // f-date lives in Details tab — always present in DOM
+  var evDateEl = document.getElementById('f-date');
+  if (evDateEl && !evDateEl._kbDateWired) {
+    evDateEl._kbDateWired = true;
     evDateEl.addEventListener('change', function() {
-      // Only auto-fill if user hasn't manually set a date
-      var s2d = document.getElementById('kb-s2-date');
-      if (s2d && !s2d.dataset.manuallySet) s2d.value = evDateEl.value;
-      // For main event in split mode — same logic
-      var s2bd = document.getElementById('kb-s2b-date');
-      if (s2bd && !s2bd.dataset.manuallySet) s2bd.value = evDateEl.value;
+      kbErpAutoFillEventDate();
       kbErpUpdateAll();
     });
-    // Mark as manually set when user picks a date directly
-    ['kb-s2-date','kb-s2a-date','kb-s2b-date'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('change', function(){ el.dataset.manuallySet = '1'; });
-    });
-    // Also update preview when package value changes
-    ['f-value','f-discount'].forEach(function(id){
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('input', function(){ kbErpUpdateAll(); });
-    });
   }
-  document.addEventListener('DOMContentLoaded', _attachEventDateSync);
-  setTimeout(_attachEventDateSync, 2000);
-})();
+  // f-value / f-discount live in Details tab — always present
+  ['f-value','f-discount'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el && !el._kbValWired) {
+      el._kbValWired = true;
+      el.addEventListener('input', function(){ kbErpUpdateAll(); updatePayPresetPreview(); });
+    }
+  });
+  // f-pay-preset now lives in Payments tab — wire after tab renders
+  var presetEl = document.getElementById('f-pay-preset');
+  if (presetEl && !presetEl._kbPresetWired) {
+    presetEl._kbPresetWired = true;
+    presetEl.addEventListener('change', function(){ onPayPresetChange(); updatePayPresetPreview(); });
+  }
+  // KB date fields — mark manually set
+  ['kb-s2-date','kb-s2a-date','kb-s2b-date'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && !el._kbDateManualWired) {
+      el._kbDateManualWired = true;
+      el.addEventListener('change', function(){ el.dataset.manuallySet = '1'; kbErpUpdateAll(); });
+    }
+  });
+  _kbErpListenersAttached = true;
+}
+// Wire immediately for Details tab fields (always in DOM), and again when Payments tab opens
+document.addEventListener('DOMContentLoaded', _attachKbErpListeners);
+setTimeout(_attachKbErpListeners, 2000);
 
 // ═══════════════════════════════════════════════════════════════
 // KB ERP — 7-DAY REMINDER ENGINE
@@ -5297,8 +5405,8 @@ function kbErpGetReminderMsg(p, stageKey) {
 (function() {
   function _add7DayHC() {
     if (typeof HC_CHECKS === 'undefined') { setTimeout(_add7DayHC, 1000); return; }
-    var already = HC_CHECKS.some(function(c){ return c.key === 'kb_7day_event_pay'; });
-    if (already) return;
+    // kb_7day_event_pay disabled — routine upcoming-payment reminders handled by Payments tab
+    return; // disabled
     HC_CHECKS.push({
       type: 'duedate', key: 'kb_7day_event_pay',
       label: 'Event payment due within 7 days', icon: '🔔', severity: 'high',
@@ -5419,8 +5527,18 @@ function normStage(s) { return (s == null ? '' : String(s)).trim().toLowerCase()
 function stageMatches(a, b) { return !!a && !!b && normStage(a) === normStage(b); }
 function getPayTerms(p){
   var base;
-  if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length) base=p.customPayTerms;
-  else base=PAY_PRESETS[p&&p.payPreset?p.payPreset:'30-50-10-5-5']||PAY_PRESETS['30-50-10-5-5'];
+  if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length){
+    base=p.customPayTerms;
+  } else if(p&&p.kbSchedule&&p.kbSchedule.stages&&p.kbSchedule.stages.length){
+    // ── Use kbSchedule as source of truth for preset projects ──
+    // This ensures the schedule table only shows stages that were actually saved,
+    // e.g. 50-50 shows 2 rows, not the 5-row default from PAY_PRESETS.
+    base=p.kbSchedule.stages.filter(function(s){ return s.val>0||s.amount>0; }).map(function(s){
+      return { key:s.key, label:s.label, pct:s.type==='pct'?s.val:Math.round((s.amount/(Math.max(1,(p.value||0)-(p.discount||0))))*100), desc:s.desc||'' };
+    });
+  } else {
+    base=PAY_PRESETS[p&&p.payPreset?p.payPreset:'30-50-10-5-5']||PAY_PRESETS['30-50-10-5-5'];
+  }
   // Apply any saved per-project label overrides
   if(p&&p.payTermLabels){
     var cl=p.payTermLabels;
@@ -5438,7 +5556,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v71.2-2026-06-26-custom-split-allocation-fix';
+var CRM_BUILD_VERSION = 'v71.3-2026-06-26-panel-isolation-fix';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -5633,7 +5751,7 @@ document.body.addEventListener('click', function(e) {
 })();
 
 document.querySelectorAll('.tab-btn').forEach(function(btn){
-  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);}if(target==='t-docs')renderDocsList();if(target==='t-client-issues'&&editProjId){var wrap=document.getElementById('client-issues-panel-wrap');if(wrap){wrap.innerHTML='<div id="client-issues-panel-'+editProjId+'"><div style="color:#aaa;font-size:12px;padding:20px;text-align:center">Loading…</div></div>';renderClientIssuesPanel(editProjId);}}});
+  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);setTimeout(function(){_attachKbErpListeners();if(editProjId&&projects[editProjId]){var _p2=projects[editProjId];if(_p2.kbSchedule&&typeof kbErpLoadSchedule==='function'){kbErpLoadSchedule(_p2.kbSchedule);}else{onPayPresetChange();kbErpAutoFillEventDate();}}else{onPayPresetChange();}},200);}if(target==='t-docs')renderDocsList();if(target==='t-client-issues'&&editProjId){var wrap=document.getElementById('client-issues-panel-wrap');if(wrap){wrap.innerHTML='<div id="client-issues-panel-'+editProjId+'"><div style="color:#aaa;font-size:12px;padding:20px;text-align:center">Loading…</div></div>';renderClientIssuesPanel(editProjId);}}});
 });
 
 function initUsers(cb){
@@ -10557,8 +10675,10 @@ $('btn-new-proj').addEventListener('click',function(){
   $('proj-modal-refcode').innerHTML='<span style="font-size:11px;color:#888">Ref code auto-generated on save</span>';
   ['f-bride','f-groom','f-phone','f-whatsapp','f-email','f-city','f-venue','f-requirements','f-general-notes','f-team-notes','f-stage-notes','f-shotlist','f-prewed','f-drivelink','f-internal','f-deliv-notes','f-raw-notes','f-value','f-discount','f-del-date','f-date','f-bookdate','f-act-del','f-refcode','f-bride-dob','f-groom-dob','f-instagram','f-client-flag','f-flag-note'].forEach(function(id){sv(id,'');});
   sv('f-stage','preprod');sv('f-region','');sv('f-postprod','');sv('f-priority','0');sv('f-pay-preset','30-50-10-5-5');
-  $('pay-preset-preview').style.display='none';
-  var cpb=$('custom-pay-builder');if(cpb){cpb.style.display='none';$('custom-pay-rows').innerHTML='';}
+  var pprev=$('pay-preset-preview');if(pprev)pprev.style.display='none';
+  var cpbNew=$('custom-pay-full-builder');if(cpbNew)cpbNew.style.display='none';
+  if($('custom-pay-rows'))$('custom-pay-rows').innerHTML='';
+  setTimeout(function(){ onPayPresetChange(); kbErpAutoFillEventDate(); }, 150);
   $('region-hint').style.display='none';
   populateStateDropdown('f-state','');
   $('btn-delete-proj').style.display='none';
@@ -11361,6 +11481,19 @@ function isAdvanceStageKey(s) {
   if (n==='p30'||n==='p20'||n==='p50a'||n==='cp0'||n==='cq0'||n==='kb_advance') return true;
   return n.indexOf('advance')!==-1 || n.indexOf('booking')!==-1;
 }
+
+// ── KB-key → legacy preset keys (reverse of LEGACY_TO_KB) ──────────────────
+// Used in getPaymentScheduleWithCarryForward when getPayTerms returns kb_* keys
+// (from kbSchedule) but old payLedger entries carry preset keys (p20, p50…).
+var _KB_TO_LEGACY_KEYS = {
+  kb_advance:   ['p30','p20','p50a','cp0','cq0','advance'],
+  kb_event:     ['p50','p60','p50b','event'],
+  kb_prewed:    ['p40','p30b'],
+  kb_mainevent: ['p50b','p60'],
+  kb_rawdata:   ['p10a','p10'],
+  kb_teaser:    ['p5a','p10b'],
+  kb_final:     ['p5b','p10b','p10c','pfinal']
+};
 function getPaymentScheduleWithCarryForward(p){
   if(!p) return [];
   var terms=getPayTerms(p);
@@ -11433,9 +11566,10 @@ function getPaymentScheduleWithCarryForward(p){
     });
   }
 
-  // ── Preset mode (original logic with LEGACY_TO_KB mapping) ─────────────────
+  // ── Preset mode: handles both legacy-key terms (p20, p60…) and kb_* key terms ──
   var generalUsed=0;
   var carry=0;
+  // Forward map: preset term key → equivalent kb_* key in ledger
   var LEGACY_TO_KB={
     p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', cp0:'kb_advance',
     p50:'kb_event',   p60:'kb_event',   p50b:'kb_event',
@@ -11446,15 +11580,22 @@ function getPaymentScheduleWithCarryForward(p){
   };
   return terms.map(function(t, idx){
     var baseExp=Math.round(net*t.pct/100);
-    var kbEquiv=LEGACY_TO_KB[t.key];
+    // kbEquiv: if term uses preset key (p20), find kb_* ledger entries
+    var kbEquiv=LEGACY_TO_KB[t.key]||null;
+    // legacyEquivs: if term uses kb_* key (from kbSchedule), find p20/p50 ledger entries
+    var legacyEquivs=(_KB_TO_LEGACY_KEYS[t.key])||[];
     var isFirstStage = (idx === 0);
+    function entryMatchesTerm(stageVal) {
+      return stageMatches(stageVal, t.key)
+        || (kbEquiv && stageMatches(stageVal, kbEquiv))
+        || legacyEquivs.some(function(lk){ return stageMatches(stageVal, lk); })
+        || (isFirstStage && isAdvanceStageKey(stageVal));
+    }
     var directPaid=ledger.filter(function(e){
-      return stageMatches(e.stage, t.key) || (kbEquiv && stageMatches(e.stage, kbEquiv)) || (isFirstStage && isAdvanceStageKey(e.stage));
+      return !e.splitAllocation && entryMatchesTerm(e.stage);
     }).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var splitPaid=ledger.filter(function(e){return e.splitAllocation;}).reduce(function(a,e){
-      var alloc=e.splitAllocation.find(function(al){
-        return stageMatches(al.stage, t.key) || (kbEquiv && stageMatches(al.stage, kbEquiv)) || (isFirstStage && isAdvanceStageKey(al.stage));
-      });
+      var alloc=e.splitAllocation.find(function(al){ return entryMatchesTerm(al.stage); });
       return a+(alloc?parseInt(alloc.amount)||0:0);
     },0);
     var exp=baseExp+carry;
@@ -12211,46 +12352,62 @@ function waPopupOpen() {
 }
 
 // ═══ PAY PRESET PREVIEW ══════════════════════════════
-[$('f-value'),$('f-discount'),$('f-pay-preset')].forEach(function(el){if(el)el.addEventListener(el.tagName==='SELECT'?'change':'input',updatePayPresetPreview);});
+// Pay preset preview wired in _attachKbErpListeners and onPayPresetChange
 function onPayPresetChange(){
   var preset=gv('f-pay-preset');
-  var builder=$('custom-pay-builder');
-  if(builder)builder.style.display=preset==='custom'?'block':'none';
-  if(preset==='custom'){if(!$('custom-pay-rows').children.length){addCustomPayRow();addCustomPayRow();addCustomPayRow();}updateCustomPayTotal();}
-  // Hide the 5-stage KB Schedule builder when using Custom Split — the custom
-  // split rows ARE the schedule; showing both is redundant and confusing.
+  if (typeof updatePayBuilderBadge === 'function') updatePayBuilderBadge();
+  var isCustom = preset === 'custom';
+
+  // Toggle custom split full builder
+  var customFull = $('custom-pay-full-builder');
+  if(customFull) customFull.style.display = isCustom ? 'block' : 'none';
+  if(isCustom){ if(!$('custom-pay-rows').children.length){addCustomPayRow();addCustomPayRow();addCustomPayRow();} updateCustomPayTotal(); }
+
+  // Toggle KB ERP 5-stage builder
   var kbBuilder=$('kb-erp-pay-builder');
-  if(kbBuilder)kbBuilder.style.display=preset==='custom'?'none':'block';
+  if(kbBuilder) kbBuilder.style.display = isCustom ? 'none' : 'block';
+
   updatePayPresetPreview();
 
-  // ── KB ERP: auto-fill stage fields from preset ──
+  if(isCustom) return; // custom split manages its own fields
+
+  // ── Auto-fill stage fields from preset and LOCK them (readonly) ──
   var presetMap = {
     '30-50-10-5-5': { s1:30, s2:50, s3:10, s4:5,  s5:5  },
     '30-50-10-10':  { s1:30, s2:50, s3:10, s4:null,s5:10 },
     '20-60-10-10':  { s1:20, s2:60, s3:10, s4:null,s5:10 },
-    '50-50':        { s1:50, s2:null,s3:null,s4:null,s5:50 }
+    '50-50':        { s1:50, s2:50, s3:null,s4:null,s5:null }
   };
   var map = presetMap[preset];
   if (!map) return;
 
-  function setStage(valId, typeId, val) {
+  function setStage(rowId, valId, typeId, val) {
     var vEl = document.getElementById(valId);
     var tEl = document.getElementById(typeId);
-    if (vEl) vEl.value = val !== null ? val : '';
-    if (tEl) tEl.value = 'pct';
+    var row = document.getElementById(rowId);
+    if (val !== null && val !== undefined) {
+      if (vEl) { vEl.value = val; vEl.readOnly = true; vEl.style.background='#f0f4ff'; vEl.style.color='#3730a3'; }
+      if (tEl) { tEl.value = 'pct'; tEl.disabled = true; }
+      if (row) row.style.display = '';
+    } else {
+      // Hide this stage row — not used in this preset
+      if (row) row.style.display = 'none';
+      if (vEl) { vEl.value = ''; vEl.readOnly = false; vEl.style.background=''; vEl.style.color=''; }
+      if (tEl) { tEl.value = 'pct'; tEl.disabled = false; }
+    }
   }
 
-  setStage('kb-s1-val',  'kb-s1-type',  map.s1);
-  setStage('kb-s2-val',  'kb-s2-type',  map.s2);
-  setStage('kb-s3-val',  'kb-s3-type',  map.s3);
-  setStage('kb-s4-val',  'kb-s4-type',  map.s4);
-  setStage('kb-s5-val',  'kb-s5-type',  map.s5);
+  setStage('kb-stage-row-1','kb-s1-val','kb-s1-type',map.s1);
+  setStage('kb-stage-row-2','kb-s2-val','kb-s2-type',map.s2);
+  setStage('kb-stage-row-3','kb-s3-val','kb-s3-type',map.s3);
+  setStage('kb-stage-row-4','kb-s4-val','kb-s4-type',map.s4);
+  setStage('kb-stage-row-5','kb-s5-val','kb-s5-type',map.s5);
 
-  // Also set split fields to match s2 if in split mode
+  // Split event mode: halve s2 across the two sub-fields
   if (_kbErpEventMode === 'split' && map.s2) {
     var half = map.s2 / 2;
-    setStage('kb-s2a-val','kb-s2a-type', half);
-    setStage('kb-s2b-val','kb-s2b-type', half);
+    var s2aEl = document.getElementById('kb-s2a-val'); if(s2aEl){s2aEl.value=half;s2aEl.readOnly=true;s2aEl.style.background='#f0f4ff';}
+    var s2bEl = document.getElementById('kb-s2b-val'); if(s2bEl){s2bEl.value=half;s2bEl.readOnly=true;s2bEl.style.background='#f0f4ff';}
   }
 
   if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
@@ -13349,11 +13506,13 @@ var HC_CHECKS = [
   // ── CONTACT ──────────────────────────────────────────────────────
   {
     type: 'contact', key: 'no_phone',
-    label: 'Phone number missing', icon: '📞', severity: 'high',
+    label: 'Phone number missing (required)', icon: '📞', severity: 'high',
     test: function(p){ return !p.phone || p.phone.trim() === ''; },
     field: 'phone',
     inputHtml: function(p){ return '<input type="tel" placeholder="Phone number" class="hc-inline-input" data-field="phone" data-id="'+p.id+'" value="'+(p.phone||'')+'">'; }
   },
+  // no_whatsapp removed — WhatsApp is optional (only phone is required)
+  /*
   {
     type: 'contact', key: 'no_whatsapp',
     label: 'WhatsApp number missing', icon: '📱', severity: 'medium',
@@ -13361,6 +13520,9 @@ var HC_CHECKS = [
     field: 'whatsapp',
     inputHtml: function(p){ return '<input type="tel" placeholder="WhatsApp number" class="hc-inline-input" data-field="whatsapp" data-id="'+p.id+'" value="'+(p.whatsapp||'')+'">'; }
   },
+  */
+  // no_email removed — email is optional (only phone is required)
+  /*
   {
     type: 'contact', key: 'no_email',
     label: 'Email address missing', icon: '📧', severity: 'low',
@@ -13368,6 +13530,7 @@ var HC_CHECKS = [
     field: 'email',
     inputHtml: function(p){ return '<input type="email" placeholder="Email address" class="hc-inline-input" data-field="email" data-id="'+p.id+'" value="'+(p.email||'')+'">'; }
   },
+  */
   {
     type: 'location', key: 'no_city',
     label: 'No city entered', icon: '🏙️', severity: 'medium',
@@ -14820,7 +14983,7 @@ function openProject(id, tabId) {
     'f-venue','f-requirements','f-general-notes','f-stage-notes','f-internal',
     'f-del-date','f-act-del','f-shotlist','f-prewed','f-drivelink','f-postprod',
     'f-deliv-notes','f-raw-notes','f-refcode'];
-  var sensitiveParentIds = ['pay-preset-preview','custom-pay-builder','stage-tl',
+  var sensitiveParentIds = ['pay-preset-preview','custom-pay-full-builder','stage-tl',
     'btn-delete-proj','f-bookdate'];
   if (isPPM) {
     // Hide entire tabs except t-details
@@ -14873,19 +15036,40 @@ function openProject(id, tabId) {
   sv('f-date', p.date); sv('f-bookdate', p.bookdate || ''); sv('f-venue', p.venue); sv('f-type', p.type);
   sv('f-package', p.package); sv('f-source', p.source); sv('f-value', p.value); sv('f-discount', p.discount);
   sv('f-stage', p.stage); sv('f-pay-preset', p.payPreset || '30-50-10-5-5');
+  if (typeof updatePayBuilderBadge === 'function') updatePayBuilderBadge();
+  // Ensure builder starts collapsed each time a project is opened
+  var _pbBody = document.getElementById('pay-builder-body');
+  var _pbBtn  = document.getElementById('pay-builder-toggle-btn');
+  if (_pbBody) _pbBody.style.display = 'none';
+  if (_pbBtn)  _pbBtn.textContent = '✏️ Edit Schedule';
   _stageAtModalOpen = p.stage || 'preprod'; _stageManuallyTouched = false;
-  if (p.payPreset === 'custom') {
-    var cpb = document.getElementById('custom-pay-builder'); if (cpb) cpb.style.display = 'block';
-    var kbBld = document.getElementById('kb-erp-pay-builder'); if (kbBld) kbBld.style.display = 'none';
-    if (p.customPayTerms && p.customPayTerms.length) loadCustomPayRows(p.customPayTerms);
+
+  // ── Load payment terms into the Payments tab builder ──
+  var _isCustomPreset = p.payPreset === 'custom';
+  // Clear stale custom rows
+  if ($('custom-pay-rows')) $('custom-pay-rows').innerHTML = '';
+  if (_isCustomPreset && p.customPayTerms && p.customPayTerms.length) {
+    loadCustomPayRows(p.customPayTerms);
   }
-  // KB ERP — load 5-stage schedule if present (only for preset projects)
-  if (p.payPreset !== 'custom' && p.kbSchedule && typeof kbErpLoadSchedule === 'function') {
-    setTimeout(function(){ kbErpLoadSchedule(p.kbSchedule); }, 100);
-  } else if (p.payPreset !== 'custom' && typeof kbErpUpdateAll === 'function') {
-    setTimeout(kbErpUpdateAll, 100);
+  // Load KB schedule (preset or custom) — deferred so DOM is ready
+  setTimeout(function(){
+    if (_isCustomPreset) {
+      onPayPresetChange(); // shows custom-pay-full-builder, hides kb-erp
+    } else if (p.kbSchedule && typeof kbErpLoadSchedule === 'function') {
+      kbErpLoadSchedule(p.kbSchedule);
+    } else {
+      onPayPresetChange(); // auto-fill from preset
+      kbErpAutoFillEventDate();
+    }
+  }, 150);
+  // Also wire the pay-terms-builder-panel to be visible when Payments tab opens
+  if (!_isCustomPreset) {
+    if (p.kbSchedule && typeof kbErpLoadSchedule === 'function') {
+      setTimeout(function(){ kbErpLoadSchedule(p.kbSchedule); }, 100);
+    } else if (typeof kbErpUpdateAll === 'function') {
+      setTimeout(kbErpUpdateAll, 100);
+    }
   }
-  else { var cpb2 = document.getElementById('custom-pay-builder'); if (cpb2 && p.payPreset !== 'custom') cpb2.style.display = 'none'; }
   sv('f-requirements', p.requirements); sv('f-general-notes', p.generalNotes); sv('f-stage-notes', p.stageNotes);
   sv('f-del-date', p.deliveryDate); sv('f-act-del', p.actualDelivery); sv('f-shotlist', p.shotlist);
   sv('f-prewed', p.prewed); sv('f-postprod', p.postprodStatus); sv('f-drivelink', p.drivelink);
@@ -26642,71 +26826,10 @@ function saveInstDueDate(projId, stageKey, dateVal) {
       });
     }
 
-    // New check: large balance overdue (event past + balance > 10% of contract)
-    var hasLargeOverdue = HC_CHECKS.some(function(c){ return c.key === 'large_overdue_balance'; });
-    if (!hasLargeOverdue) {
-      HC_CHECKS.push({
-        type: 'payment', key: 'large_overdue_balance',
-        label: 'Event passed — large balance still outstanding', icon: '🚨', severity: 'critical',
-        test: function(p) {
-          var ed = p.date;
-          if (!ed || p.stage === 'complete') return false;
-          var eventPassed = new Date(ed) < new Date();
-          var bal = Math.max(0, balDue(p));
-          var net = netVal(p);
-          return eventPassed && net > 0 && bal > 0 && (bal / net) > 0.1;
-        },
-        field: null,
-        inputHtml: function(p) {
-          var bal = Math.max(0, balDue(p));
-          var pct = netVal(p) > 0 ? Math.round(bal/netVal(p)*100) : 0;
-          return '<span style="font-size:11px;color:#991b1b">Event passed · <strong>' + fmt(bal) + ' (' + pct + '%)</strong> still unpaid · </span>' +
-            '<button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px;margin-left:6px">Open Payments →</button>';
-        }
-      });
-    }
+    // large_overdue_balance removed — too noisy (fires for every post-event project with any balance).
+    // Covered adequately by complete_with_balance (stage=complete) and excess_payment checks.
 
-    // New check: instalment due date is today or tomorrow — alert accounts team
-    var hasDueTodayCheck = HC_CHECKS.some(function(c){ return c.key === 'inst_due_soon'; });
-    if (!hasDueTodayCheck) {
-      HC_CHECKS.push({
-        type: 'duedate', key: 'inst_due_soon',
-        label: 'Instalment due today or tomorrow', icon: '🔔', severity: 'high',
-        test: function(p) {
-          if (p.stage === 'complete') return false;
-          if (typeof getPaymentScheduleWithCarryForward !== 'function') return false;
-          var sched = getPaymentScheduleWithCarryForward(p);
-          var today = new Date(); today.setHours(0,0,0,0);
-          var soon  = new Date(today); soon.setDate(soon.getDate()+2);
-          return sched.some(function(s) {
-            if (!s.dueDate || s.paid >= s.exp) return false;
-            var d = new Date(s.dueDate + 'T00:00:00');
-            return d >= today && d < soon;
-          });
-        },
-        field: null,
-        inputHtml: function(p) {
-          if (typeof getPaymentScheduleWithCarryForward !== 'function') return '';
-          var sched = getPaymentScheduleWithCarryForward(p);
-          var today = new Date(); today.setHours(0,0,0,0);
-          var soon  = new Date(today); soon.setDate(soon.getDate()+2);
-          var due = sched.filter(function(s){
-            if (!s.dueDate || s.paid >= s.exp) return false;
-            var d = new Date(s.dueDate + 'T00:00:00');
-            return d >= today && d < soon;
-          });
-          var lines = due.map(function(s){
-            var d = new Date(s.dueDate+'T00:00:00');
-            var diff = Math.round((d-today)/86400000);
-            return '<span style="font-size:11px"><strong>' + s.label + '</strong> — ' + fmt(Math.max(0,s.exp-s.paid)) + ' due ' + (diff===0?'TODAY':'tomorrow') + '</span>';
-          }).join('<br>');
-          return '<div style="background:#fef2f2;border-radius:6px;padding:8px 10px">' + lines +
-            '<div style="margin-top:6px"><button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px">Open Payments →</button></div>' +
-            '</div>';
-        }
-      });
-    }
-
+    // inst_due_soon removed — routine due-date reminders handled by Payments tab, not Healthcheck.
     console.log('[KB v60_8] ✅ HC payment checks injected');
   }
   waitForHC();
