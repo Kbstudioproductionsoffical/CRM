@@ -3170,8 +3170,7 @@ document.addEventListener('wheel', function(e) {
       <div id="t-payments" class="tab-pane">
         <div class="info info-green" id="t-pay-summary"></div>
 
-        <!-- ═══ KB ERP GATE LOCKS ═══ -->
-        <div id="kb-gate-panel" style="margin-bottom:16px"></div>
+        <!-- Gates are now shown inline in the Payment Schedule below -->
 
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
           <div style="font-size:13px;font-weight:700">Payment Ledger</div>
@@ -5066,7 +5065,32 @@ function kbErpGetSchedule() {
   var net = _kbNetVal();
   var stages = [];
   var mode = _kbErpEventMode;
+  var preset = gv('f-pay-preset');
 
+  // ── Custom Split mode: build schedule directly from customPayTerms rows ──
+  // The 5-stage KB builder is hidden in custom mode; we derive the schedule
+  // from the same custom rows that define the payment split, so the two panels
+  // are always in sync and only the user-defined stages are saved.
+  if (preset === 'custom') {
+    var terms = getCustomPayTerms();
+    terms.forEach(function(t, idx) {
+      var gateKey = idx === 0 ? 'project_create' : 'none';
+      var descMap = { booking:'On booking', event:'On shoot day', raw:'Before raw data handover', delivery:'On final delivery', other:'Other milestone' };
+      stages.push({
+        key: t.key,
+        label: t.label,
+        type: 'pct',
+        val: t.pct,
+        amount: Math.round(net * t.pct / 100),
+        dueDate: '',
+        gate: gateKey,
+        desc: descMap[t.desc] || t.desc || ''
+      });
+    });
+    return { stages: stages, eventMode: mode };
+  }
+
+  // ── Preset mode: read values from the 5-stage KB builder form ──
   function addStage(key, label, type_id, val_id, date_id, gate, desc) {
     var t = (document.getElementById(type_id)||{}).value || 'pct';
     var v = parseFloat((document.getElementById(val_id)||{}).value) || 0;
@@ -5184,7 +5208,7 @@ function kbErpRun7DayReminders(projectsList) {
       if (due < today || due > in7) return;
 
       // Check if already paid via payLedger
-      var paid = (p.payLedger || []).filter(function(e){ return e.stage === s.key; })
+      var paid = (p.payLedger || []).filter(function(e){ return stageMatches(e.stage, s.key); })
                   .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
       if (paid >= s.amount) return;
 
@@ -5244,7 +5268,7 @@ function kbErpGetReminderMsg(p, stageKey) {
   if (!kbs) return '';
   var s = (kbs.stages || []).find(function(x){ return x.key === stageKey; });
   if (!s) return '';
-  var paid = (p.payLedger || []).filter(function(e){ return e.stage === s.key; })
+  var paid = (p.payLedger || []).filter(function(e){ return stageMatches(e.stage, s.key); })
               .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
   var bal = Math.max(0, s.amount - paid);
   var dueStr = s.dueDate ? (' on ' + s.dueDate) : '';
@@ -5287,7 +5311,7 @@ function kbErpGetReminderMsg(p, stageKey) {
           if (!s.dueDate) return false;
           var d = new Date(s.dueDate+'T00:00:00');
           if (d < today || d > in7) return false;
-          var paid = (p.payLedger||[]).filter(function(e){return e.stage===s.key;})
+          var paid = (p.payLedger||[]).filter(function(e){return stageMatches(e.stage, s.key);})
                       .reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
           return paid < s.amount;
         });
@@ -5301,12 +5325,12 @@ function kbErpGetReminderMsg(p, stageKey) {
           if (!s.dueDate) return false;
           var d = new Date(s.dueDate+'T00:00:00');
           if (d < today || d > in7) return false;
-          var paid = (p.payLedger||[]).filter(function(e){return e.stage===s.key;})
+          var paid = (p.payLedger||[]).filter(function(e){return stageMatches(e.stage, s.key);})
                       .reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
           return paid < s.amount;
         });
         var lines = due.map(function(s) {
-          var paid = (p.payLedger||[]).filter(function(e){return e.stage===s.key;})
+          var paid = (p.payLedger||[]).filter(function(e){return stageMatches(e.stage, s.key);})
                       .reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
           var bal = Math.max(0, s.amount - paid);
           var daysLeft = Math.round((new Date(s.dueDate+'T00:00:00') - today)/86400000);
@@ -5352,7 +5376,7 @@ function kbErpGetGateStatus(p) {
   return kbs.stages.map(function(s) {
     var legacyKeys = KB_TO_LEGACY[s.key] || [];
     var paid = ledger.filter(function(e) {
-      return e.stage === s.key || legacyKeys.indexOf(e.stage) !== -1;
+      return stageMatches(e.stage, s.key) || legacyKeys.indexOf(e.stage) !== -1;
     }).reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
     return {
       key: s.key, label: s.label, gate: s.gate,
@@ -5376,7 +5400,7 @@ function kbErpGetForecastData(projectsList) {
       if (!s.dueDate) return;
       var ym = s.dueDate.substring(0,7);
       if (!buckets[ym]) buckets[ym] = { expected: 0, received: 0 };
-      var paid = ledger.filter(function(e){ return e.stage===s.key; })
+      var paid = ledger.filter(function(e){ return stageMatches(e.stage, s.key); })
                   .reduce(function(a,e){ return a+(parseInt(e.amount)||0); }, 0);
       buckets[ym].expected += s.amount;
       buckets[ym].received += Math.min(paid, s.amount);
@@ -5384,6 +5408,15 @@ function kbErpGetForecastData(projectsList) {
   });
   return buckets;
 }
+// ── Stage-key normalizer ─────────────────────────────────────────
+// Legacy/manually-edited payLedger entries can have stage keys saved with
+// different casing or stray whitespace (e.g. "P30" instead of "p30"), which
+// breaks every exact (===) match against getPayTerms() keys — payments look
+// recorded in the ledger but show as ₹0/Pending against every schedule
+// milestone. This normalizes both sides of a comparison so casing/whitespace
+// differences never cause a real payment to go unmatched.
+function normStage(s) { return (s == null ? '' : String(s)).trim().toLowerCase(); }
+function stageMatches(a, b) { return !!a && !!b && normStage(a) === normStage(b); }
 function getPayTerms(p){
   var base;
   if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length) base=p.customPayTerms;
@@ -5405,7 +5438,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v65.4.1-2026-06-24-photo-opts';
+var CRM_BUILD_VERSION = 'v71.1-2026-06-26-unified-schedule-invoice-fix';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -5750,9 +5783,6 @@ function loadAll(){
         _invTermsCache=(crmSettings.inv_terms&&crmSettings.inv_terms.length)?crmSettings.inv_terms:null;
         _invPaymentTermsCache=(crmSettings.inv_payment_terms&&crmSettings.inv_payment_terms.length)?crmSettings.inv_payment_terms:null;
         ensureWhatsAppInSources();
-        if (typeof deduplicateEscalations === 'function') deduplicateEscalations();
-        // One-time wipe — remove this line after first load
-        if (!localStorage.getItem('esc_wiped_v1')) { wipeAllEscalations(); localStorage.setItem('esc_wiped_v1','1'); }
       });
       db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
       db.ref('crm_freelancers').on('value',function(snap){freelancerData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();if(typeof renderFreelancers==='function')renderFreelancers();});
@@ -9464,13 +9494,13 @@ function _erpBuildInstalments(p) {
     var expected = Math.round(net * t.pct / 100);
 
     var directPaid = ledger
-      .filter(function(e){ return e.stage === t.key; })
+      .filter(function(e){ return stageMatches(e.stage, t.key); })
       .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
 
     var splitPaid = ledger
       .filter(function(e){ return e.splitAllocation; })
       .reduce(function(a,e){
-        var alloc = e.splitAllocation.find(function(al){ return al.stage === t.key; });
+        var alloc = e.splitAllocation.find(function(al){ return stageMatches(al.stage, t.key); });
         return a + (alloc ? (parseInt(alloc.amount)||0) : 0);
       }, 0);
 
@@ -9820,10 +9850,10 @@ function _erpRenderReceived(list) {
     var customLabels = p.payTermLabels || {};
     (p.payLedger||[]).forEach(function(e, idx) {
       var isSplit = e.stage === 'split' && e.splitAllocation;
-      var term = terms.find(function(t){ return t.key === e.stage; });
+      var term = terms.find(function(t){ return stageMatches(t.key, e.stage); }) || (isAdvanceStageKey(e.stage) ? terms[0] : null);
       var label = isSplit ? 'Smart Split'
                 : e.stage === 'general' ? 'General Payment'
-                : (customLabels[e.stage+'_label'] || (term ? term.label : (e.stage||'—')));
+                : (customLabels[normStage(e.stage)+'_label'] || customLabels[e.stage+'_label'] || (term ? term.label : (e.stage||'—')));
       allEntries.push({ p:p, e:e, label:label, idx:idx });
     });
   });
@@ -9887,7 +9917,7 @@ function _erpRenderForecastChart(list) {
       if (!s.dueDate) return;
       var ym = s.dueDate.substring(0,7);
       if (!buckets[ym]) buckets[ym] = { expected: 0, received: 0, clients: [] };
-      var paid = ledger.filter(function(e){ return e.stage === s.key; })
+      var paid = ledger.filter(function(e){ return stageMatches(e.stage, s.key); })
                   .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
       buckets[ym].expected += s.amount;
       buckets[ym].received += Math.min(paid, s.amount);
@@ -10004,7 +10034,7 @@ function _erpRenderAging(list) {
     if (p.kbSchedule && p.kbSchedule.stages) {
       var ledger = p.payLedger || [];
       p.kbSchedule.stages.forEach(function(s) {
-        var paid = ledger.filter(function(e){ return e.stage===s.key; }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); }, 0);
+        var paid = ledger.filter(function(e){ return stageMatches(e.stage, s.key); }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); }, 0);
         var bal = Math.max(0, s.amount - paid);
         if (bal <= 0) return;
         stages.push({ label: s.label, dueDate: s.dueDate || '', balance: bal });
@@ -10110,7 +10140,7 @@ function _erpRenderReminders(list) {
 
     if (p.kbSchedule && p.kbSchedule.stages) {
       p.kbSchedule.stages.forEach(function(s) {
-        var paid = ledger.filter(function(e){return e.stage===s.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+        var paid = ledger.filter(function(e){return stageMatches(e.stage, s.key);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
         var bal = Math.max(0, s.amount - paid);
         if (bal > 0) stages.push({ key: s.key, label: s.label, balance: bal, dueDate: s.dueDate || '' });
       });
@@ -10259,7 +10289,7 @@ function kbGenerateStageReceipt(projId, stageKey) {
   if (!s) { showToast('Stage not found'); return; }
 
   var ledger = p.payLedger || [];
-  var payments = ledger.filter(function(e){ return e.stage === stageKey; });
+  var payments = ledger.filter(function(e){ return stageMatches(e.stage, stageKey); });
   var paid = payments.reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
 
   // Build a simple printable receipt
@@ -11256,9 +11286,9 @@ function populateStageDropdown(selId, projId) {
 
   // Build options — only show stages that are NOT fully paid
   var firstUnpaidSet = false;
-  var opts = terms.map(function(t) {
+  var opts = terms.map(function(t, idx) {
     var exp = Math.round(net * t.pct / 100);
-    var paid = ledger.filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+    var paid = ledger.filter(function(e){return stageMatches(e.stage, t.key)||(idx===0&&isAdvanceStageKey(e.stage));}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var remaining = exp - paid;
     var fullyPaid = paid >= exp && exp > 0;
 
@@ -11319,6 +11349,18 @@ function isEventLinkedStage(p, stageKey){
   }
   return /^p(50|60|50a)$/.test(stageKey||'');
 }
+// ── Recognize "this stage key/string represents the Advance/booking payment" ──
+// Mirrors the isAdv convention already used at payment-entry time (see recordPayment).
+// Needed because legacy or imported ledger entries (e.g. stage:'P30' from an older
+// CRM version, or a quotation-converted project) often don't share a key with the
+// project's current custom pay terms (e.g. 'cq0') — but they're unambiguously the
+// advance payment, so the first schedule milestone should still count them as paid.
+function isAdvanceStageKey(s) {
+  var n = normStage(s);
+  if (!n) return false;
+  if (n==='p30'||n==='p20'||n==='p50a'||n==='cp0'||n==='cq0'||n==='kb_advance') return true;
+  return n.indexOf('advance')!==-1 || n.indexOf('booking')!==-1;
+}
 function getPaymentScheduleWithCarryForward(p){
   if(!p) return [];
   var terms=getPayTerms(p);
@@ -11340,13 +11382,21 @@ function getPaymentScheduleWithCarryForward(p){
     p5a:'kb_teaser',  p10b:'kb_teaser',
     p5b:'kb_final',   p10c:'kb_final',  pfinal:'kb_final'
   };
-  return terms.map(function(t){
+  return terms.map(function(t, idx){
     var baseExp=Math.round(net*t.pct/100);
     // Match payments recorded under this exact key OR its kb_* equivalent
     var kbEquiv=LEGACY_TO_KB[t.key];
-    var directPaid=ledger.filter(function(e){return e.stage===t.key||(kbEquiv&&e.stage===kbEquiv);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+    // For the first stage only: also catch orphaned legacy/imported "advance" payments
+    // whose stage string doesn't match this term's key by any direct or kb_* mapping
+    // (e.g. ledger stage 'P30' against a custom term key 'cq0' on a converted project).
+    var isFirstStage = (idx === 0);
+    var directPaid=ledger.filter(function(e){
+      return stageMatches(e.stage, t.key) || (kbEquiv && stageMatches(e.stage, kbEquiv)) || (isFirstStage && isAdvanceStageKey(e.stage));
+    }).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var splitPaid=ledger.filter(function(e){return e.splitAllocation;}).reduce(function(a,e){
-      var alloc=e.splitAllocation.find(function(al){return al.stage===t.key||(kbEquiv&&al.stage===kbEquiv);});
+      var alloc=e.splitAllocation.find(function(al){
+        return stageMatches(al.stage, t.key) || (kbEquiv && stageMatches(al.stage, kbEquiv)) || (isFirstStage && isAdvanceStageKey(al.stage));
+      });
       return a+(alloc?parseInt(alloc.amount)||0:0);
     },0);
     var exp=baseExp+carry;
@@ -11385,8 +11435,10 @@ function renderPayLedger(){
   var html=ledger.length?'<table class="tbl" style="margin-bottom:14px"><thead><tr><th>#</th><th>Date</th><th>Stage</th><th>Amount</th><th>Mode</th><th>Account</th><th>Ref/UTR</th><th>Proof</th><th>Notes</th><th></th></tr></thead><tbody>'+
     ledger.map(function(e,i){
       var isSplit = e.stage === 'split' && e.splitAllocation;
-      var term=terms.find(function(t){return t.key===e.stage;})||{label:e.stage==='general'?'General Payment':isSplit?'Smart Split':(e.stage||'—')};
-      var displayLabel = isSplit ? ('Split: ' + (e.splitAllocation.length) + ' stages') : (customLabels[e.stage+'_label']||term.label);
+      var term=terms.find(function(t){return stageMatches(t.key, e.stage);})
+        ||(isAdvanceStageKey(e.stage)&&terms[0])
+        ||{label:e.stage==='general'?'General Payment':isSplit?'Smart Split':(e.stage||'—')};
+      var displayLabel = isSplit ? ('Split: ' + (e.splitAllocation.length) + ' stages') : (customLabels[normStage(e.stage)+'_label']||customLabels[e.stage+'_label']||term.label);
       var badgeColor=e.stage==='general'?'b-gray':isSplit?'b-purple':'b-blue';
       var splitDetail = isSplit && e.splitAllocation ? '<div style="font-size:10px;color:#7c3aed;margin-top:3px">'+e.splitAllocation.map(function(a){return a.label+': '+fmt(a.amount);}).join(' · ')+'</div>' : '';
       var proofCell = e.proofDocId
@@ -11404,30 +11456,65 @@ function renderPayLedger(){
     }).join('')+'</tbody></table>':
     '<div class="empty" style="padding:16px">No payments recorded yet.</div>';
 
-  // ── Payment Schedule with editable labels (carry-forward aware) ──
+  // ── Unified Payment Schedule (labels + gates + due dates in one place) ──
+  var kbStages = (p.kbSchedule && p.kbSchedule.stages) ? p.kbSchedule.stages : [];
+  var gateInfo = {
+    project_create: { icon:'🔑', label:'Project Creation Gate', color:'#1d4ed8', bg:'#eff6ff' },
+    none:           { icon:'📅', label:'Event Payment',          color:'#7c3aed', bg:'#f5f3ff' },
+    raw_data:       { icon:'💾', label:'Raw Data Gate',          color:'#dc2626', bg:'#fef2f2' },
+    teaser:         { icon:'🎬', label:'Teaser Gate',            color:'#d97706', bg:'#fffbeb' },
+    final_delivery: { icon:'📦', label:'Final Delivery Gate',    color:'#059669', bg:'#f0fdf4' }
+  };
   html+='<div style="padding-top:12px;border-top:1px solid #f0f0f0">';
   html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
-  html+='<div style="font-size:12px;font-weight:700;color:#555;text-transform:uppercase">Payment Schedule</div>';
-  html+='<div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#888">Click label or milestone to edit</span><button class="btn btn-sm" style="font-size:11px;padding:3px 10px" onclick="savePayTermLabels()">&#x1F4BE; Save Labels</button></div>';
+  html+='<div style="font-size:12px;font-weight:700;color:#374151;text-transform:uppercase">📋 Payment Schedule</div>';
+  html+='<div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;color:#888">Click label to rename</span><button class="btn btn-sm" style="font-size:11px;padding:3px 10px" onclick="savePayTermLabels()">&#x1F4BE; Save Labels</button></div>';
   html+='</div>';
   var schedule=getPaymentScheduleWithCarryForward(p);
   html+=schedule.map(function(s){
-    var badge=s.paid>=s.exp&&s.exp>0?'<span class="badge b-green">Paid &#x2713;</span>':s.paid>0?'<span class="badge b-amber">Partial</span>':'<span class="badge b-red">Pending</span>';
-    var carryNote=s.carryIn>0?'<div style="font-size:10px;color:#d97706;margin-top:2px">+'+fmt(s.carryIn)+' carried from previous stage</div>':'';
-    var dueNote=s.isEventLinked&&s.paid<s.exp
-      ? '<div style="margin-top:5px;display:flex;align-items:center;gap:6px"><label style="font-size:10px;color:#888">Next due date:</label><input type="date" class="pay-stage-due-inp" data-key="'+s.key+'" value="'+(s.dueDate||'')+'" style="font-size:11px;padding:2px 6px;border:1px solid #e2e8f0;border-radius:4px"></div>'
-      : '';
-    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">'+
-      '<div style="flex:1;min-width:0;padding-right:12px">'+
-        '<input type="text" class="pay-term-label-inp" data-key="'+s.key+'" data-field="label" value="'+s.label.replace(/"/g,'&quot;')+'" '+
-          'style="font-size:12px;font-weight:700;color:#1a1a1a;border:1px solid #e2e8f0;border-radius:5px;padding:3px 8px;width:100%;background:#fafafa;margin-bottom:3px" placeholder="Label (e.g. 30% Advance)">'+
-        '<input type="text" class="pay-term-label-inp" data-key="'+s.key+'" data-field="desc" value="'+(s.desc||'').replace(/"/g,'&quot;')+'" '+
-          'style="font-size:10px;color:#888;border:1px solid #e2e8f0;border-radius:5px;padding:2px 8px;width:100%;background:#fafafa" placeholder="Milestone (e.g. On booking / Shoot day)">'+
-        carryNote+dueNote+
-      '</div>'+
-      '<div style="display:flex;gap:10px;align-items:center;flex-shrink:0">'+
-        '<div style="text-align:right"><div style="font-size:12px;color:#16a34a;font-weight:600">'+fmt(s.paid)+' / '+fmt(s.exp)+'</div><div style="font-size:10px;color:#888">'+s.pct+'%'+(s.carryIn>0?' (incl. carry)':'')+'</div></div>'+
-        badge+
+    // Look up gate and dueDate from kbSchedule if available
+    var kbStage = kbStages.find(function(ks){ return ks.key === s.key; }) || null;
+    var gate = kbStage ? kbStage.gate : null;
+    var kbDueDate = kbStage ? (kbStage.dueDate || '') : '';
+    var dueDateVal = s.dueDate || kbDueDate; // prefer per-project override, fall back to kbSchedule date
+    var isPaid = s.paid >= s.exp && s.exp > 0;
+    var isPartial = !isPaid && s.paid > 0;
+    var badge = isPaid
+      ? '<span class="badge b-green">Paid ✓</span>'
+      : isPartial ? '<span class="badge b-amber">Partial</span>'
+      : '<span class="badge b-red">Pending</span>';
+    var carryNote = s.carryIn>0 ? '<div style="font-size:10px;color:#d97706;margin-top:2px">+'+fmt(s.carryIn)+' carried from previous stage</div>' : '';
+    // Gate badge
+    var gateBadge = '';
+    if (gate && gateInfo[gate]) {
+      var gi = gateInfo[gate];
+      gateBadge = '<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:20px;background:'+gi.bg+';color:'+gi.color+';margin-left:6px;white-space:nowrap">'+gi.icon+' '+(isPaid?'CLEARED':'LOCKED')+'</span>';
+    }
+    // Due date input — show for all pending/partial stages
+    var duePicker = !isPaid
+      ? '<div style="margin-top:5px;display:flex;align-items:center;gap:6px">'+
+          '<label style="font-size:10px;color:#888;white-space:nowrap">📅 Due date:</label>'+
+          '<input type="date" class="pay-stage-due-inp" data-key="'+s.key+'" value="'+dueDateVal+'" '+
+            'style="font-size:11px;padding:2px 6px;border:1px solid #e2e8f0;border-radius:4px;flex:1">'+
+        '</div>'
+      : (dueDateVal ? '<div style="font-size:10px;color:#888;margin-top:3px">📅 Due: '+dueDateVal+'</div>' : '');
+    return '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:8px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px">'+
+            '<input type="text" class="pay-term-label-inp" data-key="'+s.key+'" data-field="label" value="'+s.label.replace(/"/g,'&quot;')+'" '+
+              'style="font-size:12px;font-weight:700;color:#1a1a1a;border:1px solid #e2e8f0;border-radius:5px;padding:2px 8px;background:#fafafa;min-width:120px;max-width:200px" placeholder="Label">'+
+            gateBadge+
+          '</div>'+
+          '<input type="text" class="pay-term-label-inp" data-key="'+s.key+'" data-field="desc" value="'+(s.desc||'').replace(/"/g,'&quot;')+'" '+
+            'style="font-size:10px;color:#888;border:1px solid #e2e8f0;border-radius:5px;padding:2px 8px;width:100%;background:#fafafa" placeholder="Milestone (e.g. On booking / Shoot day)">'+
+          carryNote+duePicker+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">'+
+          '<div style="font-size:12px;color:#16a34a;font-weight:700">'+fmt(s.paid)+' / '+fmt(s.exp)+'</div>'+
+          '<div style="font-size:10px;color:#888">'+s.pct+'%'+(s.carryIn>0?' (incl. carry)':'')+'</div>'+
+          badge+
+        '</div>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -11448,10 +11535,22 @@ function renderPayLedger(){
     inp.addEventListener('change',function(){
       var key=inp.dataset.key;
       if(!editProjId) return;
+      var p2=projects[editProjId]; if(!p2) return;
       var upd={}; upd['pay_'+key+'_due']=inp.value;
+      // Also update the kbSchedule stage dueDate so 7-day reminders and gate panel stay in sync
+      if (p2.kbSchedule && p2.kbSchedule.stages) {
+        var stages = p2.kbSchedule.stages.map(function(s){
+          return s.key===key ? Object.assign({},s,{dueDate:inp.value}) : s;
+        });
+        upd['kbSchedule/stages'] = stages;
+      }
       db.ref('crm_projects/'+editProjId).update(upd,function(err){
         if(err){showToast('Error saving due date: '+err.message);return;}
-        showToast('📅 Due date updated.');
+        if(p2.kbSchedule&&p2.kbSchedule.stages){
+          p2.kbSchedule.stages=p2.kbSchedule.stages.map(function(s){return s.key===key?Object.assign({},s,{dueDate:inp.value}):s;});
+        }
+        p2['pay_'+key+'_due']=inp.value;
+        showToast('📅 Due date saved.');
       });
     });
   });
@@ -11499,9 +11598,9 @@ function calcSmartSplit(totalAmt, p) {
   terms.forEach(function(t) {
     if (remaining <= 0) return;
     var exp       = Math.round(net * t.pct / 100);
-    var alreadyPaid = (p.payLedger || []).filter(function(e) { return e.stage === t.key; }).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0)
+    var alreadyPaid = (p.payLedger || []).filter(function(e) { return stageMatches(e.stage, t.key); }).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0)
       + (p.payLedger || []).filter(function(e){ return e.splitAllocation; }).reduce(function(a,e){
-          var alloc=e.splitAllocation.find(function(x){return x.stage===t.key;});
+          var alloc=e.splitAllocation.find(function(x){return stageMatches(x.stage, t.key);});
           return a+(alloc?parseInt(alloc.amount)||0:0);
         },0);
     var due = exp - alreadyPaid;
@@ -11584,7 +11683,7 @@ document.addEventListener('change', function(e){
     var term=terms.find(function(t){return t.key===sk;}); if(!term)return;
     var net=netVal(p);
     var exp=Math.round(net*term.pct/100);
-    var alreadyPaid=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+    var alreadyPaid=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var due=exp-alreadyPaid;
     if(due>0)sv('pe-amount',due);
     updatePEPreview();
@@ -11597,13 +11696,13 @@ document.addEventListener('change', function(e){
     var term2=terms2.find(function(t){return t.key===sk2;}); if(!term2)return;
     var net2=netVal(rp);
     var exp2=Math.round(net2*term2.pct/100);
-    var alr2=(rp.payLedger||[]).filter(function(e){return e.stage===sk2;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+    var alr2=(rp.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk2);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var due2=exp2-alr2;
     if(due2>0)sv('rp-amount',due2);
   }
 });
 
-function updatePEPreview(){var p=editProjId?projects[editProjId]:null;if(!p)return;var amt=parseInt(gv('pe-amount'))||0;var sk=gv('pe-stage');var prev=$('pe-preview');if(!amt){prev.style.display='none';return;}var terms=getPayTerms(p);var term=terms.find(function(t){return t.key===sk;})||terms[0];if(!term){prev.style.display='none';return;}var net=netVal(p);var exp=Math.round(net*term.pct/100);var alr=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);prev.style.display='block';prev.innerHTML='Recording <strong>'+fmt(amt)+'</strong> for <strong>'+term.label+'</strong> (exp: '+fmt(exp)+')<br>Previously: '+fmt(alr)+' → New total: <strong style="color:#16a34a">'+fmt(alr+amt)+'</strong>'+(Math.max(0,exp-alr-amt)>0?'<br><span style="color:#d97706">Remaining: '+fmt(Math.max(0,exp-alr-amt))+'</span>':'<br><span style="color:#16a34a">✓ Fully paid!</span>');}
+function updatePEPreview(){var p=editProjId?projects[editProjId]:null;if(!p)return;var amt=parseInt(gv('pe-amount'))||0;var sk=gv('pe-stage');var prev=$('pe-preview');if(!amt){prev.style.display='none';return;}var terms=getPayTerms(p);var term=terms.find(function(t){return t.key===sk;})||terms[0];if(!term){prev.style.display='none';return;}var net=netVal(p);var exp=Math.round(net*term.pct/100);var alr=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);prev.style.display='block';prev.innerHTML='Recording <strong>'+fmt(amt)+'</strong> for <strong>'+term.label+'</strong> (exp: '+fmt(exp)+')<br>Previously: '+fmt(alr)+' → New total: <strong style="color:#16a34a">'+fmt(alr+amt)+'</strong>'+(Math.max(0,exp-alr-amt)>0?'<br><span style="color:#d97706">Remaining: '+fmt(Math.max(0,exp-alr-amt))+'</span>':'<br><span style="color:#16a34a">✓ Fully paid!</span>');}
 // ── btn-add-pay-entry: open Record Payment modal from inside project modal ─
 document.addEventListener('click', function(e) {
   if (e.target && e.target.id === 'btn-add-pay-entry') {
@@ -11646,7 +11745,7 @@ document.addEventListener('click', function(e) {
         var term = terms.find(function(t){return t.key===sel.value;});
         if (term) {
           var exp = Math.round(net * term.pct / 100);
-          var alreadyPaid = (p.payLedger||[]).filter(function(e){return e.stage===sel.value;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+          var alreadyPaid = (p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sel.value);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
           var due = exp - alreadyPaid;
           if (due > 0) sv('pe-amount', due);
         }
@@ -11720,7 +11819,7 @@ $('btn-save-pay-entry').addEventListener('click',function(){
     if(firstAlloc){
       var sk=firstAlloc.key;
       var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
-      var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk||(e.splitAllocation&&e.splitAllocation.some(function(a){return a.stage===sk;}));}).length===0;
+      var noExisting=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk)||(e.splitAllocation&&e.splitAllocation.some(function(a){return stageMatches(a.stage, sk);}));}).length===0;
       if(isAdv&&noExisting&&date&&(!p.bookdate||p.bookdate===''))upd.bookdate=date;
     }
     uploadPaymentProof(editProjId, $('pe-proof-file'), function(proofMeta){
@@ -11744,7 +11843,7 @@ $('btn-save-pay-entry').addEventListener('click',function(){
     var sk=gv('pe-stage')||'general';
     var entry={stage:sk,amount:amt,date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,ts:Date.now(),recordedBy:recordedBy};
     var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
-    var noExisting=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
+    var noExisting=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).length===0;
     uploadPaymentProof(editProjId, $('pe-proof-file'), function(proofMeta){
       if(proofMeta) entry.proofDocId=proofMeta.id;
       var ledger=(p.payLedger||[]).concat([entry]);
@@ -11781,7 +11880,7 @@ $('rp-client').addEventListener('change',function(){
     var term=terms.find(function(t){return t.key===stEl.value;});
     if(term){
       var exp=Math.round(net*term.pct/100);
-      var alreadyPaid=(p.payLedger||[]).filter(function(e){return e.stage===stEl.value;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+      var alreadyPaid=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, stEl.value);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
       var due=exp-alreadyPaid;
       if(due>0)sv('rp-amount',due);
     }
@@ -11801,7 +11900,7 @@ $('btn-save-rp').addEventListener('click',function(){
   var entry={stage:sk,amount:amt,date:payDate,mode:mode,account:gv('rp-account'),ref:gv('rp-ref'),due:gv('rp-due'),notes:gv('rp-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};
   // AUTO-FILL BOOKING DATE from first advance payment
   var isAdvance=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
-  var existingAdvance=(p.payLedger||[]).filter(function(e){return e.stage===sk;}).length===0;
+  var existingAdvance=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).length===0;
   uploadPaymentProof(id, $('rp-proof-file'), function(proofMeta){
     if(proofMeta) entry.proofDocId=proofMeta.id;
     var ledger=(p.payLedger||[]).concat([entry]);
@@ -12060,6 +12159,10 @@ function onPayPresetChange(){
   var builder=$('custom-pay-builder');
   if(builder)builder.style.display=preset==='custom'?'block':'none';
   if(preset==='custom'){if(!$('custom-pay-rows').children.length){addCustomPayRow();addCustomPayRow();addCustomPayRow();}updateCustomPayTotal();}
+  // Hide the 5-stage KB Schedule builder when using Custom Split — the custom
+  // split rows ARE the schedule; showing both is redundant and confusing.
+  var kbBuilder=$('kb-erp-pay-builder');
+  if(kbBuilder)kbBuilder.style.display=preset==='custom'?'none':'block';
   updatePayPresetPreview();
 
   // ── KB ERP: auto-fill stage fields from preset ──
@@ -12094,10 +12197,64 @@ function onPayPresetChange(){
 
   if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
 }
-function addCustomPayRow(){var idx=($('custom-pay-rows').children.length);var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 80px 80px auto;gap:8px;align-items:center;margin-bottom:8px';row.innerHTML='<input type="text" class="fi" placeholder="Label (e.g. Advance)" style="padding:6px 10px;font-size:12px" oninput="updateCustomPayTotal()"><input type="number" class="fi" placeholder="%" min="1" max="100" style="padding:6px 8px;font-size:12px;text-align:center" oninput="updateCustomPayTotal()"><select class="fi" style="padding:6px 8px;font-size:12px"><option value="booking">On Booking</option><option value="event">Shoot Day</option><option value="raw">Raw Data</option><option value="delivery">On Delivery</option><option value="other">Other</option></select><button type="button" class="btn-danger" onclick="this.parentElement.remove();updateCustomPayTotal()">✕</button>';$('custom-pay-rows').appendChild(row);}
-function updateCustomPayTotal(){var rows=Array.from($('custom-pay-rows').children);var total=rows.reduce(function(a,r){return a+(parseInt(r.children[1].value)||0);},0);var tot=$('custom-pay-total');var err=$('custom-pay-error');if(tot)tot.textContent='Total: '+total+'% '+(total===100?'✅':'(must be 100%)');if(err)err.style.display=total>0&&total!==100?'block':'none';}
+function addCustomPayRow(){var idx=($('custom-pay-rows').children.length);var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 80px 80px auto;gap:8px;align-items:center;margin-bottom:8px';row.innerHTML='<input type="text" class="fi" placeholder="Label (e.g. Advance)" style="padding:6px 10px;font-size:12px" oninput="updateCustomPayTotal()"><input type="number" class="fi" placeholder="%" min="1" max="100" style="padding:6px 8px;font-size:12px;text-align:center" oninput="updateCustomPayTotal()"><select class="fi" style="padding:6px 8px;font-size:12px" onchange="updateCustomPayTotal()"><option value="booking">On Booking</option><option value="event">Shoot Day</option><option value="raw">Raw Data</option><option value="delivery">On Delivery</option><option value="other">Other</option></select><button type="button" class="btn-danger" onclick="this.parentElement.remove();updateCustomPayTotal()">✕</button>';$('custom-pay-rows').appendChild(row);}
+function updateCustomPayTotal(){var rows=Array.from($('custom-pay-rows').children);var total=rows.reduce(function(a,r){return a+(parseInt(r.children[1].value)||0);},0);var tot=$('custom-pay-total');var err=$('custom-pay-error');if(tot)tot.textContent='Total: '+total+'% '+(total===100?'✅':'(must be 100%)');if(err)err.style.display=total>0&&total!==100?'block':'none';if(typeof syncKbScheduleFromCustomSplit==='function')syncKbScheduleFromCustomSplit();}
 function getCustomPayTerms(){var rows=Array.from($('custom-pay-rows').children);var terms=[];rows.forEach(function(r,i){var label=r.children[0].value||('Installment '+(i+1));var pct=parseInt(r.children[1].value)||0;var desc=r.children[2].value;if(pct>0)terms.push({key:'cp'+i,label:label,pct:pct,desc:desc});});return terms;}
 function loadCustomPayRows(customTerms){var c=$('custom-pay-rows');c.innerHTML='';customTerms.forEach(function(t){addCustomPayRow();var row=c.children[c.children.length-1];row.children[0].value=t.label||'';row.children[1].value=t.pct||'';row.children[2].value=t.desc||'booking';});updateCustomPayTotal();}
+
+// ── Auto-fill KB Payment Schedule (Advance/Event/Raw Data/Teaser/Final) from
+// the Custom Payment Split builder above it. The two panels are otherwise
+// completely independent (different fields, never synced), which left the KB
+// Payment Schedule empty on any project using a custom split. This is a
+// best-effort mapping, not an exact one: the Custom Payment Split builder has
+// no "Teaser" option, so a custom split can map at most 4 of the 5 KB slots —
+// any unmapped slot is correctly left empty rather than guessed.
+function _kbSlotForCustomRow(t) {
+  // Label keywords take priority over the desc dropdown: in practice the dropdown
+  // is frequently left at its default ("On Booking") even for rows that are
+  // obviously something else by their label (e.g. a "Final Payment" row whose
+  // category was never changed from the default). Trusting desc blindly in that
+  // case would stack everything into kb_advance — exactly the kind of silent
+  // misclassification this mapping needs to avoid.
+  var l = (t.label || '').toLowerCase();
+  if (l.indexOf('final') !== -1 || l.indexOf('delivery') !== -1) return 'kb_final';
+  if (l.indexOf('teaser') !== -1 || l.indexOf('highlight') !== -1) return 'kb_teaser';
+  if (l.indexOf('raw') !== -1) return 'kb_rawdata';
+  if (l.indexOf('event') !== -1 || l.indexOf('shoot') !== -1) return 'kb_event';
+  if (l.indexOf('advance') !== -1 || l.indexOf('book') !== -1) return 'kb_advance';
+  // No usable label signal — fall back to the desc dropdown value
+  var d = (t.desc || '').toLowerCase();
+  if (d === 'booking') return 'kb_advance';
+  if (d === 'event')   return 'kb_event';
+  if (d === 'raw')     return 'kb_rawdata';
+  if (d === 'delivery')return 'kb_final';
+  return null; // genuinely no signal — leave unmapped rather than guess
+}
+function syncKbScheduleFromCustomSplit() {
+  var rows = $('custom-pay-rows');
+  if (!rows) return;
+  var preset = gv('f-pay-preset');
+  if (preset !== 'custom') return; // only applies when Custom Payment Split is active
+  var terms = getCustomPayTerms();
+  if (!terms.length) return;
+
+  var bucket = { kb_advance:0, kb_event:0, kb_rawdata:0, kb_teaser:0, kb_final:0 };
+  terms.forEach(function(t) {
+    var slot = _kbSlotForCustomRow(t);
+    if (slot) bucket[slot] += (parseFloat(t.pct) || 0);
+  });
+
+  var fieldMap = { kb_advance:'kb-s1-val', kb_event:'kb-s2-val', kb_rawdata:'kb-s3-val', kb_teaser:'kb-s4-val', kb_final:'kb-s5-val' };
+  var typeMap  = { kb_advance:'kb-s1-type', kb_event:'kb-s2-type', kb_rawdata:'kb-s3-type', kb_teaser:'kb-s4-type', kb_final:'kb-s5-type' };
+  Object.keys(bucket).forEach(function(slot) {
+    var valEl  = document.getElementById(fieldMap[slot]);
+    var typeEl = document.getElementById(typeMap[slot]);
+    if (typeEl) typeEl.value = 'pct';
+    if (valEl) valEl.value = bucket[slot] > 0 ? bucket[slot] : '';
+  });
+
+  if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
+}
 function updatePayPresetPreview(){var preset=gv('f-pay-preset')||'30-50-10-5-5';var val=parseInt(gv('f-value'))||0;var disc=parseInt(gv('f-discount'))||0;var net=val-disc;var el=$('pay-preset-preview');if(!el)return;if(!val||preset==='custom'){el.style.display='none';return;}var terms=PAY_PRESETS[preset]||PAY_PRESETS['30-50-10-5-5'];el.style.display='block';el.innerHTML=terms.map(function(t){return '<span style="margin-right:10px;color:#166534"><strong>'+t.label+':</strong> ₹'+Math.round(net*t.pct/100).toLocaleString('en-IN')+'</span>';}).join('');}
 
 // ═══ WHATSAPP ════════════════════════════════════════
@@ -14659,14 +14816,18 @@ function openProject(id, tabId) {
   sv('f-package', p.package); sv('f-source', p.source); sv('f-value', p.value); sv('f-discount', p.discount);
   sv('f-stage', p.stage); sv('f-pay-preset', p.payPreset || '30-50-10-5-5');
   _stageAtModalOpen = p.stage || 'preprod'; _stageManuallyTouched = false;
-  if (p.payPreset === 'custom') { var cpb = document.getElementById('custom-pay-builder'); if (cpb) cpb.style.display = 'block'; if (p.customPayTerms && p.customPayTerms.length) loadCustomPayRows(p.customPayTerms); }
-  // KB ERP — load 5-stage schedule if present
-  if (p.kbSchedule && typeof kbErpLoadSchedule === 'function') {
+  if (p.payPreset === 'custom') {
+    var cpb = document.getElementById('custom-pay-builder'); if (cpb) cpb.style.display = 'block';
+    var kbBld = document.getElementById('kb-erp-pay-builder'); if (kbBld) kbBld.style.display = 'none';
+    if (p.customPayTerms && p.customPayTerms.length) loadCustomPayRows(p.customPayTerms);
+  }
+  // KB ERP — load 5-stage schedule if present (only for preset projects)
+  if (p.payPreset !== 'custom' && p.kbSchedule && typeof kbErpLoadSchedule === 'function') {
     setTimeout(function(){ kbErpLoadSchedule(p.kbSchedule); }, 100);
-  } else if (typeof kbErpUpdateAll === 'function') {
+  } else if (p.payPreset !== 'custom' && typeof kbErpUpdateAll === 'function') {
     setTimeout(kbErpUpdateAll, 100);
   }
-  else { var cpb2 = document.getElementById('custom-pay-builder'); if (cpb2) cpb2.style.display = 'none'; }
+  else { var cpb2 = document.getElementById('custom-pay-builder'); if (cpb2 && p.payPreset !== 'custom') cpb2.style.display = 'none'; }
   sv('f-requirements', p.requirements); sv('f-general-notes', p.generalNotes); sv('f-stage-notes', p.stageNotes);
   sv('f-del-date', p.deliveryDate); sv('f-act-del', p.actualDelivery); sv('f-shotlist', p.shotlist);
   sv('f-prewed', p.prewed); sv('f-postprod', p.postprodStatus); sv('f-drivelink', p.drivelink);
@@ -16685,10 +16846,12 @@ function initPayTabInvoice() {
   sv('ptinv-due', '');
   sv('ptinv-notes', '');
   sv('ptinv-mode', 'UPI');
-  // Generate invoice number
+  // Render items immediately so invoice doesn't show ₹0 while waiting for Firebase
+  renderPayTabInvoiceItems();
+  renderPayTabInvoicePreview();
+  // Generate invoice number (async Firebase) — update number when ready
   invGenNum(function(num) {
     sv('ptinv-number', num);
-    renderPayTabInvoiceItems();
     renderPayTabInvoicePreview();
   });
   // Wire up listeners
@@ -16706,9 +16869,9 @@ function loadInvoiceFromPayments() {
   var terms = getPayTerms(p);
   var customLabels = p.payTermLabels || {};
   _ptInvItems = ledger.map(function(e) {
-    var term = terms.find(function(t) { return t.key === e.stage; }) || { label: e.stage || 'Payment', desc: '' };
-    var label = customLabels[e.stage + '_label'] || term.label;
-    var termDesc = customLabels[e.stage + '_desc'] || term.desc || '';
+    var term = terms.find(function(t) { return stageMatches(t.key, e.stage); }) || (isAdvanceStageKey(e.stage) ? terms[0] : null) || { label: e.stage || 'Payment', desc: '' };
+    var label = customLabels[normStage(e.stage) + '_label'] || customLabels[e.stage + '_label'] || term.label;
+    var termDesc = customLabels[normStage(e.stage) + '_desc'] || customLabels[e.stage + '_desc'] || term.desc || '';
     var parts = [label];
     if (termDesc) parts.push(termDesc);
     if (e.date) { try { parts.push(fmtDate(e.date)); } catch(x) { parts.push(e.date); } }
@@ -16997,7 +17160,7 @@ function renderInvoicePaySchedule() {
   card.style.display = 'block';
   rows.innerHTML = terms.map(function(t) {
     var exp = Math.round(net * t.pct / 100);
-    var paid = ledger.filter(function(e){ return e.stage === t.key; }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); },0);
+    var paid = ledger.filter(function(e){ return stageMatches(e.stage, t.key); }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); },0);
     var statusColor = paid >= exp ? '#16a34a' : paid > 0 ? '#d97706' : '#dc2626';
     var statusText = paid >= exp ? '✓ Paid' : paid > 0 ? 'Partial' : 'Pending';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0f0f0">' +
@@ -17055,7 +17218,7 @@ function getInvoicePayScheduleData(p) {
   var ledger = p.payLedger || [];
   return terms.map(function(t) {
     var exp = Math.round(net * t.pct / 100);
-    var paid = ledger.filter(function(e){ return e.stage === t.key; }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); },0);
+    var paid = ledger.filter(function(e){ return stageMatches(e.stage, t.key); }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); },0);
     var status = paid >= exp ? 'paid' : paid > 0 ? 'partial' : 'pending';
     return { label: t.label, desc: t.desc, pct: t.pct, amount: exp, paidAmount: paid, status: status };
   });
@@ -17458,7 +17621,7 @@ function syncLedgerToInvoices(projId) {
         var firstEntry = p.payLedger[0];
         var terms = getPayTerms(p);
         var items = terms.map(function(t) {
-          var stagePaid = (p.payLedger||[]).filter(function(e){return e.stage===t.key;}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+          var stagePaid = (p.payLedger||[]).filter(function(e){return stageMatches(e.stage, t.key);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
           return { desc: t.label + ' — ' + t.desc, qty: 1, rate: stagePaid };
         }).filter(function(it){ return it.rate > 0; });
         if (!items.length) items = [{desc: p.package||'Photography + Videography Package', qty:1, rate:net}];
@@ -17735,50 +17898,7 @@ function renderSalesEscalations() {
   var isSalesOrAdmin = CU && (CU.role === 'superadmin' || CU.role === 'sales' || CU.role === 'intern');
   if (!isSalesOrAdmin) { el.innerHTML = ''; return; }
 
-  
-// One-time wipe all escalations from Firebase (called once on load)
-function wipeAllEscalations() {
-  db.ref('crm_escalations').remove(function() {
-    console.log('All escalations wiped from Firebase.');
-  });
-}
-
-// One-time cleanup: remove old projId_timestamp duplicate escalation keys
-function deduplicateEscalations() {
-  db.ref('crm_escalations').once('value', function(snap) {
-    var all = snap.val() || {};
-    var keys = Object.keys(all);
-    // Find keys that look like projId_timestamp (contain underscore + digits at end)
-    var seen = {}; // projId -> best key to keep
-    var toDelete = [];
-    keys.forEach(function(k) {
-      var m = k.match(/^(.+)_(\d+)$/);
-      if (m) {
-        // Old format key — mark for deletion after keeping newest per projId
-        var projId = m[1];
-        if (!seen[projId] || all[k].escalatedAt > all[seen[projId]].escalatedAt) {
-          if (seen[projId]) toDelete.push(seen[projId]);
-          seen[projId] = k;
-        } else {
-          toDelete.push(k);
-        }
-        // Also save the record under clean projId key if not exists
-        if (!all[projId]) {
-          db.ref('crm_escalations/' + projId).set(all[k]);
-        }
-      }
-    });
-    // Delete all old-format keys
-    toDelete.forEach(function(k) { db.ref('crm_escalations/' + k).remove(); });
-    // Also remove the 'kept' old-format keys since we've migrated them
-    Object.values(seen).forEach(function(k) { db.ref('crm_escalations/' + k).remove(); });
-    if (toDelete.length || Object.keys(seen).length) {
-      console.log('Escalation dedup: removed ' + (toDelete.length + Object.keys(seen).length) + ' old keys');
-    }
-  });
-}
-
-db.ref('crm_escalations').orderByChild('resolved').equalTo(false).once('value', function(snap) {
+  db.ref('crm_escalations').orderByChild('resolved').equalTo(false).once('value', function(snap) {
     var all = snap.val() || {};
     var open = Object.entries(all).filter(function(e) { return !e[1].resolved; })
       .sort(function(a,b) { return new Date(b[1].escalatedAt) - new Date(a[1].escalatedAt); });
@@ -18470,7 +18590,7 @@ function renderQuotDays() {
       }).join('');
 
       var customNameField = !isPreset ?
-        '<input class="fi" type="text" value="' + (sess.name||'').replace(/"/g,'&quot;') + '" placeholder="Session name" style="font-size:12px;padding:4px 8px;flex:1;min-width:110px;max-width:180px" onchange="updateQuotSession('+i+','+si+',\'name\',this.value)">' : '';
+        '<input class="fi" type="text" value="' + escHtml(sess.name||'') + '" placeholder="Session name" style="font-size:12px;padding:4px 8px;flex:1;min-width:110px;max-width:180px" onchange="updateQuotSession('+i+','+si+',\'name\',this.value)">' : '';
 
       return '<div class="sess-block" data-sess-idx="' + si + '" style="background:#fff;border:1px solid #e0e7ef;border-radius:8px;padding:12px;margin-bottom:8px">' +
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">' +
@@ -18480,7 +18600,7 @@ function renderQuotDays() {
             nameOpts +
           '</select>' +
           customNameField +
-          '<input class="fi" type="text" value="' + (sess.occasion||'').replace(/"/g,'&quot;') + '" placeholder="e.g. Wedding Haldi Rituals" style="font-size:12px;padding:4px 8px;flex:1;min-width:160px" onchange="updateQuotSession('+i+','+si+',\'occasion\',this.value)">' +
+          '<input class="fi" type="text" value="' + escHtml(sess.occasion||'') + '" placeholder="e.g. Wedding Haldi Rituals" style="font-size:12px;padding:4px 8px;flex:1;min-width:160px" onchange="updateQuotSession('+i+','+si+',\'occasion\',this.value)">' +
           (sessions.length > 1 ? '<button onclick="removeQuotSession('+i+','+si+')" style="background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;padding:3px 9px;margin-left:auto">\u2715</button>' : '') +
         '</div>' +
         '<div class="crew-section">' +
@@ -19367,7 +19487,7 @@ function qdRenderList() {
               '<input value="' + (d.customDetail||d.detail||'') + '" onchange="qdUpdateCustomDetail(' + i + ',this.value)" placeholder="Enter detail" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;width:120px;font-family:inherit">' : '')
           ) +
           // Optional remark (always shown)
-          '<input value="' + (d.note||'').replace(/"/g,'&quot;') + '" placeholder="Note (optional)" onchange="qdUpdateNote(' + i + ',this.value)" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;flex:1;min-width:100px;font-family:inherit">' +
+          '<input value="' + escHtml(d.note||'') + '" placeholder="Note (optional)" onchange="qdUpdateNote(' + i + ',this.value)" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;flex:1;min-width:100px;font-family:inherit">' +
         '</div>' +
       '</div>' +
       '<button onclick="qdRemove(' + i + ')" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:16px;flex-shrink:0;padding:2px 4px;line-height:1" title="Remove">✕</button>' +
@@ -20308,6 +20428,7 @@ function downloadQuotationPDF() {
       var A4_W = 210, A4_H = 297;
       var pageArr = Array.prototype.slice.call(pages);
       var idx = 0;
+      var failedPages = [];
 
       function captureNext() {
         if (idx >= pageArr.length) {
@@ -20318,7 +20439,11 @@ function downloadQuotationPDF() {
           pdf.save(filename);
           wrap.remove();
           closeProg();
-          showToast('✅ PDF downloaded: ' + filename);
+          if (failedPages.length) {
+            showToast('⚠️ PDF downloaded, but page(s) ' + failedPages.map(function(n){return n+1;}).join(', ') + ' failed to render — please check the file and retry if anything looks missing.');
+          } else {
+            showToast('✅ PDF downloaded: ' + filename);
+          }
           return;
         }
 
@@ -20343,7 +20468,8 @@ function downloadQuotationPDF() {
           idx++; captureNext();
         }).catch(function(err) {
           console.error('html2canvas error on page', idx, err);
-          idx++; captureNext(); // skip broken page, continue
+          failedPages.push(idx);
+          idx++; captureNext(); // skip broken page, continue — but the user is warned at the end
         });
       }
 
