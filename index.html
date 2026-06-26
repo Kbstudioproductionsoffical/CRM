@@ -5438,7 +5438,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v71.1-2026-06-26-unified-schedule-invoice-fix';
+var CRM_BUILD_VERSION = 'v71.2-2026-06-26-custom-split-allocation-fix';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -11367,13 +11367,75 @@ function getPaymentScheduleWithCarryForward(p){
   var ledger=p.payLedger||[];
   var net=netVal(p);
   var customLabels=p.payTermLabels||{};
+  var isCustom = p.payPreset === 'custom';
+
+  // Explicit-stage general payments
   var totalGeneral=ledger.filter(function(e){return e.stage==='general';}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+
+  // ── Custom-split projects ──────────────────────────────────────────────────
+  // Payments recorded under legacy preset keys (ADVANCE, P50 …) don't match any
+  // custom term key (cp0, cp1 …). Instead of force-assigning them all to row 0
+  // via the isFirstStage catch-all (which caused the ₹1,92,000 / ₹72,000 inflation
+  // bug), we treat them as general / unallocated and let the general pool absorb
+  // them in order across pending rows.
+  if (isCustom) {
+    var customMatched = {};
+    terms.forEach(function(t){ customMatched[t.key] = 0; });
+    ledger.forEach(function(e){
+      if (e.splitAllocation) return; // handled below
+      var norm = (e.stage||'').trim().toLowerCase();
+      var matchedTerm = terms.find(function(t){ return t.key.toLowerCase() === norm; });
+      if (matchedTerm) {
+        customMatched[matchedTerm.key] += (parseInt(e.amount)||0);
+      } else if (norm !== 'general') {
+        // Legacy key (ADVANCE, P50, kb_advance etc.) not matching any custom term
+        totalGeneral += (parseInt(e.amount)||0);
+      }
+    });
+    ledger.filter(function(e){ return e.splitAllocation; }).forEach(function(e){
+      e.splitAllocation.forEach(function(al){
+        var norm = (al.stage||'').trim().toLowerCase();
+        var matchedTerm = terms.find(function(t){ return t.key.toLowerCase() === norm; });
+        if (matchedTerm) {
+          customMatched[matchedTerm.key] += (parseInt(al.amount)||0);
+        } else {
+          totalGeneral += (parseInt(al.amount)||0);
+        }
+      });
+    });
+
+    var generalUsed = 0;
+    var carry = 0;
+    return terms.map(function(t){
+      var baseExp = Math.round(net*t.pct/100);
+      var directPaid = customMatched[t.key] || 0;
+      var exp = baseExp + carry;
+      var stillDue = Math.max(0, exp - directPaid);
+      var generalForThisStage = Math.max(0, Math.min(stillDue, totalGeneral - generalUsed));
+      generalUsed += generalForThisStage;
+      var paid = directPaid + generalForThisStage;
+      var shortfall = Math.max(0, exp - paid);
+      var item = {
+        key: t.key,
+        label: customLabels[t.key+'_label']||t.label,
+        desc: customLabels[t.key+'_desc']||t.desc,
+        pct: t.pct,
+        baseExp: baseExp,
+        carryIn: carry,
+        exp: exp,
+        paid: paid,
+        shortfall: shortfall,
+        dueDate: p['pay_'+t.key+'_due']||'',
+        isEventLinked: isEventLinkedStage(p, t.key)
+      };
+      carry = shortfall;
+      return item;
+    });
+  }
+
+  // ── Preset mode (original logic with LEGACY_TO_KB mapping) ─────────────────
   var generalUsed=0;
   var carry=0;
-  // BUG FIX v69: Build a reverse map so that legacy preset keys (p30, p50…) also
-  // match payments recorded under the new kb_* stage keys (kb_advance, kb_event…).
-  // Without this, a payment saved as "kb_advance" was invisible to the schedule row
-  // keyed "p30", causing the Advance row to always show ₹0 / Pending even after payment.
   var LEGACY_TO_KB={
     p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', cp0:'kb_advance',
     p50:'kb_event',   p60:'kb_event',   p50b:'kb_event',
@@ -11384,11 +11446,7 @@ function getPaymentScheduleWithCarryForward(p){
   };
   return terms.map(function(t, idx){
     var baseExp=Math.round(net*t.pct/100);
-    // Match payments recorded under this exact key OR its kb_* equivalent
     var kbEquiv=LEGACY_TO_KB[t.key];
-    // For the first stage only: also catch orphaned legacy/imported "advance" payments
-    // whose stage string doesn't match this term's key by any direct or kb_* mapping
-    // (e.g. ledger stage 'P30' against a custom term key 'cq0' on a converted project).
     var isFirstStage = (idx === 0);
     var directPaid=ledger.filter(function(e){
       return stageMatches(e.stage, t.key) || (kbEquiv && stageMatches(e.stage, kbEquiv)) || (isFirstStage && isAdvanceStageKey(e.stage));
@@ -11418,7 +11476,7 @@ function getPaymentScheduleWithCarryForward(p){
       dueDate:p['pay_'+t.key+'_due']||'',
       isEventLinked:isEventLinkedStage(p,t.key)
     };
-    carry=shortfall; // next stage inherits this stage's unpaid shortfall
+    carry=shortfall;
     return item;
   });
 }
