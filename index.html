@@ -19910,7 +19910,9 @@ function saveQuotation(silent) {
   var rawGst     = gv2('qf-gst');
   var rawPayterms= gv2('qf-payterms');
   var value    = rawValue    !== '' ? (parseFloat(rawValue)||0)    : (prevQ ? (parseFloat(prevQ.value)||0) : 0);
-  var discount = rawDiscount !== '' ? (parseFloat(rawDiscount)||0) : (prevQ ? (parseFloat(prevQ.discount)||0) : 0);
+  // Fix: empty discount field means ₹0 — do NOT fall back to previous saved discount.
+  // Only fall back to prevQ.discount if the entire pricing tab hasn't loaded yet (rawValue also blank).
+  var discount = rawDiscount !== '' ? (parseFloat(rawDiscount)||0) : (rawValue !== '' ? 0 : (prevQ ? (parseFloat(prevQ.discount)||0) : 0));
   var gst      = rawGst      || (prevQ ? prevQ.gst : '') || 'excluded';
   var payterms = rawPayterms || (prevQ ? prevQ.payterms : '') || '30-50-10-5-5';
   // Timeline/terms live in module-level arrays (quotTimeline/quotTerms) rather than
