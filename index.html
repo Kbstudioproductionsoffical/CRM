@@ -17933,14 +17933,23 @@ function submitForApproval(id, event) {
   var q = quotations[id] || Object.values(quotations).find(function(r){ return r.id===id; });
   if (!q) { showToast('❌ Quotation not found.'); return; }
   if (!q.value || parseFloat(q.value) <= 0) { showToast('⚠️ Please set a package value before submitting.'); return; }
+  var subAt = Date.now();
   db.ref('crm_quotations/' + id).update({
     status: 'pending_approval',
-    approvalSubmittedAt: Date.now(),
+    approvalSubmittedAt: subAt,
     approvalSubmittedBy: CU ? CU.name : 'Unknown',
     approvedAt: null,
     approvedBy: null
   }, function(err) {
     if (err) { showToast('❌ Error: ' + err.message); return; }
+    // Update local memory immediately
+    if (quotations[id]) {
+      quotations[id].status = 'pending_approval';
+      quotations[id].approvalSubmittedAt = subAt;
+      quotations[id].approvalSubmittedBy = CU ? CU.name : 'Unknown';
+      quotations[id].approvedAt = null;
+      quotations[id].approvedBy = null;
+    }
     showToast('📤 Submitted for approval!');
     renderSalesDash();
     renderApprovalQueue();
@@ -17949,12 +17958,19 @@ function submitForApproval(id, event) {
 function approveQuotation(id, event) {
   if (event) event.stopPropagation();
   if (!canApproveQuotations()) { showToast('⛔ Only Sales Head / Admin can approve.'); return; }
+  var now = Date.now();
   db.ref('crm_quotations/' + id).update({
     status: 'approved',
-    approvedAt: Date.now(),
+    approvedAt: now,
     approvedBy: CU ? CU.name : 'Unknown'
   }, function(err) {
     if (err) { showToast('❌ Error: ' + err.message); return; }
+    // Update local memory so UI reflects approval immediately without waiting for Firebase listener
+    if (quotations[id]) {
+      quotations[id].status = 'approved';
+      quotations[id].approvedAt = now;
+      quotations[id].approvedBy = CU ? CU.name : 'Unknown';
+    }
     showToast('✅ Quotation approved!');
     renderSalesDash();
     renderApprovalQueue();
@@ -18005,18 +18021,28 @@ function quickChangeStatus(id, newStatus, event) {
   if (!confirm('Move ' + who + ' from ' + curLabel + ' to ' + label + '?')) return;
   var realId = q.id || id; // ensure we have the Firebase key
   // Optimistic local update — re-render instantly without waiting for Firebase
+  q._prevStatus = q.status; // store for rollback
   q.status = newStatus;
   quotations[realId] = q;
   if (typeof renderSalesDash === 'function') renderSalesDash();
   // Then persist to Firebase
   db.ref('crm_quotations/' + realId + '/status').set(newStatus, function(err) {
     if (err) {
-      // Roll back on failure
+      // Roll back on failure — restore previous status and re-render
       showToast('❌ Save failed — ' + err.message);
-      q.status = Object.values(quotations).find(function(r){ return r.id===realId; }) ? q.status : q.status;
+      q.status = q._prevStatus || 'draft';
+      delete q._prevStatus;
+      quotations[realId] = q;
+      if (typeof renderSalesDash === 'function') renderSalesDash();
       return;
     }
     showToast('✅ ' + (q.bride||'Quote') + ' → ' + label);
+    delete q._prevStatus;
+    // If modal is open for this quote, update the Convert button visibility live
+    if (editQuotId === realId) {
+      var cvtBtn = document.getElementById('btn-quot-convert-project');
+      if (cvtBtn) cvtBtn.style.display = newStatus === 'won' ? '' : 'none';
+    }
     if (newStatus === 'won') {
       setTimeout(function(){ showToast('🎉 Won! Click 🚀 Convert on the card to create a project.'); }, 800);
     }
@@ -18473,7 +18499,7 @@ function openEditQuotation(id) {
   openModal('quot-modal');
 }
 
-function sv2(id, val) { var el = document.getElementById(id); if (el) el.value = val || ''; }
+function sv2(id, val) { var el = document.getElementById(id); if (el) el.value = (val === null || val === undefined) ? '' : val; }
 // ── Quotation DEFAULT Images (Firebase-persisted) ────────────────────────
 var _defQuotImages = { cover: '', about: '' };  // loaded once from Firebase
 
@@ -19595,13 +19621,10 @@ function updateQuotModalApprovalUI(q) {
 }
 
 function submitForApprovalFromModal() {
-  // First save, then submit
-  saveQuotation(true); // silent save
-  setTimeout(function() {
-    if (!editQuotId) { showToast('⚠️ Please save the quotation first.'); return; }
-    submitForApproval(editQuotId, null);
-    closeModal('quot-modal');
-  }, 600);
+  // Save first, then submit inside the Firebase callback so timing is guaranteed
+  var bride = (document.getElementById('qf-bride') || {value:''}).value.trim();
+  if (!bride) { showToast('⚠️ Please enter the client name before submitting.'); return; }
+  saveQuotation('_submit_then_approve'); // special sentinel — handled in save callback
 }
 
 function qdStatusGuard(sel) {
@@ -19949,7 +19972,7 @@ function saveQuotation(silent) {
     paytermsCustom: (rawPayterms === 'custom') ? getQuotCustomPayTerms() : (prevQ ? (prevQ.paytermsCustom||[]) : []),
     timeline: timelineOut,
     terms: termsOut,
-    priceNotes: gv2('qf-price-notes') || (prevQ ? prevQ.priceNotes : ''),
+    priceNotes: gv2('qf-price-notes'), // intentionally no fallback — empty means cleared
     addlServices: quotAddlEnabled ? JSON.parse(JSON.stringify(quotAddlServices)) : [],
     addlServicesEnabled: quotAddlEnabled,
     coverImageUrl: isStorageUrl(quotCoverImageB64) ? quotCoverImageB64 : '',
@@ -19961,7 +19984,9 @@ function saveQuotation(silent) {
   };
 
   var ref = editQuotId ? db.ref('crm_quotations/' + editQuotId) : db.ref('crm_quotations').push();
-  data.id = editQuotId || ref.key;
+  // Fix: assign editQuotId immediately so concurrent saves reuse the same key (prevents duplicates)
+  if (!editQuotId) editQuotId = ref.key;
+  data.id = editQuotId;
   ref.set(data, function(err) {
     // Restore save button immediately
     var btn = document.getElementById('btn-save-quot');
@@ -19971,6 +19996,10 @@ function saveQuotation(silent) {
     if (err) { if (silent !== 'draft') showToast('❌ Error saving: ' + err.message); else showToast('❌ Error saving draft: ' + err.message); return; }
     if (silent === 'draft') {
       showToast('📝 Draft saved!');
+    } else if (silent === '_submit_then_approve') {
+      // Called from submitForApprovalFromModal — now that save is confirmed, submit
+      submitForApproval(editQuotId, null);
+      closeModal('quot-modal');
     } else if (!silent) {
       showToast('✅ Quotation saved!');
       // Auto-download PDF after successful save
@@ -19980,7 +20009,6 @@ function saveQuotation(silent) {
     }
     var cvtBtn = document.getElementById('btn-quot-convert-project');
     if (cvtBtn) cvtBtn.style.display = data.status === 'won' ? '' : 'none';
-    if (!editQuotId) editQuotId = ref.key;
     // Update sub-title
     var sub = document.getElementById('quot-modal-sub');
     if (sub) sub.textContent = 'Last saved: ' + fmtDateTime(data.savedAt);
@@ -19992,8 +20020,17 @@ function deleteQuotation(id) {
   if (!id || id === 'undefined') { showToast('❌ ID missing — please refresh.'); return; }
   var q = quotations[id] || Object.values(quotations).find(function(r){ return r.id===id; });
   if (!q) { showToast('❌ Quotation not found.'); return; }
-  if (!confirm('Delete quotation for ' + (q.bride||'this client') + '? This cannot be undone.')) return;
-  db.ref('crm_quotations/' + id).remove(function() { showToast('🗑️ Quotation deleted.'); });
+  // Warn if Won with advance payment recorded
+  if (q.status === 'won' && q.advancePaid > 0) {
+    if (!confirm('⚠️ WARNING: This is a Won quotation with ₹' + fmt(q.advancePaid) + ' advance recorded. Deleting it will remove the lead entirely. Are you absolutely sure?')) return;
+  } else {
+    if (!confirm('Delete quotation for ' + (q.bride||'this client') + '? This cannot be undone.')) return;
+  }
+  db.ref('crm_quotations/' + id).remove(function() {
+    // Also clean up any proof docs stored under this quotation
+    db.ref('crm_quot_docs/' + id).remove();
+    showToast('🗑️ Quotation deleted.');
+  });
 }
 
 // ── CONVERT TO PROJECT ───────────────────────────────────────────
@@ -20030,8 +20067,12 @@ function convertQuotToProject(overrideId) {
     createdBy: CU ? (CU.name || CU.username) : 'System'
   };
 
-  // First day date as event date
-  if (q.days && q.days.length > 0 && q.days[0].date) projData.date = q.days[0].date;
+  // First day date as event date + booking date
+  if (q.days && q.days.length > 0 && q.days[0].date) {
+    projData.date = q.days[0].date;
+    // Also set bookdate from quotation save date if not set by advance payment block below
+    if (!projData.bookdate) projData.bookdate = q.savedAt ? new Date(q.savedAt).toISOString().slice(0,10) : '';
+  }
 
   // ── Carry ALL event days from quotation into project eventDays ──
   // q.days have: { date, sessions:[{name, occasion, crew}] }
@@ -20556,7 +20597,8 @@ function collectQuotData() {
   var rawDisc = parseFloat(gv2('qf-discount'));
   var savedQ = editQuotId ? (quotations[editQuotId] || null) : null;
   var value    = isNaN(rawVal)  ? (savedQ ? parseFloat(savedQ.value)||0   : 0) : (rawVal||0);
-  var discount = isNaN(rawDisc) ? (savedQ ? parseFloat(savedQ.discount)||0 : 0) : (rawDisc||0);
+  // Fix: if value field is rendered (not NaN), treat NaN discount as 0 — don't fall back to saved discount
+  var discount = isNaN(rawDisc) ? (isNaN(rawVal) ? (savedQ ? parseFloat(savedQ.discount)||0 : 0) : 0) : (rawDisc||0);
 
   return {
     bride: gv2('qf-bride'), groom: gv2('qf-groom'), phone: gv2('qf-phone'),
@@ -20577,7 +20619,7 @@ function collectQuotData() {
     payterms: gv2('qf-payterms') || (savedQ ? savedQ.payterms : '') || '30-50-10-5-5',
     paytermsCustom: (gv2('qf-payterms') === 'custom') ? getQuotCustomPayTerms() : (savedQ ? savedQ.paytermsCustom : []),
     timeline: JSON.parse(JSON.stringify(quotTimeline)),
-    priceNotes: gv2('qf-price-notes') || (savedQ ? savedQ.priceNotes : '') || '',
+    priceNotes: gv2('qf-price-notes') || '', // intentionally no savedQ fallback
     addlServices: quotAddlEnabled ? JSON.parse(JSON.stringify(quotAddlServices)) : [],
     addlServicesEnabled: quotAddlEnabled,
     terms: collectQuotTerms()
