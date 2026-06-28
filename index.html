@@ -3091,7 +3091,7 @@ document.addEventListener('wheel', function(e) {
                 <div id="kb-s2-preview" style="font-size:11px;color:#7c3aed;font-weight:600;margin-top:5px"></div>
               </div>
               <div id="kb-s2-split" style="display:none">
-                <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">Pre-Wedding Payment</div>
+                <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px" class="kb-split-label-a">1st Event Payment</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
                   <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
                     <select class="fi" id="kb-s2a-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
@@ -3102,7 +3102,7 @@ document.addEventListener('wheel', function(e) {
                   <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Pre-Wedding Date</label>
                     <input class="fi" type="date" id="kb-s2a-date" style="font-size:12px;padding:6px 8px" onchange="kbErpUpdateStage(2)"></div>
                 </div>
-                <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px">Main Event Payment</div>
+                <div style="font-size:11px;font-weight:700;color:#7c3aed;margin-bottom:6px" class="kb-split-label-b">2nd Event Payment</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
                   <div><label style="font-size:10px;color:#6b7280;font-weight:600;display:block;margin-bottom:3px">Amount Type</label>
                     <select class="fi" id="kb-s2b-type" onchange="kbErpUpdateStage(2)" style="font-size:12px;padding:6px 8px">
@@ -5211,8 +5211,10 @@ function kbErpLoadSchedule(kbSchedule) {
     if (vEl) { vEl.value = s.val || ''; }
     if (dEl && s.dueDate) { dEl.value = s.dueDate; dEl.dataset.manuallySet = '1'; }
     // Show the row even if preset would hide it (project was saved with this stage)
-    var rowMap = { kb_advance:'kb-stage-row-1', kb_event:'kb-stage-row-2', kb_prewed:'kb-stage-row-2',
-                   kb_mainevent:'kb-stage-row-2', kb_rawdata:'kb-stage-row-3', kb_teaser:'kb-stage-row-4', kb_final:'kb-stage-row-5' };
+    var rowMap = { kb_advance:'kb-stage-row-1',
+                   kb_event:'kb-stage-row-2', kb_event2:'kb-stage-row-2', kb_event3:'kb-stage-row-2', kb_event4:'kb-stage-row-2',
+                   kb_prewed:'kb-stage-row-2', kb_mainevent:'kb-stage-row-2',
+                   kb_rawdata:'kb-stage-row-3', kb_teaser:'kb-stage-row-4', kb_final:'kb-stage-row-5' };
     var row = document.getElementById(rowMap[key]);
     if (row && s.val) row.style.display = '';
   }
@@ -5220,13 +5222,27 @@ function kbErpLoadSchedule(kbSchedule) {
   var mode = kbSchedule.eventMode || 'single';
   kbErpSetEventMode(mode);
 
-  fillStage('kb_advance',    'kb-s1-type','kb-s1-val', null);
+  fillStage('kb_advance', 'kb-s1-type','kb-s1-val', null);
+
   if (mode === 'single') {
-    fillStage('kb_event',    'kb-s2-type','kb-s2-val','kb-s2-date');
+    // Single event: fill from kb_event (or any event-type key if kb_event not present)
+    var singleEvStage = stages.find(function(s){ return s.key === 'kb_event'; }) ||
+                        stages.find(function(s){ return /^kb_event|^kb_prewed|^kb_mainevent/.test(s.key); });
+    if (singleEvStage) fillStage(singleEvStage.key, 'kb-s2-type','kb-s2-val','kb-s2-date');
   } else {
-    fillStage('kb_prewed',   'kb-s2a-type','kb-s2a-val','kb-s2a-date');
-    fillStage('kb_mainevent','kb-s2b-type','kb-s2b-val','kb-s2b-date');
+    // Split mode: find the 1st and 2nd event-type stages (any key name) and map to s2a / s2b
+    var evStages = stages.filter(function(s){
+      return /^kb_event|^kb_prewed|^kb_mainevent/.test(s.key);
+    });
+    if (evStages[0]) fillStage(evStages[0].key, 'kb-s2a-type','kb-s2a-val','kb-s2a-date');
+    if (evStages[1]) fillStage(evStages[1].key, 'kb-s2b-type','kb-s2b-val','kb-s2b-date');
+    // Update split labels to show actual event names instead of "Pre-Wedding / Main Event"
+    var lblA = document.querySelector('#kb-s2-split .kb-split-label-a');
+    var lblB = document.querySelector('#kb-s2-split .kb-split-label-b');
+    if (lblA && evStages[0]) lblA.textContent = evStages[0].label;
+    if (lblB && evStages[1]) lblB.textContent = evStages[1].label;
   }
+
   fillStage('kb_rawdata', 'kb-s3-type','kb-s3-val', null);
   fillStage('kb_teaser',  'kb-s4-type','kb-s4-val', null);
   fillStage('kb_final',   'kb-s5-type','kb-s5-val', null);
@@ -11488,6 +11504,9 @@ function isAdvanceStageKey(s) {
 var _KB_TO_LEGACY_KEYS = {
   kb_advance:   ['p30','p20','p50a','cp0','cq0','advance'],
   kb_event:     ['p50','p60','p50b','event'],
+  kb_event2:    ['event2'],
+  kb_event3:    ['event3'],
+  kb_event4:    ['event4'],
   kb_prewed:    ['p40','p30b'],
   kb_mainevent: ['p50b','p60'],
   kb_rawdata:   ['p10a','p10'],
@@ -11573,6 +11592,7 @@ function getPaymentScheduleWithCarryForward(p){
   var LEGACY_TO_KB={
     p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', cp0:'kb_advance',
     p50:'kb_event',   p60:'kb_event',   p50b:'kb_event',
+    event2:'kb_event2', event3:'kb_event3', event4:'kb_event4',
     p40:'kb_prewed',  p30b:'kb_prewed',
     p10a:'kb_rawdata',p10:'kb_rawdata',
     p5a:'kb_teaser',  p10b:'kb_teaser',
@@ -20034,6 +20054,144 @@ function deleteQuotation(id) {
 }
 
 // ── CONVERT TO PROJECT ───────────────────────────────────────────
+// ── Shared helper: build kbSchedule from quotation payment terms ──
+// Works for both preset and custom split. Called from both convert AND sync.
+function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
+  if (!q || net <= 0) return null;
+
+  // ── Label classifier: detect what type of payment a custom row represents ──
+  // Works on any label your team writes — no hardcoded event names.
+  function _classifyRow(label) {
+    var l = (label || '').toLowerCase();
+    // Advance / booking
+    if (/advance|booking|token|block|retainer|initial|first.?install|deposit/.test(l)) return 'advance';
+    // Post-production gates (check BEFORE event so "raw data event" doesn't misfire)
+    if (/raw.?data|raw.?file|hard.?driv|footage|rushes|unedited/.test(l)) return 'rawdata';
+    if (/teaser|highlight|same.?day|sde|reel|short.?film/.test(l)) return 'teaser';
+    if (/final|album|deliver|complet|handover|balance|last/.test(l)) return 'final';
+    // Anything else = an event-day payment (could be any occasion)
+    return 'event';
+  }
+
+  // ── Build sorted event dates from eventDays array (if provided) ──
+  // eventDays comes from the project's event days list — sorted chronologically
+  var sortedEventDates = [];
+  if (Array.isArray(eventDays)) {
+    sortedEventDates = eventDays
+      .map(function(d) { return d.date || ''; })
+      .filter(Boolean)
+      .sort();
+    // Deduplicate dates (multiple sessions on same day = one payment date)
+    sortedEventDates = sortedEventDates.filter(function(d, i) { return sortedEventDates.indexOf(d) === i; });
+  }
+  if (!sortedEventDates.length && eventDate) sortedEventDates = [eventDate];
+
+  var PRESET_TO_KB = {
+    p30:  { key:'kb_advance',  label:'Advance',            gate:'project_create', desc:'To block the date' },
+    p20:  { key:'kb_advance',  label:'Advance',            gate:'project_create', desc:'To block the date' },
+    p50a: { key:'kb_advance',  label:'Advance',            gate:'project_create', desc:'To block the date' },
+    p50:  { key:'kb_event',    label:'Event Payment',      gate:'none',           desc:'Due on event day' },
+    p60:  { key:'kb_event',    label:'Event Payment',      gate:'none',           desc:'Due on event day' },
+    p50b: { key:'kb_event',    label:'Event Payment',      gate:'none',           desc:'Due on event day' },
+    p10a: { key:'kb_rawdata',  label:'Raw Data Payment',   gate:'raw_data',       desc:'Raw data locked until paid' },
+    p10:  { key:'kb_rawdata',  label:'Raw Data Payment',   gate:'raw_data',       desc:'Raw data locked until paid' },
+    p10b: { key:'kb_teaser',   label:'Teaser & Highlight', gate:'teaser',         desc:'Teaser locked until paid' },
+    p5a:  { key:'kb_teaser',   label:'Teaser & Highlight', gate:'teaser',         desc:'Teaser locked until paid' },
+    p5b:  { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery', desc:'Final delivery locked until paid' },
+    p10c: { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery', desc:'Final delivery locked until paid' }
+  };
+
+  // ── PRESET path ──────────────────────────────────────────────────────────
+  if (q.payterms !== 'custom' || !Array.isArray(q.paytermsCustom) || !q.paytermsCustom.length) {
+    var preset = (q.payterms && PAY_PRESETS[q.payterms]) ? q.payterms : '30-50-10-5-5';
+    var terms = PAY_PRESETS[preset] || PAY_PRESETS['30-50-10-5-5'];
+    var stages = [];
+    terms.forEach(function(t) {
+      var kb = PRESET_TO_KB[t.key];
+      if (!kb) return;
+      if (stages.find(function(s){ return s.key === kb.key; })) return;
+      var evDate = kb.key === 'kb_event' ? (sortedEventDates[0] || '') : '';
+      stages.push({ key: kb.key, label: t.label || kb.label, type: 'pct', val: t.pct,
+        amount: Math.round(net * t.pct / 100), dueDate: evDate, gate: kb.gate, desc: kb.desc });
+    });
+    return stages.length ? { stages: stages, eventMode: 'single' } : null;
+  }
+
+  // ── CUSTOM path — label-based classification, any event name ────────────
+  var rows = q.paytermsCustom;
+
+  // First pass: classify every row
+  var classified = rows.map(function(row) {
+    return { row: row, type: _classifyRow(row.label), pct: parseFloat(row.pct) || 0 };
+  });
+
+  // Count how many event-type rows exist
+  var eventRows = classified.filter(function(c) { return c.type === 'event'; });
+  var eventMode = eventRows.length >= 2 ? 'split' : 'single';
+
+  var stages = [];
+  var eventIdx = 0; // tracks which event date to assign to each event-type row
+
+  // Gate keys for multiple event payments: first = kb_event, second = kb_event2, third+ = kb_event3 etc.
+  // For split mode: use kb_prewed for first event, kb_mainevent for second, kb_event3 for third, etc.
+  var EVENT_KEYS = ['kb_event', 'kb_event2', 'kb_event3', 'kb_event4'];
+  if (eventMode === 'split') {
+    // In split mode we keep distinct keys so each event has its own stage/date
+    EVENT_KEYS = ['kb_prewed', 'kb_mainevent', 'kb_event3', 'kb_event4'];
+  }
+
+  classified.forEach(function(c) {
+    if (!c.pct) return;
+    var key, label, gate, desc, dueDate;
+
+    switch (c.type) {
+      case 'advance':
+        key = 'kb_advance'; gate = 'project_create'; desc = 'To block the date';
+        label = c.row.label || 'Advance';
+        dueDate = '';
+        break;
+      case 'rawdata':
+        key = 'kb_rawdata'; gate = 'raw_data'; desc = 'Raw data locked until paid';
+        label = c.row.label || 'Raw Data Payment';
+        dueDate = '';
+        break;
+      case 'teaser':
+        key = 'kb_teaser'; gate = 'teaser'; desc = 'Teaser locked until paid';
+        label = c.row.label || 'Teaser & Highlight';
+        dueDate = '';
+        break;
+      case 'final':
+        key = 'kb_final'; gate = 'final_delivery'; desc = 'Final delivery locked until paid';
+        label = c.row.label || 'Final Delivery';
+        dueDate = '';
+        break;
+      case 'event':
+      default:
+        key = EVENT_KEYS[eventIdx] || ('kb_event_extra_' + eventIdx);
+        gate = 'none';
+        desc = 'Due on event day';
+        label = c.row.label || ('Event Payment ' + (eventIdx + 1));
+        // Auto-assign event date from eventDays sorted list
+        dueDate = sortedEventDates[eventIdx] || sortedEventDates[0] || '';
+        eventIdx++;
+        break;
+    }
+
+    stages.push({
+      key:     key,
+      label:   label,
+      type:    'pct',
+      val:     c.pct,
+      amount:  Math.round(net * c.pct / 100),
+      dueDate: dueDate,
+      gate:    gate,
+      desc:    desc
+    });
+  });
+
+  return stages.length ? { stages: stages, eventMode: eventMode } : null;
+}
+
 function convertQuotToProject(overrideId) {
   var id = overrideId || editQuotId;
   var q = quotations[id]; if (!q) { showToast('Save the quotation first.'); return; }
@@ -20052,7 +20210,7 @@ function convertQuotToProject(overrideId) {
     source: q.source || '',
     value: q.value || 0,
     discount: q.discount || 0,
-    payPreset: (q.payterms && q.payterms !== 'custom' && PAY_PRESETS[q.payterms]) ? q.payterms : '30-50-10-5-5',
+    payPreset: (q.payterms === 'custom') ? 'custom' : ((q.payterms && PAY_PRESETS[q.payterms]) ? q.payterms : '30-50-10-5-5'),
     customPayTerms: (q.payterms === 'custom' && Array.isArray(q.paytermsCustom)) ? q.paytermsCustom : [],
     stage: 'preprod',
     type: 'Full Package',
@@ -20113,52 +20271,12 @@ function convertQuotToProject(overrideId) {
     projData.bookdate = advPayment.date || '';
   }
 
-  // ── BUG FIX #1: Build kbSchedule from payPreset so payment gate amounts are correct ──
-  // Without this, kbSchedule is missing on converted projects, causing Event Payment
-  // to display a wildly incorrect amount (e.g. ₹22,00,00,000) when the gate panel
-  // tries to resolve stage amounts from an empty form on next open.
+  // ── Build kbSchedule from quotation payment terms ──
   (function() {
     var net = (parseInt(projData.value) || 0) - (parseInt(projData.discount) || 0);
-    if (net <= 0) return;
-
-    // Map PAY_PRESETS keys to kb stage keys and gate labels
-    var PRESET_TO_KB = {
-      p30:  { key:'kb_advance',  label:'Advance',       gate:'project_create', desc:'To block the date' },
-      p20:  { key:'kb_advance',  label:'Advance',       gate:'project_create', desc:'To block the date' },
-      p50a: { key:'kb_advance',  label:'Advance',       gate:'project_create', desc:'To block the date' },
-      p50:  { key:'kb_event',    label:'Event Payment', gate:'none',           desc:'Due on event day' },
-      p60:  { key:'kb_event',    label:'Event Payment', gate:'none',           desc:'Due on event day' },
-      p50b: { key:'kb_event',    label:'Event Payment', gate:'none',           desc:'Due on event day' },
-      p10a: { key:'kb_rawdata',  label:'Raw Data Payment',   gate:'raw_data',      desc:'Raw data locked until paid' },
-      p10:  { key:'kb_rawdata',  label:'Raw Data Payment',   gate:'raw_data',      desc:'Raw data locked until paid' },
-      p10b: { key:'kb_teaser',   label:'Teaser & Highlight', gate:'teaser',        desc:'Teaser locked until paid' },
-      p5a:  { key:'kb_teaser',   label:'Teaser & Highlight', gate:'teaser',        desc:'Teaser locked until paid' },
-      p5b:  { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery',desc:'Final delivery locked until paid' },
-      p10c: { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery',desc:'Final delivery locked until paid' }
-    };
-
-    var preset = projData.payPreset || '30-50-10-5-5';
-    var terms = PAY_PRESETS[preset] || PAY_PRESETS['30-50-10-5-5'];
-    var stages = [];
-    terms.forEach(function(t) {
-      var kb = PRESET_TO_KB[t.key];
-      if (!kb) return;
-      // Avoid duplicate kb stage keys (e.g. two custom terms mapping to same kb key)
-      if (stages.find(function(s){ return s.key === kb.key; })) return;
-      stages.push({
-        key:     kb.key,
-        label:   t.label || kb.label,
-        type:    'pct',
-        val:     t.pct,
-        amount:  Math.round(net * t.pct / 100),
-        dueDate: (kb.key === 'kb_event' && projData.date) ? projData.date : '',
-        gate:    kb.gate,
-        desc:    kb.desc
-      });
-    });
-
-    if (stages.length) {
-      projData.kbSchedule = { stages: stages, eventMode: 'single' };
+    if (net > 0) {
+      var sched = _buildKbScheduleFromQuot(q, net, projData.date, projData.eventDays || []);
+      if (sched) projData.kbSchedule = sched;
     }
   })();
 
@@ -20436,13 +20554,31 @@ function syncProjectFromQuotation(projId) {
       customDelivs:  buildCustomDelivsFromQuot(q),
       eventDays:     safeEventDays,   // ← safe merge, never wipes production data
       type:          matchedType,     // ← matched to valid dropdown option
-      payPreset:     (q.payterms && q.payterms !== 'custom' && PAY_PRESETS[q.payterms]) ? q.payterms : (p.payPreset || '30-50-10-5-5'),
+      payPreset:     (q.payterms === 'custom') ? 'custom' : ((q.payterms && PAY_PRESETS[q.payterms]) ? q.payterms : (p.payPreset || '30-50-10-5-5')),
       customPayTerms:(q.payterms === 'custom' && Array.isArray(q.paytermsCustom)) ? q.paytermsCustom : (p.customPayTerms || []),
       priceNotes:    q.priceNotes    || p.priceNotes || '',
       salesperson:   q.salesperson   || p.salesperson || '',
       updatedAt:     Date.now(),
       lastQuotSync:  Date.now()
     };
+    // ── Rebuild kbSchedule from quotation payment terms ──
+    // Always rebuild so the payment gate amounts reflect the latest quotation split.
+    // Preserve existing paid ledger entries — only the schedule/amounts update.
+    var syncNet = (parseInt(upd.value) || 0) - (parseInt(upd.discount !== undefined ? upd.discount : p.discount) || 0);
+    var syncDate = upd.date || p.date || '';
+    var syncEventDays = (upd.eventDays || p.eventDays || []);
+    var newSched = _buildKbScheduleFromQuot(q, syncNet, syncDate, syncEventDays);
+    if (newSched) {
+      // Carry over any dueDate overrides the team has manually set on existing stages
+      if (p.kbSchedule && Array.isArray(p.kbSchedule.stages)) {
+        newSched.stages = newSched.stages.map(function(ns) {
+          var existing = p.kbSchedule.stages.find(function(es){ return es.key === ns.key; });
+          if (existing && existing.dueDate && !ns.dueDate) ns.dueDate = existing.dueDate;
+          return ns;
+        });
+      }
+      upd.kbSchedule = newSched;
+    }
 
     // First event day date → project event date only if not already set
     if (q.days && q.days.length && q.days[0].date) upd.date = upd.date || q.days[0].date;
