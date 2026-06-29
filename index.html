@@ -6093,8 +6093,7 @@ function confirmAllPaymentsReceived(projId){
 function runDeliverableAutomations(projId){
   var p=projects[projId];if(!p)return;
   var delivs=p.customDelivs||[];if(!delivs.length)return;
-  if(delivs.every(function(d){return d.status==='delivered';})){
-    autoAdvanceStage(projId,'delivery','All deliverables ready for delivery');
+  if(delivs.every(function(d){return d.status==='delivered';})){    autoAdvanceStage(projId,'delivery','All deliverables ready for delivery');
   }
 }
 
@@ -7797,15 +7796,20 @@ function renderDelivRows(){
     html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:3px;height:16px;background:'+color+';border-radius:2px"></div><span style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:0.5px">'+cat+'</span></div>';
     groups[cat].forEach(function(item){
       var d=item.d,i=item.i;
-      var sc=d.status==='delivered'?'#10b981':d.status==='inprogress'?'#f59e0b':'#94a3b8';
-      var sl=d.status==='delivered'?'✅ Delivered':d.status==='inprogress'?'🔄 In Progress':'⏳ Pending';
+      var sc=d.status==='delivered'?'#10b981':d.status==='inprogress'?'#f59e0b':d.status==='changes'?'#dc2626':'#94a3b8';
       var typeIco=typeIcons[d.type]||'📦';
+      var statusOpts=[
+        {v:'pending',    l:'⏳ Pending'},
+        {v:'inprogress', l:'🔄 In Progress'},
+        {v:'delivered',  l:'✅ Delivered'},
+        {v:'changes',    l:'🔁 Changes Requested'}
+      ].map(function(o){return '<option value="'+o.v+'"'+(d.status===o.v?' selected':'')+'>'+o.l+'</option>';}).join('');
       html+='<div style="background:#fff;border:1px solid #e8edf2;border-radius:8px;padding:10px 12px;margin-bottom:6px">';
-      // Row 1: name, type, status, delete
+      // Row 1: name, type, status dropdown, delete
       html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">';
       html+='<span style="font-size:13px;font-weight:700;flex:1">'+typeIco+' '+(d.name||'Unnamed')+'</span>';
       html+='<span style="font-size:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:2px 8px;color:#475569">'+(d.type||'')+'</span>';
-      html+='<span class="dlv-status-btn" data-idx="'+i+'" style="font-size:11px;padding:3px 10px;border-radius:10px;background:'+sc+'20;color:'+sc+';font-weight:600;cursor:pointer">'+sl+'</span>';
+      html+='<select class="dlv-status-sel" data-idx="'+i+'" style="font-size:11px;padding:3px 8px;border-radius:8px;border:1.5px solid '+sc+';background:'+sc+'18;color:'+sc+';font-weight:700;cursor:pointer;font-family:inherit;outline:none">'+statusOpts+'</select>';
       html+='<button class="dlv-del-btn" data-idx="'+i+'" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:18px;padding:0;line-height:1">×</button>';
       html+='</div>';
       // Row 2: qty, specs (no editor here - assigned in post prod)
@@ -7824,7 +7828,7 @@ function renderDelivRows(){
     html+='</div>';
   });
   container.innerHTML=html;
-  container.querySelectorAll('.dlv-status-btn').forEach(function(el){el.addEventListener('click',function(){cycleDelivStatus(parseInt(el.dataset.idx));});});
+  container.querySelectorAll('.dlv-status-sel').forEach(function(el){el.addEventListener('change',function(){setDelivStatus(parseInt(el.dataset.idx),el.value);});});
   container.querySelectorAll('.dlv-del-btn').forEach(function(el){el.addEventListener('click',function(){removeCustomDeliv(parseInt(el.dataset.idx));});});
   container.querySelectorAll('.dlv-field').forEach(function(el){el.addEventListener('change',function(){updateDelivField(parseInt(el.dataset.idx),el.dataset.field,el.value);});});
 }
@@ -7844,14 +7848,17 @@ function addCustomDeliv(){
   var q=document.getElementById('nd-qty');if(q)q.value='1';
 }
 function removeCustomDeliv(idx){customDelivs.splice(idx,1);renderDelivRows();}
-function cycleDelivStatus(idx){
-  var states=['pending','inprogress','delivered'];
-  var cur=customDelivs[idx].status||'pending';
-  var next=states[(states.indexOf(cur)+1)%states.length];
+function setDelivStatus(idx, next){
   customDelivs[idx].status=next;
   if(next==='delivered'&&!customDelivs[idx].date)customDelivs[idx].date=tod();
   renderDelivRows();
   if(next==='delivered'){var d=customDelivs[idx];var p=editProjId?projects[editProjId]:null;if(p)showDeliveredWAPopup(d,p);}
+}
+// Keep cycleDelivStatus as alias in case called elsewhere
+function cycleDelivStatus(idx){
+  var states=['pending','inprogress','delivered','changes'];
+  var cur=customDelivs[idx].status||'pending';
+  setDelivStatus(idx, states[(states.indexOf(cur)+1)%states.length]);
 }
 
 function showDeliveredWAPopup(d,p){
@@ -8082,7 +8089,7 @@ function renderPostProd(){
     var myDone     = myDelivs.filter(function(x){return x.d.status==='delivered';});
 
     function edStatusBadge(s){
-      var m={pending:['#fef9c3','#854d0e','⏳ Pending'],inprogress:['#dbeafe','#1d4ed8','🎬 Editing'],review:['#fdf2f8','#9d174d','👁️ In Review'],delivered:['#dcfce7','#166534','✅ Delivered']};
+      var m={pending:['#fef9c3','#854d0e','⏳ Pending'],inprogress:['#dbeafe','#1d4ed8','🎬 Editing'],review:['#fdf2f8','#9d174d','👁️ In Review'],changes:['#fee2e2','#991b1b','🔁 Changes'],delivered:['#dcfce7','#166534','✅ Delivered']};
       var v=m[s]||['#f1f5f9','#475569',s];
       return '<span style="background:'+v[0]+';color:'+v[1]+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">'+v[2]+'</span>';
     }
@@ -13522,7 +13529,8 @@ function renderEditorPortal(portal, editor, editorId, allProjects) {
       pending:     ['#fef9c3','#854d0e','⏳ Pending'],
       inprogress:  ['#dbeafe','#1d4ed8','🎬 Editing'],
       review:      ['#fdf2f8','#9d174d','👁️ In Review'],
-      delivered:   ['#dcfce7','#166534','✅ Delivered']
+      changes:     ['#fee2e2','#991b1b','🔁 Changes'],
+      delivered:   ['#dcfce7','#166634','✅ Delivered']
     };
     var v = m[s] || ['#f1f5f9','#475569',s];
     return '<span style="background:'+v[0]+';color:'+v[1]+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">'+v[2]+'</span>';
