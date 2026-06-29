@@ -5103,10 +5103,18 @@ function kbErpGetSchedule() {
   }
 
   // ── Preset mode: read values from the 5-stage KB builder form ──
+  // Carry forward existing dueDates from saved kbSchedule when the builder
+  // has no date input for a stage — prevents Save Project from wiping dates.
+  var _existingKbSched = (editProjId && projects[editProjId] && projects[editProjId].kbSchedule) || null;
+  function _existingDueDate(key) {
+    if (!_existingKbSched || !_existingKbSched.stages) return '';
+    var st = _existingKbSched.stages.find(function(s){ return s.key === key; });
+    return st ? (st.dueDate || '') : '';
+  }
   function addStage(key, label, type_id, val_id, date_id, gate, desc) {
     var t = (document.getElementById(type_id)||{}).value || 'pct';
     var v = parseFloat((document.getElementById(val_id)||{}).value) || 0;
-    var d = date_id ? ((document.getElementById(date_id)||{}).value || '') : '';
+    var d = date_id ? ((document.getElementById(date_id)||{}).value || '') : _existingDueDate(key);
     if (!v) return;
     stages.push({
       key: key, label: label,
@@ -6907,12 +6915,17 @@ function addEventDay(data) {
     return '<option value="' + l + '"' + (d.prodLevel === l ? ' selected' : '') + '>' + l + '</option>';
   }).join('');
 
-  var eventTypeOptions = [
+  var _evtDefaultList = [
     'Wedding','Sangeet','Haldi','Mehendi','Reception','Engagement',
     'Pre-Wedding Shoot','Cocktail Night','After Party','Tilak',
     'Godh Bharai / Baby Shower','Roka','Birthday','Corporate Event',
     'Maternity Shoot','Fashion Shoot','Other'
-  ].map(function(t){ return '<option value="'+t+'"'+(d.type===t?' selected':'')+'>'+t+'</option>'; }).join('');
+  ];
+  // Build datalist options for suggestions (free-text input, not locked to these)
+  var evdDatalistId = 'evd-type-suggestions-' + dayNum;
+  var eventTypeDatalistOptions = _evtDefaultList.map(function(t){
+    return '<option value="'+t+'">';
+  }).join('');
 
   card.innerHTML =
     // ── Header ──
@@ -6932,7 +6945,7 @@ function addEventDay(data) {
       '</div>' +
       '<div>' +
         '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Event Type *</label>' +
-        '<select class="fi evd-type" style="padding:7px 10px;font-size:12px"><option value="">— Select —</option>' + eventTypeOptions + '</select>' +
+        '<datalist id="' + evdDatalistId + '">' + eventTypeDatalistOptions + '</datalist>' + '<input class="fi evd-type" type="text" list="' + evdDatalistId + '" placeholder="e.g. Haldi \& Mehendi, Wedding…" style="padding:7px 10px;font-size:12px;width:100%;box-sizing:border-box">' +
       '</div>' +
       '<div>' +
         '<label style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px">Venue / Location</label>' +
@@ -7044,7 +7057,7 @@ function addEventDay(data) {
   var typeEl = card.querySelector('.evd-type');
   var typeLabel = card.querySelector('.evday-typename');
   function updateTypeLabel() { if (typeLabel) typeLabel.textContent = typeEl && typeEl.value ? '— ' + typeEl.value : ''; }
-  if (typeEl) { typeEl.addEventListener('change', updateTypeLabel); }
+  if (typeEl) { typeEl.addEventListener('change', updateTypeLabel); typeEl.addEventListener('input', updateTypeLabel); }
   updateTypeLabel(); // ← FIX: run after sv2 so label reflects restored value
 }
 
@@ -8027,6 +8040,7 @@ function renderBriefFormPublic(formDiv, briefId, p, fields){
 
 // ═══ POST PRODUCTION WORKFLOW (Step-by-Step) ═══════════════════════════════
 var _ppTab='overview';
+var _ppMonthFilter=''; // 'YYYY-MM' for specific month, '' for all
 
 function renderPostProd(){
   // Hide export controls for editor role
@@ -8173,7 +8187,8 @@ function renderPostProd(){
     {id:'step3',icon:'3️⃣',label:'Editing'},
     {id:'step4',icon:'4️⃣',label:'Review'},
     {id:'step5',icon:'✅',label:'Delivered'},
-    {id:'editor',icon:'👤',label:'Editor Stats'}
+    {id:'editor',icon:'👤',label:'Editor Stats'},
+    {id:'deliverables',icon:'📦',label:'All Deliverables'}
   ];
   var html='<div style="display:flex;gap:4px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px">';
   tabDefs.forEach(function(t){
@@ -8181,6 +8196,57 @@ function renderPostProd(){
     html+='<button class="pp-tab-btn" data-tab="'+t.id+'" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:8px;font-size:12px;font-weight:'+(a?700:500)+';cursor:pointer;background:'+(a?'#1a1a1a':'#f1f5f9')+';color:'+(a?'#fff':'#64748b')+';transition:all .15s">'+t.icon+' '+t.label+'</button>';
   });
   html+='</div>';
+
+  // ── MONTH / DATE FILTER BAR ───────────────────────────────────────────────
+  // Build quick-pick buttons: last 3 months + next 3 months
+  var _now = new Date();
+  var _quickMonths = [];
+  for (var _mi = -3; _mi <= 3; _mi++) {
+    var _md = new Date(_now.getFullYear(), _now.getMonth() + _mi, 1);
+    var _ym = _md.getFullYear() + '-' + String(_md.getMonth()+1).padStart(2,'0');
+    var _ml = _md.toLocaleString('en-IN',{month:'short',year:'numeric'});
+    _quickMonths.push({ym:_ym, label:_ml});
+  }
+  html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+  html += '<span style="font-size:11px;font-weight:700;color:#64748b;white-space:nowrap">📅 EVENT MONTH</span>';
+  // All button
+  html += '<button onclick="setPPMonthFilter(\'\')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+(_ppMonthFilter===''?'#1a1a1a':'#e2e8f0')+';background:'+(_ppMonthFilter===''?'#1a1a1a':'#fff')+';color:'+(_ppMonthFilter===''?'#fff':'#64748b')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">All</button>';
+  // Quick month pills
+  _quickMonths.forEach(function(m) {
+    var active = _ppMonthFilter === m.ym;
+    html += '<button onclick="setPPMonthFilter(\''+m.ym+'\')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+(active?'#3b82f6':'#e2e8f0')+';background:'+(active?'#3b82f6':'#fff')+';color:'+(active?'#fff':'#64748b')+';font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">'+m.label+'</button>';
+  });
+  // Custom month picker
+  html += '<div style="display:flex;align-items:center;gap:6px;margin-left:4px">';
+  html += '<span style="font-size:11px;color:#94a3b8">Custom:</span>';
+  html += '<input type="month" id="pp-custom-month-inp" value="'+(_ppMonthFilter&&!_quickMonths.find(function(m){return m.ym===_ppMonthFilter;})?_ppMonthFilter:'')+'" onchange="setPPMonthFilter(this.value)" style="padding:4px 8px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:11px;color:#374151;cursor:pointer">';
+  html += '</div>';
+  // Show active filter label
+  if (_ppMonthFilter) {
+    var _activeLabel = (function(){
+      var d = new Date(_ppMonthFilter+'-01');
+      return d.toLocaleString('en-IN',{month:'long',year:'numeric'});
+    })();
+    html += '<span style="font-size:11px;color:#3b82f6;font-weight:700;margin-left:4px">Showing: '+_activeLabel+'</span>';
+  }
+  html += '</div>';
+
+  // ── APPLY FILTER to list & allItems ───────────────────────────────────────
+  if (_ppMonthFilter) {
+    list = list.filter(function(p) {
+      // Check main event date
+      if (p.date && p.date.slice(0,7) === _ppMonthFilter) return true;
+      // Also check any eventDay that falls in this month
+      if (p.eventDays && p.eventDays.some(function(ed){ return ed.date && ed.date.slice(0,7) === _ppMonthFilter; })) return true;
+      return false;
+    });
+    allItems = allItems.filter(function(i) {
+      if (i.eventDate && i.eventDate.slice(0,7) === _ppMonthFilter) return true;
+      var p = i.p;
+      if (p && p.eventDays && p.eventDays.some(function(ed){ return ed.date && ed.date.slice(0,7) === _ppMonthFilter; })) return true;
+      return false;
+    });
+  }
 
   // ── COUNTS ────────────────────────────────────────────────────────────────
   var cnt1=list.filter(function(p){return!(p.clientBrief&&p.clientBrief.submittedAt)&&p.customDelivs&&p.customDelivs.length;}).length;
@@ -8379,6 +8445,8 @@ function renderPostProd(){
     html+='<span id="pp-custom-range" style="display:none;align-items:center;gap:6px"><input type="date" id="pp-date-from" class="fi" style="width:135px;padding:7px 10px;font-size:13px"><span style="color:#888">to</span><input type="date" id="pp-date-to" class="fi" style="width:135px;padding:7px 10px;font-size:13px"><button class="btn btn-sm btn-primary" onclick="renderPostProd()">Apply</button></span>';
     html+='</div>';
     html+='<div id="pp-editor-body"></div>';
+  } else if(tab==='deliverables'){
+    html+='<div id="pp-deliv-root"></div>';
   }
 
   $('pp-content').innerHTML=html;
@@ -8391,6 +8459,7 @@ function renderPostProd(){
 
   // Build editor stats after DOM is ready
   if(tab==='editor'){setTimeout(buildEditorStats,50);}
+  if(tab==='deliverables'){setTimeout(function(){buildDeliverablesDash(list);},50);}
 }
 
 function refreshEditorFilter(){
@@ -8482,6 +8551,197 @@ function buildEditorStats(){
 }
 
 function setPPTab(t){_ppTab=t;renderPostProd();}
+function setPPMonthFilter(ym){_ppMonthFilter=ym;renderPostProd();}
+var _ppDelivFilter='all';
+var _ppDelivSearch='';
+function setPPDelivFilter(v){_ppDelivFilter=v;renderPostProd();}
+function setPPDelivSearch(v){_ppDelivSearch=v;renderPostProd();}
+
+function buildDeliverablesDash(filteredList) {
+  var root = document.getElementById('pp-deliv-root');
+  if (!root) return;
+
+  var statusMap = {
+    pending:    {bg:'#fef9c3', fc:'#854d0e', label:'⏳ Pending'},
+    inprogress: {bg:'#dbeafe', fc:'#1d4ed8', label:'🎬 Editing'},
+    review:     {bg:'#fdf2f8', fc:'#9d174d', label:'👁️ In Review'},
+    delivered:  {bg:'#dcfce7', fc:'#166534', label:'✅ Delivered'}
+  };
+
+  // ── Status filter bar ──────────────────────────────────────────────────
+  var filterBar = document.createElement('div');
+  filterBar.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:16px';
+
+  var row1 = document.createElement('div');
+  row1.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px';
+  row1.innerHTML = '<span style="font-size:11px;font-weight:800;color:#64748b;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap">📦 STATUS</span>';
+
+  var statuses = [
+    {v:'all',        l:'All'},
+    {v:'pending',    l:'⏳ Pending'},
+    {v:'inprogress', l:'🎬 Editing'},
+    {v:'review',     l:'👁️ In Review'},
+    {v:'delivered',  l:'✅ Delivered'}
+  ];
+  statuses.forEach(function(s) {
+    var active = _ppDelivFilter === s.v;
+    var btn = document.createElement('button');
+    btn.textContent = s.l;
+    btn.style.cssText = 'padding:5px 13px;border-radius:20px;border:1.5px solid '+(active?'#3b82f6':'#e2e8f0')+';background:'+(active?'#3b82f6':'#fff')+';color:'+(active?'#fff':'#64748b')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap';
+    btn.onclick = function(){ setPPDelivFilter(s.v); };
+    row1.appendChild(btn);
+  });
+  filterBar.appendChild(row1);
+
+  var searchWrap = document.createElement('div');
+  searchWrap.style.cssText = 'display:flex;align-items:center;gap:8px';
+  var searchInp = document.createElement('input');
+  searchInp.type = 'text';
+  searchInp.placeholder = '🔍 Search client name or deliverable…';
+  searchInp.value = _ppDelivSearch;
+  searchInp.style.cssText = 'padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;width:300px;outline:none;font-family:inherit';
+  searchInp.oninput = function(){ _ppDelivSearch = this.value; buildDeliverablesDash(filteredList); };
+  searchWrap.appendChild(searchInp);
+  searchWrap.innerHTML += '<span style="font-size:11px;color:#94a3b8">Month filter above also applies here</span>';
+  filterBar.appendChild(searchWrap);
+  root.appendChild(filterBar);
+
+  // ── Stat cards (counts from full filtered month list) ──────────────────
+  var allD = [];
+  filteredList.forEach(function(p){ (p.customDelivs||[]).forEach(function(d){ allD.push(d); }); });
+  var counts = {pending:0,inprogress:0,review:0,delivered:0};
+  allD.forEach(function(d){ var s=d.status||'pending'; if(counts[s]!==undefined) counts[s]++; });
+
+  var statsGrid = document.createElement('div');
+  statsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px';
+  [{s:'pending',l:'⏳ Pending',bg:'#fffbeb',bc:'#f59e0b',fc:'#854d0e'},
+   {s:'inprogress',l:'🎬 Editing',bg:'#eff6ff',bc:'#3b82f6',fc:'#1d4ed8'},
+   {s:'review',l:'👁️ In Review',bg:'#fdf2f8',bc:'#ec4899',fc:'#9d174d'},
+   {s:'delivered',l:'✅ Delivered',bg:'#f0fdf4',bc:'#10b981',fc:'#166534'}
+  ].forEach(function(item){
+    var card = document.createElement('div');
+    var active = _ppDelivFilter === item.s;
+    card.style.cssText = 'background:'+item.bg+';border-radius:12px;padding:14px;border:2px solid '+(active?item.bc:'transparent')+';cursor:pointer;transition:border .15s';
+    card.innerHTML = '<div style="font-size:28px;font-weight:800;color:'+item.fc+'">'+counts[item.s]+'</div><div style="font-size:11px;color:'+item.fc+';font-weight:600;margin-top:4px">'+item.l+'</div>';
+    card.onclick = function(){ setPPDelivFilter(item.s); };
+    statsGrid.appendChild(card);
+  });
+  root.appendChild(statsGrid);
+
+  // ── Build flat deliverable rows ───────────────────────────────────────
+  var rows = [];
+  filteredList.forEach(function(p){
+    (p.customDelivs||[]).forEach(function(d){
+      rows.push({p:p, d:d});
+    });
+  });
+
+  // Apply status filter
+  if (_ppDelivFilter !== 'all') {
+    rows = rows.filter(function(r){ return (r.d.status||'pending') === _ppDelivFilter; });
+  }
+
+  // Apply search
+  if (_ppDelivSearch.trim()) {
+    var sq = _ppDelivSearch.trim().toLowerCase();
+    rows = rows.filter(function(r){
+      return (r.p.bride+' & '+r.p.groom).toLowerCase().indexOf(sq) > -1 ||
+             (r.d.name||r.d.type||'').toLowerCase().indexOf(sq) > -1;
+    });
+  }
+
+  // ── Group by client ───────────────────────────────────────────────────
+  var byClient = {};
+  rows.forEach(function(r){
+    if (!byClient[r.p.id]) byClient[r.p.id] = {p:r.p, rows:[]};
+    byClient[r.p.id].rows.push(r);
+  });
+  var clients = Object.values(byClient);
+
+  if (!clients.length) {
+    var empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;padding:60px 20px;color:#94a3b8;font-size:14px;background:#fafafa;border-radius:12px;border:1px dashed #e2e8f0';
+    empty.innerHTML = '📭 No deliverables found for the selected filters.<br><span style="font-size:12px;margin-top:6px;display:block">Try selecting "All" for month or status filter.</span>';
+    root.appendChild(empty);
+    return;
+  }
+
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:14px';
+
+  clients.forEach(function(c){
+    var p = c.p;
+    var totalD = (p.customDelivs||[]).length;
+    var doneD  = (p.customDelivs||[]).filter(function(d){ return d.status==='delivered'; }).length;
+    var pct    = totalD ? Math.round(doneD/totalD*100) : 0;
+    var pctColor = pct===100?'#10b981':pct>50?'#3b82f6':'#f59e0b';
+
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#fff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden';
+
+    // Client header
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'background:#f8fafc;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #e5e7eb';
+    hdr.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        '<span style="font-size:14px;font-weight:800;color:#1a1a1a">' + (p.bride||'') + ' & ' + (p.groom||'') + '</span>' +
+        '<span style="font-size:10px;font-weight:700;color:#64748b;background:#e2e8f0;padding:2px 8px;border-radius:10px">' + (p.refcode||'') + '</span>' +
+        (p.date ? '<span style="font-size:11px;color:#64748b">📅 ' + p.date + '</span>' : '') +
+        (p.city ? '<span style="font-size:11px;color:#64748b">📍 ' + (p.city||'') + '</span>' : '') +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<div style="width:90px;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">' +
+            '<div style="width:'+pct+'%;height:100%;background:'+pctColor+'"></div>' +
+          '</div>' +
+          '<span style="font-size:11px;font-weight:700;color:'+pctColor+'">'+doneD+'/'+totalD+'</span>' +
+        '</div>' +
+        '<button data-proj-id="'+p.id+'" class="pp-open-proj-deliv" style="background:#1a1a1a;color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">Open Project</button>' +
+      '</div>';
+    card.appendChild(hdr);
+
+    // Deliverables table
+    var tbl = document.createElement('table');
+    tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:12px';
+    tbl.innerHTML =
+      '<thead><tr style="background:#f8fafc">' +
+        '<th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Deliverable</th>' +
+        '<th style="padding:8px 14px;text-align:center;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Status</th>' +
+        '<th style="padding:8px 14px;text-align:center;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Editor</th>' +
+        '<th style="padding:8px 14px;text-align:center;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Due Date</th>' +
+        '<th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Drive Link</th>' +
+      '</tr></thead>';
+    var tbody = document.createElement('tbody');
+    c.rows.forEach(function(r, ri){
+      var d = r.d;
+      var st = d.status || 'pending';
+      var sv = statusMap[st] || {bg:'#f1f5f9', fc:'#475569', label: st};
+      var edName = '—';
+      if (d.editorId && teamData && teamData[d.editorId]) edName = teamData[d.editorId].name || '—';
+      var tr = document.createElement('tr');
+      tr.style.cssText = 'background:'+(ri%2===0?'#fff':'#fafafa')+';border-bottom:1px solid #f1f5f9';
+      tr.innerHTML =
+        '<td style="padding:10px 14px;font-weight:600;color:#1a1a1a">' + (d.name||d.type||'—') + '</td>' +
+        '<td style="padding:10px 14px;text-align:center"><span style="background:'+sv.bg+';color:'+sv.fc+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">'+sv.label+'</span></td>' +
+        '<td style="padding:10px 14px;text-align:center;color:#374151">' + edName + '</td>' +
+        '<td style="padding:10px 14px;text-align:center;color:#64748b">' + (d.date||'—') + '</td>' +
+        '<td style="padding:10px 14px">' + (d.driveLink ? '<a href="'+d.driveLink+'" target="_blank" style="color:#3b82f6;font-weight:600;font-size:11px">🔗 Open Drive</a>' : '<span style="color:#94a3b8">—</span>') + '</td>';
+      tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+    card.appendChild(tbl);
+    wrap.appendChild(card);
+  });
+
+  root.appendChild(wrap);
+
+  // Wire open project buttons
+  root.querySelectorAll('.pp-open-proj-deliv').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      openProject(btn.dataset.projId, 't-deliv');
+    });
+  });
+}
 
 // ── Post Production Pending Deliverables Export ──────────────────────────────
 function exportPPReport(fmt) {
@@ -10875,6 +11135,15 @@ $('btn-save-proj').addEventListener('click',function(){
   var region=gv('f-region')||getRegionForState(state);
   var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:ex.shootDays||[],dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now(),strictPayments:editProjId?(ex.strictPayments||false):true,kbSchedule:(typeof kbErpGetSchedule==='function'?kbErpGetSchedule():(ex.kbSchedule||null)),kbEventMode:_kbErpEventMode||'single'};
   Object.assign(p,deliv);
+  // ── Carry forward all pay_*_due and pay_*_due_notes fields from existing project ──
+  // These are saved separately (not in the main form) and must survive a full project save.
+  if (editProjId && ex) {
+    Object.keys(ex).forEach(function(k) {
+      if (/^pay_.+_due(_notes)?$/.test(k)) {
+        if (p[k] === undefined) p[k] = ex[k];
+      }
+    });
+  }
   db.ref('crm_projects/'+id).set(p,function(err){
     _projSaving=false;
     if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 Save Project';}
@@ -12383,13 +12652,21 @@ function onPayPresetChange(){
   if(customFull) customFull.style.display = isCustom ? 'block' : 'none';
   if(isCustom){ if(!$('custom-pay-rows').children.length){addCustomPayRow();addCustomPayRow();addCustomPayRow();} updateCustomPayTotal(); }
 
-  // Toggle KB ERP 5-stage builder
+  // Toggle KB ERP 5-stage builder — always shown (gates, date-linking work for all modes)
   var kbBuilder=$('kb-erp-pay-builder');
-  if(kbBuilder) kbBuilder.style.display = isCustom ? 'none' : 'block';
+  if(kbBuilder) kbBuilder.style.display = 'block';
 
   updatePayPresetPreview();
 
-  if(isCustom) return; // custom split manages its own fields
+  if(isCustom) {
+    // In custom mode: show all 5 stage rows unlocked so user can set gate dates
+    // The split amounts come from custom rows; gates/dates come from the ERP builder
+    ['kb-stage-row-1','kb-stage-row-2','kb-stage-row-3','kb-stage-row-4','kb-stage-row-5'].forEach(function(id){
+      var row = document.getElementById(id); if(row) row.style.display = '';
+    });
+    if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
+    return;
+  }
 
   // ── Auto-fill stage fields from preset and LOCK them (readonly) ──
   var presetMap = {
@@ -20056,6 +20333,19 @@ function deleteQuotation(id) {
 // ── CONVERT TO PROJECT ───────────────────────────────────────────
 // ── Shared helper: build kbSchedule from quotation payment terms ──
 // Works for both preset and custom split. Called from both convert AND sync.
+// ── Fuzzy match a free-text occasion label to the nearest Event Type dropdown option ──
+// Quotation sessions store free text (e.g. "Wedding Haldi Rituals", "Matagi Pooja")
+// Project event days use a fixed dropdown list. This maps one to the other.
+function _matchEventType(rawOccasion) {
+  // Simply return the exact occasion text from the quotation.
+  // The event day renderer will add it as a custom option if not in the default list.
+  if (!rawOccasion) return '';
+  var s = rawOccasion.trim();
+  // Strip pure time-slot names — these are session slots, not event types
+  if (/^(Morning|Afternoon|Evening|Night|Full Day|Full-Day)$/i.test(s)) return '';
+  return s; // exact text, no translation
+}
+
 function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
   if (!q || net <= 0) return null;
 
@@ -20241,14 +20531,18 @@ function convertQuotToProject(overrideId) {
       var sessions = day.sessions || [];
       if (!sessions.length && day.occasion) sessions = [{name:'Full Day', occasion:day.occasion, crew:day.crew||{}}];
       sessions.forEach(function(sess) {
-        projData.eventDays.push({
-          date: day.date || '',
-          type: sess.occasion || sess.name || 'Event',
-          label: (sess.name && sess.occasion) ? sess.name + ' — ' + sess.occasion : (sess.occasion || sess.name || 'Event'),
-          crew: sess.crew || {},
-          notes: ''
+          var rawOcc = sess.occasion || '';
+          // sess.name is the time-of-day slot (Full Day/Morning/Evening) — don't use as event type
+          // Use the exact occasion text from the quotation, not a mapped dropdown value
+          var exactType = rawOcc || 'Event';
+          projData.eventDays.push({
+            date:  day.date || '',
+            type:  exactType,
+            label: rawOcc || sess.name || 'Event',
+            crew:  sess.crew || {},
+            notes: ''
+          });
         });
-      });
     });
   }
 
@@ -20471,10 +20765,14 @@ function syncProjectFromQuotation(projId) {
           sessions = [{ name: 'Full Day', occasion: day.occasion || '', crew: day.crew || {} }];
         }
         sessions.forEach(function(sess) {
+          var rawOcc = sess.occasion || ''; // occasion = event type; name = time slot
+          // Use the exact occasion text from the quotation (e.g. "Haldi & Mehendi, Rituals")
+          // so the event day shows exactly what was quoted, not a mapped dropdown value.
+          var exactType = rawOcc || sess.name || 'Event';
           newEventDays.push({
             date:  day.date || '',
-            type:  sess.occasion || sess.name || 'Event',
-            label: (sess.name && sess.occasion) ? sess.name + ' — ' + sess.occasion : (sess.occasion || sess.name || 'Event'),
+            type:  exactType,
+            label: rawOcc || sess.name || 'Event',
             crew:  sess.crew || {},
             notes: ''
           });
@@ -20512,8 +20810,8 @@ function syncProjectFromQuotation(projId) {
         if (!fromQuot) return existing; // no matching quot day, keep as is
         return Object.assign({}, existing, {
           date:  fromQuot.date  || existing.date,
-          type:  existing.type  || fromQuot.type,   // ← FIX: fill type from quot if existing is empty
-          label: existing.label || fromQuot.label   // only fill if empty
+          type:  fromQuot.type  || existing.type || '',  // always take the raw quotation name
+          label: fromQuot.label || existing.label        // always take the quotation label
           // crew, notes, productionLevel etc are ALL preserved from existing
         });
       });
