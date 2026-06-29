@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v69</title>
+<title>KB Studio CRM v74.8</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -5580,7 +5580,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v71.3-2026-06-26-panel-isolation-fix';
+var CRM_BUILD_VERSION = 'v74.8-2026-06-29-reason-box';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -6005,7 +6005,14 @@ function autoAdvanceStage(projId,targetStage,reason){
     if(!err){
       logStageChange(projId, cur, targetStage, reason, 'Auto');
       showToast('📦 Pipeline: '+p.bride+' & '+p.groom+' → '+stageLabel(targetStage)+' ('+reason+')');
-      if(targetStage==='complete'){firePaymentClosedNotification(projId,p,'Auto');}
+      if(targetStage==='complete'){
+        firePaymentClosedNotification(projId,p,'Auto');
+        if(p.clientFlag){
+          db.ref('crm_projects/'+projId).update({clientFlag:'',flagNote:''});
+          if(projects[projId]){projects[projId].clientFlag='';projects[projId].flagNote='';}
+          setTimeout(function(){showToast('😊 Project complete — priority flag auto-removed.');},400);
+        }
+      }
       if(typeof renderPipeline==='function')renderPipeline();
       if(typeof renderDashboard==='function')renderDashboard();
       if(editProjId===projId){renderStageLog();var _fsEl=document.getElementById('f-stage');if(_fsEl)_fsEl.value=targetStage;} showWAStageSuggestion(projId, targetStage);
@@ -11158,7 +11165,7 @@ $('btn-save-proj').addEventListener('click',function(){
       logStageChange(id,exStage,newStage,_logReason,CU?CU.name||CU.username:'Admin');
       _stageOverrideReason=null;
     }
-    if(newStage==='complete'&&exStage!=='complete'){firePaymentClosedNotification(id,p,CU?CU.name||CU.username:'Admin');}
+    if(newStage==='complete'&&exStage!=='complete'){firePaymentClosedNotification(id,p,CU?CU.name||CU.username:'Admin');if(p.clientFlag){db.ref('crm_projects/'+id).update({clientFlag:'',flagNote:''});if(projects[id]){projects[id].clientFlag='';projects[id].flagNote='';}setTimeout(function(){showToast('😊 Project complete — priority flag auto-removed.');},400);}}
     closeModal('proj-modal');
     showToast('Project saved! Code: '+refcode+(_pendingAdvancePayment?' \u00b7 Recording advance payment\u2026':''));
     // ── Flush the advance payment captured before save (new projects only) ──
@@ -22339,7 +22346,7 @@ function renderPriorityPage() {
   if (escTab) escTab.style.display = isSalesOrAdmin ? '' : 'none';
   // Render escalation panel if on escalations sub-tab or if sales head
   if (isSalesOrAdmin && typeof renderSalesEscalations === 'function') renderSalesEscalations();
-  var flagged = allProjects.filter(function(p) { return p.clientFlag && p.clientFlag !== ''; });
+  var flagged = allProjects.filter(function(p) { return p.clientFlag && p.clientFlag !== '' && p.stage !== 'complete'; });
 
   // Metrics
   var vipCount = flagged.filter(function(p) { return p.clientFlag === 'vip'; }).length;
@@ -22376,13 +22383,26 @@ function renderPriorityPage() {
     var bannerClass = p.clientFlag === 'vip' ? 'vip' : p.clientFlag === 'annoyed' ? 'annoyed' : 'not-responding';
     var bannerIcon = p.clientFlag === 'vip' ? '⭐' : p.clientFlag === 'annoyed' ? '😤' : '📵';
     var bannerLabel = p.clientFlag === 'vip' ? 'VIP / Premium Client' : p.clientFlag === 'annoyed' ? 'Annoyed Client — Handle with care' : 'Not Responding — Needs follow-up';
+    var reasonBg    = p.clientFlag === 'annoyed' ? '#fff1f2' : p.clientFlag === 'not_responding' ? '#f8fafc' : '#fffbeb';
+    var reasonBd    = p.clientFlag === 'annoyed' ? '#fca5a5' : p.clientFlag === 'not_responding' ? '#e2e8f0' : '#fde68a';
+    var safeNote    = (p.flagNote || '').replace(/'/g, "\\'");
     html += '<div class="priority-list-card ' + cardClass + '">' +
       '<div class="priority-banner ' + bannerClass + '">' +
         '<span style="font-size:20px">' + bannerIcon + '</span>' +
-        '<div style="flex:1"><div style="font-weight:800">' + bannerLabel + '</div>' +
-          (p.flagNote ? '<div style="font-size:12px;margin-top:2px;opacity:.8">' + escHtml(p.flagNote) + '</div>' : '') +
-        '</div>' +
+        '<div style="flex:1"><div style="font-weight:800">' + bannerLabel + '</div></div>' +
         '<div style="font-size:11px;opacity:.7">' + (p.refcode || '') + '</div>' +
+      '</div>' +
+      // ── Reason box ──
+      '<div style="background:' + reasonBg + ';border:1.5px solid ' + reasonBd + ';border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:flex-start;gap:10px">' +
+        '<span style="font-size:16px;flex-shrink:0">📝</span>' +
+        '<div style="flex:1">' +
+          '<div style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Reason / Note</div>' +
+          (p.flagNote
+            ? '<div style="font-size:13px;font-weight:600;color:#1a1a1a">' + escHtml(p.flagNote) + '</div>'
+            : '<div style="font-size:12px;color:#94a3b8;font-style:italic">No reason added — open project to set a flag note.</div>'
+          ) +
+        '</div>' +
+        (canFlag ? '<button onclick="editFlagNote(' + p.id + ',\'' + safeNote + '\')" style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;color:#374151;flex-shrink:0">✏️ Edit</button>' : '') +
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">' +
         '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Client</div><div style="font-weight:700;font-size:14px">' + escHtml(p.bride) + ' & ' + escHtml(p.groom) + '</div><div style="font-size:12px;color:#555">' + (fieldVisible('phone') ? (p.phone || '') : (p.phone ? MASK_TEXT : '')) + '</div></div>' +
@@ -22404,6 +22424,18 @@ function clearClientFlag(projId) {
   db.ref('crm_projects/' + projId).update({ clientFlag: '', flagNote: '' }, function() {
     showToast('✅ Flag removed.');
     renderPriorityPage();
+  });
+}
+
+function editFlagNote(projId, currentNote) {
+  var note = prompt('Update reason / note for this client:', currentNote || '');
+  if (note === null) return; // cancelled
+  db.ref('crm_projects/' + projId).update({ flagNote: note.trim() }, function(err) {
+    if (err) { showToast('❌ Failed to save note.'); return; }
+    if (projects[projId]) projects[projId].flagNote = note.trim();
+    showToast('✅ Reason updated.');
+    renderPriorityPage();
+    if (typeof renderHubPriority === 'function') renderHubPriority();
   });
 }
 
@@ -26306,7 +26338,7 @@ function portalTagIssueHub(projId, issueKey, newTag) {
 
 function renderHubPriority(tab) {
   var allProjects = Object.values(projects || {});
-  var flagged = allProjects.filter(function(p) { return p.clientFlag && p.clientFlag !== ''; });
+  var flagged = allProjects.filter(function(p) { return p.clientFlag && p.clientFlag !== '' && p.stage !== 'complete'; });
 
   var vipCount     = flagged.filter(function(p) { return p.clientFlag === 'vip'; }).length;
   var annoyedCount = flagged.filter(function(p) { return p.clientFlag === 'annoyed'; }).length;
@@ -26346,19 +26378,58 @@ function renderHubPriority(tab) {
     var bannerClass = p.clientFlag === 'vip' ? 'vip' : p.clientFlag === 'annoyed' ? 'annoyed' : 'not-responding';
     var bannerIcon = p.clientFlag === 'vip' ? '⭐' : p.clientFlag === 'annoyed' ? '😤' : '📵';
     var bannerLabel = p.clientFlag === 'vip' ? 'VIP / Premium Client' : p.clientFlag === 'annoyed' ? 'Annoyed Client — Handle with care' : 'Not Responding — Needs follow-up';
+    var reasonBg  = p.clientFlag === 'annoyed' ? '#fff1f2' : p.clientFlag === 'not_responding' ? '#f8fafc' : '#fffbeb';
+    var reasonBd  = p.clientFlag === 'annoyed' ? '#fca5a5' : p.clientFlag === 'not_responding' ? '#e2e8f0' : '#fde68a';
+    var reasonAccent = p.clientFlag === 'annoyed' ? '#dc2626' : p.clientFlag === 'not_responding' ? '#6b7280' : '#d97706';
+    var pid = p.id;
+    var safeNote = escHtml(p.flagNote || '');
+
+    // ── Reason box: display mode (shown by default) ──────────────────────────
+    var reasonDisplayBlock =
+      '<div id="hub-reason-display-' + pid + '" style="display:flex;align-items:flex-start;gap:10px">' +
+        '<span style="font-size:18px;flex-shrink:0;margin-top:1px">📝</span>' +
+        '<div style="flex:1">' +
+          '<div style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Reason / Note</div>' +
+          (p.flagNote
+            ? '<div id="hub-reason-text-' + pid + '" style="font-size:13px;font-weight:600;color:#1a1a1a;line-height:1.5">' + safeNote + '</div>'
+            : '<div id="hub-reason-text-' + pid + '" style="font-size:12px;color:#94a3b8;font-style:italic">No reason added yet. Click Edit to add one.</div>'
+          ) +
+        '</div>' +
+        (canFlag
+          ? '<button onclick="hubReasonEdit(' + pid + ')" style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;color:#374151;flex-shrink:0;white-space:nowrap">✏️ Edit</button>'
+          : '') +
+      '</div>';
+
+    // ── Reason box: edit mode (hidden by default) ────────────────────────────
+    var reasonEditBlock =
+      '<div id="hub-reason-edit-' + pid + '" style="display:none">' +
+        '<div style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📝 Reason / Note</div>' +
+        '<textarea id="hub-reason-ta-' + pid + '" rows="3" placeholder="Describe what the client is upset about, what was promised, what needs to be resolved…" style="width:100%;box-sizing:border-box;border:1.5px solid ' + reasonAccent + ';border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;color:#1a1a1a;background:#fff;outline:none">' + safeNote + '</textarea>' +
+        '<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">' +
+          '<button onclick="hubReasonCancel(' + pid + ')" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;color:#64748b">Cancel</button>' +
+          '<button onclick="hubReasonSave(' + pid + ')" style="background:' + reasonAccent + ';border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;color:#fff">💾 Save Reason</button>' +
+        '</div>' +
+      '</div>';
+
     html += '<div class="priority-list-card ' + cardClass + '">' +
+      // ── Banner ──
       '<div class="priority-banner ' + bannerClass + '">' +
         '<span style="font-size:20px">' + bannerIcon + '</span>' +
-        '<div style="flex:1"><div style="font-weight:800">' + bannerLabel + '</div>' +
-          (p.flagNote ? '<div style="font-size:12px;margin-top:2px;opacity:.8">' + escHtml(p.flagNote) + '</div>' : '') +
-        '</div>' +
+        '<div style="flex:1"><div style="font-weight:800">' + bannerLabel + '</div></div>' +
         '<div style="font-size:11px;opacity:.7">' + (p.refcode || '') + '</div>' +
       '</div>' +
+      // ── Reason section (full-width dedicated box) ──
+      '<div style="background:' + reasonBg + ';border:1.5px solid ' + reasonBd + ';border-radius:10px;padding:12px 14px;margin-bottom:14px">' +
+        reasonDisplayBlock +
+        reasonEditBlock +
+      '</div>' +
+      // ── Client / Stage / Balance grid ──
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">' +
         '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Client</div><div style="font-weight:700;font-size:14px">' + escHtml(p.bride) + ' & ' + escHtml(p.groom) + '</div><div style="font-size:12px;color:#555">' + (fieldVisible('phone') ? (p.phone || '') : (p.phone ? MASK_TEXT : '')) + '</div></div>' +
         '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Stage</div><div>' + stageLabel(p.stage) + '</div><div style="font-size:11px;color:#888">' + (p.city || '') + '</div></div>' +
         '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Balance Due</div><div style="font-size:16px;font-weight:800;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">' + (bal > 0 ? fmt(bal) : '✓ Paid') + '</div></div>' +
       '</div>' +
+      // ── Action buttons ──
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
         '<button class="btn btn-sm btn-primary" onclick="openProject(' + p.id + ')">📂 Open Project</button>' +
         (p.clientFlag === 'not_responding' ? '<button class="escalate-btn" onclick="escalateToSalesHead(' + p.id + ')">📲 Escalate to Sales Head</button>' : '') +
@@ -26369,12 +26440,75 @@ function renderHubPriority(tab) {
   container.innerHTML = html;
 }
 
-function clearClientFlagHub(projId) {
-  if (!confirm('Remove the priority flag from this client?')) return;
-  db.ref('crm_projects/' + projId).update({ clientFlag: '', flagNote: '' }, function() {
-    showToast('✅ Flag removed.');
-    renderHubPriority(_hubTab);
+// ── Inline reason editing helpers ─────────────────────────────────────────────
+function hubReasonEdit(projId) {
+  var disp = document.getElementById('hub-reason-display-' + projId);
+  var edit = document.getElementById('hub-reason-edit-' + projId);
+  var ta   = document.getElementById('hub-reason-ta-' + projId);
+  if (disp) disp.style.display = 'none';
+  if (edit) edit.style.display = '';
+  if (ta)   { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
+
+function hubReasonCancel(projId) {
+  var disp = document.getElementById('hub-reason-display-' + projId);
+  var edit = document.getElementById('hub-reason-edit-' + projId);
+  var ta   = document.getElementById('hub-reason-ta-' + projId);
+  // Restore textarea to saved value
+  if (ta && projects[projId]) ta.value = projects[projId].flagNote || '';
+  if (disp) disp.style.display = '';
+  if (edit) edit.style.display = 'none';
+}
+
+function hubReasonSave(projId) {
+  var ta  = document.getElementById('hub-reason-ta-' + projId);
+  var note = ta ? ta.value.trim() : '';
+  var saveBtn = ta ? ta.parentNode.querySelector('button[onclick*="hubReasonSave"]') : null;
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  db.ref('crm_projects/' + projId).update({ flagNote: note }, function(err) {
+    if (err) {
+      showToast('❌ Failed to save reason.');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 Save Reason'; }
+      return;
+    }
+    // Update local cache
+    if (projects[projId]) projects[projId].flagNote = note;
+    showToast('✅ Reason saved.');
+    // Update the display text in-place without a full re-render
+    var textEl = document.getElementById('hub-reason-text-' + projId);
+    var disp   = document.getElementById('hub-reason-display-' + projId);
+    var edit   = document.getElementById('hub-reason-edit-' + projId);
+    if (textEl) {
+      if (note) {
+        textEl.style.fontStyle = '';
+        textEl.style.color = '#1a1a1a';
+        textEl.style.fontWeight = '600';
+        textEl.textContent = note;
+      } else {
+        textEl.style.fontStyle = 'italic';
+        textEl.style.color = '#94a3b8';
+        textEl.style.fontWeight = '';
+        textEl.textContent = 'No reason added yet. Click Edit to add one.';
+      }
+    }
+    if (disp) disp.style.display = '';
+    if (edit) edit.style.display = 'none';
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 Save Reason'; }
   });
+}
+
+function clearClientFlagHub(projId) {
+  kbConfirm(
+    'Remove Priority Flag?',
+    'This will clear the flag and reason from this client\'s record.',
+    function() {
+      db.ref('crm_projects/' + projId).update({ clientFlag: '', flagNote: '' }, function() {
+        showToast('✅ Flag removed.');
+        if (projects[projId]) { projects[projId].clientFlag = ''; projects[projId].flagNote = ''; }
+        renderHubPriority(_hubTab);
+      });
+    }
+  );
 }
 
 function renderHubEscalations() {
