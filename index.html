@@ -7,7 +7,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v74.8</title>
+<title>KB Studio CRM v74.10</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -7817,12 +7817,38 @@ function renderDelivRows(){
       html+='<div><span style="font-size:10px;color:#888;font-weight:600;display:block;margin-bottom:2px">QTY</span><input type="number" class="dlv-field" data-field="qty" data-idx="'+i+'" value="'+(d.qty||1)+'" min="1" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px"></div>';
       html+='<div><span style="font-size:10px;color:#888;font-weight:600;display:block;margin-bottom:2px">SPECS / NOTES</span><input type="text" class="dlv-field" data-field="specs" data-idx="'+i+'" value="'+(d.specs||'')+'" placeholder="e.g. 250 pics, 10x12 size, frame dimensions..." style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px"></div>';
       html+='</div>';
-      // Row 3: date, link
-      html+='<div style="display:grid;grid-template-columns:160px 1fr'+(d.link?' auto':'')+';gap:8px;align-items:center">';
-      html+='<div><span style="font-size:10px;color:#888;font-weight:600;display:block;margin-bottom:2px">DELIVERY DATE</span><input type="date" class="dlv-field" data-field="date" data-idx="'+i+'" value="'+(d.date||'')+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px"></div>';
-      html+='<div><span style="font-size:10px;color:#888;font-weight:600;display:block;margin-bottom:2px">DRIVE LINK</span><input type="text" class="dlv-field" data-field="link" data-idx="'+i+'" value="'+(d.link||'')+'" placeholder="Paste Google Drive link when delivered..." style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px"></div>';
-      if(d.link)html+='<a href="'+d.link+'" target="_blank" style="color:#3b82f6;font-size:11px;font-weight:600;white-space:nowrap;margin-top:14px">Open ↗</a>';
-      html+='</div>';
+
+      // ── Per-reel sub-rows (only for Reel type with qty > 1) ──
+      var qty=parseInt(d.qty)||1;
+      if(d.type==='Reel' && qty>1){
+        // ensure reelItems array is sized correctly
+        if(!d.reelItems)d.reelItems=[];
+        while(d.reelItems.length<qty)d.reelItems.push({status:'pending',date:'',link:''});
+        if(d.reelItems.length>qty)d.reelItems=d.reelItems.slice(0,qty);
+        var deliveredCount=d.reelItems.filter(function(r){return r.status==='delivered';}).length;
+        html+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:6px">';
+        html+='<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📱 Reel Breakdown — '+deliveredCount+'/'+qty+' Delivered</div>';
+        d.reelItems.forEach(function(ri,ri_idx){
+          var riSc=ri.status==='delivered'?'#10b981':ri.status==='inprogress'?'#f59e0b':ri.status==='changes'?'#dc2626':'#94a3b8';
+          var riOpts=[{v:'pending',l:'⏳ Pending'},{v:'inprogress',l:'🔄 In Progress'},{v:'delivered',l:'✅ Delivered'},{v:'changes',l:'🔁 Changes'}]
+            .map(function(o){return '<option value="'+o.v+'"'+(ri.status===o.v?' selected':'')+'>'+o.l+'</option>';}).join('');
+          html+='<div style="display:grid;grid-template-columns:auto 110px 140px 1fr'+(ri.link?' auto':'')+';gap:6px;align-items:center;margin-bottom:4px;background:#fff;border:1px solid #e8edf2;border-radius:6px;padding:5px 8px">';
+          html+='<span style="font-size:11px;font-weight:700;color:#475569;min-width:48px">Reel '+(ri_idx+1)+'</span>';
+          html+='<select class="reel-item-status" data-idx="'+i+'" data-ri="'+ri_idx+'" style="font-size:10px;padding:3px 6px;border-radius:6px;border:1.5px solid '+riSc+';background:'+riSc+'18;color:'+riSc+';font-weight:700;cursor:pointer;font-family:inherit;outline:none">'+riOpts+'</select>';
+          html+='<input type="date" class="reel-item-date" data-idx="'+i+'" data-ri="'+ri_idx+'" value="'+(ri.date||'')+'" style="border:1px solid #ddd;border-radius:6px;padding:3px 5px;font-size:11px;width:100%">';
+          html+='<input type="text" class="reel-item-link" data-idx="'+i+'" data-ri="'+ri_idx+'" value="'+(ri.link||'')+'" placeholder="Drive link..." style="border:1px solid #ddd;border-radius:6px;padding:3px 6px;font-size:11px;width:100%">';
+          if(ri.link)html+='<a href="'+ri.link+'" target="_blank" style="color:#3b82f6;font-size:10px;font-weight:600;white-space:nowrap">Open ↗</a>';
+          html+='</div>';
+        });
+        html+='</div>';
+      } else {
+        // Normal single date+link row for non-Reel or qty=1
+        html+='<div style="display:grid;grid-template-columns:160px 1fr'+(d.link?' auto':'')+';gap:8px;align-items:center;margin-bottom:6px">';
+        html+='<div><span style="font-size:10px;color:#888;font-weight:600;display:block;margin-bottom:2px">DELIVERY DATE</span><input type="date" class="dlv-field" data-field="date" data-idx="'+i+'" value="'+(d.date||'')+'" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px"></div>';
+        html+='<div><span style="font-size:10px;color:#888;font-weight:600;display:block;margin-bottom:2px">DRIVE LINK</span><input type="text" class="dlv-field" data-field="link" data-idx="'+i+'" value="'+(d.link||'')+'" placeholder="Paste Google Drive link when delivered..." style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px"></div>';
+        if(d.link)html+='<a href="'+d.link+'" target="_blank" style="color:#3b82f6;font-size:11px;font-weight:600;white-space:nowrap;margin-top:14px">Open ↗</a>';
+        html+='</div>';
+      }
       html+='</div>';
     });
     html+='</div>';
@@ -7830,7 +7856,15 @@ function renderDelivRows(){
   container.innerHTML=html;
   container.querySelectorAll('.dlv-status-sel').forEach(function(el){el.addEventListener('change',function(){setDelivStatus(parseInt(el.dataset.idx),el.value);});});
   container.querySelectorAll('.dlv-del-btn').forEach(function(el){el.addEventListener('click',function(){removeCustomDeliv(parseInt(el.dataset.idx));});});
-  container.querySelectorAll('.dlv-field').forEach(function(el){el.addEventListener('change',function(){updateDelivField(parseInt(el.dataset.idx),el.dataset.field,el.value);});});
+  container.querySelectorAll('.dlv-field').forEach(function(el){el.addEventListener('change',function(){
+    updateDelivField(parseInt(el.dataset.idx),el.dataset.field,el.value);
+    // If qty changed on a Reel, re-render to resize sub-rows
+    if(el.dataset.field==='qty' && customDelivs[parseInt(el.dataset.idx)] && customDelivs[parseInt(el.dataset.idx)].type==='Reel'){renderDelivRows();}
+  });});
+  // Per-reel item listeners
+  container.querySelectorAll('.reel-item-status').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'status',el.value);});});
+  container.querySelectorAll('.reel-item-date').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'date',el.value);});});
+  container.querySelectorAll('.reel-item-link').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'link',el.value);});});
 }
 
 function addCustomDeliv(){
@@ -7921,6 +7955,20 @@ function copyDelivMsg(){
 }
 
 function updateDelivField(idx,field,val){if(customDelivs[idx])customDelivs[idx][field]=val;}
+function updateReelItem(idx,ri,field,val){
+  if(!customDelivs[idx])return;
+  if(!customDelivs[idx].reelItems)customDelivs[idx].reelItems=[];
+  if(!customDelivs[idx].reelItems[ri])customDelivs[idx].reelItems[ri]={status:'pending',date:'',link:''};
+  customDelivs[idx].reelItems[ri][field]=val;
+  // Auto-set date on delivery
+  if(field==='status'&&val==='delivered'&&!customDelivs[idx].reelItems[ri].date)customDelivs[idx].reelItems[ri].date=tod();
+  // Sync overall deliverable status: if all delivered → delivered, else if any delivered/inprogress → inprogress, else pending
+  var items=customDelivs[idx].reelItems;
+  var allDel=items.every(function(r){return r.status==='delivered';});
+  var anyDel=items.some(function(r){return r.status==='delivered'||r.status==='inprogress';});
+  customDelivs[idx].status=allDel?'delivered':anyDel?'inprogress':'pending';
+  renderDelivRows();
+}
 
 // ═══ CLIENT BRIEF ════════════════════════════════════════════════════════════
 function getBriefURL(projId){return window.location.origin+window.location.pathname+'?brief='+projId;}
@@ -23220,9 +23268,8 @@ function getMonthlyRevenue() {
   var month = now.getMonth(); var year = now.getFullYear();
   var booked = 0, collected = 0;
   pl().forEach(function(p) {
-    // Booked: projects created this month
-    var created = p.createdAt ? new Date(p.createdAt) : null;
-    if (created && created.getFullYear() === year && created.getMonth() === month) {
+    // Booked: projects with bookdate in this month (matches "Booked This Month" modal)
+    if (p.bookdate && p.bookdate.startsWith(now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0'))) {
       booked += netVal(p);
     }
     // Collected: payments received this month
@@ -23288,15 +23335,16 @@ function renderRevenueTargetWidget(elId) {
       '<div style="font-size:22px;font-weight:800;color:#1a1a1a;margin-top:2px">' + (target > 0 ? fmt(target) : 'Not set') + '</div></div>' +
       (canEdit ? '<button onclick="promptRevenueTarget()" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">Edit Target</button>' : '') +
       '</div>' +
-      (target > 0 ? '<div style="margin-bottom:8px">' +
-        '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:3px"><span>Collected</span><span style="font-weight:700;color:#16a34a">' + fmt(rev.collected) + ' (' + targetPct + '%)</span></div>' +
-        '<div style="background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;margin-bottom:6px">' +
-        '<div style="width:' + targetPct + '%;height:100%;background:linear-gradient(90deg,#16a34a,#22c55e);border-radius:6px;transition:width .4s"></div></div>' +
-        '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:3px"><span>Booked</span><span style="font-weight:700;color:#1d4ed8">' + fmt(rev.booked) + ' (' + bookedPct + '%)</span></div>' +
-        '<div style="background:#e5e7eb;border-radius:6px;height:6px;overflow:hidden">' +
+      (target > 0 ? '<div style="margin-bottom:10px">' +
+        '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:3px"><span>Booked This Month</span><span style="font-weight:700;color:#1d4ed8">' + fmt(rev.booked) + ' (' + bookedPct + '%)</span></div>' +
+        '<div style="background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;margin-bottom:10px">' +
         '<div style="width:' + bookedPct + '%;height:100%;background:linear-gradient(90deg,#1d4ed8,#60a5fa);border-radius:6px;transition:width .4s"></div></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 10px">' +
+        '<div style="font-size:11px;color:#15803d;font-weight:600">💰 Collected This Month</div>' +
+        '<div style="font-size:13px;font-weight:800;color:#15803d">' + fmt(rev.collected) + '</div>' +
+        '</div>' +
         '</div>' : '<div style="font-size:12px;color:#aaa;margin-bottom:8px">Set a target to track progress.</div>') +
-      '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Last 6 Months</div>' +
+      '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Last 6 Months Collected</div>' +
       sparkHTML;
   });
 }
