@@ -53,6 +53,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html{touch-action:manipulation;-ms-touch-action:manipulation;overscroll-behavior:none;height:100%}
@@ -6608,8 +6609,12 @@ function renderArchiveQueue() {
   }).join('');
 
   el.innerHTML =
-    '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#9a3412">' +
-      '📦 <strong>' + queue.length + ' client' + (queue.length!==1?'s':'') + '</strong> with completed projects — ready for archival process.' +
+    '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#9a3412;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">' +
+      '<span>📦 <strong>' + queue.length + ' client' + (queue.length!==1?'s':'') + '</strong> with completed projects — ready for archival process.</span>' +
+      '<span style="display:flex;gap:8px">' +
+        '<button onclick="exportArchiveQueueExcel()" style="background:#16a34a;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px">📊 Export Excel</button>' +
+        '<button onclick="exportArchiveQueuePDF()" style="background:#dc2626;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px">📄 Export PDF</button>' +
+      '</span>' +
     '</div>' +
     '<div class="card" style="padding:0;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
     '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb">' +
@@ -6621,6 +6626,136 @@ function renderArchiveQueue() {
       '<th style="padding:10px 12px;text-align:left;font-weight:700">Deletion Request</th>' +
       '<th style="padding:10px 12px;text-align:left;font-weight:700">Action</th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function exportArchiveQueueExcel() {
+  var queue = pl().filter(function(p) { return !p.archived && p.stage === 'complete'; });
+  if (!queue.length) { showToast('No data to export'); return; }
+  var rows = [['Couple', 'Ref Code', 'Event Date', 'Total Value (INR)', 'Balance (INR)', 'Deletion Request Status']];
+  queue.forEach(function(p) {
+    var couple = (p.bride||'') + ' & ' + (p.groom||'');
+    var paidAmt = typeof paidTotal === 'function' ? paidTotal(p) : 0;
+    var totalAmt = typeof netVal === 'function' ? netVal(p) : (p.value || 0);
+    var balance = totalAmt - paidAmt;
+    var req = p.archiveRequest || {};
+    var status = req.clientApproval === 'approved' ? 'Client Approved'
+      : req.clientApproval === 'declined' ? 'Client Declined'
+      : req.initiated ? 'Awaiting Client' : 'Not Initiated';
+    var evtDate = p.date ? new Date(p.date).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : '';
+    rows.push([couple, p.refcode||'', evtDate, totalAmt, balance <= 0 ? 0 : balance, status]);
+  });
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:28},{wch:18},{wch:14},{wch:16},{wch:14},{wch:22}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Archive Queue');
+  XLSX.writeFile(wb, 'KB_Archive_Queue_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  showToast('✅ Excel exported!');
+}
+
+function exportArchiveQueuePDF() {
+  var queue = pl().filter(function(p) { return !p.archived && p.stage === 'complete'; });
+  if (!queue.length) { showToast('No data to export'); return; }
+  var jsPDFLib = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDFLib) { showToast('PDF library not loaded'); return; }
+  var doc = new jsPDFLib({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  var pageW = doc.internal.pageSize.getWidth();
+  var pageH = doc.internal.pageSize.getHeight();
+
+  // Header bar
+  doc.setFillColor(26, 26, 26);
+  doc.rect(0, 0, pageW, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.text('KB Studio Productions — Data Vault: Archive Queue', 14, 12);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Exported: ' + new Date().toLocaleString('en-IN'), pageW - 14, 12, { align: 'right' });
+
+  // Summary badge
+  doc.setFillColor(255, 247, 237);
+  doc.setDrawColor(254, 215, 170);
+  doc.roundedRect(14, 22, pageW - 28, 10, 2, 2, 'FD');
+  doc.setTextColor(154, 52, 18);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text(queue.length + ' client' + (queue.length !== 1 ? 's' : '') + ' with completed projects — ready for archival process.', 18, 29);
+
+  // Table columns
+  var cols = [
+    { header: 'Couple', width: 58 },
+    { header: 'Ref Code', width: 34 },
+    { header: 'Event Date', width: 28 },
+    { header: 'Total Value', width: 28 },
+    { header: 'Balance', width: 28 },
+    { header: 'Deletion Request', width: 40 }
+  ];
+  var startX = 14, rowH = 9;
+  var currentY = 36;
+
+  function drawTableHeader(y) {
+    doc.setFillColor(248, 250, 252);
+    doc.rect(startX, y, pageW - 28, rowH, 'F');
+    doc.setDrawColor(229, 231, 235);
+    doc.rect(startX, y, pageW - 28, rowH, 'D');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 30, 30);
+    var cx = startX + 3;
+    cols.forEach(function(c) { doc.text(c.header, cx, y + 6); cx += c.width; });
+  }
+
+  drawTableHeader(currentY);
+  currentY += rowH;
+
+  queue.forEach(function(p, i) {
+    if (currentY + rowH > pageH - 12) {
+      doc.addPage();
+      currentY = 14;
+      drawTableHeader(currentY);
+      currentY += rowH;
+    }
+    if (i % 2 === 0) { doc.setFillColor(249, 250, 251); doc.rect(startX, currentY, pageW - 28, rowH, 'F'); }
+    doc.setDrawColor(240, 240, 240);
+    doc.line(startX, currentY + rowH, startX + (pageW - 28), currentY + rowH);
+    var couple = (p.bride||'') + ' & ' + (p.groom||'');
+    var paidAmt = typeof paidTotal === 'function' ? paidTotal(p) : 0;
+    var totalAmt = typeof netVal === 'function' ? netVal(p) : (p.value || 0);
+    var balance = totalAmt - paidAmt;
+    var req = p.archiveRequest || {};
+    var status = req.clientApproval === 'approved' ? 'Approved'
+      : req.clientApproval === 'declined' ? 'Declined'
+      : req.initiated ? 'Awaiting Client' : 'Not Initiated';
+    var evtDate = p.date ? new Date(p.date).toLocaleDateString('en-IN', {day:'2-digit',month:'short',year:'numeric'}) : '—';
+    var vals = [couple, p.refcode||'—', evtDate,
+      'Rs.' + totalAmt.toLocaleString('en-IN'),
+      balance <= 0 ? 'Rs.0 — Paid' : 'Rs.' + balance.toLocaleString('en-IN'),
+      status];
+    var cx = startX + 3;
+    vals.forEach(function(v, vi) {
+      doc.setFont('helvetica', vi === 0 ? 'bold' : 'normal');
+      doc.setFontSize(7.5);
+      if (vi === 3) doc.setTextColor(29, 78, 216);
+      else if (vi === 4 && balance > 0) doc.setTextColor(220, 38, 38);
+      else if (vi === 4) doc.setTextColor(22, 163, 74);
+      else if (vi === 5 && req.clientApproval === 'approved') doc.setTextColor(22, 163, 74);
+      else if (vi === 5 && req.clientApproval === 'declined') doc.setTextColor(220, 38, 38);
+      else doc.setTextColor(30, 30, 30);
+      doc.text(String(v), cx, currentY + 6, { maxWidth: cols[vi].width - 4 });
+      cx += cols[vi].width;
+    });
+    currentY += rowH;
+  });
+
+  // Footer on last page
+  doc.setTextColor(150, 150, 150);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text('KB Studio CRM — Confidential', 14, pageH - 5);
+  doc.text('Total: ' + queue.length + ' records', pageW - 14, pageH - 5, { align: 'right' });
+
+  doc.save('KB_Archive_Queue_' + new Date().toISOString().slice(0,10) + '.pdf');
+  showToast('✅ PDF exported!');
 }
 
 function openArchiveRequest(projId) {
@@ -6760,7 +6895,7 @@ function renderArchives() {
     var searchQ = '';
     var searchBar = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">' +
       '<input type="text" id="arc-search" class="fi" placeholder="🔍 Search couple, city, year…" style="max-width:280px;font-size:12px" oninput="filterArchiveList()">' +
-      (isSA ? '<button class="btn btn-sm" style="font-size:11px;background:#f1f5f9;color:#555" onclick="renderArchives()">↺ Refresh</button>' : '') +
+      (isDM ? '<button class="btn btn-sm" style="font-size:11px;background:#f1f5f9;color:#555" onclick="renderArchives()">↺ Refresh</button>' : '') +
       '</div>';
 
     var cards = list.map(function(a) {
