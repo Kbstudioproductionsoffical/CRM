@@ -4986,7 +4986,30 @@ function kbErpSetEventMode(mode) {
 }
 
 // ── Per-stage preview update ──────────────────────────────────
-function kbErpUpdateStage(stageNum) { kbErpUpdateAll(); }
+var _kbPctValIds = ['kb-s1-val','kb-s2-val','kb-s2a-val','kb-s2b-val','kb-s3-val','kb-s4-val','kb-s5-val'];
+var _kbPctTypeForVal = {
+  'kb-s1-val':'kb-s1-type','kb-s2-val':'kb-s2-type','kb-s2a-val':'kb-s2a-type',
+  'kb-s2b-val':'kb-s2b-type','kb-s3-val':'kb-s3-type','kb-s4-val':'kb-s4-type','kb-s5-val':'kb-s5-type'
+};
+function _kbClampPctInputs() {
+  _kbPctValIds.forEach(function(valId) {
+    var valEl = document.getElementById(valId);
+    var typeEl = document.getElementById(_kbPctTypeForVal[valId]);
+    if (!valEl || !typeEl) return;
+    if (typeEl.value !== 'pct') return; // only clamp when Amount Type = Percentage
+    var n = parseFloat(valEl.value);
+    if (isNaN(n)) return;
+    if (n > 100) {
+      valEl.value = 100;
+      valEl.style.borderColor = '#dc2626';
+      if (typeof showToast === 'function') showToast('⚠️ Percentage can\'t exceed 100% — capped at 100%');
+      setTimeout(function(){ valEl.style.borderColor = ''; }, 1500);
+    } else if (n < 0) {
+      valEl.value = 0;
+    }
+  });
+}
+function kbErpUpdateStage(stageNum) { _kbClampPctInputs(); kbErpUpdateAll(); }
 
 function kbErpUpdateAll() {
   var net = _kbNetVal();
@@ -12907,7 +12930,7 @@ function onPayPresetChange(){
   if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
 }
 function addCustomPayRow(){var idx=($('custom-pay-rows').children.length);var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 80px 80px auto;gap:8px;align-items:center;margin-bottom:8px';row.innerHTML='<input type="text" class="fi" placeholder="Label (e.g. Advance)" style="padding:6px 10px;font-size:12px" oninput="updateCustomPayTotal()"><input type="number" class="fi" placeholder="%" min="1" max="100" style="padding:6px 8px;font-size:12px;text-align:center" oninput="updateCustomPayTotal()"><select class="fi" style="padding:6px 8px;font-size:12px" onchange="updateCustomPayTotal()"><option value="booking">On Booking</option><option value="event">Shoot Day</option><option value="raw">Raw Data</option><option value="delivery">On Delivery</option><option value="other">Other</option></select><button type="button" class="btn-danger" onclick="this.parentElement.remove();updateCustomPayTotal()">✕</button>';$('custom-pay-rows').appendChild(row);}
-function updateCustomPayTotal(){var rows=Array.from($('custom-pay-rows').children);var total=rows.reduce(function(a,r){return a+(parseInt(r.children[1].value)||0);},0);var tot=$('custom-pay-total');var err=$('custom-pay-error');if(tot)tot.textContent='Total: '+total+'% '+(total===100?'✅':'(must be 100%)');if(err)err.style.display=total>0&&total!==100?'block':'none';if(typeof syncKbScheduleFromCustomSplit==='function')syncKbScheduleFromCustomSplit();}
+function updateCustomPayTotal(){var rows=Array.from($('custom-pay-rows').children);rows.forEach(function(r){var inp=r.children[1];var n=parseInt(inp.value);if(!isNaN(n)&&n>100){inp.value=100;if(typeof showToast==='function')showToast('⚠️ Percentage can\'t exceed 100% — capped at 100%');}else if(!isNaN(n)&&n<0){inp.value=0;}});var total=rows.reduce(function(a,r){return a+(parseInt(r.children[1].value)||0);},0);var tot=$('custom-pay-total');var err=$('custom-pay-error');if(tot)tot.textContent='Total: '+total+'% '+(total===100?'✅':'(must be 100%)');if(err)err.style.display=total>0&&total!==100?'block':'none';if(typeof syncKbScheduleFromCustomSplit==='function')syncKbScheduleFromCustomSplit();}
 function getCustomPayTerms(){var rows=Array.from($('custom-pay-rows').children);var terms=[];rows.forEach(function(r,i){var label=r.children[0].value||('Installment '+(i+1));var pct=parseInt(r.children[1].value)||0;var desc=r.children[2].value;if(pct>0)terms.push({key:'cp'+i,label:label,pct:pct,desc:desc});});return terms;}
 function loadCustomPayRows(customTerms){var c=$('custom-pay-rows');c.innerHTML='';customTerms.forEach(function(t){addCustomPayRow();var row=c.children[c.children.length-1];row.children[0].value=t.label||'';row.children[1].value=t.pct||'';row.children[2].value=t.desc||'booking';});updateCustomPayTotal();}
 
@@ -19461,6 +19484,11 @@ function updateQuotCustomPayTotal() {
   var total = 0;
   Array.from(wrap.children).forEach(function(row) {
     var pctInp = row.querySelectorAll('input')[1];
+    if (pctInp) {
+      var n = parseInt(pctInp.value);
+      if (!isNaN(n) && n > 100) { pctInp.value = 100; if (typeof showToast === 'function') showToast('⚠️ Percentage can\'t exceed 100% — capped at 100%'); }
+      else if (!isNaN(n) && n < 0) { pctInp.value = 0; }
+    }
     total += parseInt(pctInp ? pctInp.value : 0) || 0;
   });
   totalEl.textContent = 'Total: ' + total + '% ' + (total === 100 ? '✅' : total > 100 ? '⚠️ Over 100%' : '⚠️ Must equal 100%');
