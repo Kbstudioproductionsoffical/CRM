@@ -3481,12 +3481,6 @@ if (!_isClientProofView) {
     <div class="modal-hdr"><div class="modal-title">Record Payment</div><button class="modal-close" data-close="pay-entry-modal">✕</button></div>
     <div class="modal-body">
 
-      <!-- Mode toggle: Single vs Smart Split -->
-      <div style="display:flex;gap:0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:14px">
-        <button id="pe-mode-single" onclick="setPEMode('single')" style="flex:1;padding:7px;font-size:12px;font-weight:700;background:#1a1a1a;color:#fff;border:none;cursor:pointer;font-family:inherit">💸 Single Entry</button>
-        <button id="pe-mode-split" onclick="setPEMode('split')" style="flex:1;padding:7px;font-size:12px;font-weight:600;background:#f1f5f9;color:#888;border:none;cursor:pointer;font-family:inherit">⚡ Smart Split</button>
-      </div>
-
       <!-- Single entry fields -->
       <div id="pe-single-fields">
         <div class="fg">
@@ -3508,15 +3502,6 @@ if (!_isClientProofView) {
           </div>
           <div class="fr"><label class="fl">Total Received (₹)</label><input class="fi" type="text" id="pe-total-received" readonly style="background:#f8f8f8;color:#16a34a;font-weight:700"></div>
         </div>
-      </div>
-
-      <!-- Smart Split fields -->
-      <div id="pe-split-fields" style="display:none">
-        <div class="fr" style="margin-bottom:8px">
-          <label class="fl" style="font-weight:700">Total Amount Received (₹) *</label>
-          <input class="fi" type="number" id="pe-split-amount" placeholder="e.g. 110000" oninput="previewSmartSplit()">
-        </div>
-        <div id="pe-split-preview" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:12px;margin-bottom:8px"></div>
       </div>
 
       <!-- Common fields -->
@@ -5676,12 +5661,12 @@ function kbErpGetGateStatus(p) {
   // carry the old preset keys (p30, p50, p10a…). Gate status must count those too.
   var KB_TO_LEGACY = {
     kb_advance:    ['p30','p20','p50a','cp0'],          // Advance / deposit stage
-    kb_event:      ['p50','p60','p50b'],                // Event payment (single-wedding)
+    kb_event:      ['p50','p60'],                       // Event payment (single-wedding)
     kb_prewed:     ['p50a','p40','p30b'],               // Pre-wed payment (dual mode)
-    kb_mainevent:  ['p50b','p60','p50'],                // Main event payment (dual mode)
+    kb_mainevent:  ['p60','p50'],                       // Main event payment (dual mode)
     kb_rawdata:    ['p10a','p10'],                      // Raw data release
-    kb_teaser:     ['p5a','p10b'],                      // Teaser & highlight
-    kb_final:      ['p5b','p10b','p10c','pfinal']       // Final delivery
+    kb_teaser:     ['p5a'],                              // Teaser & highlight
+    kb_final:      ['p5b','p10b','p10c','pfinal','p50b'] // Final delivery
   };
 
   return kbs.stages.map(function(s) {
@@ -12393,7 +12378,7 @@ function isEventLinkedStage(p, stageKey){
     var ct=p.customPayTerms.find(function(t){return t.key===stageKey;});
     return !!(ct&&ct.desc==='event');
   }
-  return /^p(50|60|50a)$/.test(stageKey||'');
+  return /^p(50|60)$/.test(stageKey||'');
 }
 // ── Recognize "this stage key/string represents the Advance/booking payment" ──
 // Mirrors the isAdv convention already used at payment-entry time (see recordPayment).
@@ -12413,15 +12398,15 @@ function isAdvanceStageKey(s) {
 // (from kbSchedule) but old payLedger entries carry preset keys (p20, p50…).
 var _KB_TO_LEGACY_KEYS = {
   kb_advance:   ['p30','p20','p50a','cp0','cq0','advance'],
-  kb_event:     ['p50','p60','p50b','event'],
+  kb_event:     ['p50','p60','event'],
   kb_event2:    ['event2'],
   kb_event3:    ['event3'],
   kb_event4:    ['event4'],
   kb_prewed:    ['p40','p30b'],
-  kb_mainevent: ['p50b','p60'],
+  kb_mainevent: ['p50','p60'],
   kb_rawdata:   ['p10a','p10'],
-  kb_teaser:    ['p5a','p10b'],
-  kb_final:     ['p5b','p10b','p10c','pfinal']
+  kb_teaser:    ['p5a'],
+  kb_final:     ['p5b','p10b','p10c','pfinal','p50b']
 };
 function getPaymentScheduleWithCarryForward(p){
   if(!p) return [];
@@ -12501,12 +12486,12 @@ function getPaymentScheduleWithCarryForward(p){
   // Forward map: preset term key → equivalent kb_* key in ledger
   var LEGACY_TO_KB={
     p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', cp0:'kb_advance',
-    p50:'kb_event',   p60:'kb_event',   p50b:'kb_event',
+    p50:'kb_event',   p60:'kb_event',
     event2:'kb_event2', event3:'kb_event3', event4:'kb_event4',
     p40:'kb_prewed',  p30b:'kb_prewed',
     p10a:'kb_rawdata',p10:'kb_rawdata',
-    p5a:'kb_teaser',  p10b:'kb_teaser',
-    p5b:'kb_final',   p10c:'kb_final',  pfinal:'kb_final'
+    p5a:'kb_teaser',
+    p5b:'kb_final',   p10b:'kb_final',  p10c:'kb_final',  pfinal:'kb_final',  p50b:'kb_final'
   };
   return terms.map(function(t, idx){
     var baseExp=Math.round(net*t.pct/100);
@@ -12703,79 +12688,14 @@ function savePayTermLabels(){
 
 // ═══ SMART PAYMENT RECORDING (Option A + C) ═══════════════════════
 
-var _peMode = 'single'; // 'single' | 'split'
+// Smart Split (lump-sum auto-allocated across multiple stages) has been
+// removed from Record Payment — every payment is now recorded as a single
+// entry against one stage. getPaymentScheduleWithCarryForward() still knows
+// how to read older payLedger entries that have a splitAllocation[] from
+// before this change, so past clients' historical records keep displaying
+// correctly; this only removes the ability to create new ones.
+var _peMode = 'single';
 
-function setPEMode(mode) {
-  _peMode = mode;
-  var singleBtn = document.getElementById('pe-mode-single');
-  var splitBtn  = document.getElementById('pe-mode-split');
-  var singleF   = document.getElementById('pe-single-fields');
-  var splitF    = document.getElementById('pe-split-fields');
-  var preview   = document.getElementById('pe-preview');
-  if (singleBtn) { singleBtn.style.background = mode === 'single' ? '#1a1a1a' : '#f1f5f9'; singleBtn.style.color = mode === 'single' ? '#fff' : '#888'; singleBtn.style.fontWeight = mode === 'single' ? '700' : '600'; }
-  if (splitBtn)  { splitBtn.style.background  = mode === 'split'  ? '#1d4ed8' : '#f1f5f9'; splitBtn.style.color  = mode === 'split'  ? '#fff' : '#888'; splitBtn.style.fontWeight  = mode === 'split'  ? '700' : '600'; }
-  if (singleF)   singleF.style.display = mode === 'single' ? '' : 'none';
-  if (splitF)    splitF.style.display  = mode === 'split'  ? '' : 'none';
-  if (preview)   preview.style.display = 'none';
-  if (mode === 'split') previewSmartSplit();
-}
-
-// Calculate how a lump-sum amount splits across remaining stage balances
-function calcSmartSplit(totalAmt, p) {
-  var terms = getPayTerms(p);
-  var net   = netVal(p);
-  var remaining = totalAmt;
-  var splits = [];
-  terms.forEach(function(t) {
-    if (remaining <= 0) return;
-    var exp       = Math.round(net * t.pct / 100);
-    var alreadyPaid = (p.payLedger || []).filter(function(e) { return stageMatches(e.stage, t.key); }).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0)
-      + (p.payLedger || []).filter(function(e){ return e.splitAllocation; }).reduce(function(a,e){
-          var alloc=e.splitAllocation.find(function(x){return stageMatches(x.stage, t.key);});
-          return a+(alloc?parseInt(alloc.amount)||0:0);
-        },0);
-    var due = exp - alreadyPaid;
-    if (due <= 0) return; // stage already fully paid
-    var allocate = Math.min(due, remaining);
-    splits.push({ key: t.key, label: t.label, exp: exp, alreadyPaid: alreadyPaid, allocate: allocate, willFill: allocate >= due });
-    remaining -= allocate;
-  });
-  // If anything left over (overpayment), attach to last stage
-  if (remaining > 0 && splits.length > 0) {
-    splits[splits.length - 1].allocate += remaining;
-    splits[splits.length - 1].willFill = false;
-    splits[splits.length - 1].overpay = remaining;
-  }
-  return splits;
-}
-
-function previewSmartSplit() {
-  var p = editProjId ? projects[editProjId] : null;
-  var previewEl = document.getElementById('pe-split-preview');
-  if (!p || !previewEl) return;
-  var totalAmt = parseInt((document.getElementById('pe-split-amount') || {}).value) || 0;
-  if (!totalAmt) { previewEl.style.display = 'none'; return; }
-  var splits = calcSmartSplit(totalAmt, p);
-  if (!splits.length) { previewEl.style.display = 'block'; previewEl.innerHTML = '<span style="color:#888">All stages are fully paid.</span>'; return; }
-  previewEl.style.display = 'block';
-  previewEl.innerHTML =
-    '<div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:8px">⚡ Auto-split into ' + splits.length + ' entr' + (splits.length === 1 ? 'y' : 'ies') + ':</div>' +
-    splits.map(function(s) {
-      var statusIcon = s.willFill ? '✅' : (s.overpay ? '⚠️' : '💛');
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #dcfce7">' +
-        '<div>' +
-          '<span style="font-size:12px;font-weight:700;color:#1a1a1a">' + escHtml(s.label) + '</span>' +
-          (s.willFill ? '<span style="font-size:10px;color:#16a34a;margin-left:6px">Stage fully covered</span>' : '') +
-          (s.overpay  ? '<span style="font-size:10px;color:#d97706;margin-left:6px">+₹' + s.overpay.toLocaleString('en-IN') + ' over expected</span>' : '') +
-        '</div>' +
-        '<span style="font-size:13px;font-weight:800;color:#16a34a">' + statusIcon + ' ₹' + s.allocate.toLocaleString('en-IN') + '</span>' +
-      '</div>';
-    }).join('') +
-    '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;font-weight:700">' +
-      '<span style="color:#555">Total</span>' +
-      '<span style="color:#1d4ed8">₹' + totalAmt.toLocaleString('en-IN') + '</span>' +
-    '</div>';
-}
 
 // ── Proof-of-payment: required for any non-cash mode, optional for Cash — only for new (strictPayments) projects ──
 function isStrictPaymentsProject(p){ return !!(p && p.strictPayments); }
@@ -12855,7 +12775,6 @@ document.addEventListener('click', function(e) {
     populateAccountDropdown('pe-account');
     sv('pe-date', tod());
     sv('pe-amount', '');
-    sv('pe-split-amount', '');
     sv('pe-ref', '');
     sv('pe-notes', '');
     sv('pe-due', '');
@@ -12863,12 +12782,9 @@ document.addEventListener('click', function(e) {
     sv('pe-gst-rate', '0');
     var trEl0 = $('pe-total-received'); if (trEl0) trEl0.value = '';
     var prev = $('pe-preview'); if (prev) prev.style.display = 'none';
-    var spPrev = $('pe-split-preview'); if (spPrev) spPrev.style.display = 'none';
     var pfFile = $('pe-proof-file'); if (pfFile) pfFile.value = '';
     var pfPrev = $('pe-proof-preview'); if (pfPrev) pfPrev.style.display = 'none';
     toggleProofRow('pe');
-    // Always reset to single mode
-    _peMode = 'single'; setPEMode('single');
     openModal('pay-entry-modal');
     // Auto-fill amount with the due amount for the selected stage
     setTimeout(function() {
@@ -12928,75 +12844,34 @@ $('btn-save-pay-entry').addEventListener('click',function(){
   var _proofErr=validatePaymentProof(p, mode, $('pe-proof-file'));
   if(_proofErr){ alert('\u26d4 '+_proofErr); return; }
 
-  if(_peMode==='split'){
-    // ── Smart Split mode: ONE visible entry, internal stage allocations stored inside ──
-    var totalAmt=parseInt((document.getElementById('pe-split-amount')||{}).value)||0;
-    if(!totalAmt){alert('Enter the total amount received.');return;}
-    if(!date){alert('Enter payment date.');return;}
-    if(!account){alert('Select account.');return;}
-    var splits=calcSmartSplit(totalAmt,p);
-    if(!splits.length){showToast('All stages already fully paid.');return;}
-    // Single consolidated entry — visible in ledger as one row
-    // Internal split stored in splitAllocation[] for payment schedule calculation
-    var consolidatedEntry={
-      stage:'split',
-      amount:totalAmt,
-      date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,
-      ts:Date.now(),recordedBy:recordedBy,
-      splitAllocation:splits.map(function(s){return{stage:s.key,label:s.label,amount:s.allocate};}),
-      splitLabel:splits.map(function(s){return s.label+' ('+fmt(s.allocate)+')';}).join(' + ')
-    };
-    var ledger=(p.payLedger||[]).concat([consolidatedEntry]);
+  // Single entry mode — Smart Split has been removed; every payment is
+  // recorded against one stage now.
+  var amt=parseInt(gv('pe-amount'))||0;
+  if(!amt){alert('Enter amount.');return;}
+  if(!date){alert('Enter payment date.');return;}
+  // Stage is now optional — blank = 'general'
+  var sk=gv('pe-stage')||'general';
+  var gstRate=parseFloat(gv('pe-gst-rate'))||0;
+  var gstAmt=calcGstAmt(amt,gstRate);
+  var entry={stage:sk,amount:amt,date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,ts:Date.now(),recordedBy:recordedBy};
+  if(gstAmt>0){entry.gstRate=gstRate;entry.gstAmount=gstAmt;entry.totalReceived=amt+gstAmt;}
+  var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
+  var noExisting=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).length===0;
+  uploadPaymentProof(editProjId, $('pe-proof-file'), function(proofMeta){
+    if(proofMeta) entry.proofDocId=proofMeta.id;
+    var ledger=(p.payLedger||[]).concat([entry]);
     var upd={payLedger:ledger};
-    // Auto-set bookdate from first allocation stage if advance
-    var firstAlloc=splits[0];
-    if(firstAlloc){
-      var sk=firstAlloc.key;
-      var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
-      var noExisting=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk)||(e.splitAllocation&&e.splitAllocation.some(function(a){return stageMatches(a.stage, sk);}));}).length===0;
-      if(isAdv&&noExisting&&date&&(!p.bookdate||p.bookdate===''))upd.bookdate=date;
-    }
-    uploadPaymentProof(editProjId, $('pe-proof-file'), function(proofMeta){
-      if(proofMeta){ consolidatedEntry.proofDocId=proofMeta.id; upd.payLedger=(p.payLedger||[]).concat([consolidatedEntry]); }
-      db.ref('crm_projects/'+editProjId).update(upd,function(err){
-        if(err){alert('Error: '+err.message);return;}
-        closeModal('pay-entry-modal');
-        showToast('⚡ '+fmt(totalAmt)+' recorded & allocated across '+splits.length+' stages!');
-        renderPayLedger();
-        setTimeout(function(){runPaymentAutomations(editProjId);},400);
-        setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,consolidatedEntry);},600);
-      });
+    if(entry.due)upd['pay_'+sk+'_due']=entry.due;
+    if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate===''))upd.bookdate=entry.date;
+    db.ref('crm_projects/'+editProjId).update(upd,function(err){
+      if(err){alert('Error: '+err.message);return;}
+      closeModal('pay-entry-modal');
+      showToast(gstAmt>0 ? ('✅ '+fmt(amt)+' + GST '+fmt(gstAmt)+' = '+fmt(amt+gstAmt)+' recorded!') : ('✅ '+fmt(amt)+' recorded!'));
+      renderPayLedger();
+      setTimeout(function(){runPaymentAutomations(editProjId);},400);
+      setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);
     });
-
-  } else {
-    // ── Single entry mode ──
-    var amt=parseInt(gv('pe-amount'))||0;
-    if(!amt){alert('Enter amount.');return;}
-    if(!date){alert('Enter payment date.');return;}
-    // Stage is now optional — blank = 'general'
-    var sk=gv('pe-stage')||'general';
-    var gstRate=parseFloat(gv('pe-gst-rate'))||0;
-    var gstAmt=calcGstAmt(amt,gstRate);
-    var entry={stage:sk,amount:amt,date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,ts:Date.now(),recordedBy:recordedBy};
-    if(gstAmt>0){entry.gstRate=gstRate;entry.gstAmount=gstAmt;entry.totalReceived=amt+gstAmt;}
-    var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
-    var noExisting=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).length===0;
-    uploadPaymentProof(editProjId, $('pe-proof-file'), function(proofMeta){
-      if(proofMeta) entry.proofDocId=proofMeta.id;
-      var ledger=(p.payLedger||[]).concat([entry]);
-      var upd={payLedger:ledger};
-      if(entry.due)upd['pay_'+sk+'_due']=entry.due;
-      if(isAdv&&noExisting&&entry.date&&(!p.bookdate||p.bookdate===''))upd.bookdate=entry.date;
-      db.ref('crm_projects/'+editProjId).update(upd,function(err){
-        if(err){alert('Error: '+err.message);return;}
-        closeModal('pay-entry-modal');
-        showToast(gstAmt>0 ? ('✅ '+fmt(amt)+' + GST '+fmt(gstAmt)+' = '+fmt(amt+gstAmt)+' recorded!') : ('✅ '+fmt(amt)+' recorded!'));
-        renderPayLedger();
-        setTimeout(function(){runPaymentAutomations(editProjId);},400);
-        setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);
-      });
-    });
-  }
+  });
 });
 function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin or Accounts.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
 
