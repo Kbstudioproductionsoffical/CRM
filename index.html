@@ -49,11 +49,13 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-<!-- Firebase Storage SDK removed — Spark plan does not include Storage -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>if(window['pdfjsLib']){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html{touch-action:manipulation;-ms-touch-action:manipulation;overscroll-behavior:none;height:100%}
@@ -1165,23 +1167,30 @@ body {
 
 </style>
 <script>
-// Prevent pinch-to-zoom on iOS (touchstart with 2+ touches)
-document.addEventListener('touchstart', function(e) {
-  if (e.touches.length > 1) { e.preventDefault(); }
-}, { passive: false });
-// Prevent double-tap zoom on iOS (but NOT on interactive elements like buttons/inputs)
-var lastTap = 0;
-document.addEventListener('touchend', function(e) {
-  var tag = e.target && e.target.tagName;
-  if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'A') return;
-  var now = Date.now();
-  if (now - lastTap < 300) { e.preventDefault(); }
-  lastTap = now;
-}, { passive: false });
-// Prevent wheel zoom (Ctrl+scroll on desktop / trackpad pinch)
-document.addEventListener('wheel', function(e) {
-  if (e.ctrlKey) { e.preventDefault(); }
-}, { passive: false });
+// These gesture-blockers are for the logged-in app shell only. The public
+// client album-proofing view (?albumproof=TOKEN) is a plain scrolling page
+// and must NOT have touch/gesture handling intercepted, or trackpad/touch
+// scrolling breaks on it.
+var _isClientProofView = /[?&]albumproof=/.test(window.location.search);
+if (!_isClientProofView) {
+  // Prevent pinch-to-zoom on iOS (touchstart with 2+ touches)
+  document.addEventListener('touchstart', function(e) {
+    if (e.touches.length > 1) { e.preventDefault(); }
+  }, { passive: false });
+  // Prevent double-tap zoom on iOS (but NOT on interactive elements like buttons/inputs)
+  var lastTap = 0;
+  document.addEventListener('touchend', function(e) {
+    var tag = e.target && e.target.tagName;
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || tag === 'A') return;
+    var now = Date.now();
+    if (now - lastTap < 300) { e.preventDefault(); }
+    lastTap = now;
+  }, { passive: false });
+  // Prevent wheel zoom (Ctrl+scroll on desktop / trackpad pinch)
+  document.addEventListener('wheel', function(e) {
+    if (e.ctrlKey) { e.preventDefault(); }
+  }, { passive: false });
+}
 </script>
 </head>
 <body>
@@ -1628,6 +1637,27 @@ document.addEventListener('wheel', function(e) {
         </div>
         <div id="freelancer-grid"></div>
       </div>
+    </div>
+
+    <div id="page-albumproofing" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+        <div>
+          <div class="page-title" style="margin-bottom:2px">📒 Album Proofing</div>
+          <div class="page-sub">Send album drafts to clients for review, collect feedback, and track approvals.</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="renderAlbumProofingPage()" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer">🔄 Refresh</button>
+        </div>
+      </div>
+      <div id="ap-storage-notice" style="display:none;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#92400e">
+        ⚠️ <b>Firebase Storage upgrade needed.</b> Album image uploads require the Blaze plan. The rest of the proofing workflow (links, comments, approvals) works now. Upgrade your Firebase project to enable image uploads.
+      </div>
+      <div style="display:flex;gap:0;border-bottom:2px solid #e5e5e5;margin-bottom:16px">
+        <button class="ap-main-tab" data-aptab="active" onclick="switchApTab('active',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#1d4ed8;border-bottom:2px solid #1d4ed8;margin-bottom:-2px;cursor:pointer;font-family:inherit">📬 Active Proofs</button>
+        <button class="ap-main-tab" data-aptab="queue" onclick="switchApTab('queue',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">🔧 Needs Editing<span id="ap-queue-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:800;margin-left:6px">0</span></button>
+        <button class="ap-main-tab" data-aptab="all" onclick="switchApTab('all',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">📂 All Proofs</button>
+      </div>
+      <div id="ap-content"></div>
     </div>
 
     <div id="page-referral" class="page">
@@ -3428,6 +3458,18 @@ document.addEventListener('wheel', function(e) {
           </div>
           <div class="fr"><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="pe-amount" oninput="updatePEPreview()"></div>
         </div>
+        <div class="fg">
+          <div class="fr"><label class="fl">GST on this payment</label>
+            <select class="fi" id="pe-gst-rate" onchange="updatePEPreview()">
+              <option value="0" selected>No GST</option>
+              <option value="18">18% GST</option>
+              <option value="5">5% GST</option>
+              <option value="12">12% GST</option>
+              <option value="28">28% GST</option>
+            </select>
+          </div>
+          <div class="fr"><label class="fl">Total Received (₹)</label><input class="fi" type="text" id="pe-total-received" readonly style="background:#f8f8f8;color:#16a34a;font-weight:700"></div>
+        </div>
       </div>
 
       <!-- Smart Split fields -->
@@ -3471,7 +3513,19 @@ document.addEventListener('wheel', function(e) {
     <div class="modal-body">
       <div class="fr"><label class="fl">Select Client *</label><select class="fi" id="rp-client"></select></div>
       <div id="rp-client-info" style="background:#f8f8f8;border-radius:8px;padding:11px;margin-bottom:12px;font-size:13px;display:none"></div>
-      <div class="fg"><div class="fr"><label class="fl">Payment Stage *</label><select class="fi" id="rp-stage"></select></div><div class="fr"><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="rp-amount"></div></div>
+      <div class="fg"><div class="fr"><label class="fl">Payment Stage *</label><select class="fi" id="rp-stage"></select></div><div class="fr"><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="rp-amount" oninput="updateRPGstPreview()"></div></div>
+      <div class="fg">
+        <div class="fr"><label class="fl">GST on this payment</label>
+          <select class="fi" id="rp-gst-rate" onchange="updateRPGstPreview()">
+            <option value="0" selected>No GST</option>
+            <option value="18">18% GST</option>
+            <option value="5">5% GST</option>
+            <option value="12">12% GST</option>
+            <option value="28">28% GST</option>
+          </select>
+        </div>
+        <div class="fr"><label class="fl">Total Received (₹)</label><input class="fi" type="text" id="rp-total-received" readonly style="background:#f8f8f8;color:#16a34a;font-weight:700"></div>
+      </div>
       <div class="fg"><div class="fr"><label class="fl">Payment Date *</label><input class="fi" type="date" id="rp-date"></div><div class="fr"><label class="fl">Payment Mode</label><select class="fi" id="rp-mode"><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Mixed</option></select></div></div>
       <div class="fr"><label class="fl">Account Received In *</label><select class="fi" id="rp-account"></select></div>
       <div class="fg"><div class="fr"><label class="fl">Transaction / UTR No.</label><input class="fi" id="rp-ref"></div><div class="fr"><label class="fl">Due Date (remaining)</label><input class="fi" type="date" id="rp-due"></div></div>
@@ -4795,6 +4849,7 @@ try {
     });
   }
   db = firebase.database();
+  try { storage = firebase.storage(); } catch(e) { storage = null; }
   // ── Stale-cache detector ───────────────────────────────────────
   // Every device that opens the CRM writes its own build version under
   // crm_meta/latestKnownVersion (last-write-wins, so it always reflects
@@ -4850,16 +4905,76 @@ function pwaCloseIOS() {
 }
 
 // ── Firebase Storage not available on Spark plan ──────────────────
-// uploadToStorage always rejects so callers fall through to their .catch() handlers
-// which save compressed base64 directly to Realtime DB instead
-var storage = null; // No Storage on Spark plan
+var storage = null; // Initialised after Firebase init (requires Blaze plan)
 
 function uploadToStorage(dataUrl, path) {
-  return Promise.reject(new Error('Firebase Storage not available on Spark plan'));
+  if (storage) {
+    // Firebase Storage path (Blaze plan)
+    return new Promise(function(resolve, reject) {
+      var blob;
+      try {
+        var arr = dataUrl.split(','), mime = arr[0].match(/:(.*?);/)[1];
+        var bstr = atob(arr[1]), n = bstr.length, u8 = new Uint8Array(n);
+        while(n--) u8[n] = bstr.charCodeAt(n);
+        blob = new Blob([u8], {type: mime});
+      } catch(e) { reject(e); return; }
+      var ref = storage.ref(path);
+      var task = ref.put(blob);
+      task.on('state_changed', null,
+        function(err) { reject(err); },
+        function() { task.snapshot.ref.getDownloadURL().then(resolve).catch(reject); }
+      );
+    });
+  }
+  // ── Spark plan fallback: store compressed base64 in RTDB ──────────────
+  // Compress image to max 800px wide before storing
+  return new Promise(function(resolve, reject) {
+    try {
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var maxW = 800;
+        var w = img.width, h = img.height;
+        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var compressed = canvas.toDataURL('image/jpeg', 0.72);
+        // Store base64 directly — resolve with the base64 string as the "URL"
+        resolve(compressed);
+      };
+      img.onerror = function() { reject(new Error('Image load failed')); };
+      img.src = dataUrl;
+    } catch(e) { reject(e); }
+  });
 }
 
 function isStorageUrl(val) {
   return val && (val.startsWith('https://firebasestorage') || val.startsWith('https://storage.googleapis'));
+}
+
+// ── uploadAudioToStorage: same Storage-vs-fallback pattern as uploadToStorage,
+// but for audio blobs (no image compression/decoding involved) ─────────────
+function uploadAudioToStorage(dataUrl, path) {
+  if (storage) {
+    return new Promise(function(resolve, reject) {
+      var blob;
+      try {
+        var arr = dataUrl.split(','), mime = arr[0].match(/:(.*?);/)[1];
+        var bstr = atob(arr[1]), n = bstr.length, u8 = new Uint8Array(n);
+        while (n--) u8[n] = bstr.charCodeAt(n);
+        blob = new Blob([u8], { type: mime });
+      } catch (e) { reject(e); return; }
+      var ref = storage.ref(path);
+      var task = ref.put(blob);
+      task.on('state_changed', null,
+        function(err) { reject(err); },
+        function() { task.snapshot.ref.getDownloadURL().then(resolve).catch(reject); }
+      );
+    });
+  }
+  // Spark plan fallback: store the base64 audio directly in RTDB.
+  // Fine for short voice notes (a few seconds); not ideal for long ones.
+  return Promise.resolve(dataUrl);
 }
 
 // ── getImageSrc: resolves either a storage URL or base64 directly ──
@@ -5737,6 +5852,17 @@ function closeModal(id){
 function paidTotal(p){return(p.payLedger||[]).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);}
 function netVal(p){return(parseInt(p.value)||0)-(parseInt(p.discount)||0);}
 function balDue(p){return netVal(p)-paidTotal(p);}
+
+// ═══ GST HELPERS ═════════════════════════════════════════════════════════
+// Every payLedger entry stores TWO amounts:
+//   e.amount     — the BASE amount that counts toward the package value (₹3L etc). Used everywhere pending/balance is calculated. NEVER touched by GST.
+//   e.gstAmount  — the GST collected ON TOP of that base amount, tracked separately for accounts/invoicing. Does NOT affect package balance.
+//   e.gstRate    — the % used (18, 5, 12, 28...), stored for reference.
+// entryTotalReceived(e) = amount + gstAmount = the actual money that hit the bank account.
+function calcGstAmt(baseAmt, rate){ var b=parseFloat(baseAmt)||0; var r=parseFloat(rate)||0; return Math.round(b*r/100); }
+function entryTotalReceived(e){ return (parseInt(e.amount)||0) + (parseInt(e.gstAmount)||0); }
+function gstCollectedTotal(p){ return (p.payLedger||[]).reduce(function(a,e){return a+(parseInt(e.gstAmount)||0);},0); }
+function totalCollectedWithGst(p){ return paidTotal(p) + gstCollectedTotal(p); }
 function genRefCode(bride,groom,id){var b=(bride||'X').replace(/[^a-zA-Z]/g,'').toUpperCase().substring(0,2);var g=(groom||'X').replace(/[^a-zA-Z]/g,'').toUpperCase().substring(0,2);return 'KBS-'+b+g+'-'+String(id).slice(-4);}
 function destroyCharts(obj){Object.values(obj).forEach(function(c){if(c&&c.destroy)c.destroy();});for(var k in obj)delete obj[k];}
 
@@ -7700,7 +7826,7 @@ function mountSidebarCustomizer() {
     {page:'reports',label:'Reports'},{page:'priority',label:'Priority Clients'},
     {page:'whatsapp',label:'WhatsApp'},{page:'referral',label:'Referrals'},
     {page:'celebrations',label:'Celebrations'},{page:'team',label:'Team Members'},
-    {page:'inventory',label:'Asset Inventory'},{page:'settings',label:'Settings'},
+    {page:'inventory',label:'Asset Inventory'},{page:'albumproofing',label:'Album Proofing'},{page:'settings',label:'Settings'},
     {page:'users',label:'Users & Accounts'}
   ];
 
@@ -8655,6 +8781,7 @@ function renderPostProd(){
         html+='<td style="display:flex;gap:4px;flex-wrap:wrap">'+
           '<button class="btn btn-sm" style="background:#10b981;color:#fff;font-size:11px" onclick="ppUpdateStatus('+item.projId+',\''+d.id+'\',\'delivered\')">✅ Approve & Deliver</button>'+
           '<button class="btn btn-sm" style="background:#f59e0b;color:#fff;font-size:11px" onclick="ppRequestRevision('+item.projId+',\''+d.id+'\')">🔄 Request Revision</button>'+
+          '<button class="btn btn-sm" style="background:#7c3aed;color:#fff;font-size:11px" onclick="openAlbumProofModal('+item.projId+',\''+d.id+'\')" title="Send album pages to client for review">📒 Album Proof</button>'+
           '<button class="btn btn-sm pp-open-proj" data-id="'+item.projId+'" style="font-size:11px">Open</button>'+
         '</td></tr>';
       });
@@ -11802,7 +11929,7 @@ function renderPaymentPipeline() {
       (completedPending > 0 ? ' · <strong style="color:#dc2626">⚠️ '+fmt(completedPending)+' still due</strong>' : '') + '</span>' +
     '<span style="color:#ccc">|</span>' +
     '<span style="color:#888">Pipeline shows active clients only · Dashboard shows all · ' +
-      '<a href="#" onclick="showPage(\'payments\');switchPayTab(\'projects\',null)" style="color:#1d4ed8;text-decoration:none">Full view →</a></span>' +
+      '<a href="#" onclick="navTo(\'payments\');switchPayTab(\'projects\',null)" style="color:#1d4ed8;text-decoration:none">Full view →</a></span>' +
   '</div>';
 
   // ── Group by event month ──
@@ -12339,8 +12466,8 @@ function renderPayLedger(){
   if (typeof kbRenderGateLocks === 'function') kbRenderGateLocks();
   var terms=getPayTerms(p);
   var customLabels=p.payTermLabels||{};
-  var net=netVal(p);var paid=paidTotal(p);var bal=Math.max(0,net-paid);
-  $('t-pay-summary').innerHTML='Net Value: <strong>'+fmt(net)+'</strong> &nbsp;&middot;&nbsp; Paid: <strong style="color:#16a34a">'+fmt(paid)+'</strong> &nbsp;&middot;&nbsp; Balance: <strong style="color:'+(bal>0?'#dc2626':'#16a34a')+'">'+fmt(bal)+'</strong>';
+  var net=netVal(p);var paid=paidTotal(p);var bal=Math.max(0,net-paid);var gstColl=gstCollectedTotal(p);
+  $('t-pay-summary').innerHTML='Net Value: <strong>'+fmt(net)+'</strong> &nbsp;&middot;&nbsp; Paid: <strong style="color:#16a34a">'+fmt(paid)+'</strong> &nbsp;&middot;&nbsp; Balance: <strong style="color:'+(bal>0?'#dc2626':'#16a34a')+'">'+fmt(bal)+'</strong>'+(gstColl>0?' &nbsp;&middot;&nbsp; GST Collected: <strong style="color:#7c3aed">'+fmt(gstColl)+'</strong> &nbsp;&middot;&nbsp; Total in Bank: <strong style="color:#1d4ed8">'+fmt(paid+gstColl)+'</strong>':'');
   var ledger=p.payLedger||[];
   var html=ledger.length?'<table class="tbl" style="margin-bottom:14px"><thead><tr><th>#</th><th>Date</th><th>Stage</th><th>Amount</th><th>Mode</th><th>Account</th><th>Ref/UTR</th><th>Proof</th><th>Notes</th><th></th></tr></thead><tbody>'+
     ledger.map(function(e,i){
@@ -12363,7 +12490,8 @@ function renderPayLedger(){
       var canDeleteThis = isSA || isAccOwnEntry;
       var deleteBtn = canDeleteThis ? '<button class="btn-danger" onclick="deletePayEntry('+i+')">&#x2715;</button>' : '';
       var editBtn = (isSA || isAcc) ? '<button class="btn btn-sm" style="font-size:9px;padding:3px 7px;white-space:nowrap;background:#f0f4ff;border-color:#c7d7ff;color:#1d4ed8" onclick="editPayEntry('+i+')">✏️ Edit</button>' : '';
-      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">'+receiptBtn+editBtn+deleteBtn+'</div></td></tr>';
+      var gstSub = (e.gstAmount>0) ? '<div style="font-size:10px;color:#7c3aed;margin-top:2px">+ GST @'+(e.gstRate||0)+'%: '+fmt(e.gstAmount)+' &nbsp;=&nbsp; <strong>'+fmt(entryTotalReceived(e))+'</strong> total</div>' : '';
+      return '<tr><td style="color:#888;font-size:11px">'+(i+1)+'</td><td>'+fmtDate(e.date||'')+'</td><td><span class="badge '+badgeColor+'">'+displayLabel+'</span>'+splitDetail+'</td><td style="font-weight:700;color:#16a34a">'+fmt(e.amount)+gstSub+'</td><td>'+(e.mode||'-')+'</td><td style="font-size:11px">'+(e.account||'-')+'</td><td style="font-size:11px;color:#888">'+(e.ref||'-')+'</td><td>'+proofCell+'</td><td style="font-size:11px;color:#888">'+(e.notes||'-')+'</td><td><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">'+receiptBtn+editBtn+deleteBtn+'</div></td></tr>';
     }).join('')+'</tbody></table>':
     '<div class="empty" style="padding:16px">No payments recorded yet.</div>';
 
@@ -12610,10 +12738,11 @@ document.addEventListener('change', function(e){
     var alr2=(rp.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk2);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var due2=exp2-alr2;
     if(due2>0)sv('rp-amount',due2);
+    updateRPGstPreview();
   }
 });
 
-function updatePEPreview(){var p=editProjId?projects[editProjId]:null;if(!p)return;var amt=parseInt(gv('pe-amount'))||0;var sk=gv('pe-stage');var prev=$('pe-preview');if(!amt){prev.style.display='none';return;}var terms=getPayTerms(p);var term=terms.find(function(t){return t.key===sk;})||terms[0];if(!term){prev.style.display='none';return;}var net=netVal(p);var exp=Math.round(net*term.pct/100);var alr=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);prev.style.display='block';prev.innerHTML='Recording <strong>'+fmt(amt)+'</strong> for <strong>'+term.label+'</strong> (exp: '+fmt(exp)+')<br>Previously: '+fmt(alr)+' → New total: <strong style="color:#16a34a">'+fmt(alr+amt)+'</strong>'+(Math.max(0,exp-alr-amt)>0?'<br><span style="color:#d97706">Remaining: '+fmt(Math.max(0,exp-alr-amt))+'</span>':'<br><span style="color:#16a34a">✓ Fully paid!</span>');}
+function updatePEPreview(){var p=editProjId?projects[editProjId]:null;if(!p)return;var amt=parseInt(gv('pe-amount'))||0;var gstRate=parseFloat(gv('pe-gst-rate'))||0;var gstAmt=calcGstAmt(amt,gstRate);var totalRecv=amt+gstAmt;var trEl=$('pe-total-received');if(trEl)trEl.value=totalRecv?fmt(totalRecv):'';var sk=gv('pe-stage');var prev=$('pe-preview');if(!amt){prev.style.display='none';return;}var terms=getPayTerms(p);var term=terms.find(function(t){return t.key===sk;})||terms[0];if(!term){prev.style.display='none';return;}var net=netVal(p);var exp=Math.round(net*term.pct/100);var alr=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);var gstLine=gstAmt>0?('<br><span style="color:#7c3aed">+ GST @'+gstRate+'%: '+fmt(gstAmt)+' → Total received: <strong>'+fmt(totalRecv)+'</strong></span>'):'';prev.style.display='block';prev.innerHTML='Recording <strong>'+fmt(amt)+'</strong> for <strong>'+term.label+'</strong> (exp: '+fmt(exp)+')'+gstLine+'<br>Previously: '+fmt(alr)+' → New total: <strong style="color:#16a34a">'+fmt(alr+amt)+'</strong>'+(Math.max(0,exp-alr-amt)>0?'<br><span style="color:#d97706">Remaining: '+fmt(Math.max(0,exp-alr-amt))+'</span>':'<br><span style="color:#16a34a">✓ Fully paid!</span>');}
 // ── btn-add-pay-entry: open Record Payment modal from inside project modal ─
 document.addEventListener('click', function(e) {
   if (e.target && e.target.id === 'btn-add-pay-entry') {
@@ -12639,6 +12768,8 @@ document.addEventListener('click', function(e) {
     sv('pe-notes', '');
     sv('pe-due', '');
     sv('pe-mode', 'UPI');
+    sv('pe-gst-rate', '0');
+    var trEl0 = $('pe-total-received'); if (trEl0) trEl0.value = '';
     var prev = $('pe-preview'); if (prev) prev.style.display = 'none';
     var spPrev = $('pe-split-preview'); if (spPrev) spPrev.style.display = 'none';
     var pfFile = $('pe-proof-file'); if (pfFile) pfFile.value = '';
@@ -12752,7 +12883,10 @@ $('btn-save-pay-entry').addEventListener('click',function(){
     if(!date){alert('Enter payment date.');return;}
     // Stage is now optional — blank = 'general'
     var sk=gv('pe-stage')||'general';
+    var gstRate=parseFloat(gv('pe-gst-rate'))||0;
+    var gstAmt=calcGstAmt(amt,gstRate);
     var entry={stage:sk,amount:amt,date:date,mode:mode,account:account,ref:ref,due:due,notes:notes,ts:Date.now(),recordedBy:recordedBy};
+    if(gstAmt>0){entry.gstRate=gstRate;entry.gstAmount=gstAmt;entry.totalReceived=amt+gstAmt;}
     var isAdv=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
     var noExisting=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).length===0;
     uploadPaymentProof(editProjId, $('pe-proof-file'), function(proofMeta){
@@ -12764,7 +12898,7 @@ $('btn-save-pay-entry').addEventListener('click',function(){
       db.ref('crm_projects/'+editProjId).update(upd,function(err){
         if(err){alert('Error: '+err.message);return;}
         closeModal('pay-entry-modal');
-        showToast('✅ '+fmt(amt)+' recorded!');
+        showToast(gstAmt>0 ? ('✅ '+fmt(amt)+' + GST '+fmt(gstAmt)+' = '+fmt(amt+gstAmt)+' recorded!') : ('✅ '+fmt(amt)+' recorded!'));
         renderPayLedger();
         setTimeout(function(){runPaymentAutomations(editProjId);},400);
         setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(editProjId,entry);},600);
@@ -12774,7 +12908,8 @@ $('btn-save-pay-entry').addEventListener('click',function(){
 });
 function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin or Accounts.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
 
-$('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');}).map(function(p){var pid=p.id||Object.keys(projects).find(function(k){return projects[k]===p;});return '<option value="'+pid+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');sv('rp-mode','UPI');var rpf=$('rp-proof-file');if(rpf)rpf.value='';var rpp=$('rp-proof-preview');if(rpp)rpp.style.display='none';toggleProofRow('rp');$('rp-client-info').style.display='none';openModal('rp-modal');});
+function updateRPGstPreview(){var amt=parseInt(gv('rp-amount'))||0;var rate=parseFloat(gv('rp-gst-rate'))||0;var gstAmt=calcGstAmt(amt,rate);var trEl=$('rp-total-received');if(trEl)trEl.value=(amt+gstAmt)?fmt(amt+gstAmt):'';}
+$('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');}).map(function(p){var pid=p.id||Object.keys(projects).find(function(k){return projects[k]===p;});return '<option value="'+pid+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');sv('rp-mode','UPI');sv('rp-gst-rate','0');var rptr=$('rp-total-received');if(rptr)rptr.value='';var rpf=$('rp-proof-file');if(rpf)rpf.value='';var rpp=$('rp-proof-preview');if(rpp)rpp.style.display='none';toggleProofRow('rp');$('rp-client-info').style.display='none';openModal('rp-modal');});
 $('rp-client').addEventListener('change',function(){
   var id=this.value;var p=projects[id]||projects[parseInt(id)];var info=$('rp-client-info');
   if(!p){info.style.display='none';return;}
@@ -12796,6 +12931,7 @@ $('rp-client').addEventListener('change',function(){
       if(due>0)sv('rp-amount',due);
     }
   }
+  updateRPGstPreview();
   toggleProofRow('rp');
 });
 $('btn-save-rp').addEventListener('click',function(){
@@ -12808,7 +12944,9 @@ $('btn-save-rp').addEventListener('click',function(){
   var _proofErr=validatePaymentProof(p, mode, $('rp-proof-file'));
   if(_proofErr){ alert('\u26d4 '+_proofErr); return; }
   var sk=gv('rp-stage');var payDate=gv('rp-date');
+  var rpGstRate=parseFloat(gv('rp-gst-rate'))||0;var rpGstAmt=calcGstAmt(amt,rpGstRate);
   var entry={stage:sk,amount:amt,date:payDate,mode:mode,account:gv('rp-account'),ref:gv('rp-ref'),due:gv('rp-due'),notes:gv('rp-notes'),ts:Date.now(),recordedBy:CU?(CU.name||CU.username||''):''};
+  if(rpGstAmt>0){entry.gstRate=rpGstRate;entry.gstAmount=rpGstAmt;entry.totalReceived=amt+rpGstAmt;}
   // AUTO-FILL BOOKING DATE from first advance payment
   var isAdvance=(sk==='p30'||sk==='p20'||sk==='p50a'||sk==='cp0'||(sk||'').toLowerCase().includes('advance'));
   var existingAdvance=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).length===0;
@@ -12821,7 +12959,7 @@ $('btn-save-rp').addEventListener('click',function(){
     db.ref('crm_projects/'+id).update(upd,function(err){
       if(err){alert('Error: '+err.message);return;}
       closeModal('rp-modal');
-      showToast('✅ '+fmt(amt)+' recorded!'+(upd.bookdate?' Booking date set to '+payDate:''));
+      showToast((rpGstAmt>0 ? ('✅ '+fmt(amt)+' + GST '+fmt(rpGstAmt)+' = '+fmt(amt+rpGstAmt)+' recorded!') : ('✅ '+fmt(amt)+' recorded!'))+(upd.bookdate?' Booking date set to '+payDate:''));
       setTimeout(function(){runPaymentAutomations(id);},400);
       setTimeout(function(){if(typeof triggerAutoInvoice==='function')triggerAutoInvoice(id,entry);},600);
     });
@@ -13397,6 +13535,7 @@ function openEditUser(id){var u=users[id];if(!u)return;editUserId=id;$('user-mod
 $('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass');if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;db.ref('crm_users/'+id).set({id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:gv('u-email'),notes:gv('u-notes'),mustChangePassword:mustChange},function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
 function deleteUser(id){if(id===CU.id){alert("Can't delete your own account.");return;}if(!confirm('Remove this user?'))return;db.ref('crm_users/'+id).remove(function(){showToast('User removed.');});}
 $('btn-add-account').addEventListener('click',function(){editAccId=null;$('account-modal-title').textContent='Add Account';['acc-name','acc-number','acc-notes'].forEach(function(i){sv(i,'');});sv('acc-type','savings');openModal('account-modal');});
+function openAddAccount(){editAccId=null;var t=$('account-modal-title');if(t)t.textContent='Add Account';['acc-name','acc-number','acc-notes'].forEach(function(i){sv(i,'');});sv('acc-type','savings');openModal('account-modal');}
 function switchUsersTab(tabId, btn){
   ['t-users-tab','t-accounts-tab'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.style.display=id===tabId?'block':'none';
@@ -15026,7 +15165,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','activitylog','healthcheck','clienthub','securitylog'],
+    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','albumproofing','activitylog','healthcheck','clienthub','securitylog'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -15034,7 +15173,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   intern: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','healthcheck','clienthub'],
+    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','albumproofing','healthcheck','clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -15042,7 +15181,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard','pipeline','projects','postprod','whatsapp','onboarding','calendar','team','healthcheck','clienthub','datavault'],
+    pages: ['dashboard','pipeline','projects','postprod','albumproofing','whatsapp','onboarding','calendar','team','healthcheck','clienthub','datavault'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -15050,7 +15189,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   postprod: {
-    pages: ['dashboard','postprod','team','whatsapp','healthcheck'],
+    pages: ['dashboard','postprod','albumproofing','team','whatsapp','healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -15431,6 +15570,7 @@ function renderPage(name) {
   else if (name === 'healthcheck') renderHealthCheck();
   else if (name === 'securitylog') renderSecLog();
   else if (name === 'inventory') { loadAssets(); renderInventory(); }
+  else if (name === 'albumproofing') { renderAlbumProofingPage(); }
   else if (name === 'clientissues') { renderCIHub(); }
   else if (name === 'clienthub') { switchHubTab(_hubTab || 'overview'); }
 }
@@ -15548,7 +15688,7 @@ var SIDEBAR_ICON_MAP = {
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Overview',          items:['dashboard','reports','healthcheck','onboarding','quotations'] },
-  { label:'Post Productions',  items:['projects','pipeline','postprod'] },
+  { label:'Post Productions',  items:['projects','pipeline','postprod','albumproofing'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
@@ -17831,7 +17971,8 @@ function loadInvoiceFromPayments() {
   if (!ledger.length) { showToast('⚠️ No payments recorded yet.'); return; }
   var terms = getPayTerms(p);
   var customLabels = p.payTermLabels || {};
-  _ptInvItems = ledger.map(function(e) {
+  _ptInvItems = [];
+  ledger.forEach(function(e) {
     var term = terms.find(function(t) { return stageMatches(t.key, e.stage); }) || (isAdvanceStageKey(e.stage) ? terms[0] : null) || { label: e.stage || 'Payment', desc: '' };
     var label = customLabels[normStage(e.stage) + '_label'] || customLabels[e.stage + '_label'] || term.label;
     var termDesc = customLabels[normStage(e.stage) + '_desc'] || customLabels[e.stage + '_desc'] || term.desc || '';
@@ -17840,9 +17981,12 @@ function loadInvoiceFromPayments() {
     if (e.date) { try { parts.push(fmtDate(e.date)); } catch(x) { parts.push(e.date); } }
     if (e.mode) parts.push(e.mode);
     if (e.ref)  parts.push('Ref: ' + e.ref);
-    return { desc: parts.join(' | '), qty: 1, rate: parseInt(e.amount) || 0 };
+    _ptInvItems.push({ desc: parts.join(' | '), qty: 1, rate: parseInt(e.amount) || 0 });
+    if (e.gstAmount > 0) {
+      _ptInvItems.push({ desc: 'GST @ ' + (e.gstRate||0) + '% on above (' + (e.date ? fmtDate(e.date) : '') + ')', qty: 1, rate: parseInt(e.gstAmount) || 0 });
+    }
   });
-  var totalPaid = ledger.reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+  var totalPaid = ledger.reduce(function(a,e){return a+(parseInt(e.amount)||0)+(parseInt(e.gstAmount)||0);},0);
   var net = netVal(p);
   if (net > 0 && totalPaid < net) {
     _ptInvItems.push({ desc: 'Balance Outstanding', qty: 1, rate: 0 });
@@ -17877,7 +18021,7 @@ function addPayTabInvoiceItem() { _ptInvItems.push({desc:'',qty:1,rate:0}); rend
 function updatePayTabInvoiceTotals() {
   var p = editProjId ? projects[editProjId] : null;
   var sub = _ptInvItems.reduce(function(s,it){return s+(parseFloat(it.qty)||0)*(parseFloat(it.rate)||0);},0);
-  var paid = p ? paidTotal(p) : 0;
+  var paid = p ? totalCollectedWithGst(p) : 0;
   var bal = sub - paid;
   var sd = document.getElementById('ptinv-sub'); if(sd) sd.textContent = invFmt(sub);
   var pd = document.getElementById('ptinv-paid'); if(pd) pd.textContent = invFmt(paid);
@@ -17888,7 +18032,7 @@ function updatePayTabInvoiceTotals() {
 function renderPayTabInvoicePreview() {
   var box = document.getElementById('ptinv-preview'); if (!box) return;
   var p = editProjId ? projects[editProjId] : {};
-  var paid = p ? paidTotal(p) : 0;
+  var paid = p ? totalCollectedWithGst(p) : 0;
   var showTerms = document.getElementById('ptinv-show-terms') ? document.getElementById('ptinv-show-terms').checked : true;
   var data = {
     invoiceNo: gv('ptinv-number'), date: gv('ptinv-date'), dueDate: gv('ptinv-due'),
@@ -17903,7 +18047,7 @@ function renderPayTabInvoicePreview() {
 
 function printPayTabInvoice() {
   var p = editProjId ? projects[editProjId] : {};
-  var paid = p ? paidTotal(p) : 0;
+  var paid = p ? totalCollectedWithGst(p) : 0;
   var showTerms = document.getElementById('ptinv-show-terms') ? document.getElementById('ptinv-show-terms').checked : true;
   var data = {
     invoiceNo: gv('ptinv-number'), date: gv('ptinv-date'), dueDate: gv('ptinv-due'),
@@ -17925,7 +18069,7 @@ function invTabDelItem(i){_invItems.splice(i,1);renderInvoiceTabItems();renderIn
 function updateInvoiceTabTotals() {
   var p = editProjId ? projects[editProjId] : null;
   var sub = _invItems.reduce(function(s,it){return s+(parseFloat(it.qty)||0)*(parseFloat(it.rate)||0);},0);
-  var paid = p ? paidTotal(p) : 0;
+  var paid = p ? totalCollectedWithGst(p) : 0;
   var bal = sub - paid;
   var sd = document.getElementById('inv-subtotal-disp'); if(sd) sd.textContent = invFmt(sub);
   var pd = document.getElementById('inv-paid-disp'); if(pd) pd.textContent = invFmt(paid);
@@ -17936,7 +18080,7 @@ function renderInvoiceTabPreview() {
   var box = document.getElementById('inv-preview-box'); if(!box) return;
   var p = editProjId ? projects[editProjId] : {};
   var showTerms = document.getElementById('inv-show-terms') ? document.getElementById('inv-show-terms').checked : true;
-  var paid = p ? paidTotal(p) : 0;
+  var paid = p ? totalCollectedWithGst(p) : 0;
   var data = {
     invoiceNo: gv('inv-number'), date: gv('inv-date'), dueDate: gv('inv-due'),
     payMode: gv('inv-pay-mode'), notes: gv('inv-notes'),
@@ -17953,7 +18097,7 @@ function resetInvoiceFields() { initInvoiceTab(); }
 function printInvoice() {
   var p = editProjId ? projects[editProjId] : {};
   var showTerms = document.getElementById('inv-show-terms') ? document.getElementById('inv-show-terms').checked : true;
-  var paid = p ? paidTotal(p) : 0;
+  var paid = p ? totalCollectedWithGst(p) : 0;
   var data = {
     invoiceNo: gv('inv-number'), date: gv('inv-date'), dueDate: gv('inv-due'),
     payMode: gv('inv-pay-mode'), notes: gv('inv-notes'),
@@ -20979,7 +21123,7 @@ function convertQuotToProject(overrideId) {
   var advPayment = q.advancePayment;
   var advAmt = q.advancePaid || 0;
   if (advAmt > 0 && advPayment) {
-    projData.payLedger = [{
+    var _advEntry = {
       stage: 'kb_advance',   // matches kbSchedule stage key (legacy 'p30' is also mapped via KB_TO_LEGACY)
       amount: advAmt,
       date: advPayment.date || '',
@@ -20990,7 +21134,13 @@ function convertQuotToProject(overrideId) {
       proofDocId: advPayment.proofDocId || '',
       ts: Date.now(),
       recordedBy: advPayment.recordedBy || 'System'
-    }];
+    };
+    if (advPayment.gstAmount > 0) {
+      _advEntry.gstRate = advPayment.gstRate || 0;
+      _advEntry.gstAmount = advPayment.gstAmount;
+      _advEntry.totalReceived = advPayment.totalReceived || (advAmt + advPayment.gstAmount);
+    }
+    projData.payLedger = [_advEntry];
     projData.bookdate = advPayment.date || '';
   }
 
@@ -23280,9 +23430,14 @@ function showPaymentGate(quotId, q, event) {
       '<div style="margin-top:18px">' +
         '<div style="font-size:13px;font-weight:700;color:#555;margin-bottom:10px">Record Advance Payment</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
-          '<div><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="pg-amount" placeholder="e.g. 50000" min="1"></div>' +
+          '<div><label class="fl">Amount (₹) *</label><input class="fi" type="number" id="pg-amount" placeholder="e.g. 50000" min="1" oninput="updatePGGstPreview()"></div>' +
           '<div><label class="fl">Payment Mode</label><select class="fi" id="pg-mode" onchange="var m=this.value;var pr=document.getElementById(\'pg-proof-row\');if(pr)pr.style.display=(m===\'Cash\')?\' none\':\'block\'"><option>UPI</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Mixed</option></select></div>' +
         '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
+          '<div><label class="fl">GST on this payment</label><select class="fi" id="pg-gst-rate" onchange="updatePGGstPreview()"><option value="0" selected>No GST</option><option value="18">18% GST</option><option value="5">5% GST</option><option value="12">12% GST</option><option value="28">28% GST</option></select></div>' +
+          '<div><label class="fl">Total Received (₹)</label><input class="fi" type="text" id="pg-total-received" readonly style="background:#f8f8f8;color:#16a34a;font-weight:700"></div>' +
+        '</div>' +
+        '<div id="pg-gst-note" style="display:none;font-size:11px;color:#7c3aed;margin:-4px 0 10px;background:#f5f3ff;border-radius:6px;padding:6px 8px"></div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">' +
           '<div><label class="fl">Date *</label><input class="fi" type="date" id="pg-date" value="' + tod() + '"></div>' +
           '<div><label class="fl">Transaction / UTR No.</label><input class="fi" id="pg-ref" placeholder="Optional"></div>' +
@@ -23312,6 +23467,24 @@ function showPaymentGate(quotId, q, event) {
   setTimeout(function(){ var a=document.getElementById('pg-amount');if(a)a.focus();},100);
 }
 
+function updatePGGstPreview() {
+  var amt = parseFloat((document.getElementById('pg-amount')||{}).value||0);
+  var rate = parseFloat((document.getElementById('pg-gst-rate')||{}).value||0);
+  var gstAmt = calcGstAmt(amt, rate);
+  var total = amt + gstAmt;
+  var trEl = document.getElementById('pg-total-received');
+  if (trEl) trEl.value = total ? fmt(total) : '';
+  var noteEl = document.getElementById('pg-gst-note');
+  if (noteEl) {
+    if (gstAmt > 0) {
+      noteEl.style.display = 'block';
+      noteEl.innerHTML = 'Only <strong>' + fmt(amt) + '</strong> counts toward the package value. GST of <strong>' + fmt(gstAmt) + '</strong> is tracked separately and won\'t affect the payment schedule.';
+    } else {
+      noteEl.style.display = 'none';
+    }
+  }
+}
+
 function confirmPaymentGate(quotId) {
   var amt = parseFloat((document.getElementById('pg-amount')||{}).value||0);
   var date = (document.getElementById('pg-date')||{}).value||'';
@@ -23319,6 +23492,8 @@ function confirmPaymentGate(quotId) {
   var ref = (document.getElementById('pg-ref')||{}).value||'';
   var note = (document.getElementById('pg-note')||{}).value||'Advance booking payment';
   var acc  = (document.getElementById('pg-account')||{}).value||'';
+  var gstRate = parseFloat((document.getElementById('pg-gst-rate')||{}).value||0);
+  var gstAmt = calcGstAmt(amt, gstRate);
   var proofFile = document.getElementById('pg-proof-file');
   if (!amt || amt <= 0) { alert('Please enter a valid advance amount.'); return; }
   if (!date) { alert('Please enter the payment date.'); return; }
@@ -23335,6 +23510,7 @@ function confirmPaymentGate(quotId) {
     recordedBy: CU ? (CU.name||CU.username) : 'System',
     recordedAt: new Date().toISOString()
   };
+  if (gstAmt > 0) { payRecord.gstRate = gstRate; payRecord.gstAmount = gstAmt; payRecord.totalReceived = amt + gstAmt; }
 
   function doSave(proofMeta) {
     if (proofMeta) payRecord.proofDocId = proofMeta.id;
@@ -23345,7 +23521,7 @@ function confirmPaymentGate(quotId) {
       if (quotations[quotId]) { quotations[quotId].advancePaid = amt; quotations[quotId].advancePayment = payRecord; quotations[quotId].status = 'won'; }
       var modal = document.getElementById('pay-gate-modal');
       if (modal) modal.remove();
-      showToast('🎉 Advance of ' + fmt(amt) + ' recorded! Client marked as Won.');
+      showToast(gstAmt > 0 ? ('🎉 ' + fmt(amt) + ' + GST ' + fmt(gstAmt) + ' = ' + fmt(amt+gstAmt) + ' recorded! Client marked as Won.') : ('🎉 Advance of ' + fmt(amt) + ' recorded! Client marked as Won.'));
       renderSalesPage();
     });
   }
@@ -27854,7 +28030,7 @@ function saveInstDueDate(projId, stageKey, dateVal) {
             '</div>';
           }).join('');
           return '<div style="background:#fffbeb;border-radius:6px;padding:8px 10px">' + inputs +
-            '<div style="font-size:10px;color:#92400e;margin-top:4px">Set dates so the accounts team is notified on time · <a href="#" onclick="showPage(\'payments\');switchPayTab(\'calendar\',document.querySelector(\'[data-ptab=calendar]\'))" style="color:#1d4ed8">Open Calendar →</a></div>' +
+            '<div style="font-size:10px;color:#92400e;margin-top:4px">Set dates so the accounts team is notified on time · <a href="#" onclick="navTo(\'payments\');switchPayTab(\'calendar\',document.querySelector(\'[data-ptab=calendar]\'))" style="color:#1d4ed8">Open Calendar →</a></div>' +
             '</div>';
         }
       });
@@ -28037,3 +28213,1512 @@ window.saveEditPayEntry = function(idx) {
 </script>
 </body>
 </html>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// KB STUDIO CRM v75 — ALBUM PROOFING MODULE
+// ══════════════════════════════════════════════════════════════════
+
+var _apTab = 'active';
+var _apProofs = {}; // local cache: token → proof object
+var _apQueueFilter = null; // {projId,delivId} when queue is scoped to one proof, else null (all)
+
+// ── Page-level state helpers (shared by editor queue, proof cards & client view) ──
+// A page's edit lifecycle: untouched -> 'flagged' (client left feedback) ->
+// 'fixed' (editor uploaded a replacement / marked resolved, awaiting client recheck) ->
+// back to 'flagged' if the client comments again, or cleared on overall approval.
+function apHasFeedback(p) {
+  return !!(p && (p.comment || (p.pins && Object.keys(p.pins).length) || (p.voiceNote && p.voiceNote.url)));
+}
+function apPageNeedsEdit(p) {
+  return apHasFeedback(p) && (!p || p.status !== 'fixed');
+}
+function apPageFixedPending(p) {
+  return !!(p && p.status === 'fixed');
+}
+function apPageBadge(p) {
+  if (!p) return null;
+  if (p.status === 'fixed') return { label: '🆕 Updated', bg: '#dbeafe', fg: '#1d4ed8' };
+  if (apHasFeedback(p)) return { label: '🔧 Needs Edit', bg: '#fee2e2', fg: '#dc2626' };
+  return null;
+}
+
+// ── Update the "Needs Editing" tab badge count across all active proofs ──
+function apUpdateQueueBadge(all) {
+  var badge = document.getElementById('ap-queue-badge');
+  if (!badge) return;
+  var count = 0;
+  (all || []).forEach(function(proof) {
+    if (proof.status === 'approved') return;
+    (proof.pages || []).forEach(function(p) { if (apPageNeedsEdit(p)) count++; });
+  });
+  if (count > 0) { badge.style.display = 'inline-block'; badge.textContent = count; }
+  else { badge.style.display = 'none'; }
+}
+
+// ── Shared compress+upload for a single File, used by the editor "Replace Page" flow ──
+function apCompressAndUploadFile(file, path, cb) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement('canvas');
+      var maxW = 1200, maxH = 1600;
+      var w = img.width, h = img.height;
+      if (w > maxW) { h = h * maxW / w; w = maxW; }
+      if (h > maxH) { w = w * maxH / h; h = maxH; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var compressed = canvas.toDataURL('image/jpeg', 0.85);
+      if (!storage) { cb(null, 'Firebase Storage not enabled — upgrade to Blaze plan to upload replacement pages.'); return; }
+      uploadToStorage(compressed, path).then(function(url) { cb(url, null); }).catch(function(err) { cb(null, err && err.message ? err.message : 'Upload failed'); });
+    };
+    img.onerror = function() { cb(null, 'Could not read that image file.'); };
+    img.src = e.target.result;
+  };
+  reader.onerror = function() { cb(null, 'Could not read that file.'); };
+  reader.readAsDataURL(file);
+}
+
+// ── Jump straight to the Editing Queue, scoped to one proof ──
+function apOpenQueueForProof(projId, delivId) {
+  _apQueueFilter = { projId: projId, delivId: delivId };
+  _apTab = 'queue';
+  document.querySelectorAll('.ap-main-tab').forEach(function(b) {
+    b.style.color = '#888'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500';
+  });
+  var qBtn = document.querySelector('.ap-main-tab[data-aptab="queue"]');
+  if (qBtn) { qBtn.style.color = '#1d4ed8'; qBtn.style.borderBottom = '2px solid #1d4ed8'; qBtn.style.fontWeight = '600'; }
+  renderAlbumProofingPage();
+}
+
+// ── Token generator ────────────────────────────────────────────────
+function apGenToken() {
+  var c = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  var t = '';
+  for (var i = 0; i < 16; i++) t += c[Math.floor(Math.random() * c.length)];
+  return t;
+}
+
+// ── Switch tabs on album proofing page ─────────────────────────────
+function switchApTab(tab, el) {
+  _apTab = tab;
+  _apQueueFilter = null;
+  document.querySelectorAll('.ap-main-tab').forEach(function(b) {
+    b.style.color = '#888';
+    b.style.borderBottom = '2px solid transparent';
+    b.style.fontWeight = '500';
+  });
+  if (el) { el.style.color = '#1d4ed8'; el.style.borderBottom = '2px solid #1d4ed8'; el.style.fontWeight = '600'; }
+  renderAlbumProofingPage();
+}
+
+// ── Render Album Proofing page ──────────────────────────────────────
+function renderAlbumProofingPage() {
+  var el = document.getElementById('ap-content');
+  if (!el) return;
+  // Show storage notice if no storage
+  var notice = document.getElementById('ap-storage-notice');
+  if (notice) {
+    if (storage) {
+      notice.style.display = 'none';
+    } else {
+      notice.style.display = '';
+      notice.innerHTML = '🧪 <b>Test mode:</b> Images are compressed and stored temporarily in the database. Upgrade Firebase to Blaze plan for full-resolution Storage. Everything else — links, comments, approvals — works fully right now.';
+    }
+  }
+
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:#aaa;font-size:13px">Loading proofs…</div>';
+  db.ref('crm_album_proofs').once('value', function(snap) {
+    var all = [];
+    snap.forEach(function(projSnap) {
+      projSnap.forEach(function(delivSnap) {
+        var proof = delivSnap.val();
+        if (proof) { proof._projId = projSnap.key; proof._delivId = delivSnap.key; all.push(proof); }
+      });
+    });
+    all.sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    apUpdateQueueBadge(all);
+    if (_apTab === 'queue') { apRenderQueue(el, all); return; }
+    var filtered = _apTab === 'active'
+      ? all.filter(function(p) { return p.status === 'sent' || p.status === 'draft' || p.status === 'changes_requested'; })
+      : all;
+
+    if (!filtered.length) {
+      // Build a project+deliverable picker so user can start a proof from here
+      var projList = Object.values(projects || {});
+      var pickerHtml = '<div style="text-align:center;padding:30px 20px 16px"><div style="font-size:32px;margin-bottom:10px">📒</div>';
+      pickerHtml += '<div style="font-size:16px;font-weight:800;color:#1a1a1a;margin-bottom:4px">No proofs yet</div>';
+      pickerHtml += '<div style="font-size:13px;color:#64748b;margin-bottom:20px">Start by selecting a project and deliverable below.</div></div>';
+      pickerHtml += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;max-width:500px;margin:0 auto">';
+      pickerHtml += '<div style="margin-bottom:12px"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Select Project</label>';
+      pickerHtml += '<select id="ap-pick-proj" class="fi" style="width:100%" onchange="apPickerLoadDelivs()">';
+      pickerHtml += '<option value="">— Choose project —</option>';
+      projList.filter(function(p){ return p && p.bride; }).sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); }).forEach(function(p){
+        pickerHtml += '<option value="' + p.id + '">' + p.bride + ' & ' + p.groom + (p.date ? ' (' + p.date + ')' : '') + '</option>';
+      });
+      pickerHtml += '</select></div>';
+      pickerHtml += '<div id="ap-pick-deliv-wrap" style="margin-bottom:12px;display:none"><label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Select Deliverable</label>';
+      pickerHtml += '<select id="ap-pick-deliv" class="fi" style="width:100%"><option value="">— Choose deliverable —</option></select></div>';
+      pickerHtml += '<button onclick="apPickerStart()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer">📒 Start Album Proof</button>';
+      pickerHtml += '</div>';
+      el.innerHTML = pickerHtml;
+      return;
+    }
+
+    var statusColor = { draft: '#f59e0b', sent: '#3b82f6', changes_requested: '#ef4444', approved: '#10b981' };
+    var statusLabel = { draft: '📝 Draft', sent: '📬 Sent to Client', changes_requested: '🔄 Changes Requested', approved: '✅ Approved' };
+
+    var html = '<div style="display:grid;gap:12px">';
+    filtered.forEach(function(proof) {
+      var proj = projects[proof._projId] || {};
+      var couple = (proj.bride && proj.groom) ? proj.bride + ' & ' + proj.groom : proof.clientName || proof._projId;
+      var pagesCount = (proof.pages || []).length;
+      var commented = (proof.pages || []).filter(apHasFeedback).length;
+      var needsEdit = (proof.pages || []).filter(apPageNeedsEdit).length;
+      var awaitingResend = (proof.pages || []).filter(apPageFixedPending).length;
+      var sc = statusColor[proof.status] || '#888';
+      var sl = statusLabel[proof.status] || proof.status;
+      var clientUrl = window.location.href.split('?')[0] + '?albumproof=' + proof.clientToken;
+
+      html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;border-left:4px solid ' + sc + '">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
+      html += '<div>';
+      html += '<div style="font-size:15px;font-weight:800;color:#1a1a1a">' + couple + '</div>';
+      html += '<div style="font-size:12px;color:#64748b;margin-top:2px">' + (proof.delivName || 'Album') + ' · Version ' + (proof.version || 1) + (proof.round > 1 ? ' · Round ' + proof.round : '') + '</div>';
+      html += '</div>';
+      html += '<span style="background:' + sc + '22;color:' + sc + ';border:1px solid ' + sc + '44;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700">' + sl + '</span>';
+      html += '</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">';
+      html += '<div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#1a1a1a">' + pagesCount + '</div><div style="font-size:10px;color:#888">Pages</div></div>';
+      html += '<div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:' + (commented ? '#ef4444' : '#10b981') + '">' + commented + '</div><div style="font-size:10px;color:#888">Flagged</div></div>';
+      html += '<div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:' + (needsEdit ? '#dc2626' : '#10b981') + '">' + needsEdit + '</div><div style="font-size:10px;color:#888">To Edit</div></div>';
+      html += '<div style="background:#f8fafc;border-radius:8px;padding:8px;text-align:center"><div style="font-size:11px;font-weight:700;color:#1a1a1a;margin-top:4px">' + (proof.sentAt ? new Date(proof.sentAt).toLocaleDateString('en-IN', {day:'numeric',month:'short'}) : '—') + '</div><div style="font-size:10px;color:#888">Sent</div></div>';
+      html += '</div>';
+      if (proof.status === 'changes_requested' && needsEdit > 0) {
+        html += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:#991b1b">';
+        html += '<b>Client feedback received</b> — ' + needsEdit + ' page' + (needsEdit !== 1 ? 's' : '') + ' need edits. Open the Editing Queue to fix them quickly.';
+        html += '</div>';
+      } else if (awaitingResend > 0) {
+        html += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:#1e40af">';
+        html += '<b>' + awaitingResend + ' page' + (awaitingResend !== 1 ? 's' : '') + ' fixed</b> and ready — notify the client to recheck them.';
+        html += '</div>';
+      }
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+      if (needsEdit > 0) {
+        html += '<button onclick="apOpenQueueForProof(\'' + proof._projId + '\',\'' + proof._delivId + '\')" style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">🔧 Review &amp; Fix (' + needsEdit + ')</button>';
+      }
+      if (awaitingResend > 0) {
+        html += '<button onclick="apResendUpdates(\'' + proof._projId + '\',\'' + proof._delivId + '\')" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">📬 Notify Client (' + awaitingResend + ')</button>';
+      }
+      html += '<button onclick="openAlbumProofModal(\'' + proof._projId + '\',\'' + proof._delivId + '\')" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">✏️ Manage Proof</button>';
+      html += '<button onclick="apCopyLink(\'' + clientUrl + '\')" style="background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">🔗 Copy Link</button>';
+      html += '<button onclick="apWhatsApp(\'' + proof._projId + '\',\'' + proof._delivId + '\')" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">💬 WhatsApp</button>';
+      if (proof.status === 'approved') {
+        html += '<button onclick="apNewVersion(\'' + proof._projId + '\',\'' + proof._delivId + '\')" style="background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">🔃 New Version</button>';
+      }
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  });
+}
+
+// ── Open Album Proof Modal ──────────────────────────────────────────
+function openAlbumProofModal(projId, delivId) {
+  var proj = projects[projId] || {};
+  var deliv = (proj.customDelivs || []).find(function(d) { return d.id == delivId; }) || {};
+  var couple = (proj.bride && proj.groom) ? proj.bride + ' & ' + proj.groom : projId;
+
+  // Check for existing proof
+  db.ref('crm_album_proofs/' + projId + '/' + delivId).once('value', function(snap) {
+    var existing = snap.val();
+    apShowModal(projId, delivId, couple, proj, deliv, existing);
+  });
+}
+
+function apShowModal(projId, delivId, couple, proj, deliv, existing) {
+  var existingPages = existing ? (existing.pages || []) : [];
+  var version = existing ? (existing.version || 1) : 1;
+  var status = existing ? existing.status : 'draft';
+  var clientToken = existing ? existing.clientToken : apGenToken();
+  var clientUrl = window.location.href.split('?')[0] + '?albumproof=' + clientToken;
+
+  var statusColors = { draft: '#f59e0b', sent: '#3b82f6', changes_requested: '#ef4444', approved: '#10b981' };
+  var statusLabels = { draft: '📝 Draft', sent: '📬 Sent to Client', changes_requested: '🔄 Changes Requested', approved: '✅ Approved' };
+
+  var storageWarning = storage ? '' :
+    '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#92400e">⚠️ Image uploads require Firebase Blaze plan. You can still create the proof and share the link — upgrade Firebase Storage to enable image uploads.</div>';
+
+  var pagesHtml = '';
+  if (existingPages.length) {
+    pagesHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-top:10px">';
+    existingPages.forEach(function(pg, i) {
+      var hasComment = !!pg.comment;
+      var pinCount = pg.pins ? Object.keys(pg.pins).length : 0;
+      var hasVoice = !!(pg.voiceNote && pg.voiceNote.url);
+      var flagged = apPageNeedsEdit(pg);
+      var fixed = apPageFixedPending(pg);
+      var borderCol = flagged ? '#ef4444' : (fixed ? '#3b82f6' : '#e2e8f0');
+      pagesHtml += '<div style="border:1px solid ' + borderCol + ';border-radius:8px;overflow:hidden;position:relative">';
+      pagesHtml += '<img src="' + (pg.imageUrl || '') + '" style="width:100%;height:80px;object-fit:cover;display:block" onerror="this.style.display=\'none\'">';
+      pagesHtml += '<div style="padding:4px;font-size:10px;color:#555;font-weight:600;text-align:center">Pg ' + (i + 1) + '</div>';
+      if (fixed) pagesHtml += '<div style="position:absolute;top:4px;left:4px;background:#3b82f6;color:#fff;border-radius:8px;padding:1px 5px;font-size:9px;font-weight:800">🆕</div>';
+      else if (pinCount > 0) pagesHtml += '<div style="position:absolute;top:4px;left:4px;background:#ef4444;color:#fff;border-radius:8px;padding:1px 5px;font-size:9px;font-weight:800">📍' + pinCount + '</div>';
+      if (hasVoice) pagesHtml += '<div style="position:absolute;bottom:4px;left:4px;background:#7c3aed;color:#fff;border-radius:8px;padding:1px 5px;font-size:9px;font-weight:800">🎤</div>';
+      if (flagged) pagesHtml += '<div style="position:absolute;top:4px;right:4px;background:#ef4444;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center">!</div>';
+      pagesHtml += '</div>';
+    });
+    pagesHtml += '</div>';
+  }
+
+  var commentsList = '';
+  var flaggedPages = existingPages.filter(function(p) { return p && (p.comment || (p.pins && Object.keys(p.pins).length) || (p.voiceNote && p.voiceNote.url)); });
+  if (flaggedPages.length) {
+    commentsList = '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:8px">🔴 Client Feedback (' + flaggedPages.length + ' page' + (flaggedPages.length > 1 ? 's' : '') + ')</div>';
+    existingPages.forEach(function(pg, i) {
+      var pinKeys = pg.pins ? Object.keys(pg.pins) : [];
+      var hasVoice = pg.voiceNote && pg.voiceNote.url;
+      if (!pg.comment && !pinKeys.length && !hasVoice) return;
+      commentsList += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-bottom:6px">';
+      commentsList += '<div style="font-size:11px;font-weight:700;color:#991b1b;margin-bottom:6px">Page ' + (i + 1) + '</div>';
+      if (pg.comment) {
+        commentsList += '<div style="font-size:13px;color:#7f1d1d;margin-bottom:' + ((pinKeys.length || hasVoice) ? '8px' : '0') + '">' + pg.comment + '</div>';
+      }
+      if (pinKeys.length) {
+        pinKeys.forEach(function(k, idx) {
+          var p = pg.pins[k];
+          commentsList += '<div style="display:flex;gap:6px;align-items:flex-start;font-size:12px;color:#7f1d1d;margin-bottom:4px">';
+          commentsList += '<span style="flex-shrink:0;background:#ef4444;color:#fff;width:16px;height:16px;border-radius:50%;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center">' + (idx + 1) + '</span>';
+          commentsList += '<span>📍 ' + (p.text || '') + '</span></div>';
+        });
+      }
+      if (hasVoice) {
+        commentsList += '<div style="margin-top:6px"><audio controls src="' + pg.voiceNote.url + '" style="height:32px;max-width:100%"></audio></div>';
+      }
+      commentsList += '</div>';
+    });
+    commentsList += '</div>';
+  }
+
+  var modalHtml = '<div id="ap-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)apCloseModal()">'
+    + '<div style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;padding:24px;position:relative">'
+    + '<button onclick="apCloseModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#888">✕</button>'
+    + '<div style="font-size:17px;font-weight:800;margin-bottom:4px">📒 Album Proof</div>'
+    + '<div style="font-size:13px;color:#64748b;margin-bottom:16px">' + couple + ' · ' + (deliv.name || deliv.type || 'Album') + '</div>'
+    + (existing ? '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><span style="background:' + (statusColors[status] || '#888') + '22;color:' + (statusColors[status] || '#888') + ';border:1px solid ' + (statusColors[status] || '#888') + '44;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700">' + (statusLabels[status] || status) + '</span><span style="font-size:11px;color:#888">Version ' + version + '</span></div>' : '')
+    + storageWarning
+    + '<div style="margin-bottom:14px">'
+    + '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">Upload Album Pages (JPEGs)</label>'
+    + '<div style="border:2px dashed #d1d5db;border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:#f9fafb" onclick="document.getElementById(\'ap-file-input\').click()">'
+    + '<div style="font-size:24px;margin-bottom:6px">📁</div>'
+    + '<div style="font-size:13px;color:#6b7280">Click to select album page images</div>'
+    + '<div style="font-size:11px;color:#9ca3af;margin-top:3px">JPG/PNG · Multiple files supported · Upload in page order</div>'
+    + '</div>'
+    + '<input type="file" id="ap-file-input" multiple accept="image/*" style="display:none" onchange="apHandleFileSelect(event,\'' + projId + '\',\'' + delivId + '\',\'' + clientToken + '\')">'
+    + '<div id="ap-upload-progress" style="margin-top:8px"></div>'
+    + '</div>'
+    + '<div style="margin-bottom:14px">'
+    + '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:6px">Or Upload Album PDF</label>'
+    + '<div style="border:2px dashed #d1d5db;border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:#f9fafb" onclick="document.getElementById(\'ap-pdf-input\').click()">'
+    + '<div style="font-size:24px;margin-bottom:6px">📄</div>'
+    + '<div style="font-size:13px;color:#6b7280">Click to select the album PDF</div>'
+    + '<div style="font-size:11px;color:#9ca3af;margin-top:3px">Each PDF page is auto-converted to a page image for client review</div>'
+    + '</div>'
+    + '<input type="file" id="ap-pdf-input" accept="application/pdf" style="display:none" onchange="apHandlePdfSelect(event,\'' + projId + '\',\'' + delivId + '\',\'' + clientToken + '\')">'
+    + '<div id="ap-pdf-progress" style="margin-top:8px"></div>'
+    + '</div>'
+    + (existingPages.length ? '<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px">Current Pages (' + existingPages.length + ')</div>' + pagesHtml + '</div>' : '')
+    + commentsList
+    + '<div style="margin-bottom:14px">'
+    + '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:4px">Internal Note (not visible to client)</label>'
+    + '<textarea id="ap-internal-note" rows="2" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px;font-size:13px;font-family:inherit;box-sizing:border-box">' + (existing ? (existing.internalNote || '') : '') + '</textarea>'
+    + '</div>'
+    + (existingPages.length ? '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:14px">'
+      + '<div style="font-size:11px;font-weight:700;color:#166534;margin-bottom:6px">📎 Client Review Link</div>'
+      + '<div style="display:flex;gap:6px;align-items:center">'
+      + '<input type="text" readonly value="' + clientUrl + '" style="flex:1;border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;font-size:11px;color:#374151;background:#fff;min-width:0">'
+      + '<button onclick="apCopyLink(\'' + clientUrl + '\')" style="background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">Copy</button>'
+      + '</div></div>' : '')
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;padding-top:8px;border-top:1px solid #f1f5f9">'
+    + (existingPages.length ? '<button onclick="apSaveAndSend(\'' + projId + '\',\'' + delivId + '\',\'' + clientToken + '\')" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer">📬 Save & Mark Sent</button>' : '')
+    + '<button onclick="apSaveDraft(\'' + projId + '\',\'' + delivId + '\',\'' + clientToken + '\',\'' + (version) + '\')" style="background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer">💾 Save Draft</button>'
+    + '<button onclick="apCloseModal()" style="background:none;color:#888;border:1px solid #e2e8f0;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer">Cancel</button>'
+    + '</div>'
+    + '</div></div>';
+
+  var existing_overlay = document.getElementById('ap-modal-overlay');
+  if (existing_overlay) existing_overlay.remove();
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function apCloseModal() {
+  var el = document.getElementById('ap-modal-overlay');
+  if (el) el.remove();
+}
+
+// ── Handle file selection & upload ─────────────────────────────────
+function apHandleFileSelect(evt, projId, delivId, token) {
+  var files = Array.from(evt.target.files);
+  if (!files.length) return;
+  var prog = document.getElementById('ap-upload-progress');
+  if (!prog) return;
+
+  if (!storage) {
+    prog.innerHTML = '<div style="background:#fef3c7;border-radius:8px;padding:10px;font-size:12px;color:#92400e">⚠️ Firebase Storage not enabled yet. Upgrade your Firebase project to Blaze plan to enable image uploads.</div>';
+    return;
+  }
+
+  prog.innerHTML = '<div style="font-size:12px;color:#64748b;margin-bottom:6px">Uploading ' + files.length + ' page' + (files.length !== 1 ? 's' : '') + '…</div><div id="ap-prog-bars"></div>';
+  var bars = document.getElementById('ap-prog-bars');
+  var urls = new Array(files.length).fill(null);
+  var done = 0;
+
+  files.forEach(function(file, i) {
+    var bar = document.createElement('div');
+    bar.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:11px;color:#374151;min-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + file.name + '</span><div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px"><div id="apbar-' + i + '" style="height:100%;width:0%;background:#7c3aed;border-radius:3px;transition:width .3s"></div></div><span id="appc-' + i + '" style="font-size:11px;color:#888;min-width:30px">0%</span></div>';
+    bars.appendChild(bar);
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var dataUrl = e.target.result;
+      var path = 'album_proofs/' + projId + '/' + delivId + '/v' + Date.now() + '_pg' + (i + 1) + '.' + file.name.split('.').pop();
+
+      // Compress image before upload
+      var img = new Image();
+      img.onload = function() {
+        var canvas = document.createElement('canvas');
+        var maxW = 1200, maxH = 1600;
+        var w = img.width, h = img.height;
+        if (w > maxW) { h = h * maxW / w; w = maxW; }
+        if (h > maxH) { w = w * maxH / h; h = maxH; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var compressed = canvas.toDataURL('image/jpeg', 0.82);
+
+        var barEl = document.getElementById('apbar-' + i);
+        var pcEl = document.getElementById('appc-' + i);
+
+        uploadToStorage(compressed, path).then(function(url) {
+          urls[i] = url;
+          if (barEl) barEl.style.width = '100%';
+          if (pcEl) pcEl.textContent = '✅';
+          done++;
+          if (done === files.length) apFinishUpload(projId, delivId, token, urls, prog);
+        }).catch(function(err) {
+          if (pcEl) pcEl.textContent = '❌';
+          done++;
+          if (done === files.length) apFinishUpload(projId, delivId, token, urls, prog);
+        });
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function apFinishUpload(projId, delivId, token, urls, prog) {
+  var validUrls = urls.filter(Boolean);
+  if (!validUrls.length) {
+    if (prog) prog.innerHTML = '<div style="color:#ef4444;font-size:12px">Upload failed. Check your Firebase Storage rules.</div>';
+    return;
+  }
+  // Load existing pages and append new ones
+  db.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages').once('value', function(snap) {
+    var pages = snap.val() || [];
+    validUrls.forEach(function(url) {
+      pages.push({ imageUrl: url, comment: '', commentAt: null });
+    });
+    db.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages').set(pages, function(err) {
+      if (!err) {
+        if (prog) prog.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px;font-size:12px;color:#166534">✅ ' + validUrls.length + ' page' + (validUrls.length !== 1 ? 's' : '') + ' uploaded successfully!</div>';
+        showToast('✅ ' + validUrls.length + ' pages uploaded!');
+        // Refresh modal
+        var proj = projects[projId] || {};
+        var deliv = (proj.customDelivs || []).find(function(d) { return d.id == delivId; }) || {};
+        var couple = (proj.bride && proj.groom) ? proj.bride + ' & ' + proj.groom : projId;
+        db.ref('crm_album_proofs/' + projId + '/' + delivId).once('value', function(s) { apShowModal(projId, delivId, couple, proj, deliv, s.val()); });
+      }
+    });
+  });
+}
+
+// ── Handle Album PDF selection: split into pages & upload ───────────
+function apHandlePdfSelect(evt, projId, delivId, token) {
+  var file = evt.target.files[0];
+  if (!file) return;
+  var prog = document.getElementById('ap-pdf-progress');
+  if (!prog) return;
+
+  if (!window['pdfjsLib']) {
+    prog.innerHTML = '<div style="color:#ef4444;font-size:12px">PDF reader failed to load. Check your internet connection and try again.</div>';
+    evt.target.value = '';
+    return;
+  }
+
+  prog.innerHTML = '<div style="font-size:12px;color:#64748b">📄 Reading PDF…</div>';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var typedArray = new Uint8Array(e.target.result);
+    pdfjsLib.getDocument({ data: typedArray }).promise.then(function(pdfDoc) {
+      var numPages = pdfDoc.numPages;
+      if (!numPages) {
+        prog.innerHTML = '<div style="color:#ef4444;font-size:12px">Could not read any pages from this PDF.</div>';
+        return;
+      }
+      prog.innerHTML = '<div style="font-size:12px;color:#64748b;margin-bottom:6px">Converting ' + numPages + ' page' + (numPages !== 1 ? 's' : '') + '…</div><div id="ap-pdf-bars"></div>';
+      var bars = document.getElementById('ap-pdf-bars');
+      var urls = new Array(numPages).fill(null);
+      var done = 0;
+
+      var renderPage = function(pageNum) {
+        var i = pageNum - 1;
+        var bar = document.createElement('div');
+        bar.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:11px;color:#374151;min-width:60px">Page ' + pageNum + '</span><div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px"><div id="apdbar-' + i + '" style="height:100%;width:0%;background:#7c3aed;border-radius:3px;transition:width .3s"></div></div><span id="apdpc-' + i + '" style="font-size:11px;color:#888;min-width:30px">0%</span></div>';
+        bars.appendChild(bar);
+
+        pdfDoc.getPage(pageNum).then(function(page) {
+          var maxW = 1200, maxH = 1600;
+          var baseViewport = page.getViewport({ scale: 1 });
+          var scale = Math.min(maxW / baseViewport.width, maxH / baseViewport.height, 2);
+          var viewport = page.getViewport({ scale: scale });
+          var canvas = document.createElement('canvas');
+          canvas.width = viewport.width; canvas.height = viewport.height;
+          var ctx = canvas.getContext('2d');
+
+          page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function() {
+            var compressed = canvas.toDataURL('image/jpeg', 0.82);
+            var path = 'album_proofs/' + projId + '/' + delivId + '/v' + Date.now() + '_pdfpg' + pageNum + '.jpg';
+            var barEl = document.getElementById('apdbar-' + i);
+            var pcEl = document.getElementById('apdpc-' + i);
+
+            uploadToStorage(compressed, path).then(function(url) {
+              urls[i] = url;
+              if (barEl) barEl.style.width = '100%';
+              if (pcEl) pcEl.textContent = '✅';
+              done++;
+              if (pageNum < numPages) renderPage(pageNum + 1);
+              if (done === numPages) apFinishUpload(projId, delivId, token, urls, prog);
+            }).catch(function() {
+              if (pcEl) pcEl.textContent = '❌';
+              done++;
+              if (pageNum < numPages) renderPage(pageNum + 1);
+              if (done === numPages) apFinishUpload(projId, delivId, token, urls, prog);
+            });
+          });
+        });
+      };
+      renderPage(1);
+    }).catch(function(err) {
+      prog.innerHTML = '<div style="color:#ef4444;font-size:12px">Could not read this PDF. Make sure it isn\'t password-protected or corrupted.</div>';
+    });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Save draft proof entry ──────────────────────────────────────────
+function apSaveDraft(projId, delivId, token, version) {
+  var proj = projects[projId] || {};
+  var deliv = (proj.customDelivs || []).find(function(d) { return d.id == delivId; }) || {};
+  var note = (document.getElementById('ap-internal-note') || {}).value || '';
+  var ref = db.ref('crm_album_proofs/' + projId + '/' + delivId);
+  ref.once('value', function(snap) {
+    var existing = snap.val() || {};
+    var update = {
+      projId: projId, delivId: delivId,
+      clientName: (proj.bride || '') + (proj.groom ? ' & ' + proj.groom : ''),
+      delivName: deliv.name || deliv.type || 'Album',
+      clientToken: token,
+      version: parseInt(version) || 1,
+      status: existing.status || 'draft',
+      internalNote: note,
+      pages: existing.pages || [],
+      createdAt: existing.createdAt || Date.now(),
+      createdBy: CU ? (CU.name || CU.username) : 'admin',
+      updatedAt: Date.now()
+    };
+    ref.set(update, function(err) {
+      if (err) { showToast('❌ Save failed'); return; }
+      showToast('💾 Draft saved!');
+      apCloseModal();
+      logActivity('postprod', 'Album Proof Draft Saved', (update.clientName) + ' — ' + update.delivName);
+    });
+  });
+}
+
+// ── Save and mark as sent ───────────────────────────────────────────
+function apSaveAndSend(projId, delivId, token) {
+  var proj = projects[projId] || {};
+  var deliv = (proj.customDelivs || []).find(function(d) { return d.id == delivId; }) || {};
+  var note = (document.getElementById('ap-internal-note') || {}).value || '';
+  var ref = db.ref('crm_album_proofs/' + projId + '/' + delivId);
+  ref.once('value', function(snap) {
+    var existing = snap.val() || {};
+    var update = Object.assign({}, existing, {
+      projId: projId, delivId: delivId,
+      clientName: (proj.bride || '') + (proj.groom ? ' & ' + proj.groom : ''),
+      delivName: deliv.name || deliv.type || 'Album',
+      clientToken: token,
+      status: 'sent',
+      internalNote: note,
+      sentAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    ref.set(update, function(err) {
+      if (err) { showToast('❌ Save failed'); return; }
+      showToast('📬 Proof marked as sent!');
+      apCloseModal();
+      logActivity('postprod', 'Album Proof Sent', (update.clientName) + ' — ' + update.delivName);
+      if (typeof renderAlbumProofingPage === 'function' && document.getElementById('page-albumproofing')) renderAlbumProofingPage();
+    });
+  });
+}
+
+// ── New version (full reset — rarely needed now that pages can be fixed individually) ──
+function apNewVersion(projId, delivId) {
+  db.ref('crm_album_proofs/' + projId + '/' + delivId).once('value', function(snap) {
+    var existing = snap.val() || {};
+    var newVersion = (existing.version || 1) + 1;
+    if (!confirm('Create Version ' + newVersion + '? This wipes ALL current pages, comments and history — use this only if the whole album is being rebuilt from scratch. For fixing individual pages flagged by the client, use the 🔧 Needs Editing tab instead, which keeps everything organised.')) return;
+    var update = Object.assign({}, existing, {
+      version: newVersion, round: 1, status: 'draft',
+      pages: [], clientToken: apGenToken(),
+      createdAt: Date.now(), updatedAt: Date.now()
+    });
+    db.ref('crm_album_proofs/' + projId + '/' + delivId).set(update, function() {
+      showToast('🔃 Version ' + newVersion + ' created!');
+      openAlbumProofModal(projId, delivId);
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// EDITING QUEUE — one organised place listing every page across every
+// active proof that the client has flagged, so an editor can work
+// through revisions quickly without hunting through each proof.
+// ══════════════════════════════════════════════════════════════════
+function apRenderQueue(el, all) {
+  var groups = [];
+  (all || []).forEach(function(proof) {
+    if (proof.status === 'approved') return;
+    if (_apQueueFilter && (proof._projId !== _apQueueFilter.projId || proof._delivId !== _apQueueFilter.delivId)) return;
+    var pages = proof.pages || [];
+    var flagged = [];
+    pages.forEach(function(p, i) { if (apPageNeedsEdit(p)) flagged.push({ pg: p, idx: i }); });
+    if (!flagged.length) return;
+    var proj = projects[proof._projId] || {};
+    var couple = (proj.bride && proj.groom) ? proj.bride + ' & ' + proj.groom : proof.clientName || proof._projId;
+    groups.push({ proof: proof, couple: couple, flagged: flagged });
+  });
+
+  var topBar = '';
+  if (_apQueueFilter) {
+    topBar = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+      + '<div style="font-size:13px;color:#64748b">Showing pages for one proof only.</div>'
+      + '<button onclick="_apQueueFilter=null;renderAlbumProofingPage()" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#374151;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">✕ Show all proofs</button>'
+      + '</div>';
+  }
+
+  if (!groups.length) {
+    el.innerHTML = topBar + '<div style="text-align:center;padding:50px 20px;color:#94a3b8">'
+      + '<div style="font-size:36px;margin-bottom:10px">✅</div>'
+      + '<div style="font-size:15px;font-weight:700;color:#374151;margin-bottom:4px">Nothing to edit right now</div>'
+      + '<div style="font-size:13px">Pages that clients flag with comments, pins or voice notes will show up here for quick action.</div>'
+      + '</div>';
+    return;
+  }
+
+  var html = topBar + '<div style="font-size:12px;color:#64748b;margin-bottom:14px">📌 Each card below is a page a client asked to change. Upload the fixed version (or mark it resolved), then hit <b>Notify Client</b> on the proof once you\'re done with a batch.</div>';
+  groups.forEach(function(g) {
+    var proof = g.proof;
+    html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:16px">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">';
+    html += '<div><div style="font-size:14px;font-weight:800;color:#1a1a1a">' + g.couple + '</div><div style="font-size:11px;color:#888">' + (proof.delivName || 'Album') + ' · ' + g.flagged.length + ' page' + (g.flagged.length !== 1 ? 's' : '') + ' to edit</div></div>';
+    html += '<button onclick="apResendUpdates(\'' + proof._projId + '\',\'' + proof._delivId + '\')" style="background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer">📬 Notify Client of Fixed Pages</button>';
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px">';
+    g.flagged.forEach(function(f) {
+      var pg = f.pg, i = f.idx;
+      var pinKeys = pg.pins ? Object.keys(pg.pins) : [];
+      var qid = proof._projId + '__' + proof._delivId + '__' + i;
+      html += '<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:10px;overflow:hidden">';
+      html += '<div style="position:relative">';
+      html += '<img src="' + (pg.imageUrl || '') + '" style="width:100%;height:130px;object-fit:cover;display:block;background:#f1f5f9">';
+      html += '<div style="position:absolute;top:6px;left:6px;background:#1a1a1a99;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">Page ' + (i + 1) + '</div>';
+      if (pg.revision) html += '<div style="position:absolute;top:6px;right:6px;background:#7c3aed;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">Rev ' + pg.revision + '</div>';
+      html += '</div>';
+      html += '<div style="padding:10px">';
+      if (pg.comment) html += '<div style="font-size:12px;color:#7f1d1d;margin-bottom:6px">💬 ' + apEscapeHtml(pg.comment) + '</div>';
+      if (pinKeys.length) {
+        html += '<div style="font-size:11px;color:#7f1d1d;margin-bottom:6px">';
+        pinKeys.forEach(function(k, idx2) { html += '<div>📍 ' + (idx2 + 1) + '. ' + apEscapeHtml(pg.pins[k].text || '') + '</div>'; });
+        html += '</div>';
+      }
+      if (pg.voiceNote && pg.voiceNote.url) html += '<audio controls src="' + pg.voiceNote.url + '" style="width:100%;height:30px;margin-bottom:6px"></audio>';
+      html += '<input type="file" accept="image/*" id="apq-file-' + qid + '" style="display:none" onchange="apReplacePage(\'' + proof._projId + '\',\'' + proof._delivId + '\',' + i + ',this)">';
+      html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="apq-actions-' + qid + '">';
+      html += '<button onclick="document.getElementById(\'apq-file-' + qid + '\').click()" style="flex:1;background:#7c3aed;color:#fff;border:none;border-radius:7px;padding:7px 8px;font-size:11px;font-weight:700;cursor:pointer">📤 Upload Fix</button>';
+      html += '<button onclick="apMarkPageResolved(\'' + proof._projId + '\',\'' + proof._delivId + '\',' + i + ')" style="background:#fff;color:#166534;border:1px solid #bbf7d0;border-radius:7px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">✅ Resolved</button>';
+      if (pg.history && pg.history.length) html += '<button onclick="apCompareModal(\'' + apEscUrl(pg.history[pg.history.length - 1].imageUrl) + '\',\'' + apEscUrl(pg.imageUrl) + '\')" style="background:#fff;color:#374151;border:1px solid #e2e8f0;border-radius:7px;padding:7px 10px;font-size:11px;font-weight:700;cursor:pointer">🔍 Compare</button>';
+      html += '</div>';
+      html += '<div id="apq-prog-' + qid + '" style="margin-top:6px"></div>';
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function apEscUrl(u) { return String(u || '').replace(/'/g, '%27'); }
+
+// ── Editor uploads a replacement image for one flagged page ──────────
+function apReplacePage(projId, delivId, pageIdx, inputEl) {
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var qid = projId + '__' + delivId + '__' + pageIdx;
+  var prog = document.getElementById('apq-prog-' + qid);
+  if (prog) prog.innerHTML = '<div style="font-size:11px;color:#64748b">Uploading fixed page…</div>';
+  var path = 'album_proofs/' + projId + '/' + delivId + '/fix_' + Date.now() + '_pg' + (pageIdx + 1) + '.' + file.name.split('.').pop();
+  apCompressAndUploadFile(file, path, function(url, err) {
+    if (!url) { if (prog) prog.innerHTML = '<div style="font-size:11px;color:#ef4444">' + apEscapeHtml(err || 'Upload failed') + '</div>'; return; }
+    var pageRef = db.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages/' + pageIdx);
+    pageRef.once('value', function(snap) {
+      var pg = snap.val() || {};
+      var history = pg.history || [];
+      if (pg.imageUrl) history.push({ imageUrl: pg.imageUrl, replacedAt: Date.now() });
+      var update = {
+        imageUrl: url,
+        history: history,
+        status: 'fixed',
+        fixedAt: Date.now(),
+        revision: (pg.revision || 0) + 1
+      };
+      pageRef.update(update, function(err2) {
+        if (err2) { if (prog) prog.innerHTML = '<div style="font-size:11px;color:#ef4444">Save failed. Try again.</div>'; return; }
+        showToast('✅ Fixed page uploaded — recorded for compare');
+        logActivity('postprod', 'Album Proof Page Fixed', 'Page ' + (pageIdx + 1) + ' replaced (rev ' + update.revision + ')');
+        renderAlbumProofingPage();
+      });
+    });
+  });
+}
+
+// ── Editor marks a flagged page as resolved without a new image (e.g. addressed via note) ──
+function apMarkPageResolved(projId, delivId, pageIdx) {
+  db.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages/' + pageIdx).update({
+    status: 'fixed', fixedAt: Date.now()
+  }, function(err) {
+    if (err) { showToast('❌ Could not update'); return; }
+    showToast('✅ Marked resolved');
+    renderAlbumProofingPage();
+  });
+}
+
+// ── Before/after compare slider — used by editor and client alike ────
+function apCompareModal(oldUrl, newUrl) {
+  var existing = document.getElementById('ap-compare-overlay');
+  if (existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'ap-compare-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:14px;max-width:640px;width:100%;overflow:hidden">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #f1f5f9">'
+    + '<div style="font-size:14px;font-weight:800;color:#1a1a1a">🔍 Before / After</div>'
+    + '<button onclick="document.getElementById(\'ap-compare-overlay\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888">✕</button>'
+    + '</div>'
+    + '<div id="ap-cmp-wrap" style="position:relative;width:100%;background:#111;overflow:hidden;user-select:none">'
+    + '<img src="' + newUrl + '" style="width:100%;display:block">'
+    + '<div id="ap-cmp-clip" style="position:absolute;inset:0 50% 0 0;overflow:hidden">'
+    + '<img src="' + oldUrl + '" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover">'
+    + '</div>'
+    + '<div id="ap-cmp-handle" style="position:absolute;top:0;bottom:0;left:50%;width:3px;background:#fff;box-shadow:0 0 0 2px rgba(0,0,0,.2)"></div>'
+    + '<div style="position:absolute;top:8px;left:8px;background:#0009;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px">BEFORE</div>'
+    + '<div style="position:absolute;top:8px;right:8px;background:#0009;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px">AFTER</div>'
+    + '</div>'
+    + '<div style="padding:14px 18px"><input type="range" min="0" max="100" value="50" style="width:100%" oninput="apCmpSlide(this.value)"></div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+}
+function apCmpSlide(v) {
+  var clip = document.getElementById('ap-cmp-clip');
+  var handle = document.getElementById('ap-cmp-handle');
+  if (clip) clip.style.inset = '0 ' + (100 - v) + '% 0 0';
+  if (handle) handle.style.left = v + '%';
+}
+
+// ── Notify client that flagged pages have been fixed — only touches pages actually fixed ──
+function apResendUpdates(projId, delivId) {
+  var ref = db.ref('crm_album_proofs/' + projId + '/' + delivId);
+  ref.once('value', function(snap) {
+    var proof = snap.val() || {};
+    var pages = proof.pages || [];
+    var fixedCount = pages.filter(apPageFixedPending).length;
+    if (!fixedCount) { showToast('⚠️ No fixed pages waiting to be sent yet.'); return; }
+    if (!confirm('Notify the client that ' + fixedCount + ' page' + (fixedCount !== 1 ? 's' : '') + ' have been updated? They\'ll see an "Updated" badge on those pages when they reopen their review link.')) return;
+    var round = (proof.round || 1) + 1;
+    ref.update({
+      status: 'sent', round: round, lastRevisionSentAt: Date.now(), updatedAt: Date.now()
+    }, function(err) {
+      if (err) { showToast('❌ Could not update'); return; }
+      showToast('📬 Client will see the updated pages');
+      logActivity('postprod', 'Album Proof Revisions Sent', fixedCount + ' page(s) — round ' + round);
+      renderAlbumProofingPage();
+      apWhatsAppRevision(projId, delivId, fixedCount);
+    });
+  });
+}
+
+// ── WhatsApp message for a revision round (as opposed to the first send) ──
+function apWhatsAppRevision(projId, delivId, fixedCount) {
+  var proj = projects[projId] || {};
+  var fn = proj.bride ? proj.bride.split(' ')[0] : 'there';
+  db.ref('crm_album_proofs/' + projId + '/' + delivId + '/clientToken').once('value', function(snap) {
+    var token = snap.val();
+    if (!token) return;
+    var url = window.location.href.split('?')[0] + '?albumproof=' + token;
+    var msg = 'Hi ' + fn + '! 😊\\n\\nWe\'ve made the changes you asked for — ' + fixedCount + ' page' + (fixedCount !== 1 ? 's' : '') + ' updated. 🆕\\n\\n'
+      + 'Please take a look and let us know if it\'s all good, or if anything else needs a tweak.\\n\\n'
+      + '🔗 Review Link:\\n' + url + '\\n\\n— Team KB Studio Productions 📷';
+    var phone = (proj.whatsapp || proj.phone || '').replace(/[^0-9]/g, '');
+    var waUrl = 'https://wa.me/' + (phone ? '91' + phone : '') + '?text=' + encodeURIComponent(msg);
+    window.open(waUrl, '_blank');
+  });
+}
+
+// ── Copy link helper ────────────────────────────────────────────────
+function apCopyLink(url) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function() { showToast('📋 Client link copied!'); });
+  } else {
+    var t = document.createElement('textarea'); t.value = url;
+    document.body.appendChild(t); t.select(); document.execCommand('copy');
+    document.body.removeChild(t); showToast('📋 Client link copied!');
+  }
+}
+
+// ── WhatsApp send ───────────────────────────────────────────────────
+function apWhatsApp(projId, delivId) {
+  var proj = projects[projId] || {};
+  var couple = (proj.bride || '') + (proj.groom ? ' & ' + proj.groom : '');
+  var fn = proj.bride ? proj.bride.split(' ')[0] : 'there';
+  db.ref('crm_album_proofs/' + projId + '/' + delivId + '/clientToken').once('value', function(snap) {
+    var token = snap.val();
+    if (!token) { showToast('⚠️ No proof found. Create one first.'); return; }
+    var url = window.location.href.split('?')[0] + '?albumproof=' + token;
+    var msg = 'Hi ' + fn + '! 😊\n\nYour album draft is ready for review! 📒\n\n'
+      + 'Please open the link below, check each page, and leave your comments wherever you\'d like changes. '
+      + 'Once happy with everything, click \'Approve Album\'.\n\n'
+      + '🔗 Review Link:\n' + url + '\n\n'
+      + '⏰ Kindly share your feedback within 3 days.\n\n'
+      + '— Team KB Studio Productions 📷';
+    var phone = (proj.whatsapp || proj.phone || '').replace(/[^0-9]/g, '');
+    var waUrl = 'https://wa.me/' + (phone ? '91' + phone : '') + '?text=' + encodeURIComponent(msg);
+    window.open(waUrl, '_blank');
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PUBLIC CLIENT PROOF VIEW — No login required
+// Detected by ?albumproof=TOKEN in URL
+// ══════════════════════════════════════════════════════════════════
+
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var proofToken = params.get('albumproof');
+  if (!proofToken) return;
+
+  // Hide everything and show client view
+  document.addEventListener('DOMContentLoaded', function() {
+    // Hide login screen and sidebar immediately
+    ['login-screen', 'sidebar', 'mob-header', 'mob-drawer-overlay', 'mob-drawer-nav'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    // The app shell sets html/body to a locked, non-scrolling 100% height
+    // with touch-action/overscroll-behavior locked down for its internal
+    // panels (which scroll themselves instead). The public client view has
+    // no such panel, so without a full override the page can't be scrolled
+    // by trackpad or touch — only keyboard, since focus-based scroll
+    // ignores touch-action. Use an !important stylesheet (not just inline
+    // styles) so nothing else in the app can silently re-lock it.
+    var fixStyle = document.createElement('style');
+    fixStyle.id = 'ap-client-scroll-fix';
+    fixStyle.textContent =
+      'html, body {' +
+      '  height: auto !important;' +
+      '  min-height: 100% !important;' +
+      '  overflow-x: hidden !important;' +
+      '  overflow-y: auto !important;' +
+      '  touch-action: auto !important;' +
+      '  overscroll-behavior: auto !important;' +
+      '  -webkit-overflow-scrolling: touch !important;' +
+      '}';
+    document.head.appendChild(fixStyle);
+
+    // Create full-page client view (no inner overflow — the page itself
+    // scrolls, so this stays a plain flowing block, not its own scroll box)
+    var clientView = document.createElement('div');
+    clientView.id = 'ap-client-view';
+    clientView.style.cssText = 'min-height:100vh;background:#f8f7f4;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif';
+    clientView.innerHTML = '<div style="background:#1a1a1a;padding:16px 24px;display:flex;align-items:center;justify-content:space-between">'
+      + '<div style="display:flex;align-items:center;gap:12px">'
+      + '<div style="width:36px;height:36px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>'
+      + '<div><div style="color:#fff;font-size:15px;font-weight:800">KB Studio Productions</div><div style="color:#aaa;font-size:11px">Album Review Portal</div></div>'
+      + '</div></div>'
+      + '<div id="ap-client-content" style="max-width:900px;margin:0 auto;padding:24px 16px">'
+      + '<div style="text-align:center;padding:40px;color:#888">Loading your album…</div>'
+      + '</div>';
+    document.body.innerHTML = '';
+    document.body.appendChild(clientView);
+
+    // Find proof by token
+    loadProofByToken(proofToken);
+  });
+})();
+
+function loadProofByToken(token) {
+  var el = document.getElementById('ap-client-content');
+  if (!el) return;
+
+  // We need to scan crm_album_proofs for this token
+  // First init Firebase if not already done
+  if (typeof firebase === 'undefined') {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:#888">Loading…</div>';
+    setTimeout(function() { loadProofByToken(token); }, 1000);
+    return;
+  }
+
+  // Init Firebase if needed
+  if (!firebase.apps || !firebase.apps.length) {
+    firebase.initializeApp({
+      apiKey: 'AIzaSyBVU8vEW29wDdV5r8cpxnPmrqBOMQkxrUM',
+      authDomain: 'kbstudiocrm.firebaseapp.com',
+      databaseURL: 'https://kbstudiocrm-default-rtdb.asia-southeast1.firebasedatabase.app',
+      projectId: 'kbstudiocrm',
+      storageBucket: 'kbstudiocrm.firebasestorage.app',
+      messagingSenderId: '650778757936',
+      appId: '1:650778757936:web:b715c0488bc5bd663a16f5'
+    });
+  }
+  var clientDb = firebase.database();
+
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:14px">🔍 Finding your album…</div>';
+
+  clientDb.ref('crm_album_proofs').once('value', function(snap) {
+    var foundProof = null, foundProjId = null, foundDelivId = null;
+    snap.forEach(function(projSnap) {
+      projSnap.forEach(function(delivSnap) {
+        var p = delivSnap.val();
+        if (p && p.clientToken === token) {
+          foundProof = p; foundProjId = projSnap.key; foundDelivId = delivSnap.key;
+        }
+      });
+    });
+
+    if (!foundProof) {
+      el.innerHTML = '<div style="text-align:center;padding:60px 20px">'
+        + '<div style="font-size:48px;margin-bottom:16px">🔒</div>'
+        + '<div style="font-size:18px;font-weight:700;color:#374151;margin-bottom:8px">Link not found</div>'
+        + '<div style="font-size:14px;color:#9ca3af">This link may have expired or been updated. Please contact KB Studio Productions for the latest link.</div>'
+        + '</div>';
+      return;
+    }
+
+    renderClientProofView(el, foundProof, foundProjId, foundDelivId, clientDb, token);
+  });
+}
+
+function renderClientProofView(el, proof, projId, delivId, clientDb, token) {
+  var pages = proof.pages || [];
+  var status = proof.status || 'sent';
+  var isApproved = status === 'approved';
+  var statusBg = { sent: '#dbeafe', changes_requested: '#fef3c7', approved: '#dcfce7' };
+  var statusTxt = { sent: '#1d4ed8', changes_requested: '#92400e', approved: '#166534' };
+  var statusLabel = { sent: '📬 Awaiting your review', changes_requested: '🔄 Changes submitted — team is working on it', approved: '✅ Album approved!' };
+
+  var html = '<div style="text-align:center;margin-bottom:24px">';
+  html += '<div style="font-size:22px;font-weight:800;color:#1a1a1a;margin-bottom:4px">' + (proof.clientName || 'Your Album') + '</div>';
+  html += '<div style="font-size:14px;color:#64748b;margin-bottom:12px">' + (proof.delivName || 'Album') + ' · Version ' + (proof.version || 1) + '</div>';
+  html += '<div style="display:inline-block;background:' + (statusBg[status] || '#f1f5f9') + ';color:' + (statusTxt[status] || '#374151') + ';border-radius:20px;padding:6px 16px;font-size:13px;font-weight:700">' + (statusLabel[status] || status) + '</div>';
+  html += '</div>';
+
+  if (!pages.length) {
+    html += '<div style="text-align:center;background:#fff;border-radius:12px;padding:40px;border:1px solid #e5e7eb">';
+    html += '<div style="font-size:36px;margin-bottom:12px">📭</div>';
+    html += '<div style="font-size:16px;font-weight:600;color:#374151;margin-bottom-6px">Album pages coming soon</div>';
+    html += '<div style="font-size:13px;color:#9ca3af">The studio is uploading your album pages. Check back shortly!</div>';
+    html += '</div>';
+  } else {
+    html += '<div style="background:#fff;border-radius:12px;padding:16px;border:1px solid #e5e7eb;margin-bottom:20px">';
+    html += '<div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:4px">How to review:</div>';
+    html += '<div style="font-size:13px;color:#64748b">Click on any page to zoom in. <b>Click directly on the photo</b> to drop a marker exactly where you\'d like a change, or use <b>Add Comment</b> for general notes on the page. Once you\'ve reviewed all pages, click <b>Approve Album</b> or <b>Request Changes</b> at the bottom.</div>';
+    html += '</div>';
+
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:24px">';
+    pages.forEach(function(pg, i) {
+      var hasComment = !!pg.comment;
+      var pinCount = pg.pins ? Object.keys(pg.pins).length : 0;
+      var hasVoice = !!(pg.voiceNote && pg.voiceNote.url);
+      var hasFeedback = hasComment || pinCount > 0 || hasVoice;
+      var isUpdated = pg.status === 'fixed';
+      var borderColor = isUpdated ? '#3b82f6' : (hasFeedback ? '#ef4444' : '#e5e7eb');
+      html += '<div style="background:#fff;border:2px solid ' + borderColor + ';border-radius:12px;overflow:hidden;cursor:pointer" onclick="apClientOpenPage(' + i + ',\'' + projId + '\',\'' + delivId + '\',\'' + token + '\',' + pages.length + ')">';
+      html += '<div style="position:relative">';
+      if (pg.imageUrl) {
+        html += '<img src="' + pg.imageUrl + '" style="width:100%;height:160px;object-fit:cover;display:block">';
+      } else {
+        html += '<div style="width:100%;height:160px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:24px;color:#cbd5e1">📄</div>';
+      }
+      if (isUpdated) {
+        html += '<div style="position:absolute;top:8px;left:8px;background:#3b82f6;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:800">🆕 Updated</div>';
+      } else if (pinCount > 0) {
+        html += '<div style="position:absolute;top:8px;left:8px;background:#ef4444;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:800;display:flex;align-items:center;gap:3px">📍' + pinCount + '</div>';
+      }
+      if (hasVoice) {
+        html += '<div style="position:absolute;bottom:8px;left:8px;background:#7c3aed;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:800">🎤</div>';
+      }
+      if (hasComment && !isUpdated) {
+        html += '<div style="position:absolute;top:8px;right:8px;background:#ef4444;color:#fff;border-radius:50%;width:22px;height:22px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">✎</div>';
+      }
+      html += '</div>';
+      html += '<div style="padding:10px">';
+      html += '<div style="font-size:12px;font-weight:700;color:#374151">Page ' + (i + 1) + '</div>';
+      if (isUpdated) {
+        html += '<div style="font-size:11px;color:#1d4ed8;margin-top:2px">We updated this page — please recheck</div>';
+      } else if (hasComment) {
+        html += '<div style="font-size:11px;color:#ef4444;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + pg.comment + '</div>';
+      } else if (pinCount > 0) {
+        html += '<div style="font-size:11px;color:#ef4444;margin-top:2px">' + pinCount + ' marker' + (pinCount > 1 ? 's' : '') + ' on photo</div>';
+      } else if (hasVoice) {
+        html += '<div style="font-size:11px;color:#7c3aed;margin-top:2px">🎤 Voice note</div>';
+      } else {
+        html += '<div style="font-size:11px;color:#9ca3af;margin-top:2px">No comment</div>';
+      }
+      html += '</div></div>';
+    });
+    html += '</div>';
+  }
+
+  if (!isApproved) {
+    html += '<div style="background:#fff;border-radius:12px;padding:20px;border:1px solid #e5e7eb;display:flex;gap:12px;flex-wrap:wrap;justify-content:center">';
+    html += '<button onclick="apClientApprove(\'' + projId + '\',\'' + delivId + '\',\'' + token + '\')" style="background:#10b981;color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;cursor:pointer">✅ Approve Album</button>';
+    html += '<button onclick="apClientRequestChanges(\'' + projId + '\',\'' + delivId + '\',\'' + token + '\')" style="background:#ef4444;color:#fff;border:none;border-radius:10px;padding:14px 28px;font-size:15px;font-weight:800;cursor:pointer">🔄 Request Changes</button>';
+    html += '</div>';
+  }
+
+  html += '<div style="text-align:center;padding:20px;font-size:12px;color:#9ca3af">KB Studio Productions · For queries: contact your photographer directly</div>';
+  el.innerHTML = html;
+}
+
+function apClientOpenPage(pageIdx, projId, delivId, token, totalPages) {
+  var clientDb = firebase.database();
+
+  function openWithTotal(total) {
+    clientDb.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages/' + pageIdx).once('value', function(snap) {
+      var pg = snap.val() || {};
+      var existing = document.getElementById('ap-page-overlay');
+      if (existing) existing.remove(); // navigating from another page — swap in place
+
+      var overlay = document.createElement('div');
+      overlay.id = 'ap-page-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:16px;overflow-y:auto';
+      overlay.onclick = function(e) { if (e.target === overlay) apClientClosePage(); };
+
+      var inner = '<div style="background:#fff;border-radius:16px;width:100%;max-width:700px;overflow:hidden">';
+      inner += '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #f1f5f9;gap:10px;flex-wrap:wrap">';
+      inner += '<div style="display:flex;align-items:center;gap:10px">';
+      inner += '<button onclick="apClientGoPage(' + (pageIdx - 1) + ')" ' + (pageIdx <= 0 ? 'disabled' : '') + ' style="background:none;border:1px solid #e2e8f0;border-radius:8px;width:30px;height:30px;font-size:15px;cursor:' + (pageIdx <= 0 ? 'default' : 'pointer') + ';color:' + (pageIdx <= 0 ? '#d1d5db' : '#374151') + '">‹</button>';
+      if (total > 1) {
+        inner += '<select onchange="apClientGoPage(this.value)" style="font-size:13px;font-weight:700;border:1px solid #e2e8f0;border-radius:8px;padding:5px 8px;background:#fff;cursor:pointer">';
+        for (var pi = 0; pi < total; pi++) {
+          inner += '<option value="' + pi + '"' + (pi === pageIdx ? ' selected' : '') + '>Page ' + (pi + 1) + ' of ' + total + '</option>';
+        }
+        inner += '</select>';
+      } else {
+        inner += '<div style="font-size:15px;font-weight:800">Page ' + (pageIdx + 1) + '</div>';
+      }
+      inner += '<button onclick="apClientGoPage(' + (pageIdx + 1) + ')" ' + (pageIdx >= total - 1 ? 'disabled' : '') + ' style="background:none;border:1px solid #e2e8f0;border-radius:8px;width:30px;height:30px;font-size:15px;cursor:' + (pageIdx >= total - 1 ? 'default' : 'pointer') + ';color:' + (pageIdx >= total - 1 ? '#d1d5db' : '#374151') + '">›</button>';
+      inner += '</div>';
+      inner += '<button onclick="apClientClosePage()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888">✕</button>';
+      inner += '</div>';
+      if (pg.status === 'fixed') {
+        inner += '<div style="background:#eff6ff;border-bottom:1px solid #bfdbfe;padding:8px 20px;display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap">';
+        inner += '<span style="font-size:12px;color:#1d4ed8;font-weight:700">🆕 This page was updated based on your feedback</span>';
+        if (pg.history && pg.history.length) {
+          inner += '<button onclick="apCompareModal(\'' + apEscUrl(pg.history[pg.history.length - 1].imageUrl) + '\',\'' + apEscUrl(pg.imageUrl) + '\')" style="background:#3b82f6;color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">🔍 See what changed</button>';
+        }
+        inner += '</div>';
+      }
+      if (pg.imageUrl) {
+        inner += '<div style="font-size:12px;color:#7c3aed;font-weight:700;text-align:center;padding:8px 20px 0">📍 Click anywhere on the photo to leave a note at that spot</div>';
+        inner += '<div id="ap-pin-wrap" style="position:relative;background:#f8f7f4">';
+        inner += '<img id="ap-pin-img" src="' + pg.imageUrl + '" style="width:100%;display:block;max-height:70vh;object-fit:contain;cursor:crosshair" onload="apRenderPinLayer()" onclick="apPinImgClick(event)">';
+        inner += '<div id="ap-pin-layer" style="position:absolute;inset:0;pointer-events:none"></div>';
+        inner += '</div>';
+      } else {
+        inner += '<div style="height:300px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:36px">📄</div>';
+      }
+      inner += '<div style="padding:16px 20px">';
+      inner += '<div id="ap-pin-editor-box" style="display:none"></div>';
+      inner += '<div id="ap-pin-list"></div>';
+      inner += '<div id="ap-voice-box" style="margin-top:14px"></div>';
+      inner += '<label style="font-size:13px;font-weight:700;color:#374151;display:block;margin:16px 0 6px">Overall comment for this page (optional):</label>';
+      inner += '<textarea id="ap-page-comment" rows="3" placeholder="E.g. Please move the text slightly up, change the border colour to gold…" style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:10px;font-size:13px;font-family:inherit;box-sizing:border-box">' + (pg.comment || '') + '</textarea>';
+      inner += '<div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">';
+      inner += '<button onclick="apClientSaveComment(' + pageIdx + ',\'' + projId + '\',\'' + delivId + '\',\'' + token + '\')" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer">Save Comment</button>';
+      if (pg.comment) inner += '<button onclick="apClientClearComment(' + pageIdx + ',\'' + projId + '\',\'' + delivId + '\',\'' + token + '\')" style="background:#f1f5f9;color:#374151;border:1px solid #e2e8f0;border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer">Clear</button>';
+      inner += '<button onclick="apClientClosePage()" style="background:none;color:#888;border:1px solid #e2e8f0;border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer">Close</button>';
+      inner += '</div></div></div>';
+
+      overlay.innerHTML = inner;
+      document.body.appendChild(overlay);
+
+      window._apPinState = {
+        pageIdx: pageIdx, projId: projId, delivId: delivId, token: token, total: total,
+        pins: pg.pins || {}, activeEditor: null, voiceNote: pg.voiceNote || null
+      };
+      window._apPinResizeHandler = function() { apRenderPinLayer(); };
+      window.addEventListener('resize', window._apPinResizeHandler);
+      if (!window._apPinKeyHandler) {
+        window._apPinKeyHandler = function(e) {
+          var st = window._apPinState;
+          if (!st) return;
+          var tag = document.activeElement && document.activeElement.tagName;
+          if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return; // don't hijack typing
+          if (e.key === 'ArrowLeft') apClientGoPage(st.pageIdx - 1);
+          else if (e.key === 'ArrowRight') apClientGoPage(st.pageIdx + 1);
+          else if (e.key === 'Escape') apClientClosePage();
+        };
+        window.addEventListener('keydown', window._apPinKeyHandler);
+      }
+
+      var img = document.getElementById('ap-pin-img');
+      if (img && img.complete) apRenderPinLayer();
+      apRenderVoiceBox();
+    });
+  }
+
+  if (totalPages) {
+    openWithTotal(totalPages);
+  } else {
+    // Fallback: total not passed in (e.g. called from an older code path) — look it up
+    clientDb.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages').once('value', function(snap) {
+      var pages = snap.val() || [];
+      openWithTotal(pages.length || 1);
+    });
+  }
+}
+
+function apClientGoPage(newIdx) {
+  newIdx = parseInt(newIdx, 10);
+  var st = window._apPinState;
+  if (!st || newIdx < 0 || newIdx >= st.total || newIdx === st.pageIdx) return;
+  apVoiceHardStop();
+  apClientOpenPage(newIdx, st.projId, st.delivId, st.token, st.total);
+}
+
+// ── Photo pin markers (click-to-pin markup) ─────────────────────────────
+function apEscapeHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function apGetRenderedImageRect(img) {
+  var cw = img.clientWidth, ch = img.clientHeight;
+  var iw = img.naturalWidth || cw, ih = img.naturalHeight || ch;
+  if (!iw || !ih || !cw || !ch) return { x: 0, y: 0, w: cw, h: ch };
+  var containerRatio = cw / ch, imgRatio = iw / ih;
+  var rw, rh, rx, ry;
+  if (imgRatio > containerRatio) { rw = cw; rh = cw / imgRatio; rx = 0; ry = (ch - rh) / 2; }
+  else { rh = ch; rw = ch * imgRatio; ry = 0; rx = (cw - rw) / 2; }
+  return { x: rx, y: ry, w: rw, h: rh };
+}
+
+function apPinImgClick(e) {
+  var img = document.getElementById('ap-pin-img');
+  if (!img) return;
+  var box = img.getBoundingClientRect();
+  var clickX = e.clientX - box.left, clickY = e.clientY - box.top;
+  var r = apGetRenderedImageRect(img);
+  if (clickX < r.x || clickX > r.x + r.w || clickY < r.y || clickY > r.y + r.h) return; // clicked letterbox area, ignore
+  var pctX = ((clickX - r.x) / r.w) * 100;
+  var pctY = ((clickY - r.y) / r.h) * 100;
+  var st = window._apPinState;
+  st.activeEditor = { mode: 'new', x: pctX, y: pctY, text: '' };
+  apRenderPinLayer();
+  setTimeout(function() {
+    var eb = document.getElementById('ap-pin-editor-box');
+    if (eb) eb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    var ta = document.getElementById('ap-pin-editor-text');
+    if (ta) ta.focus();
+  }, 50);
+}
+
+function apPinTogglePopover(key) {
+  var st = window._apPinState;
+  if (st.activeEditor && st.activeEditor.mode === 'edit' && st.activeEditor.key === key) {
+    st.activeEditor = null;
+  } else {
+    var p = st.pins[key];
+    if (!p) return;
+    st.activeEditor = { mode: 'edit', key: key, x: p.x, y: p.y, text: p.text };
+  }
+  apRenderPinLayer();
+}
+
+function apPinCancelEditor() {
+  window._apPinState.activeEditor = null;
+  apRenderPinLayer();
+}
+
+function apPinSaveEditor() {
+  var ta = document.getElementById('ap-pin-editor-text');
+  var text = (ta ? ta.value : '').trim();
+  if (!text) { alert('Please enter a note for this marker, or hit Cancel.'); return; }
+  var st = window._apPinState;
+  var clientDb = firebase.database();
+  var basePath = 'crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages/' + st.pageIdx + '/pins/';
+  if (st.activeEditor.mode === 'new') {
+    var newRef = clientDb.ref(basePath).push();
+    var key = newRef.key;
+    var data = { x: st.activeEditor.x, y: st.activeEditor.y, text: text, createdAt: Date.now() };
+    newRef.set(data, function(err) {
+      if (err) { alert('Could not save marker. Please try again.'); return; }
+      st.pins[key] = data;
+      st.activeEditor = null;
+      apRenderPinLayer();
+      clientDb.ref('crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages/' + st.pageIdx + '/status').set('flagged');
+    });
+  } else {
+    var editKey = st.activeEditor.key;
+    clientDb.ref(basePath + editKey + '/text').set(text, function(err) {
+      if (err) { alert('Could not save marker. Please try again.'); return; }
+      st.pins[editKey].text = text;
+      st.activeEditor = null;
+      apRenderPinLayer();
+    });
+  }
+}
+
+function apPinDeleteActive() {
+  if (!confirm('Delete this marker?')) return;
+  var st = window._apPinState;
+  var key = st.activeEditor.key;
+  var clientDb = firebase.database();
+  clientDb.ref('crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages/' + st.pageIdx + '/pins/' + key).remove(function(err) {
+    if (err) { alert('Could not delete marker. Please try again.'); return; }
+    delete st.pins[key];
+    st.activeEditor = null;
+    apRenderPinLayer();
+  });
+}
+
+function apRenderPinEditor() {
+  var st = window._apPinState;
+  var box = document.getElementById('ap-pin-editor-box');
+  if (!box) return;
+  if (!st.activeEditor) { box.innerHTML = ''; box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  var isEdit = st.activeEditor.mode === 'edit';
+  var html = '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px">';
+  html += '<label style="font-size:12px;font-weight:700;color:#7c3aed;display:block;margin-bottom:6px">' + (isEdit ? '📍 Edit marker note:' : '📍 New marker — what should change here?') + '</label>';
+  html += '<textarea id="ap-pin-editor-text" rows="2" placeholder="E.g. Please remove this person from the frame" style="width:100%;border:1px solid #d8b4fe;border-radius:8px;padding:8px;font-size:13px;font-family:inherit;box-sizing:border-box">' + apEscapeHtml(st.activeEditor.text || '') + '</textarea>';
+  html += '<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">';
+  html += '<button onclick="apPinSaveEditor()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">Save Marker</button>';
+  if (isEdit) html += '<button onclick="apPinDeleteActive()" style="background:#fff;color:#ef4444;border:1px solid #fecaca;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Delete</button>';
+  html += '<button onclick="apPinCancelEditor()" style="background:none;color:#888;border:1px solid #e2e8f0;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Cancel</button>';
+  html += '</div></div>';
+  box.innerHTML = html;
+}
+
+function apRenderPinList() {
+  var st = window._apPinState;
+  var box = document.getElementById('ap-pin-list');
+  if (!box) return;
+  var keys = Object.keys(st.pins);
+  if (!keys.length) { box.innerHTML = ''; return; }
+  var html = '<div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px">📍 Markers on this photo (' + keys.length + '):</div>';
+  keys.forEach(function(k, idx) {
+    var p = st.pins[k];
+    html += '<div onclick="apPinTogglePopover(\'' + k + '\')" style="display:flex;gap:8px;align-items:flex-start;padding:8px 10px;background:#fef2f2;border-radius:8px;margin-bottom:6px;cursor:pointer">';
+    html += '<div style="flex-shrink:0;background:#ef4444;color:#fff;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">' + (idx + 1) + '</div>';
+    html += '<div style="font-size:13px;color:#374151;flex:1">' + apEscapeHtml(p.text) + '</div>';
+    html += '</div>';
+  });
+  box.innerHTML = html;
+}
+
+function apRenderPinLayer() {
+  var st = window._apPinState;
+  if (!st) return;
+  var layer = document.getElementById('ap-pin-layer');
+  var img = document.getElementById('ap-pin-img');
+  if (!layer || !img) return;
+  var r = apGetRenderedImageRect(img);
+  var html = '';
+  var keys = Object.keys(st.pins);
+  keys.forEach(function(k, idx) {
+    var p = st.pins[k];
+    var left = r.x + (p.x / 100) * r.w;
+    var top = r.y + (p.y / 100) * r.h;
+    var isActive = st.activeEditor && st.activeEditor.mode === 'edit' && st.activeEditor.key === k;
+    var bg = isActive ? '#7c3aed' : '#ef4444';
+    html += '<div onclick="event.stopPropagation();apPinTogglePopover(\'' + k + '\')" style="position:absolute;left:' + left + 'px;top:' + top + 'px;transform:translate(-50%,-100%);cursor:pointer;pointer-events:auto">';
+    html += '<div style="background:' + bg + ';color:#fff;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35)">';
+    html += '<span style="transform:rotate(45deg);font-size:12px;font-weight:800">' + (idx + 1) + '</span>';
+    html += '</div></div>';
+  });
+  if (st.activeEditor && st.activeEditor.mode === 'new') {
+    var pleft = r.x + (st.activeEditor.x / 100) * r.w;
+    var ptop = r.y + (st.activeEditor.y / 100) * r.h;
+    html += '<div style="position:absolute;left:' + pleft + 'px;top:' + ptop + 'px;transform:translate(-50%,-100%)">';
+    html += '<div style="background:#7c3aed;color:#fff;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35)"><span style="transform:rotate(45deg);font-size:12px;font-weight:800">+</span></div>';
+    html += '</div>';
+  }
+  layer.innerHTML = html;
+  apRenderPinEditor();
+  apRenderPinList();
+}
+
+function apClientClosePage() {
+  var el = document.getElementById('ap-page-overlay');
+  if (el) el.remove();
+  if (window._apPinResizeHandler) { window.removeEventListener('resize', window._apPinResizeHandler); window._apPinResizeHandler = null; }
+  if (window._apPinKeyHandler) { window.removeEventListener('keydown', window._apPinKeyHandler); window._apPinKeyHandler = null; }
+  window._apPinState = null;
+  apVoiceHardStop(); // release mic + clear timer if a recording was in progress
+}
+
+// ── Voice notes (per page) ──────────────────────────────────────────────
+function apVoiceFmtTime(sec) {
+  sec = Math.floor(sec);
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function apRenderVoiceBox() {
+  var st = window._apPinState;
+  var box = document.getElementById('ap-voice-box');
+  if (!st || !box) return;
+  var rec = window._apVoiceRec;
+
+  if (rec && rec.active) {
+    box.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px">' +
+      '<div style="width:10px;height:10px;border-radius:50%;background:#ef4444;animation:ap-pulse 1s infinite"></div>' +
+      '<div style="font-size:13px;font-weight:700;color:#ef4444;flex:1" id="ap-voice-timer">Recording… ' + apVoiceFmtTime(rec.elapsed || 0) + '</div>' +
+      '<button onclick="apVoiceStop()" style="background:#ef4444;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">⏹ Stop</button>' +
+      '</div>' +
+      '<style>@keyframes ap-pulse{0%,100%{opacity:1}50%{opacity:.25}}</style>';
+    return;
+  }
+
+  if (st.voiceNote && st.voiceNote.url) {
+    box.innerHTML =
+      '<div style="background:#f8f7f4;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px">' +
+      '<div style="font-size:12px;font-weight:700;color:#374151;margin-bottom:6px">🎤 Voice note</div>' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+      '<audio controls src="' + st.voiceNote.url + '" style="flex:1;height:36px"></audio>' +
+      '<button onclick="apVoiceDelete()" style="background:#fff;color:#ef4444;border:1px solid #fecaca;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;white-space:nowrap">Delete</button>' +
+      '</div></div>';
+    return;
+  }
+
+  if (typeof MediaRecorder === 'undefined') { box.innerHTML = ''; return; } // unsupported browser — hide silently
+  box.innerHTML =
+    '<button onclick="apVoiceStart()" style="background:#fff;color:#7c3aed;border:1.5px solid #d8b4fe;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">🎤 Record a voice note</button>';
+}
+
+function apVoiceStart() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('Voice recording isn\'t supported in this browser.');
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+    var mimeType = '';
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
+      if (MediaRecorder.isTypeSupported('audio/webm')) mimeType = 'audio/webm';
+      else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+    }
+    var recorder;
+    try { recorder = new MediaRecorder(stream, mimeType ? { mimeType: mimeType } : undefined); }
+    catch (e) { alert('Could not start recording on this device.'); stream.getTracks().forEach(function(t){t.stop();}); return; }
+    var chunks = [];
+    recorder.ondataavailable = function(e) { if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = function() { apVoiceHandleStop(chunks, mimeType || 'audio/webm'); };
+    recorder.start();
+
+    window._apVoiceRec = { active: true, recorder: recorder, stream: stream, elapsed: 0 };
+    window._apVoiceRec.timerId = setInterval(function() {
+      if (!window._apVoiceRec) return;
+      window._apVoiceRec.elapsed += 1;
+      var t = document.getElementById('ap-voice-timer');
+      if (t) t.textContent = 'Recording… ' + apVoiceFmtTime(window._apVoiceRec.elapsed);
+      if (window._apVoiceRec.elapsed >= 120) apVoiceStop(); // 2-minute safety cap
+    }, 1000);
+    apRenderVoiceBox();
+  }).catch(function() {
+    alert('Microphone access was blocked. Please allow microphone access to record a voice note.');
+  });
+}
+
+function apVoiceStop() {
+  var rec = window._apVoiceRec;
+  if (!rec || !rec.active) return;
+  rec.active = false;
+  if (rec.timerId) clearInterval(rec.timerId);
+  try { rec.recorder.stop(); } catch (e) {}
+  rec.stream.getTracks().forEach(function(t) { t.stop(); });
+}
+
+function apVoiceHardStop() {
+  // Used when the modal closes — stop/discard without saving
+  var rec = window._apVoiceRec;
+  if (!rec) return;
+  if (rec.timerId) clearInterval(rec.timerId);
+  if (rec.active) {
+    try { rec.recorder.onstop = null; rec.recorder.stop(); } catch (e) {}
+    if (rec.stream) rec.stream.getTracks().forEach(function(t) { t.stop(); });
+  }
+  window._apVoiceRec = null;
+}
+
+function apVoiceHandleStop(chunks, mimeType) {
+  window._apVoiceRec = null;
+  var st = window._apPinState;
+  if (!st) return; // modal already closed
+  apRenderVoiceBox(); // back to idle/record button while uploading
+  var blob = new Blob(chunks, { type: mimeType });
+  if (!blob.size) return;
+  var reader = new FileReader();
+  reader.onload = function() {
+    var dataUrl = reader.result;
+    var ext = mimeType.indexOf('mp4') !== -1 ? 'm4a' : 'webm';
+    var path = 'crm_album_proofs/' + st.projId + '/' + st.delivId + '/voice_p' + st.pageIdx + '_' + Date.now() + '.' + ext;
+    var box = document.getElementById('ap-voice-box');
+    if (box) box.innerHTML = '<div style="font-size:13px;color:#9ca3af">Uploading voice note…</div>';
+    uploadAudioToStorage(dataUrl, path).then(function(url) {
+      var clientDb = firebase.database();
+      var data = { url: url, createdAt: Date.now() };
+      clientDb.ref('crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages/' + st.pageIdx + '/voiceNote').set(data, function(err) {
+        if (err) { alert('Could not save voice note. Please try again.'); apRenderVoiceBox(); return; }
+        st.voiceNote = data;
+        apRenderVoiceBox();
+        clientDb.ref('crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages/' + st.pageIdx + '/status').set('flagged');
+      });
+    }).catch(function() {
+      alert('Could not upload voice note. Please try again.');
+      apRenderVoiceBox();
+    });
+  };
+  reader.readAsDataURL(blob);
+}
+
+function apVoiceDelete() {
+  if (!confirm('Delete this voice note?')) return;
+  var st = window._apPinState;
+  var clientDb = firebase.database();
+  clientDb.ref('crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages/' + st.pageIdx + '/voiceNote').remove(function(err) {
+    if (err) { alert('Could not delete. Please try again.'); return; }
+    st.voiceNote = null;
+    apRenderVoiceBox();
+  });
+}
+
+function apClientSaveComment(pageIdx, projId, delivId, token) {
+  var comment = (document.getElementById('ap-page-comment') || {}).value || '';
+  var clientDb = firebase.database();
+  clientDb.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages/' + pageIdx + '/comment').set(comment, function(err) {
+    if (err) { alert('Could not save. Please try again.'); return; }
+    clientDb.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages/' + pageIdx + '/commentAt').set(Date.now());
+    if (comment) clientDb.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages/' + pageIdx + '/status').set('flagged');
+    apClientClosePage();
+    // Refresh the view
+    loadProofByToken(token);
+  });
+}
+
+function apClientClearComment(pageIdx, projId, delivId, token) {
+  if (!confirm('Remove comment from this page?')) return;
+  var clientDb = firebase.database();
+  clientDb.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages/' + pageIdx + '/comment').set('', function() {
+    apClientClosePage();
+    loadProofByToken(token);
+  });
+}
+
+function apClientApprove(projId, delivId, token) {
+  if (!confirm('Approve this album? This tells the studio you\'re happy with all pages.')) return;
+  var clientDb = firebase.database();
+  clientDb.ref('crm_album_proofs/' + projId + '/' + delivId).update({
+    status: 'approved', approvedAt: Date.now(), updatedAt: Date.now()
+  }, function(err) {
+    if (err) { alert('Could not submit. Please try again.'); return; }
+    loadProofByToken(token);
+  });
+}
+
+function apClientRequestChanges(projId, delivId, token) {
+  var clientDb = firebase.database();
+  clientDb.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages').once('value', function(snap) {
+    var pages = snap.val() || [];
+    var hasComments = pages.some(function(p) { return p && (p.comment || (p.pins && Object.keys(p.pins).length) || (p.voiceNote && p.voiceNote.url)); });
+    var msg = hasComments
+      ? 'Submit your feedback? The studio will see all your page comments and make the changes.'
+      : 'You haven\'t added comments on any pages yet. Add comments on specific pages first, then request changes.';
+    if (!hasComments) { alert(msg); return; }
+    if (!confirm(msg)) return;
+    clientDb.ref('crm_album_proofs/' + projId + '/' + delivId).update({
+      status: 'changes_requested', changesAt: Date.now(), updatedAt: Date.now()
+    }, function(err) {
+      if (err) { alert('Could not submit. Please try again.'); return; }
+      loadProofByToken(token);
+    });
+  });
+}
+
+
+// ── Album Proof page — project/deliverable picker helpers ──────────────────
+function apPickerLoadDelivs() {
+  var projId = (document.getElementById('ap-pick-proj') || {}).value;
+  var wrap = document.getElementById('ap-pick-deliv-wrap');
+  var sel = document.getElementById('ap-pick-deliv');
+  if (!projId || !wrap || !sel) return;
+  var proj = projects[projId] || {};
+  var delivs = (proj.customDelivs || []).filter(function(d) { return d && (d.name || d.type); });
+  if (!delivs.length) {
+    wrap.style.display = 'none';
+    showToast('⚠️ No deliverables found for this project. Add deliverables in the project first.');
+    return;
+  }
+  sel.innerHTML = '<option value="">— Choose deliverable —</option>';
+  delivs.forEach(function(d) {
+    var opt = document.createElement('option');
+    opt.value = d.id;
+    opt.textContent = (d.name || d.type || 'Deliverable') + (d.category ? ' (' + d.category + ')' : '');
+    sel.appendChild(opt);
+  });
+  wrap.style.display = '';
+}
+
+function apPickerStart() {
+  var projId = (document.getElementById('ap-pick-proj') || {}).value;
+  var delivId = (document.getElementById('ap-pick-deliv') || {}).value;
+  if (!projId) { showToast('⚠️ Please select a project first.'); return; }
+  if (!delivId) { showToast('⚠️ Please select a deliverable.'); return; }
+  openAlbumProofModal(projId, delivId);
+}
+
+// ── Wire Album Proofing page render on tab switch ───────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var orig = window.showPage || function(){};
+  // Intercept page switches to trigger render
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest('[onclick]');
+  });
+});
+</script>
