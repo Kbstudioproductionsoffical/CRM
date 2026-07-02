@@ -1525,6 +1525,10 @@ if (!_isClientProofView) {
           style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
           📅 Payment Calendar
         </button>
+        <button class="pay-main-tab" data-ptab="gst" onclick="switchPayTab('gst',this)"
+          style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
+          🧾 GST Report
+        </button>
       </div>
 
       <!-- Projects tab content -->
@@ -1584,6 +1588,40 @@ if (!_isClientProofView) {
           <div id="coll-filter-summary" style="font-size:12px;color:#1d4ed8;font-weight:600"></div>
         </div>
         <div id="pay-account-breakdown-full"></div>
+      </div>
+
+      <!-- GST Report tab content -->
+      <div id="pay-tab-gst" style="display:none">
+        <div style="background:#f9f9fb;border:1px solid #e8e8ee;border-radius:12px;padding:12px 16px;margin-bottom:14px">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">
+            <span style="font-size:11px;font-weight:700;color:#555;letter-spacing:.04em;text-transform:uppercase">🏦 Account</span>
+            <select class="fi" id="gst-acc-f" style="flex:0;width:auto;padding:5px 10px;font-size:12px" onchange="renderGstReport()">
+              <option value="">All Accounts</option>
+            </select>
+            <span style="font-size:11px;font-weight:700;color:#555;letter-spacing:.04em;text-transform:uppercase;margin-left:8px">📅 Period</span>
+            <select class="fi" id="gst-fy-f" style="flex:0;width:auto;padding:5px 10px;font-size:12px" onchange="onGstFYChange()">
+              <option value="">All Time</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:8px">
+            <button class="gst-range-btn btn btn-sm" data-range="" onclick="setGstRange(this,'')" style="font-size:11px;padding:4px 9px;background:#1a1a1a;color:#fff">All Time</button>
+            <button class="gst-range-btn btn btn-sm" data-range="1m" onclick="setGstRange(this,'1m')" style="font-size:11px;padding:4px 9px">1 Month</button>
+            <button class="gst-range-btn btn btn-sm" data-range="3m" onclick="setGstRange(this,'3m')" style="font-size:11px;padding:4px 9px">3 Months</button>
+            <button class="gst-range-btn btn btn-sm" data-range="6m" onclick="setGstRange(this,'6m')" style="font-size:11px;padding:4px 9px">6 Months</button>
+            <button class="gst-range-btn btn btn-sm" data-range="cfy" onclick="setGstRange(this,'cfy')" style="font-size:11px;padding:4px 9px">Current FY</button>
+            <button class="gst-range-btn btn btn-sm" data-range="lfy" onclick="setGstRange(this,'lfy')" style="font-size:11px;padding:4px 9px">Last FY</button>
+            <span style="font-size:11px;color:#aaa;margin:0 4px">Custom:</span>
+            <input type="date" class="fi" id="gst-date-from" style="flex:0;width:130px;padding:5px 8px;font-size:12px" onchange="onGstCustomDate()">
+            <span style="font-size:12px;color:#aaa">→</span>
+            <input type="date" class="fi" id="gst-date-to" style="flex:0;width:130px;padding:5px 8px;font-size:12px" onchange="onGstCustomDate()">
+            <button class="btn btn-sm" style="font-size:11px;padding:4px 10px;color:#888;border-color:#ddd" onclick="clearGstDateFilter()">✕ Clear</button>
+          </div>
+          <div id="gst-filter-summary" style="font-size:12px;color:#7c3aed;font-weight:600"></div>
+        </div>
+        <div style="margin-bottom:12px">
+          <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="exportGstReportExcel()">📊 Export GST Report (Excel)</button>
+        </div>
+        <div id="pay-gst-report"></div>
       </div>
     </div>
 
@@ -5690,6 +5728,50 @@ function kbErpGetForecastData(projectsList) {
 // differences never cause a real payment to go unmatched.
 function normStage(s) { return (s == null ? '' : String(s)).trim().toLowerCase(); }
 function stageMatches(a, b) { return !!a && !!b && normStage(a) === normStage(b); }
+// ── Friendly "When" text for custom installment rows ──────────────────────
+// The custom-pay-row dropdown (see addCustomPayRow) saves its short value
+// code (booking/event/raw/delivery/other) as the term's `desc`. That code,
+// not a readable phrase, was being shown as-is in the "When" column, so every
+// row left on the default selection displayed the same bare word "booking".
+// This map translates the stored code into a proper phrase at read time, so
+// it self-heals for every already-saved project (past clients included) as
+// well as anything saved going forward — no need to touch old records.
+var _PAY_DESC_MAP = {
+  booking:  'On booking',
+  event:    'On shoot day',
+  raw:      'Before raw data delivery',
+  delivery: 'Before final delivery',
+  other:    'Other milestone'
+};
+function friendlyPayDesc(d){
+  if(!d) return d;
+  var key=String(d).trim().toLowerCase();
+  return _PAY_DESC_MAP.hasOwnProperty(key) ? _PAY_DESC_MAP[key] : d;
+}
+// Many older rows were saved with the "When" dropdown left on its default
+// ("booking") for every installment, regardless of what the row is actually
+// for — that's why "On booking" was repeating on every line even after the
+// code-to-text fix above. When we detect that default-and-unchanged state,
+// infer the real "When" from the installment's own label instead, so rows
+// like "On First event" or "Before raw data" get a matching, distinct phrase
+// automatically — no manual re-entry needed on old projects.
+function inferPayDescFromLabel(label){
+  var l=String(label||'').toLowerCase();
+  if(/raw\s*data/.test(l)) return 'Before raw data delivery';
+  if(/album|final\s*delivery|\bdelivery\b/.test(l)) return 'Before final delivery';
+  if(/pre[\s-]?wed/.test(l)) return 'On pre-wedding shoot';
+  if(/first\s*event|wedding\s*day|shoot\s*day|\bevent\b/.test(l)) return 'On the event day';
+  if(/advance|\bbooking\b/.test(l)) return 'On booking';
+  return null;
+}
+function resolvePayDesc(label, storedDesc){
+  var rawCode=String(storedDesc||'').trim().toLowerCase();
+  if(rawCode==='booking'||!rawCode){
+    var inferred=inferPayDescFromLabel(label);
+    if(inferred) return inferred;
+  }
+  return friendlyPayDesc(storedDesc);
+}
 function getPayTerms(p){
   var base;
   if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length){
@@ -5714,6 +5796,10 @@ function getPayTerms(p){
       });
     });
   }
+  // Normalize "When" text for every row, from every source, past or future.
+  base=base.map(function(t){
+    return Object.assign({},t,{ desc: resolvePayDesc(t.label, t.desc) });
+  });
   return base;
 }
 
@@ -5721,7 +5807,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v74.8-2026-06-29-reason-box';
+var CRM_BUILD_VERSION = 'v77.4-2026-07-02-invoice-schedule-fix';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -11793,11 +11879,13 @@ function switchPayTab(tab, btn) {
   var feedTab = document.getElementById('pay-tab-feed');
   var collTab = document.getElementById('pay-tab-collections');
   var pipeTab = document.getElementById('pay-tab-pipeline');
+  var gstTab = document.getElementById('pay-tab-gst');
   if (!projTab || !feedTab || !collTab) return;
   projTab.style.display = 'none';
   feedTab.style.display = 'none';
   collTab.style.display = 'none';
   if (pipeTab) pipeTab.style.display = 'none';
+  if (gstTab) gstTab.style.display = 'none';
   var calTab = document.getElementById('pay-tab-calendar');
   if (calTab) calTab.style.display = 'none';
   if (tab === 'projects') {
@@ -11809,6 +11897,10 @@ function switchPayTab(tab, btn) {
     collTab.style.display = '';
     populateCollFYSelect();
     renderCollectionsByAccount();
+  } else if (tab === 'gst') {
+    if (gstTab) gstTab.style.display = '';
+    populateGstFYSelect();
+    renderGstReport();
   } else if (tab === 'pipeline') {
     if (pipeTab) pipeTab.style.display = '';
     renderPaymentPipeline();
@@ -13959,6 +14051,231 @@ function renderCollectionsByAccount() {
   }).join('');
 
   el.innerHTML = cardsHtml + tableHtml;
+}
+
+// ── GST Report tab filter state — independent from the other Payments tabs ──
+var _gstRange = ''; var _gstDateFrom = ''; var _gstDateTo = '';
+
+function populateGstFYSelect() {
+  var fys = allIndiaFYs();
+  var cfy = currentIndiaFY();
+  var el = document.getElementById('gst-fy-f'); if (!el) return;
+  var cur = el.value;
+  el.innerHTML = '<option value="">All Financial Years</option>';
+  fys.forEach(function(fy) {
+    var o = document.createElement('option');
+    o.value = fy;
+    o.textContent = 'FY ' + fy + (fy === cfy ? ' (Current)' : '');
+    el.appendChild(o);
+  });
+  if (cur) el.value = cur;
+  var accEl = document.getElementById('gst-acc-f');
+  if (accEl) {
+    var cur2 = accEl.value;
+    var accNames = [];
+    pl().forEach(function(p) {
+      (p.payLedger || []).forEach(function(e) {
+        if (e.gstAmount > 0 && e.account && accNames.indexOf(e.account) === -1) accNames.push(e.account);
+      });
+    });
+    accEl.innerHTML = '<option value="">All Accounts</option>';
+    accNames.sort().forEach(function(a) {
+      var o = document.createElement('option'); o.value = a; o.textContent = a; accEl.appendChild(o);
+    });
+    if (cur2) accEl.value = cur2;
+  }
+}
+
+function setGstRange(btn, range) {
+  _gstRange = range;
+  _gstDateFrom = ''; _gstDateTo = '';
+  var fromEl = document.getElementById('gst-date-from'); if (fromEl) fromEl.value = '';
+  var toEl   = document.getElementById('gst-date-to');   if (toEl)   toEl.value   = '';
+  var fyEl   = document.getElementById('gst-fy-f');      if (fyEl)   fyEl.value   = '';
+  document.querySelectorAll('.gst-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+  if (btn) { btn.style.background = '#1a1a1a'; btn.style.color = '#fff'; }
+  renderGstReport();
+}
+
+function onGstFYChange() {
+  _gstRange = '';
+  _gstDateFrom = ''; _gstDateTo = '';
+  var fromEl = document.getElementById('gst-date-from'); if (fromEl) fromEl.value = '';
+  var toEl   = document.getElementById('gst-date-to');   if (toEl)   toEl.value   = '';
+  document.querySelectorAll('.gst-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+  renderGstReport();
+}
+
+function onGstCustomDate() {
+  _gstRange = '';
+  var fyEl = document.getElementById('gst-fy-f'); if (fyEl) fyEl.value = '';
+  document.querySelectorAll('.gst-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+  _gstDateFrom = (document.getElementById('gst-date-from') || {value:''}).value;
+  _gstDateTo   = (document.getElementById('gst-date-to')   || {value:''}).value;
+  renderGstReport();
+}
+
+function clearGstDateFilter() {
+  _gstRange = ''; _gstDateFrom = ''; _gstDateTo = '';
+  var fromEl = document.getElementById('gst-date-from'); if (fromEl) fromEl.value = '';
+  var toEl   = document.getElementById('gst-date-to');   if (toEl)   toEl.value   = '';
+  var fyEl   = document.getElementById('gst-fy-f');      if (fyEl)   fyEl.value   = '';
+  document.querySelectorAll('.gst-range-btn').forEach(function(b) { b.style.background = ''; b.style.color = ''; });
+  var allBtn = document.querySelector('.gst-range-btn[data-range=""]');
+  if (allBtn) { allBtn.style.background = '#1a1a1a'; allBtn.style.color = '#fff'; }
+  renderGstReport();
+}
+
+function getGstDateRange() {
+  if (_gstDateFrom || _gstDateTo) return { from: _gstDateFrom || '0000-01-01', to: _gstDateTo || '9999-12-31' };
+  var fyEl = document.getElementById('gst-fy-f');
+  var fy = fyEl ? fyEl.value : '';
+  if (fy) return indiaFYRange(fy);
+  return dateRangeFromQuickRange(_gstRange);
+}
+
+// ── Collect every GST-bearing payment entry across all projects, filtered ──
+function getGstFilteredEntries() {
+  var accF = (document.getElementById('gst-acc-f') || {value:''}).value;
+  var dateRange = getGstDateRange();
+  var entries = [];
+  pl().forEach(function(p) {
+    (p.payLedger || []).forEach(function(e) {
+      if (!(e.gstAmount > 0)) return; // GST report only cares about GST-bearing entries
+      if (accF && e.account !== accF) return;
+      if (dateRange && !inDateRange(e.date || '', dateRange)) return;
+      entries.push({ entry: e, proj: p });
+    });
+  });
+  entries.sort(function(a, b) { return (b.entry.ts || 0) - (a.entry.ts || 0); });
+  return entries;
+}
+
+// ── Renders the filterable GST Collection report ──
+function renderGstReport() {
+  var el = document.getElementById('pay-gst-report');
+  if (!el) return;
+
+  var accF = (document.getElementById('gst-acc-f') || {value:''}).value;
+  var dateRange = getGstDateRange();
+  var entries = getGstFilteredEntries();
+
+  var tBase = entries.reduce(function(a, x) { return a + (parseInt(x.entry.amount) || 0); }, 0);
+  var tGst  = entries.reduce(function(a, x) { return a + (parseInt(x.entry.gstAmount) || 0); }, 0);
+  var tRecv = tBase + tGst;
+
+  var summaryEl = document.getElementById('gst-filter-summary');
+  if (summaryEl) {
+    var parts = [];
+    if (accF) parts.push('Account: <b>' + accF + '</b>');
+    if (dateRange) parts.push('Period: <b>' + dateRange.from + '</b> → <b>' + dateRange.to + '</b>');
+    summaryEl.innerHTML = parts.length
+      ? '🔍 Showing ' + parts.join(' &nbsp;|&nbsp; ') + ' — <b>' + fmt(tGst) + '</b> GST collected across ' + entries.length + ' payment(s)'
+      : '';
+  }
+
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty" style="padding:24px">No GST-bearing payments found for this filter.</div>';
+    return;
+  }
+
+  // Rate-wise breakdown (18%, 5%, 12%, 28% etc.)
+  var rateBreakdown = {};
+  entries.forEach(function(x) {
+    var r = (parseFloat(x.entry.gstRate) || 0) + '%';
+    if (!rateBreakdown[r]) rateBreakdown[r] = { base: 0, gst: 0, count: 0 };
+    rateBreakdown[r].base += (parseInt(x.entry.amount) || 0);
+    rateBreakdown[r].gst  += (parseInt(x.entry.gstAmount) || 0);
+    rateBreakdown[r].count++;
+  });
+
+  var summaryCards = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:16px">' +
+    '<div class="card" style="margin-bottom:0"><div style="font-size:12px;color:#888;font-weight:600;margin-bottom:5px">Base Amount (Taxable)</div><div style="font-size:20px;font-weight:800;color:#1a1a1a">' + fmt(tBase) + '</div></div>' +
+    '<div class="card" style="margin-bottom:0"><div style="font-size:12px;color:#888;font-weight:600;margin-bottom:5px">GST Collected</div><div style="font-size:20px;font-weight:800;color:#7c3aed">' + fmt(tGst) + '</div></div>' +
+    '<div class="card" style="margin-bottom:0"><div style="font-size:12px;color:#888;font-weight:600;margin-bottom:5px">Total Received</div><div style="font-size:20px;font-weight:800;color:#16a34a">' + fmt(tRecv) + '</div></div>' +
+    '<div class="card" style="margin-bottom:0"><div style="font-size:12px;color:#888;font-weight:600;margin-bottom:5px">GST-Bearing Payments</div><div style="font-size:20px;font-weight:800;color:#1d4ed8">' + entries.length + '</div></div>' +
+  '</div>';
+
+  var rateCards = '<div class="card" style="margin-bottom:16px">' +
+    '<div class="card-hdr"><span class="card-title">📐 By GST Rate</span></div>' +
+    '<table class="tbl"><thead><tr><th>Rate</th><th>Taxable Amount</th><th>GST Collected</th><th>Payments</th></tr></thead><tbody>' +
+    Object.keys(rateBreakdown).sort().map(function(r) {
+      var b = rateBreakdown[r];
+      return '<tr><td style="font-weight:700">' + r + '</td><td>' + fmt(b.base) + '</td><td style="font-weight:700;color:#7c3aed">' + fmt(b.gst) + '</td><td>' + b.count + '</td></tr>';
+    }).join('') +
+    '</tbody></table></div>';
+
+  var detailTable = '<div class="card" style="padding:0;overflow:hidden">' +
+    '<div class="card-hdr" style="padding:12px 16px;margin-bottom:0;border-bottom:1px solid #f0f0f0"><span class="card-title">🧾 GST-Bearing Payments</span></div>' +
+    '<table class="tbl"><thead><tr><th>Date</th><th>Client</th><th>Ref Code</th><th>Base Amount</th><th>Rate</th><th>GST</th><th>Total Received</th><th>Account</th></tr></thead><tbody>' +
+    entries.map(function(x) {
+      var e = x.entry, p = x.proj;
+      return '<tr>' +
+        '<td>' + fmtDate(e.date || '') + '</td>' +
+        '<td><span style="cursor:pointer;color:#1d4ed8;text-decoration:underline" onclick="openProjectPayments(' + p.id + ')">' + escHtml(p.bride + ' & ' + p.groom) + '</span></td>' +
+        '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
+        '<td>' + fmt(e.amount) + '</td>' +
+        '<td>' + (e.gstRate || 0) + '%</td>' +
+        '<td style="font-weight:700;color:#7c3aed">' + fmt(e.gstAmount) + '</td>' +
+        '<td style="font-weight:700;color:#16a34a">' + fmt(entryTotalReceived(e)) + '</td>' +
+        '<td style="font-size:11px;color:#888">' + (e.account || '-') + '</td>' +
+      '</tr>';
+    }).join('') +
+    '</tbody></table></div>';
+
+  el.innerHTML = summaryCards + rateCards + detailTable;
+}
+
+// ── Export the currently filtered GST Report as an Excel workbook ──
+function exportGstReportExcel() {
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded'); return; }
+  var entries = getGstFilteredEntries();
+  if (!entries.length) { showToast('No GST-bearing payments found for this filter'); return; }
+  var dateRange = getGstDateRange();
+  var accF = (document.getElementById('gst-acc-f') || {value:''}).value;
+
+  var tBase = entries.reduce(function(a, x) { return a + (parseInt(x.entry.amount) || 0); }, 0);
+  var tGst  = entries.reduce(function(a, x) { return a + (parseInt(x.entry.gstAmount) || 0); }, 0);
+
+  var periodLabel = accF || dateRange ? [
+    accF ? 'Account: ' + accF : null,
+    dateRange ? 'Payment Date range: ' + dateRange.from + ' to ' + dateRange.to : null
+  ].filter(Boolean).join(' | ') : 'All Time — No filter applied';
+
+  var sumRows = [
+    ['KB Studio Productions — GST Collection Report'],
+    ['Generated', new Date().toLocaleString('en-IN')],
+    ['Filter', periodLabel],
+    [],
+    ['Metric', 'Value (INR)'],
+    ['Total Taxable (Base) Amount', tBase],
+    ['Total GST Collected', tGst],
+    ['Total Received (Base + GST)', tBase + tGst],
+    ['Number of GST-Bearing Payments', entries.length]
+  ];
+
+  var txRows = [['Date', 'Couple', 'Ref Code', 'Base Amount (INR)', 'GST Rate (%)', 'GST Amount (INR)', 'Total Received (INR)', 'Account', 'Mode', 'Stage/Label']];
+  entries.slice().sort(function(a,b){ return (a.entry.date||'').localeCompare(b.entry.date||''); }).forEach(function(x) {
+    var p = x.proj, e = x.entry;
+    txRows.push([
+      e.date || '', (p.bride||'') + ' & ' + (p.groom||''), p.refcode || '',
+      parseInt(e.amount)||0, parseFloat(e.gstRate)||0, parseInt(e.gstAmount)||0,
+      entryTotalReceived(e), e.account || '', e.mode || '', e.label || e.stage || ''
+    ]);
+  });
+
+  var wb = XLSX.utils.book_new();
+  var wsSum = XLSX.utils.aoa_to_sheet(sumRows);
+  wsSum['!cols'] = [{wch:32},{wch:28}];
+  XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+
+  var wsTx = XLSX.utils.aoa_to_sheet(txRows);
+  wsTx['!cols'] = [{wch:12},{wch:26},{wch:16},{wch:16},{wch:12},{wch:16},{wch:18},{wch:16},{wch:12},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsTx, 'GST Transactions');
+
+  var fname = 'KB_GST_Report_' + (dateRange ? dateRange.from+'_to_'+dateRange.to : 'AllTime') + '.xlsx';
+  XLSX.writeFile(wb, fname);
+  showToast('✅ GST report exported!');
 }
 
 // Helper: resolve current effective date range for projects (booking date)
@@ -17816,6 +18133,7 @@ function loadInvoiceTerms(cb) {
 function buildInvoiceHTML(data, showTerms) {
   var subtotal = (data.items||[]).reduce(function(s,it){return s+(parseFloat(it.qty)||0)*(parseFloat(it.rate)||0);},0);
   var paid = parseFloat(data.paid)||0;
+  var gstCollected = parseFloat(data.gstCollected)||0;
   var balance = subtotal - paid;
   var rColor = data.region==='north'?'#1d4ed8':'#d97706';
   var rLabel = data.region==='north'?'North — Delhi Office':'South — Mumbai Office';
@@ -17876,6 +18194,8 @@ function buildInvoiceHTML(data, showTerms) {
     '<div class="inv-totals"><div class="inv-totals-box">' +
       '<div class="inv-tot-row"><span>Subtotal</span><span>'+invFmt(subtotal)+'</span></div>' +
       '<div class="inv-tot-row paid"><span>Paid ('+( data.payMode||'UPI')+')</span><span>− '+invFmt(paid)+'</span></div>' +
+      (gstCollected>0 ? '<div class="inv-tot-row" style="font-size:10.5px;color:#7c3aed"><span>+ GST Collected (ref. only)</span><span>'+invFmt(gstCollected)+'</span></div>' +
+        '<div class="inv-tot-row" style="font-size:10.5px;color:#888"><span>Total Received</span><span>'+invFmt(paid+gstCollected)+'</span></div>' : '') +
       '<div class="inv-tot-row due"><span>Balance Due</span>' +
         '<span style="display:flex;align-items:center;gap:6px">'+invFmt(balance)+' ' +
           (balance<=0?'<span class="inv-paid-badge">PAID</span>':'<span class="inv-due-badge">DUE</span>') +
@@ -18021,7 +18341,7 @@ function addPayTabInvoiceItem() { _ptInvItems.push({desc:'',qty:1,rate:0}); rend
 function updatePayTabInvoiceTotals() {
   var p = editProjId ? projects[editProjId] : null;
   var sub = _ptInvItems.reduce(function(s,it){return s+(parseFloat(it.qty)||0)*(parseFloat(it.rate)||0);},0);
-  var paid = p ? totalCollectedWithGst(p) : 0;
+  var paid = p ? paidTotal(p) : 0;
   var bal = sub - paid;
   var sd = document.getElementById('ptinv-sub'); if(sd) sd.textContent = invFmt(sub);
   var pd = document.getElementById('ptinv-paid'); if(pd) pd.textContent = invFmt(paid);
@@ -18032,7 +18352,7 @@ function updatePayTabInvoiceTotals() {
 function renderPayTabInvoicePreview() {
   var box = document.getElementById('ptinv-preview'); if (!box) return;
   var p = editProjId ? projects[editProjId] : {};
-  var paid = p ? totalCollectedWithGst(p) : 0;
+  var paid = p ? paidTotal(p) : 0;
   var showTerms = document.getElementById('ptinv-show-terms') ? document.getElementById('ptinv-show-terms').checked : true;
   var data = {
     invoiceNo: gv('ptinv-number'), date: gv('ptinv-date'), dueDate: gv('ptinv-due'),
@@ -18040,14 +18360,14 @@ function renderPayTabInvoicePreview() {
     bride: p.bride||'', groom: p.groom||'', phone: p.phone||'', email: p.email||'',
     city: p.city||'', state: p.state||'', region: p.region||'north',
     eventDate: p.date||'', venue: p.venue||'', package: p.package||'',
-    refcode: p.refcode||'', items: _ptInvItems, paid: paid
+    refcode: p.refcode||'', items: _ptInvItems, paid: paid, gstCollected: p ? gstCollectedTotal(p) : 0
   };
   box.innerHTML = buildInvoiceHTML(data, showTerms);
 }
 
 function printPayTabInvoice() {
   var p = editProjId ? projects[editProjId] : {};
-  var paid = p ? totalCollectedWithGst(p) : 0;
+  var paid = p ? paidTotal(p) : 0;
   var showTerms = document.getElementById('ptinv-show-terms') ? document.getElementById('ptinv-show-terms').checked : true;
   var data = {
     invoiceNo: gv('ptinv-number'), date: gv('ptinv-date'), dueDate: gv('ptinv-due'),
@@ -18055,7 +18375,7 @@ function printPayTabInvoice() {
     bride: p.bride||'', groom: p.groom||'', phone: p.phone||'', email: p.email||'',
     city: p.city||'', state: p.state||'', region: p.region||'north',
     eventDate: p.date||'', venue: p.venue||'', package: p.package||'',
-    refcode: p.refcode||'', items: _ptInvItems, paid: paid
+    refcode: p.refcode||'', items: _ptInvItems, paid: paid, gstCollected: p ? gstCollectedTotal(p) : 0
   };
   openInvoicePrint(data, showTerms, gv('ptinv-number'));
 }
@@ -18069,7 +18389,7 @@ function invTabDelItem(i){_invItems.splice(i,1);renderInvoiceTabItems();renderIn
 function updateInvoiceTabTotals() {
   var p = editProjId ? projects[editProjId] : null;
   var sub = _invItems.reduce(function(s,it){return s+(parseFloat(it.qty)||0)*(parseFloat(it.rate)||0);},0);
-  var paid = p ? totalCollectedWithGst(p) : 0;
+  var paid = p ? paidTotal(p) : 0;
   var bal = sub - paid;
   var sd = document.getElementById('inv-subtotal-disp'); if(sd) sd.textContent = invFmt(sub);
   var pd = document.getElementById('inv-paid-disp'); if(pd) pd.textContent = invFmt(paid);
@@ -18080,14 +18400,14 @@ function renderInvoiceTabPreview() {
   var box = document.getElementById('inv-preview-box'); if(!box) return;
   var p = editProjId ? projects[editProjId] : {};
   var showTerms = document.getElementById('inv-show-terms') ? document.getElementById('inv-show-terms').checked : true;
-  var paid = p ? totalCollectedWithGst(p) : 0;
+  var paid = p ? paidTotal(p) : 0;
   var data = {
     invoiceNo: gv('inv-number'), date: gv('inv-date'), dueDate: gv('inv-due'),
     payMode: gv('inv-pay-mode'), notes: gv('inv-notes'),
     bride: p.bride||'', groom: p.groom||'', phone: p.phone||'', email: p.email||'',
     city: p.city||'', state: p.state||'', region: p.region||'north',
     eventDate: p.date||'', venue: p.venue||'', package: p.package||'',
-    refcode: p.refcode||'', items: _invItems, paid: paid
+    refcode: p.refcode||'', items: _invItems, paid: paid, gstCollected: p ? gstCollectedTotal(p) : 0
   };
   box.innerHTML = buildInvoiceHTML(data, showTerms);
 }
@@ -18097,14 +18417,14 @@ function resetInvoiceFields() { initInvoiceTab(); }
 function printInvoice() {
   var p = editProjId ? projects[editProjId] : {};
   var showTerms = document.getElementById('inv-show-terms') ? document.getElementById('inv-show-terms').checked : true;
-  var paid = p ? totalCollectedWithGst(p) : 0;
+  var paid = p ? paidTotal(p) : 0;
   var data = {
     invoiceNo: gv('inv-number'), date: gv('inv-date'), dueDate: gv('inv-due'),
     payMode: gv('inv-pay-mode'), notes: gv('inv-notes'),
     bride: p.bride||'', groom: p.groom||'', phone: p.phone||'', email: p.email||'',
     city: p.city||'', state: p.state||'', region: p.region||'north',
     eventDate: p.date||'', venue: p.venue||'', package: p.package||'',
-    refcode: p.refcode||'', items: _invItems, paid: paid
+    refcode: p.refcode||'', items: _invItems, paid: paid, gstCollected: p ? gstCollectedTotal(p) : 0
   };
   openInvoicePrint(data, showTerms, gv('inv-number'));
 }
@@ -18149,7 +18469,7 @@ function loadInvoiceFromProject(id) {
   sv('invp-package', p.package||''); sv('invp-eventdate', p.date||'');
   sv('invp-venue', p.venue||'');
   var net = netVal(p);
-  _invItemsPage = [{desc: p.package||'Photography + Videography Package', qty:1, rate:net}];
+  _invItemsPage = [{desc: (p.package||'Photography + Videography Package') + (p.type ? ' — ' + p.type : ''), qty:1, rate:net}];
   sv('invp-paid', paidTotal(p));
   renderInvoicePageItems();
   updateInvoicePageTotals();
@@ -18261,18 +18581,20 @@ function renderInvoicePaySchedule() {
   if (!card || !rows) return;
   var p = _invPageProjId ? projects[_invPageProjId] : null;
   if (!p) { card.style.display = 'none'; return; }
-  var terms = getPayTerms(p);
-  var net = netVal(p);
-  var ledger = p.payLedger || [];
+  var schedule = getPaymentScheduleWithCarryForward(p);
   card.style.display = 'block';
-  rows.innerHTML = terms.map(function(t) {
-    var exp = Math.round(net * t.pct / 100);
-    var paid = ledger.filter(function(e){ return stageMatches(e.stage, t.key); }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); },0);
+  rows.innerHTML = schedule.map(function(t, i) {
+    // Invoices show each installment's own %-based amount (baseExp), not the
+    // cascading carry-forward total (exp). Carry-forward is for the internal
+    // "what's currently outstanding" ledger view only — showing it on a
+    // client-facing invoice made later rows look inflated (e.g. a 10% row
+    // displaying as if it were 70%+ of the package).
+    var exp = t.baseExp, paid = Math.min(t.paid, t.baseExp);
     var statusColor = paid >= exp ? '#16a34a' : paid > 0 ? '#d97706' : '#dc2626';
     var statusText = paid >= exp ? '✓ Paid' : paid > 0 ? 'Partial' : 'Pending';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0f0f0">' +
       '<div>' +
-        '<div style="font-size:12px;font-weight:700">' + t.label + ' — ' + t.pct + '%</div>' +
+        '<div style="font-size:12px;font-weight:700">' + (i + 1) + '. ' + _invoiceInstallmentName(i, t.label) + ' — ' + t.pct + '%</div>' +
         '<div style="font-size:10px;color:#888">' + t.desc + '</div>' +
       '</div>' +
       '<div style="text-align:right">' +
@@ -18287,6 +18609,18 @@ function renderInvoicePaySchedule() {
 
 // Payment schedule toggle is wired inside renderInvoicePage
 
+// ── Ordinal helper for generic installment names (2nd, 3rd, 4th…) ──
+function _ordinalWord(n){
+  var special={1:'1st',2:'2nd',3:'3rd',4:'4th',5:'5th',6:'6th',7:'7th',8:'8th',9:'9th',10:'10th'};
+  return special[n]||(n+'th');
+}
+// Row 1 keeps its real label (e.g. "Advance"); later rows use a generic
+// "2nd Installment / 3rd Installment…" name, with the actual detail
+// (pre-wedding, first event, raw data, etc.) living in the "When" column
+// instead of being duplicated in the installment name.
+function _invoiceInstallmentName(i, label){
+  return i===0 ? (label||'Advance') : (_ordinalWord(i+1)+' Installment');
+}
 // ── Build payment schedule section HTML ───────────────────────────
 function buildPayScheduleSection(paySchedule) {
   if (!paySchedule || !paySchedule.length) return '';
@@ -18294,18 +18628,20 @@ function buildPayScheduleSection(paySchedule) {
     '<div style="font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#aaa;margin-bottom:4mm">Payment Schedule</div>' +
     '<table style="width:100%;border-collapse:collapse;font-size:9px">' +
       '<thead><tr style="background:#f8f8f8">' +
+        '<th style="text-align:left;padding:4px 6px;border-bottom:1px solid #e5e5e5;color:#555">#</th>' +
         '<th style="text-align:left;padding:4px 6px;border-bottom:1px solid #e5e5e5;color:#555">Installment</th>' +
         '<th style="text-align:left;padding:4px 6px;border-bottom:1px solid #e5e5e5;color:#555">When</th>' +
         '<th style="text-align:right;padding:4px 6px;border-bottom:1px solid #e5e5e5;color:#555">%</th>' +
         '<th style="text-align:right;padding:4px 6px;border-bottom:1px solid #e5e5e5;color:#555">Amount</th>' +
         '<th style="text-align:center;padding:4px 6px;border-bottom:1px solid #e5e5e5;color:#555">Status</th>' +
       '</tr></thead><tbody>' +
-    paySchedule.map(function(s) {
+    paySchedule.map(function(s, i) {
       var statusBg = s.status === 'paid' ? '#dcfce7' : s.status === 'partial' ? '#fef9c3' : '#fee2e2';
       var statusColor = s.status === 'paid' ? '#166534' : s.status === 'partial' ? '#854d0e' : '#dc2626';
       var statusLabel = s.status === 'paid' ? '✓ Paid' : s.status === 'partial' ? 'Partial' : 'Pending';
       return '<tr>' +
-        '<td style="padding:4px 6px;border-bottom:1px solid #f5f5f5;font-weight:600">' + s.label + '</td>' +
+        '<td style="padding:4px 6px;border-bottom:1px solid #f5f5f5;color:#888">' + (i + 1) + '</td>' +
+        '<td style="padding:4px 6px;border-bottom:1px solid #f5f5f5;font-weight:600">' + _invoiceInstallmentName(i, s.label) + '</td>' +
         '<td style="padding:4px 6px;border-bottom:1px solid #f5f5f5;color:#555">' + s.desc + '</td>' +
         '<td style="padding:4px 6px;border-bottom:1px solid #f5f5f5;text-align:right">' + s.pct + '%</td>' +
         '<td style="padding:4px 6px;border-bottom:1px solid #f5f5f5;text-align:right;font-weight:700">₹' + s.amount.toLocaleString('en-IN') + '</td>' +
@@ -18320,14 +18656,14 @@ function getInvoicePayScheduleData(p) {
   if (!p) return null;
   var showCb = document.getElementById('invp-show-pay-sched');
   if (showCb && !showCb.checked) return null;
-  var terms = getPayTerms(p);
-  var net = netVal(p);
-  var ledger = p.payLedger || [];
-  return terms.map(function(t) {
-    var exp = Math.round(net * t.pct / 100);
-    var paid = ledger.filter(function(e){ return stageMatches(e.stage, t.key); }).reduce(function(a,e){ return a+(parseInt(e.amount)||0); },0);
-    var status = paid >= exp ? 'paid' : paid > 0 ? 'partial' : 'pending';
-    return { label: t.label, desc: t.desc, pct: t.pct, amount: exp, paidAmount: paid, status: status };
+  var schedule = getPaymentScheduleWithCarryForward(p);
+  return schedule.map(function(t) {
+    // Same fix as renderInvoicePaySchedule(): show baseExp (this row's own
+    // share), not exp (carry-forward total), on the printed/PDF invoice.
+    var amount = t.baseExp;
+    var paidAmount = Math.min(t.paid, amount);
+    var status = paidAmount >= amount ? 'paid' : paidAmount > 0 ? 'partial' : 'pending';
+    return { label: t.label, desc: t.desc, pct: t.pct, amount: amount, paidAmount: paidAmount, status: status };
   });
 }
 
@@ -18344,7 +18680,7 @@ renderInvoicePagePreview = function() {
     city: gv('invp-city'), state: gv('invp-state'), region: gv('invp-region')||'north',
     eventDate: gv('invp-eventdate'), venue: gv('invp-venue'),
     package: gv('invp-package'), refcode: gv('invp-refcode'),
-    items: _invItemsPage, paid: parseFloat(gv('invp-paid'))||0,
+    items: _invItemsPage, paid: parseFloat(gv('invp-paid'))||0, gstCollected: p ? gstCollectedTotal(p) : 0,
     paySchedule: p ? getInvoicePayScheduleData(p) : null
   };
   box.innerHTML = buildInvoiceHTML(data, showTerms);
@@ -18362,7 +18698,7 @@ printInvoicePageOnly = function() {
     city: gv('invp-city'), state: gv('invp-state'), region: gv('invp-region')||'north',
     eventDate: gv('invp-eventdate'), venue: gv('invp-venue'),
     package: gv('invp-package'), refcode: gv('invp-refcode'),
-    items: _invItemsPage, paid: parseFloat(gv('invp-paid'))||0,
+    items: _invItemsPage, paid: parseFloat(gv('invp-paid'))||0, gstCollected: p ? gstCollectedTotal(p) : 0,
     paySchedule: p ? getInvoicePayScheduleData(p) : null
   };
   // Pure print (no auto-save-to-PDF hint)
@@ -18387,7 +18723,7 @@ saveInvoiceAsPDF = function() {
     city: gv('invp-city'), state: gv('invp-state'), region: gv('invp-region')||'north',
     eventDate: gv('invp-eventdate'), venue: gv('invp-venue'),
     package: gv('invp-package'), refcode: gv('invp-refcode'),
-    items: _invItemsPage, paid: parseFloat(gv('invp-paid'))||0,
+    items: _invItemsPage, paid: parseFloat(gv('invp-paid'))||0, gstCollected: p ? gstCollectedTotal(p) : 0,
     paySchedule: p ? getInvoicePayScheduleData(p) : null
   };
   var win = window.open('','_blank');
