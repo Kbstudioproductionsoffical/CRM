@@ -1997,7 +1997,7 @@ if (!_isClientProofView) {
               <option value="accounts">💰 Accounts</option>
               <option value="sales">💼 Sales Head</option>
               <option value="salesperson">🧑‍💼 Sales Person</option>
-              <option value="postprod">🎬 Post Prod In-Charge</option>
+              <option value="postprod">🎬 Post Prod Head</option>
               <option value="datamanager">🗂️ Data Manager</option>
               <option value="editor">✂️ Editor</option>
               <option value="preprodmanager">📋 Pre-Prod Manager</option>
@@ -3772,7 +3772,7 @@ if (!_isClientProofView) {
             <option value="intern">🔑 Intern — Full view, no delete or payments</option>
             <option value="admin">🔧 Admin — Projects, team, referrals</option>
             <option value="accounts">💰 Accounts — Payments &amp; finance only</option>
-            <option value="postprod">🎬 Post Production In-Charge — Full pipeline access, no financials</option>
+            <option value="postprod">🎬 Post Production Head — Full pipeline access, no financials</option>
             <option value="editor">✂️ Editor — Own deliverables only</option>
             <option value="sales">💼 Sales Head — Full access + escalations + quotations</option>
             <option value="salesperson">🧑‍💼 Sales Person — Quotations &amp; leads only</option>
@@ -5869,7 +5869,7 @@ function daysUntil(d){
 }
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
-function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Prod In-Charge',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
+function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Prod Head',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
 function avatarColor(name){var c=['#1d4ed8','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46'];var h=0;for(var i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length];}
 function stageBadge(s){var m={preprod:['b-preprod','Pre-Prod'],production:['b-prod','Production'],postprod:['b-postprod','Post-Prod'],delivery:['b-delivery','Delivery'],payment:['b-payment','Pay Pending'],complete:['b-complete','Complete']};var v=m[s]||['b-gray',s];return '<span class="badge '+v[0]+'">'+v[1]+'</span>';}
 function regionBadge(r){return r==='north'?'<span class="badge b-north">🔵 North</span>':r==='south'?'<span class="badge b-south">🟠 South</span>':'';}
@@ -6312,7 +6312,7 @@ function confirmAllPaymentsReceived(projId){
 }
 
 // Rule 5: All deliverables marked 'delivered' by Post-Prod team → moves to Delivery stage
-// (Post-Prod In-Charge must then confirm delivery via confirmDeliveryToClient() to move to Payment Pending)
+// (Post-Prod Head must then confirm delivery via confirmDeliveryToClient() to move to Payment Pending)
 function runDeliverableAutomations(projId){
   var p=projects[projId];if(!p)return;
   var delivs=p.customDelivs||[];if(!delivs.length)return;
@@ -6320,11 +6320,11 @@ function runDeliverableAutomations(projId){
   }
 }
 
-// Post-Prod In-Charge confirms physical/digital delivery to client → moves to Payment Pending
+// Post-Prod Head confirms physical/digital delivery to client → moves to Payment Pending
 function confirmDeliveryToClient(projId){
   var p=projects[projId];if(!p)return;
   if(!CU||(CU.role!=='postprod'&&CU.role!=='superadmin'&&CU.role!=='admin')){
-    showToast('\U0001f512 Only Post-Prod In-Charge can confirm client delivery.');return;
+    showToast('\U0001f512 Only Post-Prod Head can confirm client delivery.');return;
   }
   if(p.stage!=='delivery'){
     showToast('\u26a0\ufe0f Project must be in Delivery stage first.');return;
@@ -8579,11 +8579,11 @@ function renderPostProd(){
   }
   // ── END EDITOR ROLE VIEW ──────────────────────────────────────────────────
 
-  // ── POST PROD IN-CHARGE: Update page header ──────────────────────────────
+  // ── POST PROD HEAD: Update page header ──────────────────────────────
   if (CU && CU.role === 'postprod') {
     var ptEl = document.querySelector('.page-title');
     var psEl = document.querySelector('.page-sub');
-    if (ptEl) ptEl.textContent = '🎬 Post Production In-Charge';
+    if (ptEl) ptEl.textContent = '🎬 Post Production Head';
     if (psEl) psEl.textContent = 'Full pipeline view — clients sorted by event date (First Come, First Out).';
   }
 
@@ -9131,7 +9131,7 @@ function buildDeliverablesDash(filteredList) {
   }
 
   var wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;flex-direction:column;gap:14px';
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px';
 
   clients.forEach(function(c){
     var p = c.p;
@@ -9141,39 +9141,37 @@ function buildDeliverablesDash(filteredList) {
     var pctColor = pct===100?'#10b981':pct>50?'#3b82f6':'#f59e0b';
 
     var card = document.createElement('div');
-    card.style.cssText = 'background:#fff;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden';
+    card.style.cssText = 'background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden';
 
     // Client header
     var hdr = document.createElement('div');
-    hdr.style.cssText = 'background:#f8fafc;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:1px solid #e5e7eb';
+    hdr.style.cssText = 'background:#f8fafc;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;border-bottom:1px solid #e5e7eb';
     hdr.innerHTML =
-      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
-        '<span style="font-size:14px;font-weight:800;color:#1a1a1a">' + (p.bride||'') + ' & ' + (p.groom||'') + '</span>' +
-        '<span style="font-size:10px;font-weight:700;color:#64748b;background:#e2e8f0;padding:2px 8px;border-radius:10px">' + (p.refcode||'') + '</span>' +
-        (p.date ? '<span style="font-size:11px;color:#64748b">📅 ' + p.date + '</span>' : '') +
-        (p.city ? '<span style="font-size:11px;color:#64748b">📍 ' + (p.city||'') + '</span>' : '') +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<span style="font-size:13px;font-weight:800;color:#1a1a1a">' + (p.bride||'') + ' & ' + (p.groom||'') + '</span>' +
+        '<span style="font-size:9px;font-weight:700;color:#64748b;background:#e2e8f0;padding:1px 7px;border-radius:10px">' + (p.refcode||'') + '</span>' +
+        (p.date ? '<span style="font-size:10.5px;color:#64748b">📅 ' + p.date + '</span>' : '') +
+        (p.city ? '<span style="font-size:10.5px;color:#64748b">📍 ' + (p.city||'') + '</span>' : '') +
       '</div>' +
-      '<div style="display:flex;align-items:center;gap:10px">' +
+      '<div style="display:flex;align-items:center;gap:8px">' +
         '<div style="display:flex;align-items:center;gap:6px">' +
-          '<div style="width:90px;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">' +
+          '<div style="width:70px;height:5px;background:#e5e7eb;border-radius:3px;overflow:hidden">' +
             '<div style="width:'+pct+'%;height:100%;background:'+pctColor+'"></div>' +
           '</div>' +
-          '<span style="font-size:11px;font-weight:700;color:'+pctColor+'">'+doneD+'/'+totalD+'</span>' +
+          '<span style="font-size:10.5px;font-weight:700;color:'+pctColor+'">'+doneD+'/'+totalD+'</span>' +
         '</div>' +
-        '<button data-proj-id="'+p.id+'" class="pp-open-proj-deliv" style="background:#1a1a1a;color:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">Open Project</button>' +
+        '<button data-proj-id="'+p.id+'" class="pp-open-proj-deliv" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:10.5px;font-weight:700;cursor:pointer">Open Project</button>' +
       '</div>';
     card.appendChild(hdr);
 
     // Deliverables table
     var tbl = document.createElement('table');
-    tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:12px';
+    tbl.style.cssText = 'width:100%;border-collapse:collapse;font-size:11.5px';
     tbl.innerHTML =
       '<thead><tr style="background:#f8fafc">' +
-        '<th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Deliverable</th>' +
-        '<th style="padding:8px 14px;text-align:center;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Status</th>' +
-        '<th style="padding:8px 14px;text-align:center;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Editor</th>' +
-        '<th style="padding:8px 14px;text-align:center;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Due Date</th>' +
-        '<th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Drive Link</th>' +
+        '<th style="padding:5px 14px;text-align:left;font-size:9.5px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Deliverable</th>' +
+        '<th style="padding:5px 14px;text-align:center;font-size:9.5px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em">Status</th>' +
+        '<th style="padding:5px 14px;text-align:center;font-size:9.5px;font-weight:700;color:#64748b;border-bottom:1px solid #e5e7eb;text-transform:uppercase;letter-spacing:.05em;width:150px">Editor</th>' +
       '</tr></thead>';
     var tbody = document.createElement('tbody');
     c.rows.forEach(function(r, ri){
@@ -9188,11 +9186,9 @@ function buildDeliverablesDash(filteredList) {
         var parentTr = document.createElement('tr');
         parentTr.style.cssText = 'background:'+(ri%2===0?'#fff':'#fafafa')+';border-bottom:1px solid #f1f5f9';
         parentTr.innerHTML =
-          '<td style="padding:10px 14px;font-weight:700;color:#1a1a1a">' + (d.name||d.type||'Reels') + ' <span style="font-weight:600;color:#94a3b8;font-size:11px">(' + qty + ' reels)</span></td>' +
-          '<td style="padding:10px 14px;text-align:center"><span style="background:#eef2ff;color:#4338ca;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">📱 ' + deliveredCount + '/' + qty + ' Delivered</span></td>' +
-          '<td style="padding:10px 14px;text-align:center;color:#94a3b8;font-size:11px">—</td>' +
-          '<td style="padding:10px 14px;text-align:center;color:#94a3b8;font-size:11px">—</td>' +
-          '<td style="padding:10px 14px;color:#94a3b8;font-size:11px">See reels below</td>';
+          '<td style="padding:6px 14px;font-weight:700;color:#1a1a1a">' + (d.name||d.type||'Reels') + ' <span style="font-weight:600;color:#94a3b8;font-size:10.5px">(' + qty + ' reels)</span></td>' +
+          '<td style="padding:6px 14px;text-align:center"><span style="background:#eef2ff;color:#4338ca;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap">📱 ' + deliveredCount + '/' + qty + ' Delivered</span></td>' +
+          '<td style="padding:6px 14px;text-align:center;color:#94a3b8;font-size:10.5px">—</td>';
         tbody.appendChild(parentTr);
 
         // One row per individual reel
@@ -9209,11 +9205,9 @@ function buildDeliverablesDash(filteredList) {
           var subTr = document.createElement('tr');
           subTr.style.cssText = 'background:'+(ri%2===0?'#fff':'#fafafa')+';border-bottom:1px solid #f1f5f9';
           subTr.innerHTML =
-            '<td style="padding:8px 14px 8px 30px;color:#475569;font-size:12px"><span style="color:#cbd5e1;margin-right:6px">↳</span>Reel ' + (idx+1) + '</td>' +
-            '<td style="padding:8px 14px;text-align:center"><span style="background:'+rsv.bg+';color:'+rsv.fc+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">'+rsv.label+'</span></td>' +
-            '<td style="padding:8px 14px;text-align:center;color:#374151;font-size:12px">' + edName + '</td>' +
-            '<td style="padding:8px 14px;text-align:center;color:#64748b;font-size:12px">' + (item.date||'—') + '</td>' +
-            '<td style="padding:8px 14px">' + (item.link ? '<a href="'+item.link+'" target="_blank" style="color:#3b82f6;font-weight:600;font-size:11px">🔗 Open Drive</a>' : '<span style="color:#94a3b8;font-size:11px">—</span>') + '</td>';
+            '<td style="padding:5px 14px 5px 30px;color:#475569;font-size:11.5px"><span style="color:#cbd5e1;margin-right:6px">↳</span>Reel ' + (idx+1) + '</td>' +
+            '<td style="padding:5px 14px;text-align:center"><span style="background:'+rsv.bg+';color:'+rsv.fc+';padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap">'+rsv.label+'</span></td>' +
+            '<td style="padding:5px 14px;text-align:center;color:#374151;font-size:11.5px">' + edName + '</td>';
           tbody.appendChild(subTr);
         });
         return; // skip the normal single-row rendering below for this deliverable
@@ -9226,17 +9220,15 @@ function buildDeliverablesDash(filteredList) {
       var tr = document.createElement('tr');
       tr.style.cssText = 'background:'+(ri%2===0?'#fff':'#fafafa')+';border-bottom:1px solid #f1f5f9';
       tr.innerHTML =
-        '<td style="padding:10px 14px;font-weight:600;color:#1a1a1a">' + (d.name||d.type||'—') + (qty>1 ? ' <span style="font-weight:600;color:#94a3b8;font-size:11px">(qty: '+qty+')</span>' : '') + '</td>' +
-        '<td style="padding:10px 14px;text-align:center"><span style="background:'+sv.bg+';color:'+sv.fc+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">'+sv.label+'</span></td>' +
-        '<td style="padding:10px 14px;text-align:center;color:#374151">' + edName + '</td>' +
-        '<td style="padding:10px 14px;text-align:center;color:#64748b">' + (d.date||'—') + '</td>' +
-        '<td style="padding:10px 14px">' + (d.driveLink ? '<a href="'+d.driveLink+'" target="_blank" style="color:#3b82f6;font-weight:600;font-size:11px">🔗 Open Drive</a>' : '<span style="color:#94a3b8">—</span>') + '</td>';
+        '<td style="padding:6px 14px;font-weight:600;color:#1a1a1a">' + (d.name||d.type||'—') + (qty>1 ? ' <span style="font-weight:600;color:#94a3b8;font-size:10.5px">(qty: '+qty+')</span>' : '') + '</td>' +
+        '<td style="padding:6px 14px;text-align:center"><span style="background:'+sv.bg+';color:'+sv.fc+';padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap">'+sv.label+'</span></td>' +
+        '<td style="padding:6px 14px;text-align:center;color:#374151">' + edName + '</td>';
       tbody.appendChild(tr);
 
       if (needsReelBreakdown) {
         var hintTr = document.createElement('tr');
         hintTr.style.cssText = 'background:#fffbeb;border-bottom:1px solid #f1f5f9';
-        hintTr.innerHTML = '<td colspan="5" style="padding:6px 14px 6px 30px;font-size:11px;color:#92400e">⚠️ This has '+qty+' reels but no individual breakdown yet — open the project\'s Deliverables tab to set up per-reel tracking.</td>';
+        hintTr.innerHTML = '<td colspan="3" style="padding:4px 14px 4px 30px;font-size:10.5px;color:#92400e">⚠️ This has '+qty+' reels but no individual breakdown yet — open the project\'s Deliverables tab to set up per-reel tracking.</td>';
         tbody.appendChild(hintTr);
       }
     });
@@ -10128,7 +10120,7 @@ function onUserRoleChange(){
     intern:'Full visibility across all pages. Can edit projects, view financials and reports. Full access to Health Check (Issues, Duplicates, Assign Tasks). Cannot delete projects, cannot record or delete payments, cannot access Settings or Users.',
     admin:'Access to projects, team, referrals, reports, and settings. Cannot delete projects or manage users.',
     accounts:'Full project access — can create, edit, and record payments. Can delete payment entries they personally recorded. Can view all financial reports and manage bank accounts. Cannot delete projects or manage users.',
-    postprod:'Post Production In-Charge — Full access to the Post-Production pipeline. Can view ALL post-prod clients (sorted FIFO by event date), assign editors, manage deliverables, review briefs, and update statuses. Cannot see financials, phone numbers, or other confidential client details.',
+    postprod:'Post Production Head — Full access to the Post-Production pipeline. Can view ALL post-prod clients (sorted FIFO by event date), assign editors, manage deliverables, review briefs, and update statuses. Cannot see financials, phone numbers, or other confidential client details.',
     editor:'Limited to their own assigned deliverables via Editor Portal. No general CRM access.',
     referral:'Access to referral section and WhatsApp only.',
     datamanager:'Access to projects only. Can update project data, manage docs, notes & briefs, and approve raw data to move projects to Post-Production.',
@@ -11650,9 +11642,9 @@ function validateManualStageChange(currentStage, newStage, p){
   if(newStage==='delivery'&&currentStage==='postprod'){
     if(role!=='admin'&&role!=='postprod')return 'Delivery stage is set automatically when all deliverables are marked as delivered.';
   }
-  // Rule: payment stage is set by Post-Prod In-Charge confirming delivery
+  // Rule: payment stage is set by Post-Prod Head confirming delivery
   if(newStage==='payment'&&currentStage==='delivery'){
-    return 'Payment Pending stage is set when Post-Prod In-Charge confirms delivery to the client. Use the "Confirm Delivery" button.';
+    return 'Payment Pending stage is set when Post-Prod Head confirms delivery to the client. Use the "Confirm Delivery" button.';
   }
   // Rule: complete requires zero balance and accounts confirmation
   if(newStage==='complete'){
@@ -13085,7 +13077,7 @@ function renderPipelineActionBlock(){
   var role=CU?CU.role:'';
   var isSA=role==='superadmin';
   var html='';
-  // DELIVERY stage: Post-Prod In-Charge confirms delivery to client
+  // DELIVERY stage: Post-Prod Head confirms delivery to client
   if(stage==='delivery'&&(isSA||role==='postprod'||role==='admin')){
     var delivs=p.customDelivs||[];
     var allDelivered=delivs.length&&delivs.every(function(d){return d.status==='delivered';});
