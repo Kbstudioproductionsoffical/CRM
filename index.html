@@ -28702,7 +28702,7 @@ function apShowModal(projId, delivId, couple, proj, deliv, existing) {
           var p = pg.pins[k];
           commentsList += '<div style="display:flex;gap:6px;align-items:flex-start;font-size:12px;color:#7f1d1d;margin-bottom:4px">';
           commentsList += '<span style="flex-shrink:0;background:#ef4444;color:#fff;width:16px;height:16px;border-radius:50%;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center">' + (idx + 1) + '</span>';
-          commentsList += '<span>📍 ' + (p.text || '') + '</span></div>';
+          commentsList += '<span>📍 ' + apPinLabel(p) + '</span></div>';
         });
       }
       if (hasVoice) {
@@ -29054,9 +29054,12 @@ function apRenderQueue(el, all) {
       var pg = f.pg, i = f.idx;
       var pinKeys = pg.pins ? Object.keys(pg.pins) : [];
       var qid = proof._projId + '__' + proof._delivId + '__' + i;
+      window._apQueuePins = window._apQueuePins || {};
+      window._apQueuePins[qid] = pg.pins || {};
       html += '<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:10px;overflow:hidden">';
       html += '<div style="position:relative">';
-      html += '<img src="' + (pg.imageUrl || '') + '" style="width:100%;height:130px;object-fit:cover;display:block;background:#f1f5f9">';
+      html += '<img id="apq-img-' + qid + '" src="' + (pg.imageUrl || '') + '" style="width:100%;height:130px;object-fit:contain;display:block;background:#111827" onload="apRenderThumbPins(\'' + qid + '\')">';
+      html += '<div id="apq-pinlayer-' + qid + '" style="position:absolute;inset:0;pointer-events:none"></div>';
       html += '<div style="position:absolute;top:6px;left:6px;background:#1a1a1a99;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">Page ' + (i + 1) + '</div>';
       if (pg.revision) html += '<div style="position:absolute;top:6px;right:6px;background:#7c3aed;color:#fff;border-radius:6px;padding:2px 7px;font-size:10px;font-weight:700">Rev ' + pg.revision + '</div>';
       html += '</div>';
@@ -29064,7 +29067,15 @@ function apRenderQueue(el, all) {
       if (pg.comment) html += '<div style="font-size:12px;color:#7f1d1d;margin-bottom:6px">💬 ' + apEscapeHtml(pg.comment) + '</div>';
       if (pinKeys.length) {
         html += '<div style="font-size:11px;color:#7f1d1d;margin-bottom:6px">';
-        pinKeys.forEach(function(k, idx2) { html += '<div>📍 ' + (idx2 + 1) + '. ' + apEscapeHtml(pg.pins[k].text || '') + '</div>'; });
+        pinKeys.forEach(function(k, idx2) {
+          var pin = pg.pins[k];
+          html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">';
+          html += '<span>📍 ' + (idx2 + 1) + '. ' + apPinLabel(pin) + '</span>';
+          if (pin.type === 'swap' && pin.swapX != null && pin.swapY != null) {
+            html += '<button type="button" onclick="apViewSwapTarget(\'' + proof._projId + '\',\'' + proof._delivId + '\',' + parseInt(pin.swapPage) + ',' + pin.swapX + ',' + pin.swapY + ')" style="background:#ede9fe;color:#7c3aed;border:none;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap">👁️ View marked photo</button>';
+          }
+          html += '</div>';
+        });
         html += '</div>';
       }
       if (pg.voiceNote && pg.voiceNote.url) html += '<audio controls src="' + pg.voiceNote.url + '" style="width:100%;height:30px;margin-bottom:6px"></audio>';
@@ -29549,6 +29560,59 @@ function apGetRenderedImageRect(img) {
   return { x: rx, y: ry, w: rw, h: rh };
 }
 
+// ── Draw numbered pin markers on an editor-facing thumbnail (Needs Editing queue) ──
+// Pin x/y are stored as % of the actual photo, saved when the client clicked on it
+// (see apPinImgClick). This reuses apGetRenderedImageRect so markers land in the
+// exact same place the client marked, regardless of the thumbnail's letterboxing.
+function apRenderThumbPins(qid) {
+  var img = document.getElementById('apq-img-' + qid);
+  var layer = document.getElementById('apq-pinlayer-' + qid);
+  var pins = (window._apQueuePins || {})[qid] || {};
+  if (!img || !layer) return;
+  var keys = Object.keys(pins);
+  if (!keys.length) { layer.innerHTML = ''; return; }
+  var r = apGetRenderedImageRect(img);
+  var html = '';
+  keys.forEach(function(k, idx) {
+    var p = pins[k];
+    if (p.x == null || p.y == null) return;
+    var left = r.x + (p.x / 100) * r.w;
+    var top = r.y + (p.y / 100) * r.h;
+    html += '<div title="' + apPinLabel(p) + '" style="position:absolute;left:' + left + 'px;top:' + top + 'px;transform:translate(-50%,-50%);background:#ef4444;color:#fff;width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4)">' + (idx + 1) + '</div>';
+  });
+  layer.innerHTML = html;
+}
+
+// ── Pre-built pin action types ──────────────────────────────────────────
+// Clients pick one of these instead of typing free text every time. Each
+// type may have its own structured field (replace → image number, swap →
+// target page); crop/expand need no extra field; custom keeps the old
+// free-text behavior for anything that doesn't fit the presets.
+var AP_PIN_TYPES = {
+  replace: { icon: '🖼️', label: 'Replace picture' },
+  swap:    { icon: '🔀', label: 'Swap picture' },
+  crop:    { icon: '✂️', label: 'Crop this' },
+  expand:  { icon: '🔍', label: 'Expand this' },
+  custom:  { icon: '✏️', label: 'Custom note' }
+};
+
+// Turns any pin (old free-text pins with no `type`, or new structured ones)
+// into one consistent, readable line. Used in the client pin list, the
+// editor's Needs Editing queue, the Manage Proof modal, and thumbnail tooltips.
+function apPinLabel(p) {
+  var t = p.type || 'custom';
+  var extra = p.text ? ' — ' + apEscapeHtml(p.text) : '';
+  if (t === 'replace') return '🖼️ Replace with image #' + apEscapeHtml(p.refNumber || '?') + extra;
+  if (t === 'swap') {
+    var swapLabel = 'Swap with Page ' + ((parseInt(p.swapPage) || 0) + 1);
+    if (p.swapX != null && p.swapY != null) swapLabel += ' (exact photo marked)';
+    return '🔀 ' + swapLabel + extra;
+  }
+  if (t === 'crop') return '✂️ Crop this picture' + extra;
+  if (t === 'expand') return '🔍 Expand this picture' + extra;
+  return apEscapeHtml(p.text || '');
+}
+
 function apPinImgClick(e) {
   var img = document.getElementById('ap-pin-img');
   if (!img) return;
@@ -29559,13 +29623,11 @@ function apPinImgClick(e) {
   var pctX = ((clickX - r.x) / r.w) * 100;
   var pctY = ((clickY - r.y) / r.h) * 100;
   var st = window._apPinState;
-  st.activeEditor = { mode: 'new', x: pctX, y: pctY, text: '' };
+  st.activeEditor = { mode: 'new', x: pctX, y: pctY, type: null, text: '', refNumber: '', swapPage: '', swapX: null, swapY: null };
   apRenderPinLayer();
   setTimeout(function() {
     var eb = document.getElementById('ap-pin-editor-box');
     if (eb) eb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    var ta = document.getElementById('ap-pin-editor-text');
-    if (ta) ta.focus();
   }, 50);
 }
 
@@ -29576,9 +29638,27 @@ function apPinTogglePopover(key) {
   } else {
     var p = st.pins[key];
     if (!p) return;
-    st.activeEditor = { mode: 'edit', key: key, x: p.x, y: p.y, text: p.text };
+    // Old pins saved before this feature have no `type` — treat them as
+    // custom notes so they still open and display correctly.
+    st.activeEditor = {
+      mode: 'edit', key: key, x: p.x, y: p.y,
+      type: p.type || 'custom', text: p.text || '',
+      refNumber: p.refNumber || '', swapPage: (p.swapPage != null ? String(p.swapPage) : ''),
+      swapX: p.swapX != null ? p.swapX : null, swapY: p.swapY != null ? p.swapY : null
+    };
   }
   apRenderPinLayer();
+}
+
+function apPinSetType(type) {
+  var st = window._apPinState;
+  if (!st || !st.activeEditor) return;
+  st.activeEditor.type = type;
+  apRenderPinEditor();
+  setTimeout(function() {
+    var focusEl = document.getElementById('ap-pin-refnum') || document.getElementById('ap-pin-swappage') || document.getElementById('ap-pin-editor-text');
+    if (focusEl) focusEl.focus();
+  }, 30);
 }
 
 function apPinCancelEditor() {
@@ -29586,17 +29666,188 @@ function apPinCancelEditor() {
   apRenderPinLayer();
 }
 
-function apPinSaveEditor() {
-  var ta = document.getElementById('ap-pin-editor-text');
-  var text = (ta ? ta.value : '').trim();
-  if (!text) { alert('Please enter a note for this marker, or hit Cancel.'); return; }
+// ── Swap picker: lets the client browse to the exact target page and click
+// the exact photo on it (a page can contain a multi-photo collage), instead
+// of only picking a page number blind. Selection is stored as swapPage +
+// swapX/swapY (% position on that page's image, same convention as the
+// regular pin x/y) so the studio knows precisely which photo was meant.
+function apSwapPickerOpen() {
   var st = window._apPinState;
+  if (!st || !st.activeEditor) return;
+  if (st.pagesCache) { apSwapPickerRender(); return; }
+  var clientDb = firebase.database();
+  clientDb.ref('crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages').once('value', function(snap) {
+    st.pagesCache = snap.val() || [];
+    apSwapPickerRender();
+  });
+}
+
+function apSwapPickerRender() {
+  var st = window._apPinState;
+  if (!st || !st.activeEditor) return;
+  var ed = st.activeEditor;
+  var pages = st.pagesCache || [];
+  var n = pages.length;
+  var targetIdx = ed.swapPickerIdx;
+  if (targetIdx == null) targetIdx = (ed.swapPage !== '' && ed.swapPage != null) ? parseInt(ed.swapPage) : 0;
+  if (targetIdx < 0 || targetIdx >= n) targetIdx = 0;
+  if (targetIdx === st.pageIdx) targetIdx = (targetIdx + 1 < n) ? targetIdx + 1 : Math.max(0, targetIdx - 1);
+  ed.swapPickerIdx = targetIdx;
+
+  // Pre-compute prev/next targets, skipping over the client's own page so the
+  // arrows never land on a value apSwapPickerGo would reject — that mismatch
+  // is what caused navigation to silently freeze.
+  var prevIdx = targetIdx - 1;
+  if (prevIdx === st.pageIdx) prevIdx -= 1;
+  var nextIdx = targetIdx + 1;
+  if (nextIdx === st.pageIdx) nextIdx += 1;
+  var prevDisabled = prevIdx < 0;
+  var nextDisabled = nextIdx >= n;
+
+  var pg = pages[targetIdx] || {};
+  var existing = document.getElementById('ap-swap-picker-overlay');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'ap-swap-picker-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:16px;overflow-y:auto';
+  overlay.onclick = function(e) { if (e.target === overlay) apSwapPickerClose(); };
+
+  var html = '<div style="background:#fff;border-radius:16px;width:100%;max-width:700px;overflow:hidden" onclick="event.stopPropagation()">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9;gap:10px;flex-wrap:wrap">';
+  html += '<div style="font-size:13px;font-weight:800;color:#7c3aed">🔀 Click the exact photo to swap with</div>';
+  html += '<button onclick="apSwapPickerClose()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888">✕</button>';
+  html += '</div>';
+  html += '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 18px">';
+  html += '<button onclick="apSwapPickerGo(' + prevIdx + ')" ' + (prevDisabled ? 'disabled' : '') + ' style="background:none;border:1px solid #e2e8f0;border-radius:8px;width:30px;height:30px;font-size:15px;cursor:' + (prevDisabled ? 'default' : 'pointer') + ';color:' + (prevDisabled ? '#d1d5db' : '#374151') + '">‹</button>';
+  html += '<select onchange="apSwapPickerGo(this.value)" style="font-size:13px;font-weight:700;border:1px solid #e2e8f0;border-radius:8px;padding:5px 8px;background:#fff;cursor:pointer">';
+  for (var pi = 0; pi < n; pi++) {
+    if (pi === st.pageIdx) continue;
+    html += '<option value="' + pi + '"' + (pi === targetIdx ? ' selected' : '') + '>Page ' + (pi + 1) + ' of ' + n + '</option>';
+  }
+  html += '</select>';
+  html += '<button onclick="apSwapPickerGo(' + nextIdx + ')" ' + (nextDisabled ? 'disabled' : '') + ' style="background:none;border:1px solid #e2e8f0;border-radius:8px;width:30px;height:30px;font-size:15px;cursor:' + (nextDisabled ? 'default' : 'pointer') + ';color:' + (nextDisabled ? '#d1d5db' : '#374151') + '">›</button>';
+  html += '</div>';
+  html += '<div style="font-size:11px;color:#7c3aed;text-align:center;padding:0 18px 8px;font-weight:600">📍 If this page has more than one photo, click directly on the one you mean</div>';
+  if (pg.imageUrl) {
+    html += '<div id="ap-swap-pick-wrap" style="position:relative;background:#f8f7f4">';
+    html += '<img id="ap-swap-pick-img" src="' + pg.imageUrl + '" style="width:100%;display:block;max-height:65vh;object-fit:contain;cursor:crosshair" onclick="apSwapPickerClick(event)">';
+    html += '</div>';
+  } else {
+    html += '<div style="height:260px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:32px">📄</div>';
+  }
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+}
+
+function apSwapPickerGo(idx) {
+  idx = parseInt(idx, 10);
+  var st = window._apPinState;
+  if (!st || !st.activeEditor || isNaN(idx)) return;
+  var pages = st.pagesCache || [];
+  if (idx < 0 || idx >= pages.length || idx === st.pageIdx) return;
+  st.activeEditor.swapPickerIdx = idx;
+  apSwapPickerRender();
+}
+
+function apSwapPickerClick(e) {
+  var img = document.getElementById('ap-swap-pick-img');
+  if (!img) return;
+  var box = img.getBoundingClientRect();
+  var clickX = e.clientX - box.left, clickY = e.clientY - box.top;
+  var r = apGetRenderedImageRect(img);
+  if (clickX < r.x || clickX > r.x + r.w || clickY < r.y || clickY > r.y + r.h) return; // clicked letterbox area, ignore
+  var pctX = ((clickX - r.x) / r.w) * 100;
+  var pctY = ((clickY - r.y) / r.h) * 100;
+  var st = window._apPinState;
+  var ed = st.activeEditor;
+  ed.swapPage = String(ed.swapPickerIdx);
+  ed.swapX = pctX;
+  ed.swapY = pctY;
+  apSwapPickerClose();
+  apRenderPinEditor();
+}
+
+function apSwapPickerClose() {
+  var existing = document.getElementById('ap-swap-picker-overlay');
+  if (existing) existing.remove();
+}
+
+// ── Read-only viewer: lets the editor see exactly which photo the client
+// marked when they picked "Swap with Page X" — pulls that page's image and
+// drops a pin at the saved swapX/swapY position, same convention as every
+// other pin on this page. Opened from the "👁️ View marked photo" button in
+// the Needs Editing queue.
+function apViewSwapTarget(projId, delivId, swapPageIdx, swapX, swapY) {
+  var existing = document.getElementById('ap-swap-view-overlay');
+  if (existing) existing.remove();
+  var overlay = document.createElement('div');
+  overlay.id = 'ap-swap-view-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = '<div style="background:#fff;border-radius:16px;width:100%;max-width:600px;overflow:hidden" onclick="event.stopPropagation()">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #f1f5f9">'
+    + '<div style="font-size:13px;font-weight:800;color:#7c3aed">🔀 Photo marked on Page ' + (swapPageIdx + 1) + '</div>'
+    + '<button onclick="document.getElementById(\'ap-swap-view-overlay\').remove()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888">✕</button>'
+    + '</div>'
+    + '<div style="padding:14px 18px;font-size:12px;color:#64748b">Loading page…</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+  var db2 = db;
+  db2.ref('crm_album_proofs/' + projId + '/' + delivId + '/pages').once('value', function(snap) {
+    var pages = snap.val() || [];
+    var pg = pages[swapPageIdx];
+    var body = overlay.querySelector('div > div:last-child');
+    if (!pg || !pg.imageUrl) {
+      if (body) body.innerHTML = '<div style="padding:14px 18px;font-size:12px;color:#ef4444">Could not load Page ' + (swapPageIdx + 1) + ' — it may have been deleted or reordered.</div>';
+      return;
+    }
+    if (body) {
+      body.style.cssText = 'position:relative;background:#111827';
+      body.innerHTML = '<img id="ap-swap-view-img" src="' + pg.imageUrl + '" style="width:100%;max-height:70vh;object-fit:contain;display:block" onload="apRenderSwapViewPin(' + swapX + ',' + swapY + ')">'
+        + '<div id="ap-swap-view-pinlayer" style="position:absolute;inset:0;pointer-events:none"></div>';
+    }
+  });
+}
+
+function apRenderSwapViewPin(swapX, swapY) {
+  var img = document.getElementById('ap-swap-view-img');
+  var layer = document.getElementById('ap-swap-view-pinlayer');
+  if (!img || !layer) return;
+  var r = apGetRenderedImageRect(img);
+  var left = r.x + (swapX / 100) * r.w;
+  var top = r.y + (swapY / 100) * r.h;
+  layer.innerHTML = '<div style="position:absolute;left:' + left + 'px;top:' + top + 'px;transform:translate(-50%,-50%);background:#ef4444;color:#fff;width:26px;height:26px;border-radius:50%;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.5)">🔀</div>';
+}
+
+function apPinSaveEditor() {
+  var st = window._apPinState;
+  var ed = st.activeEditor;
+  if (!ed.type) { alert('Please choose what should happen at this spot.'); return; }
+  var ta = document.getElementById('ap-pin-editor-text');
+  var text = (ta ? ta.value : (ed.text || '')).trim();
+  var refInput = document.getElementById('ap-pin-refnum');
+  var refNumber = (refInput ? refInput.value : (ed.refNumber || '')).trim();
+  var swapPage = ed.swapPage;
+
+  if (ed.type === 'custom' && !text) { alert('Please describe what you\'d like changed, or hit Cancel.'); return; }
+  if (ed.type === 'replace' && !refNumber) { alert('Please enter the image number you want to use instead.'); return; }
+  if (ed.type === 'swap' && (swapPage === '' || swapPage == null || ed.swapX == null || ed.swapY == null)) { alert('Please browse to the page and click the exact photo you want to swap with.'); return; }
+
   var clientDb = firebase.database();
   var basePath = 'crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages/' + st.pageIdx + '/pins/';
-  if (st.activeEditor.mode === 'new') {
+  var data = {
+    x: ed.x, y: ed.y, type: ed.type, text: text,
+    refNumber: ed.type === 'replace' ? refNumber : null,
+    swapPage: ed.type === 'swap' ? parseInt(swapPage) : null,
+    swapX: ed.type === 'swap' ? ed.swapX : null,
+    swapY: ed.type === 'swap' ? ed.swapY : null,
+    createdAt: ed.createdAt || Date.now(), updatedAt: Date.now()
+  };
+  if (ed.mode === 'new') {
     var newRef = clientDb.ref(basePath).push();
     var key = newRef.key;
-    var data = { x: st.activeEditor.x, y: st.activeEditor.y, text: text, createdAt: Date.now() };
     newRef.set(data, function(err) {
       if (err) { alert('Could not save marker. Please try again.'); return; }
       st.pins[key] = data;
@@ -29605,15 +29856,16 @@ function apPinSaveEditor() {
       clientDb.ref('crm_album_proofs/' + st.projId + '/' + st.delivId + '/pages/' + st.pageIdx + '/status').set('flagged');
     });
   } else {
-    var editKey = st.activeEditor.key;
-    clientDb.ref(basePath + editKey + '/text').set(text, function(err) {
+    var editKey = ed.key;
+    clientDb.ref(basePath + editKey).update(data, function(err) {
       if (err) { alert('Could not save marker. Please try again.'); return; }
-      st.pins[editKey].text = text;
+      Object.assign(st.pins[editKey], data);
       st.activeEditor = null;
       apRenderPinLayer();
     });
   }
 }
+
 
 function apPinDeleteActive() {
   if (!confirm('Delete this marker?')) return;
@@ -29634,10 +29886,41 @@ function apRenderPinEditor() {
   if (!box) return;
   if (!st.activeEditor) { box.innerHTML = ''; box.style.display = 'none'; return; }
   box.style.display = 'block';
-  var isEdit = st.activeEditor.mode === 'edit';
+  var ed = st.activeEditor;
+  var isEdit = ed.mode === 'edit';
   var html = '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px">';
-  html += '<label style="font-size:12px;font-weight:700;color:#7c3aed;display:block;margin-bottom:6px">' + (isEdit ? '📍 Edit marker note:' : '📍 New marker — what should change here?') + '</label>';
-  html += '<textarea id="ap-pin-editor-text" rows="2" placeholder="E.g. Please remove this person from the frame" style="width:100%;border:1px solid #d8b4fe;border-radius:8px;padding:8px;font-size:13px;font-family:inherit;box-sizing:border-box">' + apEscapeHtml(st.activeEditor.text || '') + '</textarea>';
+  html += '<label style="font-size:12px;font-weight:700;color:#7c3aed;display:block;margin-bottom:8px">' + (isEdit ? '📍 Edit this marker:' : '📍 What should we do at this spot?') + '</label>';
+
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">';
+  Object.keys(AP_PIN_TYPES).forEach(function(k) {
+    var t = AP_PIN_TYPES[k];
+    var active = ed.type === k;
+    html += '<button type="button" onclick="apPinSetType(\'' + k + '\')" style="flex:1 1 auto;min-width:88px;background:' + (active ? '#7c3aed' : '#fff') + ';color:' + (active ? '#fff' : '#374151') + ';border:1px solid ' + (active ? '#7c3aed' : '#d8b4fe') + ';border-radius:8px;padding:8px 6px;font-size:11px;font-weight:700;cursor:pointer">' + t.icon + ' ' + t.label + '</button>';
+  });
+  html += '</div>';
+
+  if (ed.type === 'replace') {
+    html += '<label style="font-size:11px;color:#6b21a8;font-weight:600;display:block;margin-bottom:4px">Image number you want to use instead:</label>';
+    html += '<input id="ap-pin-refnum" type="text" placeholder="e.g. IMG_2456 or Photo #245" value="' + apEscapeHtml(ed.refNumber || '') + '" style="width:100%;border:1px solid #d8b4fe;border-radius:8px;padding:8px;font-size:13px;font-family:inherit;box-sizing:border-box;margin-bottom:8px">';
+  } else if (ed.type === 'swap') {
+    html += '<label style="font-size:11px;color:#6b21a8;font-weight:600;display:block;margin-bottom:4px">Swap this with which photo?</label>';
+    var hasPick = ed.swapPage !== '' && ed.swapPage != null && ed.swapX != null && ed.swapY != null;
+    if (hasPick) {
+      html += '<div style="display:flex;align-items:center;gap:8px;background:#f5f3ff;border:1px solid #d8b4fe;border-radius:8px;padding:8px 10px;margin-bottom:8px">';
+      html += '<div style="flex:1;font-size:12px;color:#374151">✅ Page ' + (parseInt(ed.swapPage) + 1) + ' — exact photo selected</div>';
+      html += '<button type="button" onclick="apSwapPickerOpen()" style="background:#fff;border:1px solid #d8b4fe;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;color:#7c3aed;font-family:inherit">Change</button>';
+      html += '</div>';
+    } else {
+      html += '<button type="button" onclick="apSwapPickerOpen()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:8px;font-family:inherit">📍 Browse pages &amp; pick exact photo</button>';
+    }
+  }
+
+  if (ed.type) {
+    var noteRequired = ed.type === 'custom';
+    html += '<label style="font-size:11px;color:#6b21a8;font-weight:600;display:block;margin-bottom:4px">' + (noteRequired ? 'Describe what you\'d like changed:' : 'Add a note (optional):') + '</label>';
+    html += '<textarea id="ap-pin-editor-text" rows="2" placeholder="' + (noteRequired ? 'E.g. Please remove this person from the frame' : 'Any extra detail for the editor…') + '" style="width:100%;border:1px solid #d8b4fe;border-radius:8px;padding:8px;font-size:13px;font-family:inherit;box-sizing:border-box">' + apEscapeHtml(ed.text || '') + '</textarea>';
+  }
+
   html += '<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">';
   html += '<button onclick="apPinSaveEditor()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">Save Marker</button>';
   if (isEdit) html += '<button onclick="apPinDeleteActive()" style="background:#fff;color:#ef4444;border:1px solid #fecaca;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer">Delete</button>';
@@ -29657,7 +29940,7 @@ function apRenderPinList() {
     var p = st.pins[k];
     html += '<div onclick="apPinTogglePopover(\'' + k + '\')" style="display:flex;gap:8px;align-items:flex-start;padding:8px 10px;background:#fef2f2;border-radius:8px;margin-bottom:6px;cursor:pointer">';
     html += '<div style="flex-shrink:0;background:#ef4444;color:#fff;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">' + (idx + 1) + '</div>';
-    html += '<div style="font-size:13px;color:#374151;flex:1">' + apEscapeHtml(p.text) + '</div>';
+    html += '<div style="font-size:13px;color:#374151;flex:1">' + apPinLabel(p) + '</div>';
     html += '</div>';
   });
   box.innerHTML = html;
