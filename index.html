@@ -3403,9 +3403,8 @@ if (!_isClientProofView) {
             <div style="font-size:13px;font-weight:700;color:#1a1a1a">💾 Data Entries</div>
             <button class="btn btn-sm btn-primary" id="btn-add-dataentry">+ Add Entry</button>
           </div>
-          <div style="display:grid;grid-template-columns:120px 1fr 70px 55px 1fr 90px 90px 70px;gap:6px;padding:4px 0;margin-bottom:6px;border-bottom:1px solid #e2e8f0">
-            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Shoot Day</div>
-            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Crew Member</div>
+          <div style="display:grid;grid-template-columns:1fr 70px 55px 1fr 90px 90px 70px;gap:6px;padding:4px 0;margin-bottom:6px;border-bottom:1px solid #e2e8f0">
+            <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Photographer / Source</div>
             <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Size</div>
             <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Unit</div>
             <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Storage Location</div>
@@ -7213,7 +7212,6 @@ function restoreFromArchive(projId) {
 
 // ═══ DATA MANAGER LOG TAB ═══════════════════════════════════════════════════
 var dataEntryCount = 0;
-var currentDLDays = []; // this project's shoot days (from Production Plan), used to link Data Entries to date+crew
 
 // ─── EVENT DAYS (Tab: 📅 Event Days) ─────────────────────────────────────────
 var evDayCount = 0;
@@ -7529,97 +7527,24 @@ function renderShootDaysFromEventDays(eventDays) {
     if (d.dayAsst1Name) otherCrew.push('🤝 ' + d.dayAsst1Name);
     if (d.dayAsst2Name) otherCrew.push('🤝 ' + d.dayAsst2Name);
     var typeVenue = (d.type || '') + (d.venue ? ' · ' + d.venue : '');
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'border-bottom:1px dashed #f0f0f0;padding-bottom:8px;margin-bottom:2px';
     var row = document.createElement('div');
-    row.style.cssText = 'display:grid;grid-template-columns:110px 1fr 1fr 1fr;gap:6px;align-items:start;padding:8px 0 2px;font-size:12px';
+    row.style.cssText = 'display:grid;grid-template-columns:110px 1fr 1fr 1fr;gap:6px;align-items:start;padding:8px 0;border-bottom:1px dashed #f0f0f0;font-size:12px';
     row.innerHTML =
       '<div style="font-weight:700;color:#1a1a1a">' + fmtDate(d.date) + '</div>' +
       '<div>' + typeVenue + (otherCrew.length ? '<div style="font-size:10px;color:#94a3b8;margin-top:3px">' + otherCrew.join(' · ') + '</div>' : '') + '</div>' +
       '<div>' + phNames + '</div>' +
       '<div>' + vidNames + '</div>';
-    wrap.appendChild(row);
-    // Data coverage badge — updated live by updateShootDayCoverage() as entries change
-    var cov = document.createElement('div');
-    cov.id = 'shootday-cov-' + d.date;
-    cov.style.cssText = 'font-size:10px;font-weight:700;padding-left:2px';
-    wrap.appendChild(cov);
-    container.appendChild(wrap);
+    container.appendChild(row);
   });
-  updateShootDayCoverage();
-}
-
-// Returns the assigned photographers/videographers for a given shoot-day date, sourced from Production Plan crew.
-function getCrewForDate(dateStr) {
-  var day = (currentDLDays || []).find(function(d) { return d && d.date === dateStr; });
-  if (!day) return [];
-  var crew = [];
-  [1,2,3,4].forEach(function(n) { var nm = day['dayPh'+n+'Name']; if (nm) crew.push({ name: nm, role: 'photographer' }); });
-  [1,2,3,4].forEach(function(n) { var nm = day['dayVid'+n+'Name']; if (nm) crew.push({ name: nm, role: 'videographer' }); });
-  return crew;
-}
-
-// Recomputes "X of Y crew logged" badges under each Shoot Day row based on current Data Entries.
-function updateShootDayCoverage() {
-  var entries = (typeof collectDataEntries === 'function') ? collectDataEntries() : [];
-  (currentDLDays || []).forEach(function(d) {
-    var covEl = document.getElementById('shootday-cov-' + d.date);
-    if (!covEl) return;
-    var crew = getCrewForDate(d.date);
-    if (!crew.length) { covEl.textContent = ''; return; }
-    var loggedNames = {};
-    entries.forEach(function(e) { if (e.date === d.date && e.crewName) loggedNames[e.crewName] = true; });
-    var loggedCount = crew.filter(function(c) { return loggedNames[c.name]; }).length;
-    var complete = loggedCount === crew.length;
-    covEl.textContent = (complete ? '✅ ' : '⚠️ ') + loggedCount + ' of ' + crew.length + ' crew logged';
-    covEl.style.color = complete ? '#16a34a' : '#d97706';
-  });
-}
-
-// Builds <option> list of this project's shoot days (from Production Plan eventDays), sorted by date.
-function getDLDateOptions() {
-  return (currentDLDays || []).slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
-}
-
-// (Re)fills the crew dropdown for row i based on the chosen date, preserving/flagging a name that
-// no longer matches the day's assigned crew (e.g. legacy free-text entries from before this fix).
-function populateCrewSelect(i, dateStr, selectedName) {
-  var sel = document.getElementById('der-ph-'+i); if (!sel) return;
-  var crew = getCrewForDate(dateStr);
-  var opts = '<option value="">' + (dateStr ? 'Select crew…' : 'Select shoot day first…') + '</option>';
-  crew.forEach(function(c) {
-    var icon = c.role === 'photographer' ? '📷' : '🎥';
-    opts += '<option value="'+c.name+'" data-role="'+c.role+'">'+icon+' '+c.name+'</option>';
-  });
-  if (selectedName && !crew.some(function(c){ return c.name === selectedName; })) {
-    opts += '<option value="'+selectedName+'" data-role="other" selected>⚠️ '+selectedName+' (not in crew list)</option>';
-  }
-  sel.innerHTML = opts;
-  if (selectedName) sel.value = selectedName;
-}
-
-// Crew dropdown must be repopulated whenever the shoot-day date changes, since each day has its own crew.
-function onDataEntryDateChange(i) {
-  var dtEl = document.getElementById('der-dt-'+i);
-  populateCrewSelect(i, dtEl ? dtEl.value : '', '');
-  recalcDataTotal();
 }
 
 function addDataEntry(data) {
   var i = dataEntryCount++;
   data = data || {};
-  // Legacy entries (pre-linking) stored a free-text "photographer" string with no date — carry it
-  // forward as the crew name so old data isn't lost; it'll show flagged as unmatched until fixed.
-  if (!data.crewName && data.photographer) data.crewName = data.photographer;
   var row = document.createElement('div');
   row.id = 'der-row-' + i;
-  row.style.cssText = 'display:grid;grid-template-columns:120px 1fr 70px 55px 1fr 90px 90px 70px;gap:6px;align-items:center;padding:7px 0;border-bottom:1px dashed #f0f0f0';
-  var dateOpts = '<option value="">Select day…</option>';
-  getDLDateOptions().forEach(function(d) {
-    dateOpts += '<option value="'+d.date+'">'+fmtDate(d.date)+' · '+(d.type||'')+'</option>';
-  });
-  row.innerHTML = '<select id="der-dt-'+i+'" class="fi" style="padding:6px 4px;font-size:11px" onchange="onDataEntryDateChange('+i+')">'+dateOpts+'</select>'
-    + '<select id="der-ph-'+i+'" class="fi" style="padding:6px 4px;font-size:12px" onchange="recalcDataTotal()"><option value="">Select shoot day first…</option></select>'
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 70px 55px 1fr 90px 90px 70px;gap:6px;align-items:center;padding:7px 0;border-bottom:1px dashed #f0f0f0';
+  row.innerHTML = '<input id="der-ph-'+i+'" type="text" class="fi" style="padding:6px 8px;font-size:12px" placeholder="Photographer / Card">'
     + '<input id="der-sz-'+i+'" type="number" class="fi" style="padding:6px 8px;font-size:12px;text-align:center" placeholder="Size" oninput="recalcDataTotal()">'
     + '<select id="der-un-'+i+'" class="fi" style="padding:6px 4px;font-size:12px" onchange="recalcDataTotal()"><option value="GB">GB</option><option value="TB">TB</option></select>'
     + '<input id="der-loc-'+i+'" type="text" class="fi" style="padding:6px 8px;font-size:12px" placeholder="NAS / HD1 / Cloud / Drive">'
@@ -7627,8 +7552,7 @@ function addDataEntry(data) {
     + '<select id="der-st-'+i+'" class="fi" style="padding:6px 4px;font-size:12px"><option value="pending">⏳ Pending</option><option value="secured">✅ Secured</option><option value="uploaded">☁️ Uploaded</option></select>'
     + '<button class="btn-danger" style="padding:5px 8px;font-size:11px" onclick="document.getElementById(&quot;der-row-'+i+'&quot;).remove();recalcDataTotal()">✕</button>';
   document.getElementById('dataentry-rows').appendChild(row);
-  if (data.date) document.getElementById('der-dt-'+i).value = data.date;
-  populateCrewSelect(i, data.date || '', data.crewName || '');
+  if (data.photographer) document.getElementById('der-ph-'+i).value = data.photographer;
   if (data.size) document.getElementById('der-sz-'+i).value = data.size;
   if (data.unit) document.getElementById('der-un-'+i).value = data.unit;
   if (data.location) document.getElementById('der-loc-'+i).value = data.location;
@@ -7654,12 +7578,10 @@ function recalcDataTotal() {
   var tEl = document.getElementById('dl-total-gb'); if (tEl) tEl.textContent = display;
   var cEl = document.getElementById('dl-total-count'); if (cEl) cEl.textContent = count;
   var bEl = document.getElementById('dl-backed-count'); if (bEl) bEl.textContent = backed;
-  updateShootDayCoverage();
 }
 
 function loadDataLog(p) {
   dataEntryCount = 0;
-  currentDLDays = (p.eventDays || []).filter(function(ed){ return ed && ed.date && ed.type; });
   var dr = document.getElementById('dataentry-rows'); if (dr) dr.innerHTML = '';
   var notes = document.getElementById('f-datalog-notes'); if (notes) notes.value = p.dataLogNotes || '';
   renderShootDaysFromEventDays(p.eventDays);
@@ -7680,18 +7602,7 @@ function collectDataEntries() {
     var phEl = document.getElementById('der-ph-'+i);
     var rowEl = document.getElementById('der-row-'+i);
     if (!phEl || !rowEl || !rowEl.parentNode) continue;
-    var dtEl = document.getElementById('der-dt-'+i);
-    var roleOpt = phEl.selectedOptions && phEl.selectedOptions[0] ? phEl.selectedOptions[0].getAttribute('data-role') : '';
-    entries.push({
-      date: dtEl ? dtEl.value : '',
-      crewName: phEl.value,
-      crewRole: roleOpt || '',
-      size: (document.getElementById('der-sz-'+i)||{}).value||'',
-      unit: (document.getElementById('der-un-'+i)||{}).value||'GB',
-      location: (document.getElementById('der-loc-'+i)||{}).value||'',
-      backup: (document.getElementById('der-bk-'+i)||{}).value||'no',
-      status: (document.getElementById('der-st-'+i)||{}).value||'pending'
-    });
+    entries.push({ photographer: phEl.value, size: (document.getElementById('der-sz-'+i)||{}).value||'', unit: (document.getElementById('der-un-'+i)||{}).value||'GB', location: (document.getElementById('der-loc-'+i)||{}).value||'', backup: (document.getElementById('der-bk-'+i)||{}).value||'no', status: (document.getElementById('der-st-'+i)||{}).value||'pending' });
   }
   return entries;
 }
@@ -11665,7 +11576,7 @@ $('btn-new-proj').addEventListener('click',function(){
   var npf=$('np-proof-file'); if(npf) npf.value='';
   var npp=$('np-proof-preview'); if(npp) npp.style.display='none';
   toggleProofRow('np');
-  buildDelivRows({});rawRowCount=0;$('raw-rows').innerHTML='';dataEntryCount=0;currentDLDays=[];renderShootDaysFromEventDays([]);var _der=document.getElementById('dataentry-rows');if(_der)_der.innerHTML='';
+  buildDelivRows({});rawRowCount=0;$('raw-rows').innerHTML='';dataEntryCount=0;renderShootDaysFromEventDays([]);var _der=document.getElementById('dataentry-rows');if(_der)_der.innerHTML='';
   populateTeamDrops(null);renderStageTL();
   $('pay-ledger').innerHTML='';$('docs-list').innerHTML='';$('t-pay-summary').innerHTML='';
   populateProjectDropdowns(null);renderEventDays([]);
