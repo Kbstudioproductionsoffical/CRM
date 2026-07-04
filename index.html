@@ -6045,12 +6045,17 @@ function refresh(){
 // ── Tracks whether child listeners for crm_projects are already attached ──
 var _projectListenersAttached = false;
 
-function attachProjectListeners() {
+function attachProjectListeners(afterKey) {
   if (_projectListenersAttached) return;
   _projectListenersAttached = true;
 
-  // child_added fires once per existing project on first load, then for new ones
-  db.ref('crm_projects').on('child_added', function(snap) {
+  // child_added would normally replay EVERY existing project the moment it's attached —
+  // doubling the download of the entire crm_projects tree on every page load (on top of the
+  // once('value') below). Since project IDs are Date.now() timestamps (chronological, same
+  // digit-length, so they sort correctly as Firebase keys), we scope child_added to only fire
+  // for projects created AFTER the ones we already loaded via once('value').
+  var addedRef = afterKey ? db.ref('crm_projects').orderByKey().startAfter(String(afterKey)) : db.ref('crm_projects');
+  addedRef.on('child_added', function(snap) {
     var _pd = snap.val(); if (_pd && !_pd.id) _pd.id = snap.key;
     projects[snap.key] = _pd;
     refresh();
@@ -6096,6 +6101,10 @@ function loadAll(){
     db.ref('crm_sidebar').once('value')
   ]).then(function(snaps){
     projects = snaps[0].val()||{};
+    // Newest existing project key — child_added will only fire for keys AFTER this one,
+    // so we don't re-download the whole tree a second time via the child_added replay.
+    var _existingKeys = Object.keys(projects);
+    var _maxProjKey = _existingKeys.length ? _existingKeys.sort()[_existingKeys.length-1] : null;
     // Use stored layout from Firebase, or save the new default if nothing stored yet
     if (snaps[1].val()) {
       var savedLayout = JSON.parse(snaps[1].val());
@@ -6141,7 +6150,7 @@ function loadAll(){
       refresh();
 
       // ── Step 3: Attach live listeners (ONCE, child-level for projects) ──
-      attachProjectListeners();
+      attachProjectListeners(_maxProjKey);
       // Single crm_settings listener — inv_terms/inv_payment_terms are derived from this cache
       db.ref('crm_settings').on('value',function(snap){
         crmSettings=snap.val()||{};
