@@ -5747,6 +5747,7 @@ function friendlyPayDesc(d){
 function inferPayDescFromLabel(label){
   var l=String(label||'').toLowerCase();
   if(/raw\s*data/.test(l)) return 'Before raw data delivery';
+  if(/teaser|highlight/.test(l)) return 'After teaser & highlight delivery';
   if(/album|final\s*delivery|\bdelivery\b/.test(l)) return 'Before final delivery';
   if(/pre[\s-]?wed/.test(l)) return 'On pre-wedding shoot';
   if(/first\s*event|wedding\s*day|shoot\s*day|\bevent\b/.test(l)) return 'On the event day';
@@ -18554,25 +18555,19 @@ function renderInvoicePaySchedule() {
   if (!card || !rows) return;
   var p = _invPageProjId ? projects[_invPageProjId] : null;
   if (!p) { card.style.display = 'none'; return; }
-  var schedule = getPaymentScheduleWithCarryForward(p);
+  var rowsData = _getReconciledPaySchedule(p);
   card.style.display = 'block';
-  rows.innerHTML = schedule.map(function(t, i) {
-    // Invoices show each installment's own %-based amount (baseExp), not the
-    // cascading carry-forward total (exp). Carry-forward is for the internal
-    // "what's currently outstanding" ledger view only — showing it on a
-    // client-facing invoice made later rows look inflated (e.g. a 10% row
-    // displaying as if it were 70%+ of the package).
-    var exp = t.baseExp, paid = Math.min(t.paid, t.baseExp);
-    var statusColor = paid >= exp ? '#16a34a' : paid > 0 ? '#d97706' : '#dc2626';
-    var statusText = paid >= exp ? '✓ Paid' : paid > 0 ? 'Partial' : 'Pending';
+  rows.innerHTML = rowsData.map(function(t, i) {
+    var statusColor = t.status === 'paid' ? '#16a34a' : t.status === 'partial' ? '#d97706' : '#dc2626';
+    var statusText = t.status === 'paid' ? '✓ Paid' : t.status === 'partial' ? 'Partial' : 'Pending';
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f0f0f0">' +
       '<div>' +
         '<div style="font-size:12px;font-weight:700">' + (i + 1) + '. ' + _invoiceInstallmentName(i, t.label) + ' — ' + t.pct + '%</div>' +
         '<div style="font-size:10px;color:#888">' + t.desc + '</div>' +
       '</div>' +
       '<div style="text-align:right">' +
-        '<div style="font-size:12px;font-weight:700">₹' + exp.toLocaleString('en-IN') + '</div>' +
-        '<div style="font-size:10px;font-weight:700;color:' + statusColor + '">' + statusText + (paid > 0 && paid < exp ? ' (₹' + paid.toLocaleString('en-IN') + ')' : '') + '</div>' +
+        '<div style="font-size:12px;font-weight:700">₹' + t.amount.toLocaleString('en-IN') + '</div>' +
+        '<div style="font-size:10px;font-weight:700;color:' + statusColor + '">' + statusText + (t.paidAmount > 0 && t.paidAmount < t.amount ? ' (₹' + t.paidAmount.toLocaleString('en-IN') + ')' : '') + '</div>' +
       '</div>' +
     '</div>';
   }).join('');
@@ -18624,20 +18619,43 @@ function buildPayScheduleSection(paySchedule) {
     '</tbody></table></div>';
 }
 
+// ── Reconcile payment schedule for client-facing invoices ─────────
+// A settled row (fully paid, possibly a little over) shows the ACTUAL
+// amount the client paid for it — e.g. "Advance — ₹70,000 — Paid" when
+// they really transferred ₹70,000, not the original ₹69,000 quote. Any
+// extra beyond that row's own quoted share is carried forward and
+// subtracted from the next pending row (never added to one — a row can
+// only ever shrink from carry, never look inflated). End result: every
+// row shows the true amount for what's already settled, the schedule
+// still sums to exactly the invoice's real Balance Due, and nothing is
+// silently hidden from the client.
+function _getReconciledPaySchedule(p) {
+  var schedule = getPaymentScheduleWithCarryForward(p);
+  var creditCarry = 0;
+  return schedule.map(function(t) {
+    var isSettled = t.paid >= t.baseExp; // this row is fully covered (possibly overpaid)
+    if (isSettled) {
+      creditCarry += (t.paid - t.baseExp); // carry only the true extra forward
+      return { label: t.label, desc: t.desc, pct: t.pct, amount: t.paid, paidAmount: t.paid, status: 'paid' };
+    }
+    var amount = t.baseExp;
+    if (creditCarry > 0 && amount > 0) {
+      var applied = Math.min(creditCarry, amount);
+      amount -= applied;
+      creditCarry -= applied;
+    }
+    var paidAmount = Math.min(t.paid, amount);
+    var status = (amount <= 0) ? 'paid' : (paidAmount > 0 ? 'partial' : 'pending');
+    return { label: t.label, desc: t.desc, pct: t.pct, amount: amount, paidAmount: paidAmount, status: status };
+  });
+}
+
 // ── Get pay schedule data from project ───────────────────────────
 function getInvoicePayScheduleData(p) {
   if (!p) return null;
   var showCb = document.getElementById('invp-show-pay-sched');
   if (showCb && !showCb.checked) return null;
-  var schedule = getPaymentScheduleWithCarryForward(p);
-  return schedule.map(function(t) {
-    // Same fix as renderInvoicePaySchedule(): show baseExp (this row's own
-    // share), not exp (carry-forward total), on the printed/PDF invoice.
-    var amount = t.baseExp;
-    var paidAmount = Math.min(t.paid, amount);
-    var status = paidAmount >= amount ? 'paid' : paidAmount > 0 ? 'partial' : 'pending';
-    return { label: t.label, desc: t.desc, pct: t.pct, amount: amount, paidAmount: paidAmount, status: status };
-  });
+  return _getReconciledPaySchedule(p);
 }
 
 // ── Override renderInvoicePagePreview to include pay schedule ─────
