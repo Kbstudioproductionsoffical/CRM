@@ -447,6 +447,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 /* ═══ SALES MODULE STYLES ═══ */
 .b-draft{background:#f1f5f9;color:#475569}.b-sent{background:#dbeafe;color:#1d4ed8}
 .b-viewed{background:#f1f5f9;color:#6b7280}/* viewed removed */.b-negotiating{background:#fef9c3;color:#854d0e}
+.b-positive{background:#ccfbf1;color:#0d9488}
 .b-won{background:#dcfce7;color:#15803d}.b-lost{background:#fee2e2;color:#dc2626}
 .b-sales{background:#ede9fe;color:#6d28d9}
 .quot-pipeline{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px}
@@ -2568,6 +2569,7 @@ if (!_isClientProofView) {
           '<option value="pending_approval">🕐 Pending Approval</option>' +
           '<option value="approved">✅ Approved</option>' +
           '<option value="sent">📤 Sent</option>' +
+          '<option value="positive">👍 Positive</option>' +
           '<option value="negotiating">🤝 Negotiating</option>' +
           '<option value="won">🏆 Won</option>' +
           '<option value="lost">❌ Lost</option>' +
@@ -2647,6 +2649,7 @@ if (!_isClientProofView) {
               <option value="pending_approval">🕐 Pending Approval</option>
               <option value="approved">✅ Approved</option>
               <option value="sent">📤 Sent</option>
+              <option value="positive">👍 Positive</option>
               <option value="negotiating">🤝 Negotiating</option>
               <option value="won">🏆 Won — Advance Required</option>
               <option value="lost">❌ Lost</option>
@@ -14314,6 +14317,14 @@ function checkEditorMode() {
   db.ref('crm_projects').once('value', function(snap) {
     allProjects = snap.val() || {};
     onLoad();
+    // child_added would otherwise replay every existing project a second time —
+    // scope it to only projects created after this initial load (same fix as the main app).
+    var _epKeys = Object.keys(allProjects);
+    var _epMaxKey = _epKeys.length ? _epKeys.sort()[_epKeys.length-1] : null;
+    var _epAddedRef = _epMaxKey ? db.ref('crm_projects').orderByKey().startAfter(String(_epMaxKey)) : db.ref('crm_projects');
+    _epAddedRef.on('child_added', function(snap2) {
+      allProjects[snap2.key] = snap2.val();
+    });
   });
   db.ref('crm_team').once('value', function(snap) {
     allTeam = snap.val() || {};
@@ -14325,9 +14336,6 @@ function checkEditorMode() {
     allProjects[snap.key] = snap.val();
     var editor = allTeam[editorId];
     if (editor) renderEditorPortal(portal, editor, editorId, allProjects);
-  });
-  db.ref('crm_projects').on('child_added', function(snap) {
-    allProjects[snap.key] = snap.val();
   });
   db.ref('crm_projects').on('child_removed', function(snap) {
     delete allProjects[snap.key];
@@ -16747,7 +16755,7 @@ function renderDashboard() {
     var qList = ql ? ql() : [];
     var thisMonthKey = new Date().toISOString().substring(0,7);
     var wonThisMonth = qList.filter(function(q){ return q.status==='won' && q.updatedAt && new Date(q.updatedAt).toISOString().substring(0,7)===thisMonthKey; });
-    var activeLeads = qList.filter(function(q){ return ['sent','negotiating'].indexOf(q.status)>-1; });
+    var activeLeads = qList.filter(function(q){ return ['sent','positive','negotiating'].indexOf(q.status)>-1; });
     var wonRevMonth = wonThisMonth.reduce(function(a,q){ return a+((parseFloat(q.value)||0)-(parseFloat(q.discount)||0)); },0);
     var pipelineVal = activeLeads.reduce(function(a,q){ return a+((parseFloat(q.value)||0)-(parseFloat(q.discount)||0)); },0);
     var totalWon = qList.filter(function(q){ return q.status==='won'; });
@@ -16764,8 +16772,8 @@ function renderDashboard() {
       '<div class="card" style="margin-top:12px"><div class="card-hdr"><span class="card-title">📋 Recent Quotations</span></div>' +
       qList.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); }).slice(0,8).map(function(q){
         var net=(parseFloat(q.value)||0)-(parseFloat(q.discount)||0);
-        var statusColors={draft:'#888',sent:'#1d4ed8',negotiating:'#d97706',won:'#16a34a',lost:'#dc2626'};
-        var statusLabels={draft:'Draft',sent:'Sent',negotiating:'Negotiating',won:'Won',lost:'Lost'};
+        var statusColors={draft:'#888',sent:'#1d4ed8',positive:'#0d9488',negotiating:'#d97706',won:'#16a34a',lost:'#dc2626'};
+        var statusLabels={draft:'Draft',sent:'Sent',positive:'Positive',negotiating:'Negotiating',won:'Won',lost:'Lost'};
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">' +
           '<div><div style="font-size:13px;font-weight:600">' + (q.bride||'—') + (q.groom?' & '+q.groom:'') + '</div>' +
           '<div style="font-size:11px;color:#888">' + (q.city||'') + (q.date?' · '+q.date:'') + '</div></div>' +
@@ -19069,19 +19077,19 @@ function syncLedgerToInvoices(projId) {
 // ════════════════════════════════════════════════════════
 // QUICK STATUS CHANGE — no modal needed
 // ════════════════════════════════════════════════════════
-var QT_STATUS_ORDER = ['draft','pending_approval','approved','sent','negotiating','won','lost'];
+var QT_STATUS_ORDER = ['draft','pending_approval','approved','sent','positive','negotiating','won','lost'];
 var QT_STATUS_LABELS = {
   draft:'📝 Draft', pending_approval:'🕐 Pending Approval',
   approved:'✅ Approved',
-  sent:'📤 Sent', negotiating:'🤝 Negotiating', won:'🏆 Won', lost:'❌ Lost'
+  sent:'📤 Sent', positive:'👍 Positive', negotiating:'🤝 Negotiating', won:'🏆 Won', lost:'❌ Lost'
 };
 var QT_STATUS_COLORS = {
   draft:'#6b7280', pending_approval:'#7c3aed',
-  approved:'#0891b2', sent:'#1d4ed8', negotiating:'#ea580c', won:'#16a34a', lost:'#dc2626'
+  approved:'#0891b2', sent:'#1d4ed8', positive:'#0d9488', negotiating:'#ea580c', won:'#16a34a', lost:'#dc2626'
 };
 var QT_STATUS_BG = {
   draft:'#f1f5f9', pending_approval:'#ede9fe',
-  approved:'#e0f2fe', sent:'#dbeafe', negotiating:'#ffedd5', won:'#dcfce7', lost:'#fee2e2'
+  approved:'#e0f2fe', sent:'#dbeafe', positive:'#ccfbf1', negotiating:'#ffedd5', won:'#dcfce7', lost:'#fee2e2'
 };
 
 // ── Approval Workflow Helpers ────────────────────────────────────
@@ -19284,6 +19292,7 @@ function quotStatusBadge(s) {
     pending_approval:  ['b-purple', '🕐 Pending Approval'],
     approved:          ['b-blue',   '✅ Approved'],
     sent:              ['b-blue',   '📤 Sent'],
+    positive:          ['b-positive','👍 Positive'],
     negotiating:       ['b-amber',  '🤝 Negotiating'],
     won:               ['b-green',  '🏆 Won'],
     lost:              ['b-red',    '❌ Lost']
@@ -19441,7 +19450,7 @@ function renderSalesDash() {
   var totalQ = list.length;
   var won = list.filter(function(q) { return q.status === 'won'; });
   var lost = list.filter(function(q) { return q.status === 'lost'; });
-  var active = list.filter(function(q) { return ['sent','negotiating'].indexOf(q.status) > -1; });
+  var active = list.filter(function(q) { return ['sent','positive','negotiating'].indexOf(q.status) > -1; });
   var pipeline = active.reduce(function(a, q) { return a + (parseFloat(q.value) || 0) - (parseFloat(q.discount) || 0); }, 0);
   var wonRev = won.reduce(function(a, q) { return a + (parseFloat(q.value) || 0) - (parseFloat(q.discount) || 0); }, 0);
   var convRate = (totalQ > 0 && won.length > 0) ? Math.round(won.length / totalQ * 100) : 0;
@@ -19463,8 +19472,8 @@ function renderSalesDash() {
   }
 
   // Pipeline kanban
-  var statuses = ['draft','pending_approval','approved','sent','negotiating','won','lost'];
-  var statusLabels = {draft:'📝 Draft',pending_approval:'🕐 Pending Approval',approved:'✅ Approved',sent:'📤 Sent',negotiating:'🤝 Negotiating',won:'🏆 Won',lost:'❌ Lost'};
+  var statuses = ['draft','pending_approval','approved','sent','positive','negotiating','won','lost'];
+  var statusLabels = {draft:'📝 Draft',pending_approval:'🕐 Pending Approval',approved:'✅ Approved',sent:'📤 Sent',positive:'👍 Positive',negotiating:'🤝 Negotiating',won:'🏆 Won',lost:'❌ Lost'};
   var pipe = document.getElementById('sales-pipeline');
   if (pipe) {
     pipe.innerHTML = statuses.map(function(s) {
@@ -19531,7 +19540,7 @@ function renderSalesDash() {
               var isPast = si < curIdx2;
               var col = QT_STATUS_COLORS[s];
               var bg = isCur ? col : isPast ? col+'55' : '#e5e5e5';
-              var lbl = {draft:'D',sent:'S',negotiating:'N',won:'W',lost:'L'}[s]||s[0].toUpperCase();
+              var lbl = {draft:'D',pending_approval:'Q',approved:'A',sent:'S',positive:'+',negotiating:'N',won:'W',lost:'L'}[s]||s[0].toUpperCase();
               return '<div onclick="quickChangeStatus(\'' + qt.id + '\',\'' + s + '\',event)" title="Set to: ' + QT_STATUS_LABELS[s] + '" style="width:22px;height:22px;border-radius:50%;background:' + bg + ';color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid ' + (isCur?col:'transparent') + ';transition:all .15s">' + lbl + '</div>';
             }).join('<div style="width:8px;height:1.5px;background:#e5e5e5"></div>') +
           '</div>' +
@@ -19945,7 +19954,14 @@ function _defaultCrew() {
 }
 
 function addQuotDay() {
-  quotDays.push({ date: '', sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
+  quotDays.push({ date: '', dateTBD: false, sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
+  renderQuotDays();
+}
+
+function toggleQuotDayTBD(idx, checked) {
+  if (!quotDays[idx]) return;
+  quotDays[idx].dateTBD = checked;
+  if (checked) quotDays[idx].date = ''; // clear any picked date once marked "to be decided"
   renderQuotDays();
 }
 
@@ -20049,9 +20065,15 @@ function renderQuotDays() {
         '<span class="day-block-title">📅 Day ' + (i+1) + '</span>' +
         '<button class="btn-danger" onclick="removeQuotDay('+i+')">Remove Day</button>' +
       '</div>' +
-      '<div class="fr qday-date-wrap" style="margin-bottom:12px">' +
-        '<label class="fl">Date</label>' +
-        '<input class="fi qday-date" data-idx="'+i+'" type="date" value="'+(day.date||'')+'" onchange="updateQuotDay('+i+',\'date\',this.value)">' +
+      '<div class="fr qday-date-wrap" style="margin-bottom:12px;display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">' +
+        '<div>' +
+          '<label class="fl">Date</label>' +
+          '<input class="fi qday-date" data-idx="'+i+'" type="date" value="'+(day.date||'')+'"' + (day.dateTBD ? ' disabled style="background:#f3f4f6;color:#aaa"' : '') + ' onchange="updateQuotDay('+i+',\'date\',this.value)">' +
+        '</div>' +
+        '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#555;cursor:pointer;padding-bottom:8px">' +
+          '<input type="checkbox" style="width:auto" ' + (day.dateTBD ? 'checked' : '') + ' onchange="toggleQuotDayTBD('+i+',this.checked)">' +
+          'Date not decided yet <span style="color:#94a3b8">(e.g. pre-wedding shoot)</span>' +
+        '</label>' +
       '</div>' +
       '<div style="margin-bottom:8px">' + sessionsHtml + '</div>' +
       '<button onclick="addQuotSession('+i+')" style="background:#ede9fe;color:#7c3aed;border:1px solid #c4b5fd;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;padding:5px 14px;width:100%;margin-top:2px">+ Add Session (e.g. Evening, Sangeet)</button>' +
@@ -22390,7 +22412,7 @@ function buildQuotPDFDom(q) {
         sessions = [{ name: day.occasion || '', time: '', crew: day.crew || {} }];
       }
       var dayNum = globalIdx + 1;
-      var dateStr = day.date ? ' \u2014 ' + fmtDate(day.date) : '';
+      var dateStr = day.dateTBD ? ' \u2014 Date to be finalized' : (day.date ? ' \u2014 ' + fmtDate(day.date) : '');
 
       // Build HTML for all sessions under one Day header
       var sessionsHtml = sessions.map(function(sess, si) {
