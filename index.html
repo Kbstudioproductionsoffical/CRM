@@ -2557,6 +2557,7 @@ if (!_isClientProofView) {
     '<div class="tabs" id="ql-page-tabs" style="margin-bottom:0;border-bottom:2px solid #e5e5e5">' +
       '<button class="tab-btn active" id="ql-tab-pipeline" onclick="switchQLTab(\'pipeline\')" style="font-size:13px">📊 Pipeline</button>' +
       '<button class="tab-btn" id="ql-tab-all" onclick="switchQLTab(\'all\')" style="font-size:13px">📋 All Quotations</button>' +
+      '<button class="tab-btn" id="ql-tab-analytics" onclick="switchQLTab(\'analytics\')" style="font-size:13px">📈 Lead Analytics</button>' +
     '</div>' +
     '<div id="ql-pane-pipeline" style="padding-top:12px">' +
       '<div class="card" style="padding:0"><div class="card-hdr" style="padding:14px 16px"><span class="card-title">📊 Pipeline View</span></div><div class="quot-pipeline" id="sales-pipeline" style="padding:0 12px 12px"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>' +
@@ -2578,6 +2579,43 @@ if (!_isClientProofView) {
         '<input type="text" class="fi" id="sales-search" placeholder="🔍 Search client, city, phone…" oninput="renderSalesDash()" style="min-width:220px">' +
       '</div>' +
       '<div class="card" style="padding:0"><div id="sales-table"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>' +
+    '</div>' +
+    '<div id="ql-pane-analytics" style="display:none;padding-top:12px">' +
+      '<div class="card" style="padding:14px 16px;margin-bottom:14px">' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+          '<select class="fi" id="qla-range" style="flex:0;width:auto" onchange="renderLeadAnalytics()">' +
+            '<option value="7">Last 7 Days</option>' +
+            '<option value="30">Last 30 Days</option>' +
+            '<option value="90">Last 90 Days</option>' +
+            '<option value="ytd">This Year</option>' +
+            '<option value="all" selected>All Time</option>' +
+          '</select>' +
+          '<select class="fi" id="qla-granularity" style="flex:0;width:auto" onchange="renderLeadAnalytics()">' +
+            '<option value="daily">Daily</option>' +
+            '<option value="weekly">Weekly</option>' +
+            '<option value="monthly">Monthly</option>' +
+          '</select>' +
+          '<div id="qla-source-chips" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="padding:14px 16px;margin-bottom:14px">' +
+        '<div class="card-title" style="margin-bottom:10px">📈 Leads by Quotation — Trend</div>' +
+        '<div class="chart-wrap-sm" style="height:260px"><canvas id="qla-trend-chart"></canvas><div id="qla-trend-empty" style="display:flex;position:absolute;inset:0;align-items:center;justify-content:center;color:#aaa;font-size:13px;text-align:center;padding:0 20px">⏳ Loading quotations…</div></div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:14px">' +
+        '<div class="card" style="padding:14px 16px">' +
+          '<div class="card-title" style="margin-bottom:10px">📅 Leads by Day of Week</div>' +
+          '<div class="chart-wrap-sm" style="height:220px"><canvas id="qla-dow-chart"></canvas><div id="qla-dow-empty" style="display:flex;position:absolute;inset:0;align-items:center;justify-content:center;color:#aaa;font-size:13px;text-align:center;padding:0 20px">⏳ Loading quotations…</div></div>' +
+        '</div>' +
+        '<div class="card" style="padding:14px 16px">' +
+          '<div class="card-title" style="margin-bottom:10px">⏰ Peak Inquiry Hours</div>' +
+          '<div class="chart-wrap-sm" style="height:220px"><canvas id="qla-hour-chart"></canvas><div id="qla-hour-empty" style="display:flex;position:absolute;inset:0;align-items:center;justify-content:center;color:#aaa;font-size:13px;text-align:center;padding:0 20px">⏳ Loading quotations…</div></div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="padding:0;overflow:hidden">' +
+        '<div class="card-hdr" style="padding:14px 16px"><span class="card-title">📣 Source Performance</span></div>' +
+        '<div id="qla-source-table"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div>' +
+      '</div>' +
     '</div>';
   mainDiv.appendChild(salesDash);
 
@@ -2920,6 +2958,7 @@ if (!_isClientProofView) {
         <button class="tab-btn" data-tab="t-brief">📋 Client Brief</button>
         <button class="tab-btn" data-tab="t-raw">💾 Raw Data</button>
         <button class="tab-btn" data-tab="t-payments">💳 Payments</button>
+        <button class="tab-btn" data-tab="t-checklist">✅ Shoot Checklist</button>
         <button class="tab-btn" data-tab="t-client-issues">🚩 Client Issues</button>
         <button class="tab-btn" data-tab="t-docs">📎 Documents</button>
         <button class="tab-btn" data-tab="t-notes">📝 Notes</button>
@@ -3344,6 +3383,14 @@ if (!_isClientProofView) {
         <div id="docs-list"></div>
       </div>
 
+      <div id="t-checklist" class="tab-pane">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+          <div class="info info-blue" style="margin:0;flex:1;min-width:220px">Checklists auto-apply per shoot day based on Event Type. Tap a crew member's name badge below to copy a link scoped to just this event — they'll only see this shoot, not their other events. (The Team page link shows all their events instead.)</div>
+          <button class="btn btn-sm" id="btn-manage-checklist-tpl" onclick="openChecklistTplList()" style="white-space:nowrap">⚙️ Manage Templates</button>
+        </div>
+        <div id="checklist-tab-content"></div>
+      </div>
+
       <div id="t-client-issues" class="tab-pane">
         <div class="card">
           <div class="card-hdr">
@@ -3476,6 +3523,54 @@ if (!_isClientProofView) {
 
     </div>
     <div class="modal-foot"><button class="btn" data-close="proj-modal">Cancel</button><button class="btn btn-primary" id="btn-save-proj">💾 Save Project</button></div>
+  </div>
+</div>
+
+<!-- SHOOT CHECKLIST TEMPLATE LIST MODAL -->
+<div class="modal-overlay" id="checklist-tpl-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title">✅ Shoot Checklist Templates</div>
+      <button class="modal-close" data-close="checklist-tpl-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="info info-blue">Create a checklist per shoot type (e.g. Wedding, Pre-Wedding Shoot, Reception). It auto-applies to any shoot day whose Event Type matches. Mark one template "Default" to catch any type that doesn't match another template.</div>
+      <div id="checklist-tpl-list" style="margin-top:12px"></div>
+      <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="openChecklistTplEditor()">+ New Template</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHOOT CHECKLIST TEMPLATE EDITOR MODAL -->
+<div class="modal-overlay" id="checklist-tpl-editor-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="checklist-tpl-editor-title">New Checklist Template</div>
+      <button class="modal-close" data-close="checklist-tpl-editor-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ctpl-id">
+      <div class="fr"><label class="fl">Template Name *</label><input class="fi" id="ctpl-name" placeholder="e.g. Wedding Day Checklist"></div>
+      <div class="fr">
+        <label class="fl">Applies To (Event Type) — pick one or more</label>
+        <div id="ctpl-types" style="display:flex;flex-wrap:wrap;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px"></div>
+      </div>
+      <div class="fr">
+        <label class="fl"><input type="checkbox" id="ctpl-default" style="width:auto;margin-right:6px">Use as Default (applies when no other template matches the event type)</label>
+      </div>
+      <div class="fr">
+        <label class="fl">Checklist Items</label>
+        <div id="ctpl-items"></div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input class="fi" id="ctpl-new-item" placeholder="e.g. Confirm venue address with client" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addChecklistTplItem();}">
+          <button class="btn btn-sm" onclick="addChecklistTplItem()">+ Add Item</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="checklist-tpl-editor-modal">Cancel</button>
+      <button class="btn btn-primary" onclick="saveChecklistTpl()">💾 Save Template</button>
+    </div>
   </div>
 </div>
 
@@ -5256,12 +5351,14 @@ function kbErpGetSchedule() {
     terms.forEach(function(t, idx) {
       var gateKey = idx === 0 ? 'project_create' : 'none';
       var descMap = { booking:'On booking', event:'On shoot day', raw:'Before raw data handover', delivery:'On final delivery', other:'Other milestone' };
+      var isFixed = t.type === 'fixed';
+      var rawVal = isFixed ? (parseFloat(t.val)||0) : (parseFloat(t.val!=null?t.val:t.pct)||0);
       stages.push({
         key: t.key,
         label: t.label,
-        type: 'pct',
-        val: t.pct,
-        amount: Math.round(net * t.pct / 100),
+        type: isFixed ? 'fixed' : 'pct',
+        val: rawVal,
+        amount: isFixed ? Math.round(rawVal) : Math.round(net * rawVal / 100),
         dueDate: '',
         gate: gateKey,
         desc: descMap[t.desc] || t.desc || ''
@@ -5762,10 +5859,28 @@ function resolvePayDesc(label, storedDesc){
   }
   return friendlyPayDesc(storedDesc);
 }
+// ── Resolve a payment term's expected amount, honoring fixed-₹ stages exactly ──
+// Percentage stages fall back to net*pct/100 as before. Fixed-amount stages
+// (type:'fixed') use the exact rupee value with no rounding drift, instead of
+// bouncing through a back-derived percentage.
+function _expFromTerm(t, net) {
+  if (t && t.type === 'fixed' && t.fixedAmount != null) return Math.round(t.fixedAmount) || 0;
+  return Math.round((net||0) * ((t && t.pct) || 0) / 100);
+}
 function getPayTerms(p){
   var base;
   if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length){
-    base=p.customPayTerms;
+    // ── Custom split terms may be % or fixed-₹ per stage. Keep `pct` populated
+    // (back-derived for fixed stages) so every existing consumer that reads
+    // t.pct keeps working unchanged; carry `type`/`fixedAmount` alongside so
+    // amount math (via _expFromTerm) uses the exact rupee value, not a rounded %.
+    var _netCp=Math.max(1,(p.value||0)-(p.discount||0));
+    base=p.customPayTerms.map(function(t){
+      var isFixed=t.type==='fixed';
+      var rawVal=isFixed?(parseFloat(t.val)||0):(t.pct!=null?t.pct:(parseFloat(t.val)||0));
+      var pctVal=isFixed?Math.round((rawVal/_netCp)*100):rawVal;
+      return { key:t.key, label:t.label, pct:pctVal, desc:t.desc, type:isFixed?'fixed':'pct', fixedAmount:isFixed?rawVal:null };
+    });
   } else if(p&&p.kbSchedule&&p.kbSchedule.stages&&p.kbSchedule.stages.length){
     // ── Use kbSchedule as source of truth for preset projects ──
     // This ensures the schedule table only shows stages that were actually saved,
@@ -5797,9 +5912,9 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v77.4-2026-07-02-invoice-schedule-fix';
+var CRM_BUILD_VERSION = 'v78.8-2026-07-11-fixed-amount-payment-split';
 
-var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={};
+var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
 var _stageAtModalOpen=null,_stageManuallyTouched=false;
 document.addEventListener('DOMContentLoaded',function(){
@@ -6003,7 +6118,7 @@ document.body.addEventListener('click', function(e) {
 })();
 
 document.querySelectorAll('.tab-btn').forEach(function(btn){
-  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);setTimeout(function(){_attachKbErpListeners();if(editProjId&&projects[editProjId]){var _p2=projects[editProjId];if(_p2.kbSchedule&&typeof kbErpLoadSchedule==='function'){kbErpLoadSchedule(_p2.kbSchedule);}else{onPayPresetChange();kbErpAutoFillEventDate();}}else{onPayPresetChange();}},200);}if(target==='t-docs')renderDocsList();if(target==='t-client-issues'&&editProjId){var wrap=document.getElementById('client-issues-panel-wrap');if(wrap){wrap.innerHTML='<div id="client-issues-panel-'+editProjId+'"><div style="color:#aaa;font-size:12px;padding:20px;text-align:center">Loading…</div></div>';renderClientIssuesPanel(editProjId);}}});
+  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);setTimeout(function(){_attachKbErpListeners();if(editProjId&&projects[editProjId]){var _p2=projects[editProjId];if(_p2.kbSchedule&&typeof kbErpLoadSchedule==='function'){kbErpLoadSchedule(_p2.kbSchedule);}else{onPayPresetChange();kbErpAutoFillEventDate();}}else{onPayPresetChange();}},200);}if(target==='t-docs')renderDocsList();if(target==='t-checklist'&&editProjId&&projects[editProjId])renderChecklistTab(projects[editProjId],editProjId);if(target==='t-client-issues'&&editProjId){var wrap=document.getElementById('client-issues-panel-wrap');if(wrap){wrap.innerHTML='<div id="client-issues-panel-'+editProjId+'"><div style="color:#aaa;font-size:12px;padding:20px;text-align:center">Loading…</div></div>';renderClientIssuesPanel(editProjId);}}});
 });
 
 function initUsers(cb){
@@ -6164,6 +6279,7 @@ function loadAll(){
         ensureWhatsAppInSources();
       });
       db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
+      db.ref('crm_checklist_templates').on('value',function(snap){checklistTemplates=snap.val()||{};if(editProjId&&projects[editProjId]&&document.getElementById('t-checklist')&&document.getElementById('t-checklist').classList.contains('active'))renderChecklistTab(projects[editProjId],editProjId);if(document.getElementById('checklist-tpl-modal')&&document.getElementById('checklist-tpl-modal').classList.contains('open'))renderChecklistTplList();});
       db.ref('crm_freelancers').on('value',function(snap){freelancerData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();if(typeof renderFreelancers==='function')renderFreelancers();});
       db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
       db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
@@ -7231,6 +7347,8 @@ var currentDLDays = []; // this project's shoot days (from Production Plan), use
 // ─── EVENT DAYS (Tab: 📅 Event Days) ─────────────────────────────────────────
 var evDayCount = 0;
 
+function genDayId() { return 'ed_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
 function renderEventDays(days) {
   evDayCount = 0;
   var container = document.getElementById('evday-container'); if (!container) return;
@@ -7288,6 +7406,7 @@ function addEventDay(data) {
   var card = document.createElement('div');
   card.className = 'evday-card';
   card.dataset.daynum = dayNum;
+  card.dataset.dayid = d.id || genDayId();
 
   var prodLevelOptions = ['Standard','Premium','Luxury','Destination','Custom'].map(function(l){
     return '<option value="' + l + '"' + (d.prodLevel === l ? ' selected' : '') + '>' + l + '</option>';
@@ -7450,6 +7569,348 @@ function removeEventDay(btn) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SHOOT CHECKLISTS — per-event-type templates, project tab, crew portal
+// ═══════════════════════════════════════════════════════════════════════════
+
+var CHECKLIST_EVENT_TYPES = ['Wedding','Sangeet','Haldi','Mehendi','Reception','Engagement',
+  'Pre-Wedding Shoot','Cocktail Night','After Party','Tilak',
+  'Godh Bharai / Baby Shower','Roka','Birthday','Corporate Event',
+  'Maternity Shoot','Fashion Shoot','Other'];
+
+var CREW_SLOT_KEYS = ['dayPh1','dayPh2','dayPh3','dayPh4','dayVid1','dayVid2','dayVid3','dayVid4','dayDrone','dayPhono','dayCoord','dayAsst1','dayAsst2'];
+var CREW_SLOT_NAMEKEYS = {dayPh1:'dayPh1Name',dayPh2:'dayPh2Name',dayPh3:'dayPh3Name',dayPh4:'dayPh4Name',dayVid1:'dayVid1Name',dayVid2:'dayVid2Name',dayVid3:'dayVid3Name',dayVid4:'dayVid4Name',dayDrone:'dayDroneName',dayPhono:'dayPhonoName',dayCoord:'dayCoordName',dayAsst1:'dayAsst1Name',dayAsst2:'dayAsst2Name'};
+
+function crewNamesForDay(ed) {
+  var names = [];
+  CREW_SLOT_KEYS.forEach(function(k) { if (ed[k]) names.push(ed[CREW_SLOT_NAMEKEYS[k]] || ed[k]); });
+  return names;
+}
+function crewMembersForDay(ed) {
+  var members = [];
+  CREW_SLOT_KEYS.forEach(function(k) { if (ed[k]) members.push({ id: ed[k], name: ed[CREW_SLOT_NAMEKEYS[k]] || ed[k] }); });
+  return members;
+}
+
+// ── Match a shoot day's Event Type text to one or more templates ──────────
+function matchTemplates(type, tplObj) {
+  var all = Object.keys(tplObj||{}).map(function(k){ return Object.assign({id:k}, tplObj[k]); });
+  var t = (type||'').trim().toLowerCase();
+  if (!t) return all.filter(function(tpl){ return tpl.isDefault; });
+  var matched = all.filter(function(tpl) {
+    return (tpl.types||[]).some(function(ty) {
+      var tyL = (ty||'').toLowerCase();
+      return tyL === t || tyL.indexOf(t) !== -1 || t.indexOf(tyL) !== -1;
+    });
+  });
+  if (matched.length) return matched;
+  return all.filter(function(tpl){ return tpl.isDefault; });
+}
+function checklistTemplatesForType(type) { return matchTemplates(type, checklistTemplates); }
+
+// ── Shared renderer for a single shoot-day checklist card ─────────────────
+// Used both inside the Project → Shoot Checklist tab (admin) and the
+// standalone Crew Shoot Portal (?crewlogin=). toggleFnName is the name of
+// the global function to call when a checkbox is ticked.
+function checklistDayCardHTML(p, ed, dayId, tplObj, toggleFnName, showCoupleName, crewLinkProjId) {
+  var tpls = matchTemplates(ed.type, tplObj);
+  var crew = crewMembersForDay(ed);
+  var dc = (p.dayChecklists || {})[dayId] || {};
+  var itemsState = dc.items || {};
+  var totalItems = 0, doneItems = 0;
+  var tplHTML = '';
+  if (!tpls.length) {
+    tplHTML = '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;font-size:12px;color:#92400e;margin-top:10px">⚠️ No checklist template matches "'+escHtml(ed.type||'—')+'" yet.'+(toggleFnName==='toggleChecklistItem'?' <a href="#" onclick="openChecklistTplList();return false" style="color:#1d4ed8;font-weight:600">Create one</a> or mark a template as Default.':' Check back closer to the shoot — your admin may still be setting this up.')+'</div>';
+  } else {
+    tplHTML = tpls.map(function(tpl) {
+      var items = tpl.items || [];
+      return '<div style="margin-top:10px">' +
+        '<div style="font-size:11px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">'+escHtml(tpl.name)+'</div>' +
+        items.map(function(it) {
+          var key = tpl.id + '::' + it.id;
+          var state = itemsState[key];
+          var checked = !!(state && state.done);
+          totalItems++; if (checked) doneItems++;
+          var meta = checked ? '<div style="font-size:10px;color:#16a34a;margin-top:1px">✓ '+escHtml(state.doneBy||'')+(state.doneAt?' · '+fmtDateTime(state.doneAt):'')+'</div>' : '';
+          return '<label style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f5f5f5;cursor:pointer">' +
+            '<input type="checkbox" style="width:auto;margin-top:2px;transform:scale(1.15)" '+(checked?'checked':'')+' onchange="'+toggleFnName+'(\''+p.id+'\',\''+dayId+'\',\''+key+'\',this.checked)">' +
+            '<div><div style="font-size:13px;color:'+(checked?'#16a34a':'#1a1a1a')+(checked?';text-decoration:line-through':'')+'">'+escHtml(it.text)+'</div>'+meta+'</div>' +
+          '</label>';
+        }).join('') +
+      '</div>';
+    }).join('');
+  }
+  var pct = totalItems ? Math.round((doneItems/totalItems)*100) : null;
+  var progressHTML = pct !== null ? '<div style="display:flex;align-items:center;gap:8px;margin-top:8px"><div style="flex:1;height:6px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;background:'+(pct===100?'#16a34a':'#3b82f6')+';width:'+pct+'%"></div></div><span style="font-size:11px;font-weight:700;color:#555">'+doneItems+'/'+totalItems+'</span></div>' : '';
+  var titleLine = showCoupleName ? ((p.bride||'')+' & '+(p.groom||'')+' — '+fmtDate(ed.date)) : fmtDate(ed.date);
+
+  return '<div style="background:#fff;border-radius:14px;border:1px solid #e5e5e5;padding:16px 18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
+      '<div>' +
+        '<div style="font-size:14.5px;font-weight:800">'+escHtml(titleLine)+' <span style="font-weight:400;color:#888;font-size:12.5px">— '+escHtml(ed.type||'Untitled')+'</span></div>' +
+        '<div style="font-size:11.5px;color:#888;margin-top:2px">'+(ed.venue?('📍 '+escHtml(ed.venue)+'  '):'')+(ed.callTime?('📣 Call: '+ed.callTime):'')+'</div>' +
+        (crew.length ? '<div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">'+crew.map(function(m){
+          return crewLinkProjId
+            ? '<button onclick="copyCrewPortalLink(\''+m.id+'\',\''+crewLinkProjId+'\')" title="Copy this event\'s checklist link for '+escHtml(m.name)+'" class="badge b-blue" style="font-size:10px;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:3px">'+escHtml(m.name)+' 🔗</button>'
+            : '<span class="badge b-blue" style="font-size:10px">'+escHtml(m.name)+'</span>';
+        }).join('')+'</div>' : '<div style="margin-top:6px;font-size:11px;color:#c00">No crew assigned yet</div>') +
+      '</div>' +
+    '</div>' +
+    progressHTML + tplHTML +
+  '</div>';
+}
+
+// ── Project detail → "Shoot Checklist" tab (admin/staff view) ─────────────
+function renderChecklistTab(p, projId) {
+  var wrap = document.getElementById('checklist-tab-content'); if (!wrap) return;
+  var days = (p.eventDays || []).filter(function(ed){ return ed && ed.date; });
+  if (!days.length) { wrap.innerHTML = '<div class="empty">No event days set yet. Add them in the Production Plan tab — checklists will appear here automatically, one per day.</div>'; return; }
+  days = days.slice().sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  var pWithId = Object.assign({}, p, { id: projId });
+  var html = days.map(function(ed, idx) {
+    var dayId = ed.id || ('idx_' + idx);
+    return checklistDayCardHTML(pWithId, ed, dayId, checklistTemplates, 'toggleChecklistItem', false, projId);
+  }).join('');
+  if (!Object.keys(checklistTemplates||{}).length) {
+    html += '<div class="info info-blue">No checklist templates created yet. Click "⚙️ Manage Templates" above to add your first one — e.g. a "Wedding Day" checklist covering gear check, shot list confirmation, backup drives, etc.</div>';
+  }
+  wrap.innerHTML = html;
+}
+
+function toggleChecklistItem(projId, dayId, key, checked) {
+  var p = projects[projId]; if (!p) return;
+  var who = CU ? (CU.name || CU.username) : 'Admin';
+  var update = { done: !!checked, doneBy: who, doneAt: Date.now() };
+  db.ref('crm_projects/'+projId+'/dayChecklists/'+dayId+'/items/'+key).set(update, function(err) {
+    if (err) { showToast('Error saving: '+err.message); return; }
+    if (!p.dayChecklists) p.dayChecklists = {};
+    if (!p.dayChecklists[dayId]) p.dayChecklists[dayId] = { items: {} };
+    if (!p.dayChecklists[dayId].items) p.dayChecklists[dayId].items = {};
+    p.dayChecklists[dayId].items[key] = update;
+  });
+}
+
+// ── Template manager: list modal ───────────────────────────────────────────
+function openChecklistTplList() { renderChecklistTplList(); openModal('checklist-tpl-modal'); }
+
+function renderChecklistTplList() {
+  var wrap = document.getElementById('checklist-tpl-list'); if (!wrap) return;
+  var list = Object.keys(checklistTemplates||{}).map(function(k){ return Object.assign({id:k}, checklistTemplates[k]); }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+  if (!list.length) { wrap.innerHTML = '<div class="empty">No templates yet. Create one so shoot-day checklists auto-apply.</div>'; return; }
+  wrap.innerHTML = list.map(function(t) {
+    var itemCount = (t.items||[]).length;
+    return '<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+      '<div>' +
+        '<div style="font-weight:800;font-size:13px">'+escHtml(t.name||'')+(t.isDefault?' <span class="badge b-blue" style="font-size:10px">Default</span>':'')+'</div>' +
+        '<div style="font-size:11px;color:#888;margin-top:4px">'+(t.types&&t.types.length?t.types.map(escHtml).join(', '):'No event types selected')+'</div>' +
+        '<div style="font-size:11px;color:#555;margin-top:4px">'+itemCount+' item'+(itemCount!==1?'s':'')+'</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;flex-shrink:0">' +
+        '<button class="btn btn-sm" onclick="openChecklistTplEditor(\''+t.id+'\')">Edit</button>' +
+        '<button class="btn-danger" onclick="deleteChecklistTpl(\''+t.id+'\')">✕</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ── Template manager: editor modal ─────────────────────────────────────────
+var _ctplItems = [];
+
+function openChecklistTplEditor(id) {
+  var t = id ? Object.assign({id:id}, checklistTemplates[id]) : null;
+  document.getElementById('checklist-tpl-editor-title').textContent = t ? 'Edit Checklist Template' : 'New Checklist Template';
+  document.getElementById('ctpl-id').value = id || '';
+  document.getElementById('ctpl-name').value = t ? (t.name||'') : '';
+  document.getElementById('ctpl-default').checked = !!(t && t.isDefault);
+  var typesWrap = document.getElementById('ctpl-types');
+  var selectedTypes = (t && t.types) || [];
+  typesWrap.innerHTML = CHECKLIST_EVENT_TYPES.map(function(ty) {
+    var checked = selectedTypes.indexOf(ty) !== -1 ? ' checked' : '';
+    return '<label style="display:flex;align-items:center;gap:5px;font-size:12px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:5px 9px;cursor:pointer"><input type="checkbox" class="ctpl-type-cb" value="'+escHtml(ty)+'"'+checked+' style="width:auto">'+escHtml(ty)+'</label>';
+  }).join('');
+  _ctplItems = (t && t.items) ? t.items.map(function(i){ return {id:i.id, text:i.text}; }) : [];
+  renderCtplItemsList();
+  document.getElementById('ctpl-new-item').value = '';
+  openModal('checklist-tpl-editor-modal');
+}
+
+function renderCtplItemsList() {
+  var wrap = document.getElementById('ctpl-items'); if (!wrap) return;
+  if (!_ctplItems.length) { wrap.innerHTML = '<div style="font-size:12px;color:#aaa;padding:6px 0">No items yet — add your first checklist item below.</div>'; return; }
+  wrap.innerHTML = _ctplItems.map(function(it, i) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0f0f0">' +
+      '<span style="font-size:12px;color:#aaa;width:18px">'+(i+1)+'.</span>' +
+      '<input class="fi" value="'+escHtml(it.text)+'" style="flex:1;font-size:12px;padding:5px 8px" oninput="_ctplItems['+i+'].text=this.value">' +
+      '<button class="btn-danger" style="padding:4px 9px" onclick="removeChecklistTplItem('+i+')">✕</button>' +
+    '</div>';
+  }).join('');
+}
+
+function addChecklistTplItem() {
+  var input = document.getElementById('ctpl-new-item');
+  var text = (input.value||'').trim();
+  if (!text) return;
+  _ctplItems.push({ id: genDayId(), text: text });
+  input.value = '';
+  renderCtplItemsList();
+  input.focus();
+}
+
+function removeChecklistTplItem(i) { _ctplItems.splice(i, 1); renderCtplItemsList(); }
+
+function saveChecklistTpl() {
+  var id = document.getElementById('ctpl-id').value || null;
+  var name = (document.getElementById('ctpl-name').value||'').trim();
+  if (!name) { showToast('⚠️ Please enter a template name.'); return; }
+  var types = Array.from(document.querySelectorAll('.ctpl-type-cb:checked')).map(function(cb){ return cb.value; });
+  var isDefault = document.getElementById('ctpl-default').checked;
+  var items = _ctplItems.filter(function(i){ return (i.text||'').trim(); });
+  if (!items.length) { showToast('⚠️ Add at least one checklist item.'); return; }
+  var data = { name: name, types: types, isDefault: isDefault, items: items, updatedAt: Date.now() };
+  var ref = id ? db.ref('crm_checklist_templates/'+id) : db.ref('crm_checklist_templates').push();
+  ref.set(data, function(err) {
+    if (err) { showToast('Error saving template: '+err.message); return; }
+    showToast('✅ Checklist template saved.');
+    closeModal('checklist-tpl-editor-modal');
+  });
+}
+
+function deleteChecklistTpl(id) {
+  if (!confirm('Delete this checklist template? Progress already ticked on shoot days using it will remain, but it will no longer auto-apply to new days.')) return;
+  db.ref('crm_checklist_templates/'+id).remove(function(){ showToast('🗑️ Template deleted.'); });
+}
+
+// ── Crew Shoot Portal link (Team / Freelancer pages, and per-event from a project) ─
+function getCrewPortalURL(id, projId) {
+  var url = window.location.origin + window.location.pathname + '?crewlogin=' + id;
+  if (projId) url += '&event=' + projId;
+  return url;
+}
+function copyCrewPortalLink(id, projId) {
+  var url = getCrewPortalURL(id, projId);
+  navigator.clipboard.writeText(url).then(function(){ showToast(projId ? '🔗 Link copied — shows only this event\'s checklist.' : '🔗 Shoot portal link copied (all their events)!'); });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CREW SHOOT PORTAL — standalone mode triggered by ?crewlogin=teamOrFreelancerId
+// ═══════════════════════════════════════════════════════════════════════════
+var _crewPortal = {};
+
+function checkCrewMode() {
+  var params = new URLSearchParams(window.location.search);
+  var crewId = params.get('crewlogin');
+  if (!crewId) return false;
+  var eventFilter = params.get('event') || null;
+
+  var loginEl = document.getElementById('login-screen');
+  var appEl = document.getElementById('main-app');
+  if (loginEl) loginEl.style.display = 'none';
+  if (appEl) appEl.style.display = 'none';
+
+  var portal = document.createElement('div');
+  portal.id = 'crew-portal';
+  portal.style.cssText = 'min-height:100vh;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+  document.body.appendChild(portal);
+
+  _crewPortal = { el: portal, crewId: crewId, eventFilter: eventFilter, projects: {}, team: {}, freelancers: {}, tpl: {} };
+
+  var loaded = 0;
+  function onLoad() {
+    loaded++;
+    if (loaded < 4) return;
+    var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId];
+    if (!member) {
+      portal.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh"><div style="background:#fff;border-radius:16px;padding:40px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.1)"><div style="font-size:48px;margin-bottom:16px">⛔</div><h2 style="color:#dc2626">Link Not Found</h2><p style="color:#888;margin-top:8px">This shoot portal link is invalid or expired. Please ask your studio admin for a fresh link.</p></div></div>';
+      return;
+    }
+    renderCrewPortal();
+  }
+
+  db.ref('crm_projects').once('value', function(snap) {
+    _crewPortal.projects = snap.val() || {};
+    onLoad();
+    var keys = Object.keys(_crewPortal.projects);
+    var maxKey = keys.length ? keys.sort()[keys.length-1] : null;
+    var addedRef = maxKey ? db.ref('crm_projects').orderByKey().startAfter(String(maxKey)) : db.ref('crm_projects');
+    addedRef.on('child_added', function(s2) { _crewPortal.projects[s2.key] = s2.val(); if (loaded >= 4) renderCrewPortal(); });
+  });
+  db.ref('crm_team').once('value', function(snap) { _crewPortal.team = snap.val() || {}; onLoad(); });
+  db.ref('crm_freelancers').once('value', function(snap) { _crewPortal.freelancers = snap.val() || {}; onLoad(); });
+  db.ref('crm_checklist_templates').once('value', function(snap) { _crewPortal.tpl = snap.val() || {}; onLoad(); });
+  db.ref('crm_checklist_templates').on('value', function(snap) { _crewPortal.tpl = snap.val() || {}; if (loaded >= 4) renderCrewPortal(); });
+  db.ref('crm_projects').on('child_changed', function(snap) { _crewPortal.projects[snap.key] = snap.val(); if (loaded >= 4) renderCrewPortal(); });
+
+  return true;
+}
+
+function renderCrewPortal() {
+  var portal = _crewPortal.el;
+  var crewId = _crewPortal.crewId;
+  var eventFilter = _crewPortal.eventFilter;
+  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId];
+  if (!member || !portal) return;
+  var initials = (member.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().substring(0,2);
+
+  var myDays = [];
+  Object.keys(_crewPortal.projects).forEach(function(projId) {
+    if (eventFilter && String(projId) !== String(eventFilter)) return;
+    var p = _crewPortal.projects[projId]; if (!p) return;
+    (p.eventDays || []).forEach(function(ed, idx) {
+      if (!ed || !ed.date) return;
+      var isMine = CREW_SLOT_KEYS.some(function(k){ return ed[k] === crewId; });
+      if (isMine) myDays.push({ p: Object.assign({}, p, { id: projId }), ed: ed, dayId: ed.id || ('idx_'+idx) });
+    });
+  });
+
+  if (eventFilter) {
+    // Single-event mode: just this event's shoot day(s), no other clients, no upcoming/past split.
+    myDays.sort(function(a,b){ return a.ed.date.localeCompare(b.ed.date); });
+    var evtProject = myDays.length ? myDays[0].p : (_crewPortal.projects[eventFilter] ? Object.assign({}, _crewPortal.projects[eventFilter], {id: eventFilter}) : null);
+    var coupleLine = evtProject ? ((evtProject.bride||'')+' & '+(evtProject.groom||'')) : 'This Event';
+    portal.innerHTML =
+      '<div style="max-width:640px;margin:0 auto;padding:20px 16px 60px">' +
+        '<div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)">' +
+          '<div style="background:#0369a1;color:#fff;width:48px;height:48px;font-size:17px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:800;flex-shrink:0">'+initials+'</div>' +
+          '<div><div style="font-size:16px;font-weight:800">'+escHtml(member.name||'')+'</div><div style="font-size:12px;color:#888">'+escHtml(member.role||'')+' · '+escHtml(coupleLine)+'</div></div>' +
+        '</div>' +
+        (myDays.length ? myDays.map(function(x){ return checklistDayCardHTML(x.p, x.ed, x.dayId, _crewPortal.tpl, 'crewToggleChecklistItem', false); }).join('') :
+          '<div style="background:#fff;border-radius:10px;padding:24px;text-align:center;color:#aaa;font-size:13px">You\'re not assigned to a shoot day on this event, or the link has expired.</div>') +
+      '</div>';
+    return;
+  }
+
+  var todayStr = new Date().toISOString().slice(0,10);
+  var upcoming = myDays.filter(function(x){ return x.ed.date >= todayStr; }).sort(function(a,b){ return a.ed.date.localeCompare(b.ed.date); });
+  var past = myDays.filter(function(x){ return x.ed.date < todayStr; }).sort(function(a,b){ return b.ed.date.localeCompare(a.ed.date); });
+
+  portal.innerHTML =
+    '<div style="max-width:640px;margin:0 auto;padding:20px 16px 60px">' +
+      '<div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)">' +
+        '<div style="background:#0369a1;color:#fff;width:48px;height:48px;font-size:17px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:800;flex-shrink:0">'+initials+'</div>' +
+        '<div><div style="font-size:16px;font-weight:800">'+escHtml(member.name||'')+'</div><div style="font-size:12px;color:#888">'+escHtml(member.role||'')+' · Shoot Checklist Portal</div></div>' +
+      '</div>' +
+      '<div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:8px">📅 Upcoming Shoots ('+upcoming.length+')</div>' +
+      (upcoming.length ? upcoming.map(function(x){ return checklistDayCardHTML(x.p, x.ed, x.dayId, _crewPortal.tpl, 'crewToggleChecklistItem', true); }).join('') :
+        '<div style="background:#fff;border-radius:10px;padding:24px;text-align:center;color:#aaa;font-size:13px;margin-bottom:20px">No upcoming shoots assigned to you right now.</div>') +
+      (past.length ? '<div style="font-size:13px;font-weight:800;color:#374151;margin:22px 0 8px">🗂️ Past Shoots</div>' + past.slice(0,10).map(function(x){ return checklistDayCardHTML(x.p, x.ed, x.dayId, _crewPortal.tpl, 'crewToggleChecklistItem', true); }).join('') : '') +
+    '</div>';
+}
+
+function crewToggleChecklistItem(projId, dayId, key, checked) {
+  var p = _crewPortal.projects[projId]; if (!p) return;
+  var member = _crewPortal.team[_crewPortal.crewId] || _crewPortal.freelancers[_crewPortal.crewId];
+  var who = (member && member.name) || 'Crew';
+  var update = { done: !!checked, doneBy: who, doneAt: Date.now() };
+  db.ref('crm_projects/'+projId+'/dayChecklists/'+dayId+'/items/'+key).set(update, function(err) {
+    if (err) { alert('Error saving — please check your internet connection and try again.'); return; }
+    if (!p.dayChecklists) p.dayChecklists = {};
+    if (!p.dayChecklists[dayId]) p.dayChecklists[dayId] = { items: {} };
+    if (!p.dayChecklists[dayId].items) p.dayChecklists[dayId].items = {};
+    p.dayChecklists[dayId].items[key] = update;
+    renderCrewPortal();
+  });
+}
+
 function collectEventDays() {
   var days = [];
   var cards = document.querySelectorAll('#evday-container .evday-card');
@@ -7477,6 +7938,7 @@ function collectEventDays() {
       return tm ? tm.name : id;
     }
     days.push({
+      id:        card.dataset.dayid || genDayId(),
       date:      date,
       type:      type,
       venue:     gv('.evd-venue'),
@@ -9861,7 +10323,7 @@ function renderTeam(){
 
   if(teamViewMode==='profile'){
     var showSal=can('canSeeTeamSalary'), showBank=can('canSeeTeamBank'), showDel=can('canDeleteProjects')||(CU&&CU.role==='superadmin');
-    $('team-grid').innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">'+list.map(function(t){var col=avatarColor(t.name);var initials=(t.name||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().substring(0,2);return '<div class="team-card"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f0f0f0"><div class="u-avatar" style="background:'+col+';width:48px;height:48px;font-size:18px">'+initials+'</div><div style="flex:1"><div style="font-size:15px;font-weight:800">'+t.name+(t.nickname?' <span style="font-size:12px;color:#888;font-weight:400">('+t.nickname+')</span>':'')+'</div><div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap"><span class="badge b-blue">'+t.role+'</span>'+(t.emptype?'<span class="badge b-gray">'+empType[t.emptype]+'</span>':'')+(t.region?regionBadge(t.region):'')+'</div></div><div style="display:flex;gap:5px;flex-shrink:0"><button class="btn btn-sm" onclick="openEditTeam(\''+t.id+'\')">Edit</button>'+(showDel?'<button class="btn-danger" onclick="deleteTeam(\''+t.id+'\')">✕</button>':'')+'</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px">'+(t.phone?'<div>📞 '+t.phone+'</div>':'<div></div>')+(t.phone2?'<div>📱 Alt: '+t.phone2+'</div>':'<div></div>')+(t.email?'<div style="grid-column:1/-1">✉️ '+t.email+'</div>':'')+(t.joining?'<div>📅 Joined: '+t.joining+'</div>':'<div></div>')+(t.exp?'<div>⭐ Exp: '+t.exp+' yrs</div>':'<div></div>')+(showSal&&t.salary?'<div>💰 Salary: '+fmt(t.salary)+'/mo</div>':'')+(showSal&&t.perday?'<div>🎯 Per Event: '+fmt(t.perday)+'</div>':'')+(t.skills?'<div style="grid-column:1/-1">🎨 '+t.skills+'</div>':'')+(t.city?'<div style="grid-column:1/-1">📍 '+t.city+'</div>':'')+(showBank&&t.upi?'<div style="grid-column:1/-1">UPI: <span style="font-family:monospace">'+t.upi+'</span></div>':'')+(t.notes?'<div style="grid-column:1/-1;color:#888;font-style:italic">'+t.notes+'</div>':'')+'</div></div>';}).join('')+'</div>';
+    $('team-grid').innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">'+list.map(function(t){var col=avatarColor(t.name);var initials=(t.name||'?').split(' ').map(function(w){return w[0];}).join('').toUpperCase().substring(0,2);return '<div class="team-card"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f0f0f0"><div class="u-avatar" style="background:'+col+';width:48px;height:48px;font-size:18px">'+initials+'</div><div style="flex:1"><div style="font-size:15px;font-weight:800">'+t.name+(t.nickname?' <span style="font-size:12px;color:#888;font-weight:400">('+t.nickname+')</span>':'')+'</div><div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap"><span class="badge b-blue">'+t.role+'</span>'+(t.emptype?'<span class="badge b-gray">'+empType[t.emptype]+'</span>':'')+(t.region?regionBadge(t.region):'')+'</div></div><div style="display:flex;gap:5px;flex-shrink:0"><button class="btn btn-sm" onclick="openEditTeam(\''+t.id+'\')">Edit</button>'+'<button class="btn btn-sm" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe" title="Copy Shoot Checklist portal link" onclick="copyCrewPortalLink(\''+t.id+'\')">🔗 Portal</button>'+(showDel?'<button class="btn-danger" onclick="deleteTeam(\''+t.id+'\')">✕</button>':'')+'</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px">'+(t.phone?'<div>📞 '+t.phone+'</div>':'<div></div>')+(t.phone2?'<div>📱 Alt: '+t.phone2+'</div>':'<div></div>')+(t.email?'<div style="grid-column:1/-1">✉️ '+t.email+'</div>':'')+(t.joining?'<div>📅 Joined: '+t.joining+'</div>':'<div></div>')+(t.exp?'<div>⭐ Exp: '+t.exp+' yrs</div>':'<div></div>')+(showSal&&t.salary?'<div>💰 Salary: '+fmt(t.salary)+'/mo</div>':'')+(showSal&&t.perday?'<div>🎯 Per Event: '+fmt(t.perday)+'</div>':'')+(t.skills?'<div style="grid-column:1/-1">🎨 '+t.skills+'</div>':'')+(t.city?'<div style="grid-column:1/-1">📍 '+t.city+'</div>':'')+(showBank&&t.upi?'<div style="grid-column:1/-1">UPI: <span style="font-family:monospace">'+t.upi+'</span></div>':'')+(t.notes?'<div style="grid-column:1/-1;color:#888;font-style:italic">'+t.notes+'</div>':'')+'</div></div>';}).join('')+'</div>';
   } else if(teamViewMode==='salary'){
     if(!can('canSeeTeamSalary')){$('team-grid').innerHTML='<div class="empty">🔒 You do not have permission to view salary information.</div>';return;}
     $('team-grid').innerHTML='<table class="tbl"><thead><tr><th>Name</th><th>Role</th><th>Region</th><th>Employment</th><th>Monthly Salary</th><th>Per Event Rate</th><th>Joining Date</th><th></th></tr></thead><tbody>'+list.map(function(t){return '<tr><td><div style="font-weight:700">'+t.name+'</div></td><td><span class="badge b-blue">'+t.role+'</span></td><td>'+regionBadge(t.region||'')+'</td><td><span class="badge b-gray">'+(empType[t.emptype]||'-')+'</span></td><td style="font-weight:700;color:#16a34a;font-size:15px">'+(t.salary?fmt(t.salary):'-')+'</td><td style="color:#1d4ed8;font-weight:600">'+(t.perday?fmt(t.perday):'-')+'</td><td>'+(t.joining||'-')+'</td><td><button class="btn btn-sm" onclick="openEditTeam(\''+t.id+'\')">Edit</button></td></tr>';}).join('')+'</tbody></table>';
@@ -10599,7 +11061,7 @@ function _erpBuildInstalments(p) {
   var generalUsed = 0;
 
   return terms.map(function(t) {
-    var expected = Math.round(net * t.pct / 100);
+    var expected = _expFromTerm(t, net);
 
     var directPaid = ledger
       .filter(function(e){ return stageMatches(e.stage, t.key); })
@@ -12412,7 +12874,7 @@ function populateStageDropdown(selId, projId) {
   // Build options — only show stages that are NOT fully paid
   var firstUnpaidSet = false;
   var opts = terms.map(function(t, idx) {
-    var exp = Math.round(net * t.pct / 100);
+    var exp = _expFromTerm(t, net);
     var paid = ledger.filter(function(e){return stageMatches(e.stage, t.key)||(idx===0&&isAdvanceStageKey(e.stage));}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var remaining = exp - paid;
     var fullyPaid = paid >= exp && exp > 0;
@@ -12548,7 +13010,7 @@ function getPaymentScheduleWithCarryForward(p){
     var generalUsed = 0;
     var carry = 0;
     return terms.map(function(t){
-      var baseExp = Math.round(net*t.pct/100);
+      var baseExp = _expFromTerm(t, net);
       var directPaid = customMatched[t.key] || 0;
       var exp = baseExp + carry;
       var stillDue = Math.max(0, exp - directPaid);
@@ -12588,7 +13050,7 @@ function getPaymentScheduleWithCarryForward(p){
     p5b:'kb_final',   p10b:'kb_final',  p10c:'kb_final',  pfinal:'kb_final',  p50b:'kb_final'
   };
   return terms.map(function(t, idx){
-    var baseExp=Math.round(net*t.pct/100);
+    var baseExp=_expFromTerm(t, net);
     // kbEquiv: if term uses preset key (p20), find kb_* ledger entries
     var kbEquiv=LEGACY_TO_KB[t.key]||null;
     // legacyEquivs: if term uses kb_* key (from kbSchedule), find p20/p50 ledger entries
@@ -12827,7 +13289,7 @@ document.addEventListener('change', function(e){
     var terms=getPayTerms(p);
     var term=terms.find(function(t){return t.key===sk;}); if(!term)return;
     var net=netVal(p);
-    var exp=Math.round(net*term.pct/100);
+    var exp=_expFromTerm(term, net);
     var alreadyPaid=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var due=exp-alreadyPaid;
     if(due>0)sv('pe-amount',due);
@@ -12840,7 +13302,7 @@ document.addEventListener('change', function(e){
     var terms2=getPayTerms(rp);
     var term2=terms2.find(function(t){return t.key===sk2;}); if(!term2)return;
     var net2=netVal(rp);
-    var exp2=Math.round(net2*term2.pct/100);
+    var exp2=_expFromTerm(term2, net2);
     var alr2=(rp.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk2);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
     var due2=exp2-alr2;
     if(due2>0)sv('rp-amount',due2);
@@ -12848,7 +13310,7 @@ document.addEventListener('change', function(e){
   }
 });
 
-function updatePEPreview(){var p=editProjId?projects[editProjId]:null;if(!p)return;var amt=parseInt(gv('pe-amount'))||0;var gstRate=parseFloat(gv('pe-gst-rate'))||0;var gstAmt=calcGstAmt(amt,gstRate);var totalRecv=amt+gstAmt;var trEl=$('pe-total-received');if(trEl)trEl.value=totalRecv?fmt(totalRecv):'';var sk=gv('pe-stage');var prev=$('pe-preview');if(!amt){prev.style.display='none';return;}var terms=getPayTerms(p);var term=terms.find(function(t){return t.key===sk;})||terms[0];if(!term){prev.style.display='none';return;}var net=netVal(p);var exp=Math.round(net*term.pct/100);var alr=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);var gstLine=gstAmt>0?('<br><span style="color:#7c3aed">+ GST @'+gstRate+'%: '+fmt(gstAmt)+' → Total received: <strong>'+fmt(totalRecv)+'</strong></span>'):'';prev.style.display='block';prev.innerHTML='Recording <strong>'+fmt(amt)+'</strong> for <strong>'+term.label+'</strong> (exp: '+fmt(exp)+')'+gstLine+'<br>Previously: '+fmt(alr)+' → New total: <strong style="color:#16a34a">'+fmt(alr+amt)+'</strong>'+(Math.max(0,exp-alr-amt)>0?'<br><span style="color:#d97706">Remaining: '+fmt(Math.max(0,exp-alr-amt))+'</span>':'<br><span style="color:#16a34a">✓ Fully paid!</span>');}
+function updatePEPreview(){var p=editProjId?projects[editProjId]:null;if(!p)return;var amt=parseInt(gv('pe-amount'))||0;var gstRate=parseFloat(gv('pe-gst-rate'))||0;var gstAmt=calcGstAmt(amt,gstRate);var totalRecv=amt+gstAmt;var trEl=$('pe-total-received');if(trEl)trEl.value=totalRecv?fmt(totalRecv):'';var sk=gv('pe-stage');var prev=$('pe-preview');if(!amt){prev.style.display='none';return;}var terms=getPayTerms(p);var term=terms.find(function(t){return t.key===sk;})||terms[0];if(!term){prev.style.display='none';return;}var net=netVal(p);var exp=_expFromTerm(term,net);var alr=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sk);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);var gstLine=gstAmt>0?('<br><span style="color:#7c3aed">+ GST @'+gstRate+'%: '+fmt(gstAmt)+' → Total received: <strong>'+fmt(totalRecv)+'</strong></span>'):'';prev.style.display='block';prev.innerHTML='Recording <strong>'+fmt(amt)+'</strong> for <strong>'+term.label+'</strong> (exp: '+fmt(exp)+')'+gstLine+'<br>Previously: '+fmt(alr)+' → New total: <strong style="color:#16a34a">'+fmt(alr+amt)+'</strong>'+(Math.max(0,exp-alr-amt)>0?'<br><span style="color:#d97706">Remaining: '+fmt(Math.max(0,exp-alr-amt))+'</span>':'<br><span style="color:#16a34a">✓ Fully paid!</span>');}
 // ── btn-add-pay-entry: open Record Payment modal from inside project modal ─
 document.addEventListener('click', function(e) {
   if (e.target && e.target.id === 'btn-add-pay-entry') {
@@ -12888,7 +13350,7 @@ document.addEventListener('click', function(e) {
         var terms = getPayTerms(p);
         var term = terms.find(function(t){return t.key===sel.value;});
         if (term) {
-          var exp = Math.round(net * term.pct / 100);
+          var exp = _expFromTerm(term, net);
           var alreadyPaid = (p.payLedger||[]).filter(function(e){return stageMatches(e.stage, sel.value);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
           var due = exp - alreadyPaid;
           if (due > 0) sv('pe-amount', due);
@@ -12986,7 +13448,7 @@ $('rp-client').addEventListener('change',function(){
     var terms=getPayTerms(p);
     var term=terms.find(function(t){return t.key===stEl.value;});
     if(term){
-      var exp=Math.round(net*term.pct/100);
+      var exp=_expFromTerm(term, net);
       var alreadyPaid=(p.payLedger||[]).filter(function(e){return stageMatches(e.stage, stEl.value);}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
       var due=exp-alreadyPaid;
       if(due>0)sv('rp-amount',due);
@@ -13331,10 +13793,42 @@ function onPayPresetChange(){
 
   if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
 }
-function addCustomPayRow(){var idx=($('custom-pay-rows').children.length);var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 80px 80px auto;gap:8px;align-items:center;margin-bottom:8px';row.innerHTML='<input type="text" class="fi" placeholder="Label (e.g. Advance)" style="padding:6px 10px;font-size:12px" oninput="updateCustomPayTotal()"><input type="number" class="fi" placeholder="%" min="1" max="100" style="padding:6px 8px;font-size:12px;text-align:center" oninput="updateCustomPayTotal()"><select class="fi" style="padding:6px 8px;font-size:12px" onchange="updateCustomPayTotal()"><option value="booking">On Booking</option><option value="event">Shoot Day</option><option value="raw">Raw Data</option><option value="delivery">On Delivery</option><option value="other">Other</option></select><button type="button" class="btn-danger" onclick="this.parentElement.remove();updateCustomPayTotal()">✕</button>';$('custom-pay-rows').appendChild(row);}
-function updateCustomPayTotal(){var rows=Array.from($('custom-pay-rows').children);rows.forEach(function(r){var inp=r.children[1];var n=parseInt(inp.value);if(!isNaN(n)&&n>100){inp.value=100;if(typeof showToast==='function')showToast('⚠️ Percentage can\'t exceed 100% — capped at 100%');}else if(!isNaN(n)&&n<0){inp.value=0;}});var total=rows.reduce(function(a,r){return a+(parseInt(r.children[1].value)||0);},0);var tot=$('custom-pay-total');var err=$('custom-pay-error');if(tot)tot.textContent='Total: '+total+'% '+(total===100?'✅':'(must be 100%)');if(err)err.style.display=total>0&&total!==100?'block':'none';if(typeof syncKbScheduleFromCustomSplit==='function')syncKbScheduleFromCustomSplit();}
-function getCustomPayTerms(){var rows=Array.from($('custom-pay-rows').children);var terms=[];rows.forEach(function(r,i){var label=r.children[0].value||('Installment '+(i+1));var pct=parseInt(r.children[1].value)||0;var desc=r.children[2].value;if(pct>0)terms.push({key:'cp'+i,label:label,pct:pct,desc:desc});});return terms;}
-function loadCustomPayRows(customTerms){var c=$('custom-pay-rows');c.innerHTML='';customTerms.forEach(function(t){addCustomPayRow();var row=c.children[c.children.length-1];row.children[0].value=t.label||'';row.children[1].value=t.pct||'';row.children[2].value=t.desc||'booking';});updateCustomPayTotal();}
+function addCustomPayRow(){var idx=($('custom-pay-rows').children.length);var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 80px 56px 100px auto;gap:8px;align-items:center;margin-bottom:8px';row.innerHTML='<input type="text" class="fi" placeholder="Label (e.g. Advance)" style="padding:6px 10px;font-size:12px" oninput="updateCustomPayTotal()"><input type="number" class="fi" placeholder="%" min="0" style="padding:6px 8px;font-size:12px;text-align:center" oninput="updateCustomPayTotal()"><select class="fi" style="padding:6px 4px;font-size:12px" onchange="onCustomPayRowTypeChange(this)"><option value="pct">%</option><option value="fixed">₹</option></select><select class="fi" style="padding:6px 8px;font-size:12px" onchange="updateCustomPayTotal()"><option value="booking">On Booking</option><option value="event">Shoot Day</option><option value="raw">Raw Data</option><option value="delivery">On Delivery</option><option value="other">Other</option></select><button type="button" class="btn-danger" onclick="this.parentElement.remove();updateCustomPayTotal()">✕</button>';$('custom-pay-rows').appendChild(row);}
+// ── Toggle a custom-split row between Percentage and Fixed Amount (₹) ──
+function onCustomPayRowTypeChange(sel){
+  var row=sel.parentElement; if(!row) return;
+  var valInp=row.children[1]; if(!valInp) return;
+  if(sel.value==='fixed'){ valInp.placeholder='₹ amount'; valInp.removeAttribute('max'); }
+  else { valInp.placeholder='%'; valInp.setAttribute('max','100'); }
+  updateCustomPayTotal();
+}
+function updateCustomPayTotal(){
+  var rows=Array.from($('custom-pay-rows').children);
+  var val=parseInt(gv('f-value'))||0, disc=parseInt(gv('f-discount'))||0, net=Math.max(0,val-disc);
+  var pctTotal=0, fixedTotal=0;
+  rows.forEach(function(r){
+    var typeSel=r.children[2]; var type=typeSel?typeSel.value:'pct';
+    var inp=r.children[1];
+    var n=parseFloat(inp.value);
+    if(type==='pct'){
+      if(!isNaN(n)&&n>100){inp.value=100;if(typeof showToast==='function')showToast('⚠️ Percentage can\'t exceed 100% — capped at 100%');}
+      else if(!isNaN(n)&&n<0){inp.value=0;}
+    } else if(!isNaN(n)&&n<0){inp.value=0;}
+    var n2=parseFloat(inp.value)||0;
+    if(type==='fixed') fixedTotal+=n2; else pctTotal+=n2;
+  });
+  var fixedAsPct = net>0 ? (fixedTotal/net*100) : 0;
+  var combined = pctTotal+fixedAsPct;
+  var tot=$('custom-pay-total'); var err=$('custom-pay-error');
+  var parts=[]; if(pctTotal) parts.push(pctTotal+'%'); if(fixedTotal) parts.push('₹'+fixedTotal.toLocaleString('en-IN'));
+  var label='Total: '+(parts.length?parts.join(' + '):'0%');
+  var ok=Math.round(combined)===100;
+  if(tot) tot.textContent=label+(net>0?' (≈'+Math.round(combined)+'% of net) ':' ')+(net>0?(ok?'✅':(combined>100?'⚠️ Over 100%':'⚠️ Must equal 100%')):(fixedTotal?'— enter Package Price to validate':''));
+  if(err)err.style.display=(net>0&&combined>0&&!ok)?'block':'none';
+  if(typeof syncKbScheduleFromCustomSplit==='function')syncKbScheduleFromCustomSplit();
+}
+function getCustomPayTerms(){var rows=Array.from($('custom-pay-rows').children);var terms=[];rows.forEach(function(r,i){var label=r.children[0].value||('Installment '+(i+1));var type=(r.children[2]&&r.children[2].value)||'pct';var v=parseFloat(r.children[1].value)||0;var desc=r.children[3].value;if(v>0)terms.push({key:'cp'+i,label:label,type:type,pct:type==='pct'?v:null,val:v,desc:desc});});return terms;}
+function loadCustomPayRows(customTerms){var c=$('custom-pay-rows');c.innerHTML='';customTerms.forEach(function(t){addCustomPayRow();var row=c.children[c.children.length-1];var isFixed=t.type==='fixed';row.children[0].value=t.label||'';row.children[1].value=isFixed?(t.val||''):(t.pct!=null?t.pct:(t.val||''));if(row.children[2])row.children[2].value=isFixed?'fixed':'pct';row.children[3].value=t.desc||'booking';if(row.children[2])onCustomPayRowTypeChange(row.children[2]);});updateCustomPayTotal();}
 
 // ── Auto-fill KB Payment Schedule (Advance/Event/Raw Data/Teaser/Final) from
 // the Custom Payment Split builder above it. The two panels are otherwise
@@ -13372,10 +13866,12 @@ function syncKbScheduleFromCustomSplit() {
   var terms = getCustomPayTerms();
   if (!terms.length) return;
 
-  var bucket = { kb_advance:0, kb_event:0, kb_rawdata:0, kb_teaser:0, kb_final:0 };
+  var bucket = { kb_advance:{pct:0,fixed:0}, kb_event:{pct:0,fixed:0}, kb_rawdata:{pct:0,fixed:0}, kb_teaser:{pct:0,fixed:0}, kb_final:{pct:0,fixed:0} };
   terms.forEach(function(t) {
     var slot = _kbSlotForCustomRow(t);
-    if (slot) bucket[slot] += (parseFloat(t.pct) || 0);
+    if (!slot) return;
+    if (t.type === 'fixed') bucket[slot].fixed += (parseFloat(t.val)||0);
+    else bucket[slot].pct += (parseFloat(t.val!=null?t.val:t.pct)||0);
   });
 
   var fieldMap = { kb_advance:'kb-s1-val', kb_event:'kb-s2-val', kb_rawdata:'kb-s3-val', kb_teaser:'kb-s4-val', kb_final:'kb-s5-val' };
@@ -13383,8 +13879,19 @@ function syncKbScheduleFromCustomSplit() {
   Object.keys(bucket).forEach(function(slot) {
     var valEl  = document.getElementById(fieldMap[slot]);
     var typeEl = document.getElementById(typeMap[slot]);
-    if (typeEl) typeEl.value = 'pct';
-    if (valEl) valEl.value = bucket[slot] > 0 ? bucket[slot] : '';
+    var b = bucket[slot];
+    if (b.pct > 0 && b.fixed > 0) {
+      // Mixed % and ₹ rows mapped to the same KB slot — ambiguous to combine into
+      // a single field, so leave it blank rather than guess (best-effort mapping).
+      if (typeEl) typeEl.value = 'pct';
+      if (valEl) valEl.value = '';
+    } else if (b.fixed > 0) {
+      if (typeEl) typeEl.value = 'fixed';
+      if (valEl) valEl.value = b.fixed;
+    } else {
+      if (typeEl) typeEl.value = 'pct';
+      if (valEl) valEl.value = b.pct > 0 ? b.pct : '';
+    }
   });
 
   if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
@@ -13502,6 +14009,7 @@ function renderFreelancers() {
           '</div>' +
           '<div style="display:flex;gap:4px;flex-shrink:0">' +
             '<button class="btn btn-sm" onclick="openEditFreelancer(\''+f.id+'\')">Edit</button>' +
+            '<button class="btn btn-sm" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe" title="Copy Shoot Checklist portal link" onclick="copyCrewPortalLink(\''+f.id+'\')">🔗</button>' +
             (showDel ? '<button class="btn-danger" onclick="deleteFreelancer(\''+f.id+'\')">✕</button>' : '') +
           '</div>' +
         '</div>' +
@@ -16246,7 +16754,7 @@ function openProject(id, tabId) {
   onRegionChange();
   setTimeout(function() { sv('f-state', p.state || ''); updateRegionHint(); }, 50);
   setTimeout(updatePayPresetPreview, 60);
-  buildDelivRows(p); renderBriefTab(p); loadRawRows(p); renderEventDays(p.eventDays); loadDataLog(p); populateTeamDrops(p); renderStageTL(); setTimeout(renderStageLog,100); setTimeout(renderRawApprovalStatus,100); setTimeout(renderDataLogApprovalStatus,100); setTimeout(renderPipelineActionBlock,150);
+  buildDelivRows(p); renderBriefTab(p); loadRawRows(p); renderEventDays(p.eventDays); loadDataLog(p); populateTeamDrops(p); renderStageTL(); renderChecklistTab(p, id); setTimeout(renderStageLog,100); setTimeout(renderRawApprovalStatus,100); setTimeout(renderDataLogApprovalStatus,100); setTimeout(renderPipelineActionBlock,150);
 
   // Show/hide the sync-from-quotation button
   var syncBtn = document.getElementById('btn-sync-from-quot');
@@ -17966,7 +18474,7 @@ function submitPasswordChange() {
 
 // ═══ STARTUP ══════════════════════════════════════════════════════════════════
 (function() {
-  if(!checkBriefMode() && !checkEditorMode() && !checkOnboardMode()) {
+  if(!checkBriefMode() && !checkEditorMode() && !checkCrewMode() && !checkOnboardMode()) {
     var ls = document.getElementById('login-screen');
     var ma = document.getElementById('main-app');
     if (ls) ls.style.display = 'flex';
@@ -19432,17 +19940,25 @@ function deleteEscalation(key) {
 function switchQLTab(tab) {
   var pipeline = document.getElementById('ql-pane-pipeline');
   var all = document.getElementById('ql-pane-all');
+  var analytics = document.getElementById('ql-pane-analytics');
   var btnP = document.getElementById('ql-tab-pipeline');
   var btnA = document.getElementById('ql-tab-all');
+  var btnAn = document.getElementById('ql-tab-analytics');
   if (!pipeline || !all) return;
+  pipeline.style.display = 'none'; all.style.display = 'none'; if (analytics) analytics.style.display = 'none';
+  if (btnP) btnP.classList.remove('active');
+  if (btnA) btnA.classList.remove('active');
+  if (btnAn) btnAn.classList.remove('active');
   if (tab === 'pipeline') {
-    pipeline.style.display = ''; all.style.display = 'none';
+    pipeline.style.display = '';
     if (btnP) btnP.classList.add('active');
-    if (btnA) btnA.classList.remove('active');
+  } else if (tab === 'analytics') {
+    if (analytics) analytics.style.display = '';
+    if (btnAn) btnAn.classList.add('active');
+    renderLeadAnalytics();
   } else {
-    pipeline.style.display = 'none'; all.style.display = '';
+    all.style.display = '';
     if (btnA) btnA.classList.add('active');
-    if (btnP) btnP.classList.remove('active');
     // Focus search box
     setTimeout(function(){ var s=document.getElementById('sales-search'); if(s) s.focus(); }, 100);
   }
@@ -19597,6 +20113,238 @@ function renderSalesDash() {
         }).join('') + '</tbody></table>';
     }
   }
+
+  // Keep Lead Analytics in sync if that tab is currently visible
+  var analyticsPane = document.getElementById('ql-pane-analytics');
+  if (analyticsPane && analyticsPane.style.display !== 'none') renderLeadAnalytics();
+}
+
+// ── Lead Analytics (Quotations & Leads → 📈 Lead Analytics tab) ──────────
+var qlaCharts = {};
+var qlaSourceFilter = null; // null = all sources; else Set of selected source names
+
+function qlaBucketKey(ts, gran) {
+  var d = new Date(ts);
+  if (gran === 'monthly') return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  if (gran === 'weekly') {
+    var day = d.getDay();
+    var diff = (day === 0 ? -6 : 1 - day); // shift back to Monday
+    var mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff);
+    return mon.getFullYear() + '-' + String(mon.getMonth()+1).padStart(2,'0') + '-' + String(mon.getDate()).padStart(2,'0');
+  }
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function qlaBucketLabel(key, gran) {
+  var parts = key.split('-');
+  if (gran === 'monthly') return _MONTHS_SHORT[parseInt(parts[1],10)-1] + ' ' + parts[0];
+  var lbl = String(parseInt(parts[2],10)).padStart(2,'0') + ' ' + _MONTHS_SHORT[parseInt(parts[1],10)-1];
+  return gran === 'weekly' ? ('Wk of ' + lbl) : lbl;
+}
+function qlaLeadDate(q) { return q.createdAt || q.savedAt || 0; }
+
+var _qlaRetryTimer = null;
+var QLA_CHART_COLORS = ['#60a5fa','#34d399','#fbbf24','#f87171','#a78bfa','#38bdf8','#4ade80','#fb923c','#f472b6','#facc15','#818cf8','#6ee7b7'];
+function renderLeadAnalytics() {
+  if (!_quotDataLoaded) {
+    // Data isn't in yet (e.g. tab opened before Firebase's first read resolved).
+    // Keep the "⏳ Loading quotations…" placeholders in place and poll briefly
+    // rather than relying solely on the Firebase callback to re-trigger this pane.
+    if (!_qlaRetryTimer) {
+      var tries = 0;
+      _qlaRetryTimer = setInterval(function() {
+        tries++;
+        if (_quotDataLoaded) { clearInterval(_qlaRetryTimer); _qlaRetryTimer = null; renderLeadAnalytics(); }
+        else if (tries > 40) { clearInterval(_qlaRetryTimer); _qlaRetryTimer = null; } // ~20s, give up quietly
+      }, 500);
+    }
+    return;
+  }
+  try {
+    _renderLeadAnalyticsInner();
+  } catch (err) {
+    console.error('renderLeadAnalytics error:', err);
+    ['qla-trend-empty','qla-dow-empty','qla-hour-empty'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) { el.style.display = 'flex'; el.textContent = '⚠️ Analytics error — check console (' + (err && err.message ? err.message : err) + ')'; }
+    });
+    var tblEl2 = document.getElementById('qla-source-table');
+    if (tblEl2) tblEl2.innerHTML = '<div class="empty" style="padding:30px;color:#dc2626">⚠️ Analytics error — check console (' + (err && err.message ? err.message : err) + ')</div>';
+  }
+}
+
+function _renderLeadAnalyticsInner() {
+  var list = ql().filter(function(q) { return qlaLeadDate(q) > 0; });
+
+  // Date range filter
+  var rangeSel = (document.getElementById('qla-range') || {value:'30'}).value;
+  var now = Date.now();
+  var fromTs = 0;
+  if (rangeSel === '7') fromTs = now - 7*86400000;
+  else if (rangeSel === '30') fromTs = now - 30*86400000;
+  else if (rangeSel === '90') fromTs = now - 90*86400000;
+  else if (rangeSel === 'ytd') fromTs = new Date(new Date().getFullYear(), 0, 1).getTime();
+  // 'all' → fromTs stays 0
+
+  var inRange = list.filter(function(q) { return qlaLeadDate(q) >= fromTs; });
+
+  // Build source chip filter UI (once) — derived from settings + any sources seen on quotations
+  var chipWrap = document.getElementById('qla-source-chips');
+  if (chipWrap) {
+    var known = getSettingList('sources', DEFAULT_SOURCES).slice();
+    list.forEach(function(q) { if (q.source && known.indexOf(q.source) === -1) known.push(q.source); });
+    if (!chipWrap.dataset.built) {
+      var chipHtml = '<span style="font-size:11px;color:#888;margin-right:2px">Source:</span>' +
+        '<span class="qla-chip qla-chip-active" data-src="__all__" onclick="qlaToggleSourceChip(\'__all__\')" style="cursor:pointer;font-size:11px;font-weight:700;padding:4px 10px;border-radius:14px;border:1px solid #134e50;background:#134e50;color:#fff">All</span>' +
+        known.map(function(s) {
+          return '<span class="qla-chip" data-src="' + escHtml(s) + '" onclick="qlaToggleSourceChip(\'' + escHtml(s).replace(/'/g,"\\'") + '\')" style="cursor:pointer;font-size:11px;font-weight:700;padding:4px 10px;border-radius:14px;border:1px solid #d1d5db;background:#f3f4f6;color:#6b7280">' + escHtml(s) + '</span>';
+        }).join('');
+      chipWrap.innerHTML = chipHtml;
+      chipWrap.dataset.built = '1';
+    }
+  }
+
+  var filtered = qlaSourceFilter ? inRange.filter(function(q) { return qlaSourceFilter.has(q.source || 'Unknown'); }) : inRange;
+
+  // ── Trend chart: lead count per bucket, stacked by source ──
+  var gran = (document.getElementById('qla-granularity') || {value:'daily'}).value;
+  var buckets = {}; // key -> {source -> count}
+  var sourcesSeen = {};
+  filtered.forEach(function(q) {
+    var key = qlaBucketKey(qlaLeadDate(q), gran);
+    var src = q.source || 'Unknown';
+    sourcesSeen[src] = true;
+    if (!buckets[key]) buckets[key] = {};
+    buckets[key][src] = (buckets[key][src] || 0) + 1;
+  });
+  var bKeys = Object.keys(buckets).sort();
+  var srcList = Object.keys(sourcesSeen).sort();
+  destroyCharts(qlaCharts);
+  var tc = document.getElementById('qla-trend-chart');
+  var tcEmpty = document.getElementById('qla-trend-empty');
+  if (tc) {
+    if (!bKeys.length) {
+      tc.getContext('2d').clearRect(0,0,tc.width,tc.height);
+      if (tcEmpty) { tcEmpty.style.display = 'flex'; tcEmpty.textContent = 'No leads in this range.'; }
+    } else {
+      if (tcEmpty) tcEmpty.style.display = 'none';
+      qlaCharts.trend = new Chart(tc, {
+        type: 'bar',
+        data: {
+          labels: bKeys.map(function(k) { return qlaBucketLabel(k, gran); }),
+          datasets: srcList.map(function(s, i) {
+            return {
+              label: s,
+              data: bKeys.map(function(k) { return (buckets[k][s] || 0); }),
+              backgroundColor: QLA_CHART_COLORS[i % QLA_CHART_COLORS.length],
+              borderRadius: 3
+            };
+          })
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+          scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+      });
+    }
+  }
+
+  // ── Day-of-week distribution ──
+  var dowLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  var dowCounts = [0,0,0,0,0,0,0];
+  filtered.forEach(function(q) {
+    var jsDay = new Date(qlaLeadDate(q)).getDay(); // 0=Sun..6=Sat
+    var idx = (jsDay === 0) ? 6 : jsDay - 1;
+    dowCounts[idx]++;
+  });
+  var dc2 = document.getElementById('qla-dow-chart');
+  var dowEmpty = document.getElementById('qla-dow-empty');
+  if (dc2) {
+    if (dowEmpty) { dowEmpty.style.display = filtered.length ? 'none' : 'flex'; if (!filtered.length) dowEmpty.textContent = 'No leads in this range.'; }
+    if (filtered.length) {
+      qlaCharts.dow = new Chart(dc2, {
+        type: 'bar',
+        data: { labels: dowLabels, datasets: [{ label: 'Leads', data: dowCounts, backgroundColor: 'rgba(19,78,80,0.75)', borderRadius: 5 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+      });
+    } else {
+      dc2.getContext('2d').clearRect(0,0,dc2.width,dc2.height);
+    }
+  }
+
+  // ── Peak inquiry hour ──
+  var hourCounts = new Array(24).fill(0);
+  filtered.forEach(function(q) { hourCounts[new Date(qlaLeadDate(q)).getHours()]++; });
+  var hc = document.getElementById('qla-hour-chart');
+  var hourEmpty = document.getElementById('qla-hour-empty');
+  if (hc) {
+    if (hourEmpty) { hourEmpty.style.display = filtered.length ? 'none' : 'flex'; if (!filtered.length) hourEmpty.textContent = 'No leads in this range.'; }
+    if (filtered.length) {
+      qlaCharts.hour = new Chart(hc, {
+        type: 'bar',
+        data: {
+          labels: hourCounts.map(function(_, h) { return (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? 'am' : 'pm'); }),
+          datasets: [{ label: 'Leads', data: hourCounts, backgroundColor: 'rgba(217,119,6,0.75)', borderRadius: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 9 } } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+      });
+    } else {
+      hc.getContext('2d').clearRect(0,0,hc.width,hc.height);
+    }
+  }
+
+  // ── Source performance table: leads, won, lost, conversion %, avg deal value ──
+  var perf = {};
+  filtered.forEach(function(q) {
+    var s = q.source || 'Unknown';
+    if (!perf[s]) perf[s] = { total: 0, won: 0, lost: 0, wonRev: 0 };
+    perf[s].total++;
+    if (q.status === 'won') { perf[s].won++; perf[s].wonRev += (parseFloat(q.value)||0) - (parseFloat(q.discount)||0); }
+    else if (q.status === 'lost') perf[s].lost++;
+  });
+  var perfRows = Object.keys(perf).sort(function(a,b) { return perf[b].total - perf[a].total; });
+  var tblEl = document.getElementById('qla-source-table');
+  if (tblEl) {
+    if (!perfRows.length) {
+      tblEl.innerHTML = '<div class="empty" style="padding:30px;color:#aaa">No leads in this range.</div>';
+    } else {
+      tblEl.innerHTML = '<table class="tbl"><thead><tr><th>Source</th><th>Leads</th><th>Won</th><th>Lost</th><th>Conversion</th><th>Avg Deal Value (Won)</th></tr></thead><tbody>' +
+        perfRows.map(function(s) {
+          var r = perf[s];
+          var conv = r.total > 0 ? Math.round(r.won / r.total * 100) : 0;
+          var avgVal = r.won > 0 ? Math.round(r.wonRev / r.won) : 0;
+          return '<tr>' +
+            '<td style="font-weight:700">' + escHtml(s) + '</td>' +
+            '<td>' + r.total + '</td>' +
+            '<td style="color:#16a34a;font-weight:700">' + r.won + '</td>' +
+            '<td style="color:#dc2626">' + r.lost + '</td>' +
+            '<td>' + conv + '%</td>' +
+            '<td style="font-weight:700;color:#134e50">' + (avgVal > 0 ? fmt(avgVal) : '—') + '</td>' +
+            '</tr>';
+        }).join('') + '</tbody></table>';
+    }
+  }
+}
+
+function qlaToggleSourceChip(src) {
+  var chipWrap = document.getElementById('qla-source-chips');
+  if (!chipWrap) return;
+  if (src === '__all__') {
+    qlaSourceFilter = null;
+  } else {
+    if (!qlaSourceFilter) qlaSourceFilter = new Set();
+    if (qlaSourceFilter.has(src)) qlaSourceFilter.delete(src); else qlaSourceFilter.add(src);
+    if (!qlaSourceFilter.size) qlaSourceFilter = null;
+  }
+  // Update chip visual states
+  chipWrap.querySelectorAll('.qla-chip').forEach(function(el) {
+    var isAllChip = el.dataset.src === '__all__';
+    var active = isAllChip ? !qlaSourceFilter : (qlaSourceFilter && qlaSourceFilter.has(el.dataset.src));
+    el.style.background = active ? '#134e50' : '#f3f4f6';
+    el.style.color = active ? '#fff' : '#6b7280';
+    el.style.borderColor = active ? '#134e50' : '#d1d5db';
+  });
+  renderLeadAnalytics();
 }
 
 // ── Open / Edit Quotation ────────────────────────────────────────
@@ -20159,28 +20907,53 @@ function addQuotCustomPayRow() {
   row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px';
   row.innerHTML =
     '<input class="fi" placeholder="Stage label (e.g. Advance)" style="flex:2;font-size:12px" oninput="updateQuotCustomPayTotal()">' +
-    '<input class="fi" type="number" placeholder="%" min="0" max="100" style="flex:0;width:70px;font-size:12px" oninput="updateQuotCustomPayTotal()">' +
+    '<select class="fi" style="flex:0;width:52px;font-size:12px;padding:6px 4px" onchange="onQuotPayRowTypeChange(this)"><option value="pct">%</option><option value="fixed">₹</option></select>' +
+    '<input class="fi" type="number" placeholder="%" min="0" max="100" style="flex:0;width:80px;font-size:12px" oninput="updateQuotCustomPayTotal()">' +
     '<input class="fi" placeholder="Description" style="flex:2;font-size:12px">' +
     '<button onclick="this.parentNode.remove();updateQuotCustomPayTotal()" style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px;font-family:inherit">✕</button>';
   wrap.appendChild(row);
+}
+
+// ── Toggle a quotation custom-split row between Percentage and Fixed Amount (₹) ──
+function onQuotPayRowTypeChange(sel) {
+  var row = sel.parentNode; if (!row) return;
+  var valInp = row.querySelectorAll('input')[1]; if (!valInp) return;
+  if (sel.value === 'fixed') { valInp.placeholder = '₹ amount'; valInp.removeAttribute('max'); }
+  else { valInp.placeholder = '%'; valInp.setAttribute('max', '100'); }
+  updateQuotCustomPayTotal();
 }
 
 function updateQuotCustomPayTotal() {
   var wrap = document.getElementById('quot-custom-pay-rows');
   var totalEl = document.getElementById('quot-custom-pay-total');
   if (!wrap || !totalEl) return;
-  var total = 0;
+  var val = parseFloat((document.getElementById('qf-value')||{}).value) || 0;
+  var disc = parseFloat((document.getElementById('qf-discount')||{}).value) || 0;
+  var net = Math.max(0, val - disc);
+  var pctTotal = 0, fixedTotal = 0;
   Array.from(wrap.children).forEach(function(row) {
-    var pctInp = row.querySelectorAll('input')[1];
-    if (pctInp) {
-      var n = parseInt(pctInp.value);
-      if (!isNaN(n) && n > 100) { pctInp.value = 100; if (typeof showToast === 'function') showToast('⚠️ Percentage can\'t exceed 100% — capped at 100%'); }
-      else if (!isNaN(n) && n < 0) { pctInp.value = 0; }
+    var inputs = row.querySelectorAll('input');
+    var typeSel = row.querySelector('select');
+    var type = typeSel ? typeSel.value : 'pct';
+    var valInp = inputs[1];
+    if (valInp) {
+      var n = parseFloat(valInp.value);
+      if (type === 'pct') {
+        if (!isNaN(n) && n > 100) { valInp.value = 100; if (typeof showToast === 'function') showToast('⚠️ Percentage can\'t exceed 100% — capped at 100%'); }
+        else if (!isNaN(n) && n < 0) { valInp.value = 0; }
+      } else if (!isNaN(n) && n < 0) { valInp.value = 0; }
     }
-    total += parseInt(pctInp ? pctInp.value : 0) || 0;
+    var n2 = parseFloat(valInp ? valInp.value : 0) || 0;
+    if (type === 'fixed') fixedTotal += n2; else pctTotal += n2;
   });
-  totalEl.textContent = 'Total: ' + total + '% ' + (total === 100 ? '✅' : total > 100 ? '⚠️ Over 100%' : '⚠️ Must equal 100%');
-  totalEl.style.color = total === 100 ? '#16a34a' : '#dc2626';
+  var fixedAsPct = net > 0 ? (fixedTotal / net * 100) : 0;
+  var combined = pctTotal + fixedAsPct;
+  var parts = []; if (pctTotal) parts.push(pctTotal + '%'); if (fixedTotal) parts.push('₹' + fixedTotal.toLocaleString('en-IN'));
+  var ok = Math.round(combined) === 100;
+  var label = 'Total: ' + (parts.length ? parts.join(' + ') : '0%');
+  totalEl.textContent = label + (net > 0 ? ' (≈' + Math.round(combined) + '% of ₹' + net.toLocaleString('en-IN') + ') ' : ' ') +
+    (net > 0 ? (ok ? '✅' : (combined > 100 ? '⚠️ Over 100%' : '⚠️ Must equal 100%')) : (fixedTotal ? '— enter Package Price to validate' : ''));
+  totalEl.style.color = (net > 0 && !ok) ? '#dc2626' : (net > 0 ? '#16a34a' : '#888');
 }
 
 function getQuotCustomPayTerms() {
@@ -20189,10 +20962,12 @@ function getQuotCustomPayTerms() {
   var terms = [];
   Array.from(wrap.children).forEach(function(row, i) {
     var inputs = row.querySelectorAll('input');
+    var typeSel = row.querySelector('select');
+    var type  = (typeSel ? typeSel.value : 'pct') || 'pct';
     var label = (inputs[0] ? inputs[0].value.trim() : '') || ('Stage ' + (i+1));
-    var pct   = parseInt(inputs[1] ? inputs[1].value : 0) || 0;
+    var val   = parseFloat(inputs[1] ? inputs[1].value : 0) || 0;
     var desc  = (inputs[2] ? inputs[2].value.trim() : '');
-    if (pct > 0) terms.push({ key: 'cq' + i, label: label, pct: pct, desc: desc });
+    if (val > 0) terms.push({ key: 'cq' + i, label: label, type: type, pct: type==='pct'?val:null, val: val, desc: desc });
   });
   return terms;
 }
@@ -20205,9 +20980,13 @@ function loadQuotCustomPayRows(terms) {
     addQuotCustomPayRow();
     var row = wrap.lastElementChild;
     var inputs = row.querySelectorAll('input');
+    var typeSel = row.querySelector('select');
+    var isFixed = t.type === 'fixed';
+    if (typeSel) typeSel.value = isFixed ? 'fixed' : 'pct';
     if (inputs[0]) inputs[0].value = t.label || '';
-    if (inputs[1]) inputs[1].value = t.pct || '';
+    if (inputs[1]) inputs[1].value = isFixed ? (t.val || '') : (t.pct != null ? t.pct : (t.val || ''));
     if (inputs[2]) inputs[2].value = t.desc || '';
+    if (typeSel) onQuotPayRowTypeChange(typeSel);
   });
   updateQuotCustomPayTotal();
 }
@@ -21191,6 +21970,11 @@ function saveQuotation(silent) {
     aboutImageUrl: isStorageUrl(quotAboutImageB64) ? quotAboutImageB64 : '',
     aboutImageB64: isStorageUrl(quotAboutImageB64) ? '' : (quotAboutImageB64 || ''),
     savedAt: Date.now(),
+    // Preserve the original creation timestamp across edits — savedAt updates on every
+    // save, so it can't be used to tell when a lead actually came in. createdAt is set
+    // once and never overwritten. (Older quotations saved before this field existed
+    // won't have it — analytics falls back to savedAt for those.)
+    createdAt: (prevQ && prevQ.createdAt) ? prevQ.createdAt : Date.now(),
     savedBy: CU ? (CU.name || CU.username) : 'System'
   };
 
@@ -21326,7 +22110,9 @@ function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
 
   // First pass: classify every row
   var classified = rows.map(function(row) {
-    return { row: row, type: _classifyRow(row.label), pct: parseFloat(row.pct) || 0 };
+    var isFixed = row.type === 'fixed';
+    var val = isFixed ? (parseFloat(row.val)||0) : (parseFloat(row.pct!=null?row.pct:row.val)||0);
+    return { row: row, type: _classifyRow(row.label), isFixed: isFixed, val: val };
   });
 
   // Count how many event-type rows exist
@@ -21345,7 +22131,7 @@ function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
   }
 
   classified.forEach(function(c) {
-    if (!c.pct) return;
+    if (!c.val) return;
     var key, label, gate, desc, dueDate;
 
     switch (c.type) {
@@ -21384,9 +22170,9 @@ function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
     stages.push({
       key:     key,
       label:   label,
-      type:    'pct',
-      val:     c.pct,
-      amount:  Math.round(net * c.pct / 100),
+      type:    c.isFixed ? 'fixed' : 'pct',
+      val:     c.val,
+      amount:  c.isFixed ? Math.round(c.val) : Math.round(net * c.val / 100),
       dueDate: dueDate,
       gate:    gate,
       desc:    desc
@@ -22127,7 +22913,11 @@ function buildQuotPDFDom(q) {
   // Build payTermsText from PAY_PRESETS for sync with project
   var payTermsText;
   if (q.payterms === 'custom' && Array.isArray(q.paytermsCustom) && q.paytermsCustom.length) {
-    payTermsText = q.paytermsCustom.map(function(t){ return t.label + ' (' + t.pct + '%)'; }).join('  ·  ');
+    payTermsText = q.paytermsCustom.map(function(t){
+      if (t.type === 'fixed') return t.label + ' (₹' + (parseFloat(t.val)||0).toLocaleString('en-IN') + ')';
+      var pctV = t.pct != null ? t.pct : (t.val || 0);
+      return t.label + ' (' + pctV + '%)';
+    }).join('  ·  ');
   } else {
     var _pts = PAY_PRESETS[q.payterms] || PAY_PRESETS['30-50-10-5-5'];
     payTermsText = _pts.map(function(t){ return t.label + ' (' + t.pct + '%)'; }).join('  ·  ');
