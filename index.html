@@ -5376,16 +5376,27 @@ function kbErpGetSchedule() {
     var st = _existingKbSched.stages.find(function(s){ return s.key === key; });
     return st ? (st.dueDate || '') : '';
   }
+  // ── Carry forward the existing label/desc/gate for a stage too. Without this,
+  // every Save Project silently renamed quotation-derived stages (e.g. "3rd
+  // Instalment" / "Final Instalment") back to this builder's generic 5-slot
+  // vocabulary ("Raw Data Payment" / "Final Delivery locked until paid") —
+  // the actual cause of the schedule drifting from the quotation on every save,
+  // not just at initial conversion.
+  function _existingStageInfo(key) {
+    if (!_existingKbSched || !_existingKbSched.stages) return null;
+    return _existingKbSched.stages.find(function(s){ return s.key === key; }) || null;
+  }
   function addStage(key, label, type_id, val_id, date_id, gate, desc) {
     var t = (document.getElementById(type_id)||{}).value || 'pct';
     var v = parseFloat((document.getElementById(val_id)||{}).value) || 0;
     var d = date_id ? ((document.getElementById(date_id)||{}).value || '') : _existingDueDate(key);
     if (!v) return;
+    var existing = _existingStageInfo(key);
     stages.push({
-      key: key, label: label,
+      key: key, label: (existing && existing.label) || label,
       type: t, val: v,
       amount: _kbResolve(t, v, net),
-      dueDate: d, gate: gate, desc: desc || ''
+      dueDate: d, gate: (existing && existing.gate) || gate, desc: (existing && existing.desc) || desc || ''
     });
   }
 
@@ -5912,7 +5923,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.8-2026-07-11-fixed-amount-payment-split';
+var CRM_BUILD_VERSION = 'v78.10-2026-07-13-schedule-drift-on-save-fix';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -19090,12 +19101,12 @@ function _ordinalWord(n){
   var special={1:'1st',2:'2nd',3:'3rd',4:'4th',5:'5th',6:'6th',7:'7th',8:'8th',9:'9th',10:'10th'};
   return special[n]||(n+'th');
 }
-// Row 1 keeps its real label (e.g. "Advance"); later rows use a generic
-// "2nd Installment / 3rd Installment…" name, with the actual detail
-// (pre-wedding, first event, raw data, etc.) living in the "When" column
-// instead of being duplicated in the installment name.
+// Use the stage's real, saved label (e.g. "Advance", "3rd Instalment", "Final
+// Instalment") on every row so the invoice always matches what the client
+// actually agreed to in the quotation. Only fall back to a generic ordinal
+// name ("2nd Installment"...) if a stage genuinely has no label at all.
 function _invoiceInstallmentName(i, label){
-  return i===0 ? (label||'Advance') : (_ordinalWord(i+1)+' Installment');
+  return (label && label.trim()) ? label.trim() : (i===0 ? 'Advance' : (_ordinalWord(i+1)+' Installment'));
 }
 // ── Build payment schedule section HTML ───────────────────────────
 function buildPayScheduleSection(paySchedule) {
@@ -22083,7 +22094,7 @@ function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
     p50b: { key:'kb_event',    label:'Event Payment',      gate:'none',           desc:'Due on event day' },
     p10a: { key:'kb_rawdata',  label:'Raw Data Payment',   gate:'raw_data',       desc:'Raw data locked until paid' },
     p10:  { key:'kb_rawdata',  label:'Raw Data Payment',   gate:'raw_data',       desc:'Raw data locked until paid' },
-    p10b: { key:'kb_teaser',   label:'Teaser & Highlight', gate:'teaser',         desc:'Teaser locked until paid' },
+    p10b: { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery', desc:'Final delivery locked until paid' },
     p5a:  { key:'kb_teaser',   label:'Teaser & Highlight', gate:'teaser',         desc:'Teaser locked until paid' },
     p5b:  { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery', desc:'Final delivery locked until paid' },
     p10c: { key:'kb_final',    label:'Final Delivery',     gate:'final_delivery', desc:'Final delivery locked until paid' }
@@ -22100,7 +22111,7 @@ function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
       if (stages.find(function(s){ return s.key === kb.key; })) return;
       var evDate = kb.key === 'kb_event' ? (sortedEventDates[0] || '') : '';
       stages.push({ key: kb.key, label: t.label || kb.label, type: 'pct', val: t.pct,
-        amount: Math.round(net * t.pct / 100), dueDate: evDate, gate: kb.gate, desc: kb.desc });
+        amount: Math.round(net * t.pct / 100), dueDate: evDate, gate: kb.gate, desc: t.desc || kb.desc });
     });
     return stages.length ? { stages: stages, eventMode: 'single' } : null;
   }
@@ -22166,6 +22177,11 @@ function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
         eventIdx++;
         break;
     }
+
+    // Preserve whatever description the user actually typed on the quotation
+    // row (e.g. "Before raw data delivery") instead of always overwriting it
+    // with the generic classifier phrase above.
+    if (c.row.desc && c.row.desc.trim()) desc = c.row.desc.trim();
 
     stages.push({
       key:     key,
