@@ -485,6 +485,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .sales-metric.teal{border-left:3px solid #134e50}
 .sales-metric.purple{border-left:3px solid #6d28d9}
 .sales-metric.green{border-left:3px solid #16a34a}
+.sales-metric.amber{border-left:3px solid #d97706}
+.sales-metric.red{border-left:3px solid #dc2626}
 
 /* ═══ PRIORITY FLAGS & ESCALATION STYLES ═══ */
 .priority-flag{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:800;padding:3px 8px;border-radius:20px;white-space:nowrap;letter-spacing:.02em}
@@ -2628,8 +2630,48 @@ if (!_isClientProofView) {
     '<div class="page-sub">Manage delivery timeline templates and lead sources used in quotations.</div>' +
     '<div id="salesettings-content"></div>';
   mainDiv.appendChild(salesSettingsPage);
+
+  // Page: Follow-Ups (daily WhatsApp follow-up queue for sales)
+  var followupsPage = document.createElement('div');
+  followupsPage.id = 'page-followups';
+  followupsPage.className = 'page';
+  followupsPage.innerHTML =
+    '<div class="page-title">📲 Follow-Ups</div>' +
+    '<div class="page-sub">Today\'s WhatsApp follow-up queue for new leads. Click Send to open WhatsApp with the message pre-filled — sending still takes one tap, this just builds the list and the message for you.</div>' +
+    '<div class="metrics" id="fu-metrics" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:16px"></div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">' +
+      '<select class="fi" id="fu-filter" style="flex:0;width:auto" onchange="renderFollowUps()">' +
+        '<option value="due">Due Today &amp; Overdue</option>' +
+        '<option value="upcoming">Upcoming (next 7 days)</option>' +
+        '<option value="all">All Enrolled Leads</option>' +
+      '</select>' +
+      '<select class="fi" id="fu-person-f" style="flex:0;width:auto" onchange="renderFollowUps()"><option value="">All Salespersons</option></select>' +
+      '<input type="text" class="fi" id="fu-search" placeholder="🔍 Search client, city, phone…" oninput="renderFollowUps()" style="min-width:200px">' +
+      '<button class="btn btn-sm" style="margin-left:auto;background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="openFollowupTemplateModal()">✉️ Manage Message Templates</button>' +
+    '</div>' +
+    '<div id="fu-queue-list"></div>';
+  mainDiv.appendChild(followupsPage);
 })();
 </script>
+
+<!-- ═══ FOLLOW-UP MESSAGE TEMPLATES MODAL ═══ -->
+<div class="modal-overlay" id="fu-templates-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-hdr">
+      <div><div class="modal-title">Follow-Up Message Templates</div><div style="font-size:12px;color:#888;margin-top:2px">These fire in order after a lead is enrolled — Day 0 is the day the lead comes in.</div></div>
+      <button class="modal-close" data-close="fu-templates-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:11px;color:#888;margin-bottom:10px">Available variables: <code>{bride}</code> <code>{groom}</code> <code>{phone}</code> <code>{city}</code> <code>{source}</code> <code>{salesperson}</code> <code>{value}</code> <code>{venue}</code> <code>{date}</code></div>
+      <div id="fu-tpl-list"></div>
+      <button class="btn btn-sm" style="margin-top:4px;width:100%;border:1px dashed #c4b5fd;background:#faf5ff;color:#6d28d9;font-weight:700;padding:9px" onclick="addFollowupTemplateRow()">+ Add Step</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="fu-templates-modal">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFollowupTemplates()">💾 Save Templates</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═══ QUOTATION BUILDER MODAL ═══ -->
 <div class="modal-overlay" id="quot-modal">
@@ -2711,6 +2753,12 @@ if (!_isClientProofView) {
       <!-- Tab 3: Deliverables -->
       <div id="qt-deliverables" class="tab-pane">
         <div class="info info-blue" style="margin-bottom:12px">Click any deliverable to add it instantly. Adjust details after adding.</div>
+
+        <!-- Quick Packages — one click adds a full pre-configured bundle -->
+        <div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">📦 Quick Packages — add a full bundle in one click</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px" id="qd-package-buttons"></div>
+        </div>
 
         <!-- Quick-add preset chips -->
         <div style="margin-bottom:16px">
@@ -5179,7 +5227,34 @@ var DEFAULT_USERS=[
 ];
 var DEFAULT_ACCOUNTS=[{id:'acc1',name:'KB Studio Current Account',type:'current',number:'',notes:'Primary business account'},{id:'acc2',name:'Ketan Savings Account',type:'savings',number:'',notes:''},{id:'acc3',name:'Ritesh Savings Account',type:'savings',number:'',notes:''},{id:'acc4',name:'Keshav Savings Account',type:'savings',number:'',notes:''},{id:'acc5',name:'Shivam Savings Account',type:'savings',number:'',notes:''},{id:'acc6',name:'KB Studio UPI',type:'upi',number:'',notes:''},{id:'acc7',name:'Cash',type:'cash',number:'',notes:''}];
 var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight',label:'Highlight Video',hasDuration:true},{key:'longvideo',label:'Long Video / Full Film',hasDuration:true},{key:'reel',label:'Reels'},{key:'album',label:'Album',hasPhotos:true},{key:'frame',label:'Frame'},{key:'editedpics',label:'Edited Pictures'}];
-var PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'Before teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}]};
+var DEFAULT_PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}]};
+// PAY_PRESETS starts as the built-in defaults, then gets overlaid with anything
+// saved under crmSettings.payment_presets (see syncPayPresets, called whenever
+// crm_settings loads/changes). This lets Settings → Payment Split Presets add,
+// edit, or override presets without touching code — every existing PAY_PRESETS[key]
+// usage below keeps working unchanged since PAY_PRESETS is just reassigned in place.
+var PAY_PRESETS = DEFAULT_PAY_PRESETS;
+function syncPayPresets(){
+  PAY_PRESETS = Object.assign({}, DEFAULT_PAY_PRESETS, crmSettings.payment_presets || {});
+  if (typeof refreshPayPresetSelectOptions === 'function') refreshPayPresetSelectOptions();
+}
+function payPresetOptionLabel(stages){
+  return (stages||[]).map(function(t){ return (t.pct||0)+'%'; }).join(' + ');
+}
+function refreshPayPresetSelectOptions(){
+  var keys = Object.keys(PAY_PRESETS);
+  var optsHtml = keys.map(function(k){
+    var label = payPresetOptionLabel(PAY_PRESETS[k]) + (k==='30-50-10-5-5' ? ' (Default)' : '');
+    return '<option value="'+k+'">'+label+'</option>';
+  }).join('') + '<option value="custom">✏️ Custom Payment Split</option>';
+  ['qf-payterms','f-pay-preset'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    var cur = el.value;
+    el.innerHTML = optsHtml;
+    if (keys.indexOf(cur) !== -1 || cur === 'custom') el.value = cur;
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════
 // KB ERP — 5-STAGE PAYMENT ENGINE  (v63)
@@ -5350,7 +5425,6 @@ function kbErpGetSchedule() {
     var terms = getCustomPayTerms();
     terms.forEach(function(t, idx) {
       var gateKey = idx === 0 ? 'project_create' : 'none';
-      var descMap = { booking:'On booking', event:'On shoot day', raw:'Before raw data handover', delivery:'On final delivery', other:'Other milestone' };
       var isFixed = t.type === 'fixed';
       var rawVal = isFixed ? (parseFloat(t.val)||0) : (parseFloat(t.val!=null?t.val:t.pct)||0);
       stages.push({
@@ -5361,7 +5435,7 @@ function kbErpGetSchedule() {
         amount: isFixed ? Math.round(rawVal) : Math.round(net * rawVal / 100),
         dueDate: '',
         gate: gateKey,
-        desc: descMap[t.desc] || t.desc || ''
+        desc: (t.desc && String(t.desc).trim()) || ''
       });
     });
     return { stages: stages, eventMode: mode };
@@ -5878,6 +5952,32 @@ function _expFromTerm(t, net) {
   if (t && t.type === 'fixed' && t.fixedAmount != null) return Math.round(t.fixedAmount) || 0;
   return Math.round((net||0) * ((t && t.pct) || 0) / 100);
 }
+
+// ── Diff two kbSchedule stage sets into human-readable change lines ──
+// Used to write an audit trail entry whenever a project's payment schedule
+// changes shape (label, description, gate, value/type, or due date), so
+// drift is visible in the Activity Log the moment it happens instead of
+// being discovered later on an invoice or in Healthcheck.
+function _diffKbScheduleStages(oldSched, newSched) {
+  var oldStages = (oldSched && oldSched.stages) || [];
+  var newStages = (newSched && newSched.stages) || [];
+  var changes = [];
+  newStages.forEach(function(ns) {
+    var os = oldStages.find(function(s){ return s.key === ns.key; });
+    if (!os) { changes.push('+ Added stage "' + ns.label + '"'); return; }
+    if ((os.label||'') !== (ns.label||'')) changes.push(ns.key + ': label "' + (os.label||'—') + '" → "' + (ns.label||'—') + '"');
+    if ((os.desc||'') !== (ns.desc||''))   changes.push(ns.key + ': desc "' + (os.desc||'—') + '" → "' + (ns.desc||'—') + '"');
+    if ((os.gate||'') !== (ns.gate||''))   changes.push(ns.key + ': gate "' + (os.gate||'—') + '" → "' + (ns.gate||'—') + '"');
+    if ((os.type||'') !== (ns.type||'') || (parseFloat(os.val)||0) !== (parseFloat(ns.val)||0)) {
+      changes.push(ns.key + ': value ' + (os.type==='fixed'?'₹':'') + (os.val||0) + (os.type==='fixed'?'':'%') + ' → ' + (ns.type==='fixed'?'₹':'') + (ns.val||0) + (ns.type==='fixed'?'':'%'));
+    }
+    if ((os.dueDate||'') !== (ns.dueDate||'')) changes.push(ns.key + ': due date "' + (os.dueDate||'—') + '" → "' + (ns.dueDate||'—') + '"');
+  });
+  oldStages.forEach(function(os) {
+    if (!newStages.find(function(s){ return s.key === os.key; })) changes.push('− Removed stage "' + os.label + '"');
+  });
+  return changes;
+}
 function getPayTerms(p){
   var base;
   if(p&&p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length){
@@ -5923,9 +6023,9 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.10-2026-07-13-schedule-drift-on-save-fix';
+var CRM_BUILD_VERSION = 'v78.15-2026-07-13-followups-feature';
 
-var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={};
+var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
 var _stageAtModalOpen=null,_stageManuallyTouched=false;
 document.addEventListener('DOMContentLoaded',function(){
@@ -6270,6 +6370,7 @@ function loadAll(){
       db.ref('crm_dupe_confirmed').once('value')
     ]).then(function(snaps){
       crmSettings = snaps[0].val()||{};
+      syncPayPresets();
       teamData       = snaps[1].val()||{};
       referral    = snaps[2].val()||{};
       accounts    = snaps[3].val()||{};
@@ -6284,6 +6385,7 @@ function loadAll(){
       // Single crm_settings listener — inv_terms/inv_payment_terms are derived from this cache
       db.ref('crm_settings').on('value',function(snap){
         crmSettings=snap.val()||{};
+        syncPayPresets();
         // Keep inv caches in sync from the single settings payload (no extra listeners)
         _invTermsCache=(crmSettings.inv_terms&&crmSettings.inv_terms.length)?crmSettings.inv_terms:null;
         _invPaymentTermsCache=(crmSettings.inv_payment_terms&&crmSettings.inv_payment_terms.length)?crmSettings.inv_payment_terms:null;
@@ -6291,6 +6393,7 @@ function loadAll(){
       });
       db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
       db.ref('crm_checklist_templates').on('value',function(snap){checklistTemplates=snap.val()||{};if(editProjId&&projects[editProjId]&&document.getElementById('t-checklist')&&document.getElementById('t-checklist').classList.contains('active'))renderChecklistTab(projects[editProjId],editProjId);if(document.getElementById('checklist-tpl-modal')&&document.getElementById('checklist-tpl-modal').classList.contains('open'))renderChecklistTplList();});
+      db.ref('crm_followup_templates').on('value',function(snap){followupTemplates=snap.val()||{};if(document.getElementById('page-followups')&&document.getElementById('page-followups').classList.contains('active'))renderFollowUps();});
       db.ref('crm_freelancers').on('value',function(snap){freelancerData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();if(typeof renderFreelancers==='function')renderFreelancers();});
       db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
       db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
@@ -6310,7 +6413,7 @@ function loadAll(){
     console.error('Load error:',err);
     // Fallback — still uses child listeners, not full .on('value')
     attachProjectListeners();
-    db.ref('crm_settings').on('value',function(snap){crmSettings=snap.val()||{};});
+    db.ref('crm_settings').on('value',function(snap){crmSettings=snap.val()||{};syncPayPresets();});
     db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};});
     db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
     db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
@@ -7374,6 +7477,18 @@ function addEventDay(data) {
   evDayCount++;
   var container = document.getElementById('evday-container'); if (!container) return;
   var empty = document.getElementById('evday-empty'); if (empty) empty.style.display = 'none';
+  // A fresh "+ Add Event Day" click passes no data at all (vs. renderEventDays,
+  // which passes each saved day's real object) — only in that fresh case do we
+  // auto-fill the date as "last existing day + 1".
+  if (!data) {
+    var existingCards = container.querySelectorAll('.evday-card');
+    if (existingCards.length) {
+      var lastCard = existingCards[existingCards.length - 1];
+      var lastDateEl = lastCard.querySelector('input.evd-date[type="date"]') || lastCard.querySelector('.evd-date');
+      var lastDateVal = lastDateEl ? lastDateEl.value : '';
+      if (lastDateVal) data = { date: _nextDateStr(lastDateVal) };
+    }
+  }
   data = data || {};
   var dayNum = evDayCount;
 
@@ -8265,7 +8380,7 @@ function runDateAutomations(){
 
 var DEFAULT_EVENT_TYPES=['Day Wedding','Night Wedding','Destination Wedding','Pre-Wedding Shoot','Engagement','Mehendi','Sangeet','Haldi','Reception','Maternity','Birthday','Baby Shower','Corporate Event','Anniversary','Full Package'];
 var DEFAULT_PACKAGES=['Basic (Photography)','Standard (Photo + Video)','Premium (Photo + Video + Drone)','Elite (Full Coverage)','Custom'];
-var DEFAULT_SOURCES=['Referral','Instagram','WhatsApp','Google','Facebook','YouTube','JustDial','Wedding Wire','WedMeGood','Walk-in','Other'];
+var DEFAULT_SOURCES=['Referral','Instagram','WhatsApp','Google','Facebook','YouTube','JustDial','Wedding Wire','WedMeGood','Wedding Planner','Walk-in','Other'];
 var DEFAULT_FRAMESIZES=['4x6','5x7','6x8','8x10','8x12','10x12','10x15','12x18','12x36 (Panorama)','16x20','16x24','20x30','24x36','Custom'];
 
 function getSettingList(key,defaults){var s=crmSettings[key];if(s&&s.length)return s;return defaults.slice();}
@@ -8297,7 +8412,7 @@ function populateProjectDropdowns(p){
   window._settingDefaults={eventTypes:DEFAULT_EVENT_TYPES,packages:DEFAULT_PACKAGES,sources:DEFAULT_SOURCES,framesizes:DEFAULT_FRAMESIZES};
   fillSel('f-type','eventTypes',DEFAULT_EVENT_TYPES,p?p.type:'');
   fillSel('f-package','packages',DEFAULT_PACKAGES,p?p.package:'');
-  fillSel('f-source','sources',DEFAULT_SOURCES,p?p.source:'');
+  fillSel('f-source','sources',DEFAULT_SOURCES,p?p.source:'Instagram');
   fillSel('f-framesize','framesizes',DEFAULT_FRAMESIZES,p?p.framesize:'');
   var nd=document.getElementById('nd-editor');
   if(nd){
@@ -8443,11 +8558,24 @@ function renderSettings(){
     '<div id="delivery-timeline-settings-mount"></div>' +
   '</div>';
 
+  // ── Payment Split Presets ──────────────────────────────────────────
+  html += '<div class="card" style="margin-top:16px">' +
+    '<div class="card-hdr"><span class="card-title">\ud83d\udcb0 Payment Split Presets</span>' +
+    '<span style="font-size:11px;color:#16a34a;background:#f0fdf4;padding:3px 10px;border-radius:20px;border:1px solid #bbf7d0;font-weight:600">Saved to Firebase</span></div>' +
+    '<p style="font-size:12px;color:#888;margin-bottom:12px">Edit the instalment stages (name, %, and "when it\u2019s due" wording) offered in the Payment Split dropdown on quotations &amp; projects. Built-ins are always available as a fallback — edit or add your own here.</p>' +
+    '<div id="payment-preset-settings-mount"></div>' +
+  '</div>';
+
   sc.innerHTML = html;
 
   // Mount timeline settings
   var tlMount = document.getElementById('delivery-timeline-settings-mount');
   if (tlMount && typeof renderDeliveryTimelineSettings === 'function') renderDeliveryTimelineSettings(tlMount);
+
+  // Mount payment preset settings
+  var ppMount = document.getElementById('payment-preset-settings-mount');
+  if (ppMount && typeof renderPaymentPresetSettings === 'function') renderPaymentPresetSettings(ppMount);
+
 
   sc.querySelectorAll('.stag-del').forEach(function(btn){btn.addEventListener('click',function(){var t=btn.closest('.stag');removeSettingItem(t.dataset.key,t.dataset.val);});});
   sc.querySelectorAll('.sadd-btn').forEach(function(btn){btn.addEventListener('click',function(){addSettingItem(btn.dataset.key);});});
@@ -12335,6 +12463,13 @@ $('btn-save-proj').addEventListener('click',function(){
     _projSaving=false;
     if(saveBtn){saveBtn.disabled=false;saveBtn.textContent='💾 Save Project';}
     if(err){alert('Error saving: '+err.message);return;}
+    // ── Audit trail: log if the payment schedule's shape actually changed ──
+    if (typeof logActivity === 'function') {
+      var schedDiff = _diffKbScheduleStages(ex.kbSchedule, p.kbSchedule);
+      if (schedDiff.length) {
+        logActivity('payment', 'Payment schedule changed', (p.bride||'')+' & '+(p.groom||'')+' — '+schedDiff.length+' change(s)', { projectId: id, changes: schedDiff });
+      }
+    }
     editProjId=id;
     autoLinkReferral(p);
     $('proj-modal-refcode').innerHTML='<span class="refcode">'+refcode+'</span>';
@@ -12362,7 +12497,7 @@ $('btn-save-proj').addEventListener('click',function(){
       var _finishAdvanceEntry=function(proofMeta){
         var terms=getPayTerms(p);
         var advTerm=(p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length)
-          ? (p.customPayTerms.find(function(t){return t.desc==='booking';})||terms[0])
+          ? (p.customPayTerms.find(function(t){return /advance|book/i.test((t.label||'')+' '+(t.desc||''));})||terms[0])
           : terms[0];
         advTerm=advTerm||{key:'p30'};
         var entry={
@@ -12936,14 +13071,16 @@ function viewPaymentProof(projId, docId){
 // balance/due calculations elsewhere in the app.
 // ── Identify which payment-schedule stages are "event-linked" (1st/2nd event payment etc.) ──
 // Presets: the single "On Event"/"Shoot day" milestone qualifies (key starts with p50/p60).
-// Custom terms: any row built with the "Shoot Day" dropdown option (stored as desc==='event'
-//   is NOT how getCustomPayTerms saves it — it saves the *select's value* into desc, so a
-//   custom stage is event-linked if its raw desc equals 'event'). For presets, match by key.
+// Custom terms: the description field is free text (mirrors the quotation builder), so a
+// custom stage is event-linked if its label or description mentions the event/shoot day.
+// For presets, match by key.
 function isEventLinkedStage(p, stageKey){
   if(!p) return false;
   if(p.payPreset==='custom'&&p.customPayTerms&&p.customPayTerms.length){
     var ct=p.customPayTerms.find(function(t){return t.key===stageKey;});
-    return !!(ct&&ct.desc==='event');
+    if(!ct) return false;
+    var l=((ct.label||'')+' '+(ct.desc||'')).toLowerCase();
+    return /event|shoot/.test(l);
   }
   return /^p(50|60)$/.test(stageKey||'');
 }
@@ -12982,6 +13119,7 @@ function getPaymentScheduleWithCarryForward(p){
   var net=netVal(p);
   var customLabels=p.payTermLabels||{};
   var isCustom = p.payPreset === 'custom';
+  var _todayStr = new Date().toISOString().slice(0,10);
 
   // Explicit-stage general payments
   var totalGeneral=ledger.filter(function(e){return e.stage==='general';}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
@@ -13029,6 +13167,7 @@ function getPaymentScheduleWithCarryForward(p){
       generalUsed += generalForThisStage;
       var paid = directPaid + generalForThisStage;
       var shortfall = Math.max(0, exp - paid);
+      var thisDueDate = p['pay_'+t.key+'_due']||'';
       var item = {
         key: t.key,
         label: customLabels[t.key+'_label']||t.label,
@@ -13039,10 +13178,16 @@ function getPaymentScheduleWithCarryForward(p){
         exp: exp,
         paid: paid,
         shortfall: shortfall,
-        dueDate: p['pay_'+t.key+'_due']||'',
+        dueDate: thisDueDate,
         isEventLinked: isEventLinkedStage(p, t.key)
       };
-      carry = shortfall;
+      // Only pass this stage's shortfall on to the NEXT stage once this stage
+      // is actually overdue (its due date has passed, or it has none at all —
+      // treated as immediately due, matching prior behavior for undated
+      // stages like the Advance). A future-dated, merely-unpaid stage no
+      // longer inflates every stage that comes after it.
+      var isOverdueOrUndated = !thisDueDate || thisDueDate <= _todayStr;
+      carry = isOverdueOrUndated ? shortfall : 0;
       return item;
     });
   }
@@ -13086,6 +13231,7 @@ function getPaymentScheduleWithCarryForward(p){
     generalUsed+=generalForThisStage;
     var paid=directPaid+splitPaid+generalForThisStage;
     var shortfall=Math.max(0,exp-paid);
+    var thisDueDate=p['pay_'+t.key+'_due']||'';
     var item={
       key:t.key,
       label:customLabels[t.key+'_label']||t.label,
@@ -13096,10 +13242,12 @@ function getPaymentScheduleWithCarryForward(p){
       exp:exp,
       paid:paid,
       shortfall:shortfall,
-      dueDate:p['pay_'+t.key+'_due']||'',
+      dueDate:thisDueDate,
       isEventLinked:isEventLinkedStage(p,t.key)
     };
-    carry=shortfall;
+    // Same due-date-aware carry rule as the custom-split branch above.
+    var isOverdueOrUndated = !thisDueDate || thisDueDate <= _todayStr;
+    carry = isOverdueOrUndated ? shortfall : 0;
     return item;
   });
 }
@@ -13804,7 +13952,7 @@ function onPayPresetChange(){
 
   if (typeof kbErpUpdateAll === 'function') kbErpUpdateAll();
 }
-function addCustomPayRow(){var idx=($('custom-pay-rows').children.length);var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 80px 56px 100px auto;gap:8px;align-items:center;margin-bottom:8px';row.innerHTML='<input type="text" class="fi" placeholder="Label (e.g. Advance)" style="padding:6px 10px;font-size:12px" oninput="updateCustomPayTotal()"><input type="number" class="fi" placeholder="%" min="0" style="padding:6px 8px;font-size:12px;text-align:center" oninput="updateCustomPayTotal()"><select class="fi" style="padding:6px 4px;font-size:12px" onchange="onCustomPayRowTypeChange(this)"><option value="pct">%</option><option value="fixed">₹</option></select><select class="fi" style="padding:6px 8px;font-size:12px" onchange="updateCustomPayTotal()"><option value="booking">On Booking</option><option value="event">Shoot Day</option><option value="raw">Raw Data</option><option value="delivery">On Delivery</option><option value="other">Other</option></select><button type="button" class="btn-danger" onclick="this.parentElement.remove();updateCustomPayTotal()">✕</button>';$('custom-pay-rows').appendChild(row);}
+function addCustomPayRow(){var idx=($('custom-pay-rows').children.length);var row=document.createElement('div');row.style.cssText='display:grid;grid-template-columns:1fr 80px 56px 140px auto;gap:8px;align-items:center;margin-bottom:8px';row.innerHTML='<input type="text" class="fi" placeholder="Label (e.g. Advance)" style="padding:6px 10px;font-size:12px" oninput="updateCustomPayTotal()"><input type="number" class="fi" placeholder="%" min="0" style="padding:6px 8px;font-size:12px;text-align:center" oninput="updateCustomPayTotal()"><select class="fi" style="padding:6px 4px;font-size:12px" onchange="onCustomPayRowTypeChange(this)"><option value="pct">%</option><option value="fixed">₹</option></select><input type="text" class="fi" placeholder="Description (e.g. Before raw data delivery)" style="padding:6px 8px;font-size:12px" oninput="updateCustomPayTotal()"><button type="button" class="btn-danger" onclick="this.parentElement.remove();updateCustomPayTotal()">✕</button>';$('custom-pay-rows').appendChild(row);}
 // ── Toggle a custom-split row between Percentage and Fixed Amount (₹) ──
 function onCustomPayRowTypeChange(sel){
   var row=sel.parentElement; if(!row) return;
@@ -13839,7 +13987,7 @@ function updateCustomPayTotal(){
   if(typeof syncKbScheduleFromCustomSplit==='function')syncKbScheduleFromCustomSplit();
 }
 function getCustomPayTerms(){var rows=Array.from($('custom-pay-rows').children);var terms=[];rows.forEach(function(r,i){var label=r.children[0].value||('Installment '+(i+1));var type=(r.children[2]&&r.children[2].value)||'pct';var v=parseFloat(r.children[1].value)||0;var desc=r.children[3].value;if(v>0)terms.push({key:'cp'+i,label:label,type:type,pct:type==='pct'?v:null,val:v,desc:desc});});return terms;}
-function loadCustomPayRows(customTerms){var c=$('custom-pay-rows');c.innerHTML='';customTerms.forEach(function(t){addCustomPayRow();var row=c.children[c.children.length-1];var isFixed=t.type==='fixed';row.children[0].value=t.label||'';row.children[1].value=isFixed?(t.val||''):(t.pct!=null?t.pct:(t.val||''));if(row.children[2])row.children[2].value=isFixed?'fixed':'pct';row.children[3].value=t.desc||'booking';if(row.children[2])onCustomPayRowTypeChange(row.children[2]);});updateCustomPayTotal();}
+function loadCustomPayRows(customTerms){var c=$('custom-pay-rows');c.innerHTML='';customTerms.forEach(function(t){addCustomPayRow();var row=c.children[c.children.length-1];var isFixed=t.type==='fixed';row.children[0].value=t.label||'';row.children[1].value=isFixed?(t.val||''):(t.pct!=null?t.pct:(t.val||''));if(row.children[2])row.children[2].value=isFixed?'fixed':'pct';row.children[3].value=t.desc||'';if(row.children[2])onCustomPayRowTypeChange(row.children[2]);});updateCustomPayTotal();}
 
 // ── Auto-fill KB Payment Schedule (Advance/Event/Raw Data/Teaser/Final) from
 // the Custom Payment Split builder above it. The two panels are otherwise
@@ -13849,24 +13997,24 @@ function loadCustomPayRows(customTerms){var c=$('custom-pay-rows');c.innerHTML='
 // no "Teaser" option, so a custom split can map at most 4 of the 5 KB slots —
 // any unmapped slot is correctly left empty rather than guessed.
 function _kbSlotForCustomRow(t) {
-  // Label keywords take priority over the desc dropdown: in practice the dropdown
-  // is frequently left at its default ("On Booking") even for rows that are
-  // obviously something else by their label (e.g. a "Final Payment" row whose
-  // category was never changed from the default). Trusting desc blindly in that
-  // case would stack everything into kb_advance — exactly the kind of silent
-  // misclassification this mapping needs to avoid.
+  // Label keywords take priority over the free-text description: in practice
+  // rows are sometimes left with a generic label (e.g. "Installment 3") while
+  // the description carries the real signal ("Before raw data delivery"), so
+  // both are checked — label first, description as fallback.
   var l = (t.label || '').toLowerCase();
   if (l.indexOf('final') !== -1 || l.indexOf('delivery') !== -1) return 'kb_final';
   if (l.indexOf('teaser') !== -1 || l.indexOf('highlight') !== -1) return 'kb_teaser';
   if (l.indexOf('raw') !== -1) return 'kb_rawdata';
   if (l.indexOf('event') !== -1 || l.indexOf('shoot') !== -1) return 'kb_event';
   if (l.indexOf('advance') !== -1 || l.indexOf('book') !== -1) return 'kb_advance';
-  // No usable label signal — fall back to the desc dropdown value
+  // No usable label signal — fall back to keywords in the free-text description
+  // (e.g. "Before raw data delivery", "After teaser & highlight delivery")
   var d = (t.desc || '').toLowerCase();
-  if (d === 'booking') return 'kb_advance';
-  if (d === 'event')   return 'kb_event';
-  if (d === 'raw')     return 'kb_rawdata';
-  if (d === 'delivery')return 'kb_final';
+  if (/final|album|complet|handover|balance/.test(d)) return 'kb_final';
+  if (/teaser|highlight/.test(d)) return 'kb_teaser';
+  if (/raw/.test(d)) return 'kb_rawdata';
+  if (/event|shoot/.test(d)) return 'kb_event';
+  if (/advance|book/.test(d)) return 'kb_advance';
   return null; // genuinely no signal — leave unmapped rather than guess
 }
 function syncKbScheduleFromCustomSplit() {
@@ -15329,6 +15477,107 @@ var HC_CHECKS = [
     },
     field: 'drivelink',
     inputHtml: function(p){ return '<input type="url" placeholder="Google Drive link" class="hc-inline-input" data-field="drivelink" data-id="'+p.id+'" value="'+(p.drivelink||'')+'">'; }
+  },
+
+  // ── SCHEDULE VS QUOTATION ─────────────────────────────────────────
+  // Catches the "schedule drifted from quotation" bug at its root: any
+  // project linked to a quotation whose saved kbSchedule stage labels,
+  // descriptions, or gates no longer match what that quotation actually
+  // specifies (e.g. re-saving the project silently renamed "Final
+  // Instalment" back to "Final Delivery locked until paid"). One click
+  // re-syncs it using the same logic as the "Sync from Quotation" button.
+  {
+    type: 'schedule', key: 'schedule_drift',
+    label: 'Payment schedule drifted from quotation', icon: '🧾', severity: 'high',
+    test: function(p){
+      if (!p.quotationId || !p.kbSchedule || !p.kbSchedule.stages || !p.kbSchedule.stages.length) return false;
+      var q = (typeof quotations !== 'undefined') ? quotations[p.quotationId] : null;
+      if (!q) return false;
+      var expected = _buildKbScheduleFromQuot(q, netVal(p), p.date, p.eventDays);
+      if (!expected || !expected.stages || !expected.stages.length) return false;
+      return expected.stages.some(function(es){
+        var actual = p.kbSchedule.stages.find(function(s){ return s.key === es.key; });
+        if (!actual) return false; // missing stage entirely — not this check's concern
+        return (actual.label||'') !== (es.label||'') ||
+               (actual.desc||'')  !== (es.desc||'')  ||
+               (actual.gate||'')  !== (es.gate||'');
+      });
+    },
+    field: null,
+    inputHtml: function(p){
+      return '<span style="font-size:11px;color:#be123c">Stage labels/gates no longer match this project\'s quotation. </span>'
+        + '<button class="btn btn-sm btn-primary" onclick="syncProjectFromQuotation('+p.id+');setTimeout(renderHealthCheck,600)" style="font-size:11px;margin-left:6px">🔄 Sync from Quotation</button>';
+    }
+  },
+  {
+    type: 'schedule', key: 'deliverables_drift',
+    label: 'Deliverables list drifted from quotation', icon: '📦', severity: 'high',
+    test: function(p){
+      if (!p.quotationId) return false;
+      var q = (typeof quotations !== 'undefined') ? quotations[p.quotationId] : null;
+      if (!q) return false;
+      var expected = buildCustomDelivsFromQuot(q);
+      var actual = p.customDelivs || [];
+      // Compare by name+specs so a straight re-sync (which reassigns ids/timestamps) doesn't
+      // itself trigger a false positive — only real content differences count as drift.
+      var norm = function(list){ return list.map(function(d){ return (d.name||'')+'|'+(d.specs||'')+'|'+(d.qty||1); }).sort(); };
+      var e = norm(expected), a = norm(actual);
+      if (e.length !== a.length) return true;
+      return e.some(function(v,i){ return v !== a[i]; });
+    },
+    field: null,
+    inputHtml: function(p){
+      return '<span style="font-size:11px;color:#be123c">Deliverables no longer match this project\'s quotation (something was added, removed, or edited on one side only). </span>'
+        + '<button class="btn btn-sm btn-primary" onclick="syncProjectFromQuotation('+p.id+');setTimeout(renderHealthCheck,600)" style="font-size:11px;margin-left:6px">🔄 Sync from Quotation</button>';
+    }
+  },
+  {
+    type: 'schedule', key: 'orphaned_ledger_entry',
+    label: 'Payment recorded against a stage that no longer exists', icon: '👻', severity: 'high',
+    test: function(p){
+      var ledger = p.payLedger || [];
+      if (!ledger.length) return false;
+      var terms = getPayTerms(p);
+      if (!terms.length) return false;
+      return ledger.some(function(e){
+        if (e.splitAllocation) return false; // split entries are validated per-allocation elsewhere
+        var norm = (e.stage||'').trim().toLowerCase();
+        if (!norm || norm === 'general') return false;
+        var matched = terms.some(function(t){ return stageMatches(norm, t.key); })
+          || terms.some(function(t){ return (_KB_TO_LEGACY_KEYS[t.key]||[]).some(function(lk){ return stageMatches(norm, lk); }); })
+          || (typeof isAdvanceStageKey === 'function' && isAdvanceStageKey(norm));
+        return !matched;
+      });
+    },
+    field: null,
+    inputHtml: function(p){ return '<span style="font-size:11px;color:#be123c">One or more recorded payments don\'t match any current schedule stage — likely orphaned by a schedule rebuild. </span><button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px;margin-left:6px">Open Payments Tab</button>'; }
+  },
+  {
+    type: 'schedule', key: 'broken_quotation_link',
+    label: 'Linked quotation no longer exists', icon: '🔗', severity: 'medium',
+    test: function(p){
+      if (!p.quotationId) return false;
+      return !(typeof quotations !== 'undefined' && quotations[p.quotationId]);
+    },
+    field: null,
+    inputHtml: function(p){ return '<span style="font-size:11px;color:#be123c">quotationId "'+p.quotationId+'" does not match any saved quotation — Sync from Quotation will fail until this is corrected.</span>'; }
+  },
+  {
+    type: 'schedule', key: 'schedule_amount_drift',
+    label: 'Schedule total does not match contract value', icon: '⚖️', severity: 'medium',
+    test: function(p){
+      if (!p.kbSchedule || !p.kbSchedule.stages || !p.kbSchedule.stages.length) return false;
+      var net = netVal(p);
+      if (net <= 0) return false;
+      var total = p.kbSchedule.stages.reduce(function(a,s){ return a + (parseFloat(s.amount)||0); }, 0);
+      return Math.abs(total - net) > 5; // small rounding tolerance
+    },
+    field: null,
+    inputHtml: function(p){
+      var net = netVal(p);
+      var total = (p.kbSchedule.stages||[]).reduce(function(a,s){return a+(parseFloat(s.amount)||0);},0);
+      return '<span style="font-size:11px;color:#be123c">Schedule totals ₹'+fmt(total)+' but contract net value is ₹'+fmt(net)+'. </span><button class="btn btn-sm btn-primary" onclick="openProjectPayments('+p.id+')" style="font-size:11px;margin-left:6px">Open Payments Tab</button>';
+    }
   }
 ];
 
@@ -15348,12 +15597,40 @@ var HC_TILES = [
   { type:'team',         label:'No Team Assigned',     icon:'👥', color:'#0891b2' },
   { type:'deliverables', label:'No Deliverables',      icon:'📦', color:'#d97706' },
   { type:'drivelink',    label:'No Drive Link',        icon:'☁️', color:'#6b7280' },
+  { type:'schedule',     label:'Schedule Mismatch',    icon:'🧾', color:'#be123c' },
   { type:'__dupes',      label:'Duplicates',           icon:'👯', color:'#dc2626' }
 ];
 
 // ── Get all failing checks for one project ────────────────────────
 function hcGetFailures(p) {
   return HC_CHECKS.filter(function(chk){ return chk.test(p); });
+}
+
+// ── Console-callable full audit of schedule/payment integrity ─────
+// Run kbRunScheduleAudit() from the browser DevTools console any time —
+// useful right after a payment-logic change, to sanity-check every
+// project at once instead of clicking through Healthcheck page by page.
+// Reuses the same 'schedule'-type checks Healthcheck uses, so it stays
+// in sync automatically as more checks are added.
+function kbRunScheduleAudit() {
+  var results = [];
+  pl().forEach(function(p) {
+    var scheduleChecks = HC_CHECKS.filter(function(c){ return c.type === 'schedule' && c.test(p); });
+    if (scheduleChecks.length) {
+      results.push({
+        id: p.id,
+        client: (p.bride||'') + ' & ' + (p.groom||''),
+        issues: scheduleChecks.map(function(c){ return c.label; }).join(' | ')
+      });
+    }
+  });
+  if (!results.length) {
+    console.log('%c✅ No schedule/payment integrity issues found across ' + pl().length + ' projects.', 'color:#16a34a;font-weight:bold');
+  } else {
+    console.log('%c⚠️ ' + results.length + ' project(s) with schedule/payment issues:', 'color:#dc2626;font-weight:bold');
+    console.table(results);
+  }
+  return results;
 }
 
 // ── Count unique clients failing each type ────────────────────────
@@ -15975,7 +16252,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','albumproofing','activitylog','healthcheck','clienthub','securitylog'],
+    pages: ['dashboard','pipeline','projects','quotations','followups','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','albumproofing','activitylog','healthcheck','clienthub','securitylog'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -15983,7 +16260,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   intern: {
-    pages: ['dashboard','pipeline','projects','quotations','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','albumproofing','healthcheck','clienthub'],
+    pages: ['dashboard','pipeline','projects','quotations','followups','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','albumproofing','healthcheck','clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -16375,6 +16652,7 @@ function renderPage(name) {
   else if (name === 'users') { renderUsers(); renderAccounts(); applyUsersPageRBAC(); }
   else if (name === 'accounts') renderAccounts();
   else if (name === 'quotations') { renderSalesDash(); }
+  else if (name === 'followups') { renderFollowUps(); }
   else if (name === 'salessettings') { renderSalesSettings(); }
   else if (name === 'datavault') renderDataVault();
   else if (name === 'healthcheck') renderHealthCheck();
@@ -16432,8 +16710,8 @@ function buildMobDrawer() {
     if (!hasQ) {
       layout = JSON.parse(JSON.stringify(layout));
       var og = layout.find(function(g) { return g.label === 'Overview'; });
-      if (og) { og.items = og.items||[]; og.items.push('quotations'); }
-      else { layout.unshift({ label:'Overview', items:['quotations'] }); }
+      if (og) { og.items = og.items||[]; og.items.push('quotations'); if (og.items.indexOf('followups')===-1) og.items.push('followups'); }
+      else { layout.unshift({ label:'Overview', items:['quotations','followups'] }); }
     }
   }
 
@@ -16492,12 +16770,12 @@ var SIDEBAR_ICON_MAP = {
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
   healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
-  securitylog:'🛡️', salessettings:'⚙️'
+  securitylog:'🛡️', salessettings:'⚙️', followups:'📲'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
-  { label:'Overview',          items:['dashboard','reports','healthcheck','onboarding','quotations'] },
+  { label:'Overview',          items:['dashboard','reports','healthcheck','onboarding','quotations','followups'] },
   { label:'Post Productions',  items:['projects','pipeline','postprod','albumproofing'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
@@ -16572,7 +16850,8 @@ function sidebarPageLabel(page) {
     team:'Team', inventory:'Asset Inventory', settings:'Settings',
     users: (CU && CU.role === 'accounts') ? 'Bank Accounts' : 'Users & Accounts',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
-    clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings'
+    clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings',
+    followups:'Follow-Ups'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
 }
@@ -16586,8 +16865,8 @@ function buildSidebar() {
     if (!hasQ) {
       layout = JSON.parse(JSON.stringify(layout));
       var og = layout.find(function(g) { return g.label === 'Overview'; });
-      if (og) { og.items = og.items||[]; og.items.push('quotations'); }
-      else { layout.unshift({ label:'Overview', items:['quotations'] }); }
+      if (og) { og.items = og.items||[]; og.items.push('quotations'); if (og.items.indexOf('followups')===-1) og.items.push('followups'); }
+      else { layout.unshift({ label:'Overview', items:['quotations','followups'] }); }
     }
   }
 
@@ -19822,6 +20101,326 @@ function ql() {
   }).filter(Boolean);
 }
 
+// ═══ FOLLOW-UPS — daily WhatsApp follow-up queue for sales ═══════════════════
+// Design notes:
+// - A lead's follow-up "anchor" date is its createdAt (immutable, set once at
+//   creation — same field Lead Analytics already relies on). Each template step
+//   fires dayOffset days after that anchor, plus any manual snooze days added.
+// - Nothing is stored as a precomputed "next due date" — it's always computed
+//   live from createdAt + the current template list, so editing templates later
+//   (adding/removing/reordering a step) doesn't require migrating existing leads.
+// - Sending still requires a human tap on WhatsApp's own Send button (wa.me
+//   click-to-chat) — see the conversation this was scoped in for why full
+//   unattended auto-send isn't safely buildable in this CRM without an official
+//   WhatsApp Business API + backend scheduler.
+
+function _getActiveFollowupTemplatesSorted() {
+  return Object.keys(followupTemplates).map(function(k){ var t=followupTemplates[k]; if (t && !t.id) t.id = k; return t; })
+    .filter(function(t){ return t && t.active !== false && (t.message||'').trim(); })
+    .sort(function(a,b){ return (parseInt(a.dayOffset)||0) - (parseInt(b.dayOffset)||0); });
+}
+
+function getFollowupNextTemplate(q) {
+  var templates = _getActiveFollowupTemplatesSorted();
+  var idx = q.followupStepIndex || 0;
+  if (idx >= templates.length) return null; // sequence complete
+  return templates[idx];
+}
+
+function getFollowupNextDueDate(q) {
+  var tpl = getFollowupNextTemplate(q);
+  if (!tpl) return null;
+  var anchor = new Date(q.createdAt || q.savedAt || Date.now());
+  anchor.setHours(0,0,0,0);
+  var due = new Date(anchor);
+  due.setDate(due.getDate() + (parseInt(tpl.dayOffset)||0) + (parseInt(q.followupSnoozeDays)||0));
+  return due;
+}
+
+// Returns every currently-enrolled, still-active lead with its next step + due date.
+// mode: 'due' (today or overdue), 'upcoming' (next 7 days), 'all' (everything enrolled)
+function getFollowupQueue(mode) {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var in7 = new Date(today); in7.setDate(in7.getDate()+7);
+  var rows = ql().filter(function(q) {
+    if (q.followupEnabled === false) return false;
+    if (q.followupPaused) return false;
+    if (q.status === 'won' || q.status === 'lost') return false; // stop once resolved
+    return !!getFollowupNextTemplate(q);
+  }).map(function(q) {
+    var tpl = getFollowupNextTemplate(q);
+    var due = getFollowupNextDueDate(q);
+    return { q: q, tpl: tpl, due: due, overdue: due < today };
+  });
+  if (mode === 'due') rows = rows.filter(function(r){ return r.due <= today; });
+  else if (mode === 'upcoming') rows = rows.filter(function(r){ return r.due > today && r.due <= in7; });
+  return rows.sort(function(a,b){ return a.due - b.due; });
+}
+
+function substituteFollowupVars(str, q) {
+  var net = (parseFloat(q.value)||0) - (parseFloat(q.discount)||0);
+  var firstDayDate = (q.days && q.days[0] && q.days[0].date) ? q.days[0].date : '';
+  var map = {
+    '{bride}': q.bride || '', '{groom}': q.groom || '', '{phone}': q.phone || '',
+    '{city}': q.city || '', '{source}': q.source || '', '{salesperson}': q.salesperson || '',
+    '{value}': net > 0 ? ('₹' + net.toLocaleString('en-IN')) : '',
+    '{venue}': q.venue || '', '{date}': firstDayDate
+  };
+  var out = str || '';
+  Object.keys(map).forEach(function(k){ out = out.split(k).join(map[k]); });
+  return out;
+}
+
+function _waLinkForFollowup(q, msg) {
+  var phone = (q.phone||'').replace(/\D/g,'');
+  if (!phone) return '';
+  var num = phone.length === 10 ? phone : phone.slice(-10);
+  return 'https://wa.me/91' + num + '?text=' + encodeURIComponent(msg);
+}
+
+function sendFollowup(quotId) {
+  var q = quotations[quotId]; if (!q) return;
+  var tpl = getFollowupNextTemplate(q); if (!tpl) return;
+  var msg = substituteFollowupVars(tpl.message, q);
+  var link = _waLinkForFollowup(q, msg);
+  if (!link) { showToast('⚠️ No phone number on file for this lead — add one before sending.'); return; }
+  window.open(link, '_blank');
+  _advanceFollowupStep(quotId, tpl, 'sent');
+}
+
+function skipFollowup(quotId) {
+  var q = quotations[quotId]; if (!q) return;
+  var tpl = getFollowupNextTemplate(q); if (!tpl) return;
+  if (!confirm('Skip this step without sending a WhatsApp message? (e.g. you already reached them by call)')) return;
+  _advanceFollowupStep(quotId, tpl, 'skipped');
+}
+
+function _advanceFollowupStep(quotId, tpl, action) {
+  var q = quotations[quotId]; if (!q) return;
+  var history = (q.followupHistory || []).slice();
+  history.push({ date: new Date().toISOString().slice(0,10), templateId: tpl.id, templateName: tpl.name, action: action, by: CU ? (CU.name||CU.username) : 'System' });
+  var nextStep = (q.followupStepIndex || 0) + 1;
+  db.ref('crm_quotations/'+quotId).update({ followupStepIndex: nextStep, followupHistory: history }, function(err) {
+    if (err) { showToast('❌ Error: ' + err.message); return; }
+    quotations[quotId].followupStepIndex = nextStep;
+    quotations[quotId].followupHistory = history;
+    showToast(action === 'sent' ? '✅ Marked as sent — moved to the next step.' : '⏭️ Step skipped.');
+    renderFollowUps();
+  });
+}
+
+function snoozeFollowup(quotId, days) {
+  var q = quotations[quotId]; if (!q) return;
+  var current = parseInt(q.followupSnoozeDays) || 0;
+  var updated = current + days;
+  db.ref('crm_quotations/'+quotId).update({ followupSnoozeDays: updated }, function(err) {
+    if (err) { showToast('❌ Error: ' + err.message); return; }
+    quotations[quotId].followupSnoozeDays = updated;
+    showToast('⏰ Pushed forward ' + days + ' day(s).');
+    renderFollowUps();
+  });
+}
+
+function toggleFollowupPause(quotId) {
+  var q = quotations[quotId]; if (!q) return;
+  var newVal = !q.followupPaused;
+  db.ref('crm_quotations/'+quotId).update({ followupPaused: newVal }, function(err) {
+    if (err) { showToast('❌ Error: ' + err.message); return; }
+    quotations[quotId].followupPaused = newVal;
+    showToast(newVal ? '⏸️ Follow-ups paused for this lead.' : '▶️ Follow-ups resumed.');
+    renderFollowUps();
+  });
+}
+
+function renderFollowUps() {
+  var listEl = document.getElementById('fu-queue-list');
+  if (!_quotDataLoaded) {
+    if (listEl) listEl.innerHTML = '<div class="empty" style="padding:30px;color:#aaa">⏳ Loading leads…</div>';
+    return;
+  }
+  var templates = _getActiveFollowupTemplatesSorted();
+
+  // Populate salesperson filter once
+  var spF = document.getElementById('fu-person-f');
+  if (spF && spF.options.length <= 1) {
+    var people = Array.from(new Set(ql().map(function(q){ return q.salesperson || ''; }).filter(Boolean)));
+    people.forEach(function(p) { var o = document.createElement('option'); o.value = p; o.textContent = p; spF.appendChild(o); });
+  }
+
+  if (!templates.length) {
+    if (listEl) listEl.innerHTML = '<div class="card" style="padding:30px;text-align:center;color:#888">No follow-up message templates yet. <button class="btn btn-sm btn-primary" style="margin-left:8px" onclick="openFollowupTemplateModal()">Create your first template</button></div>';
+    var m0 = document.getElementById('fu-metrics'); if (m0) m0.innerHTML = '';
+    return;
+  }
+
+  var todayRows = getFollowupQueue('due');
+  var overdueRows = todayRows.filter(function(r){ return r.overdue; });
+  var allActive = getFollowupQueue('all');
+
+  var mEl = document.getElementById('fu-metrics');
+  if (mEl) {
+    mEl.innerHTML =
+      '<div class="sales-metric amber"><div class="ml">Due Today</div><div class="mv">' + (todayRows.length - overdueRows.length) + '</div></div>' +
+      '<div class="sales-metric red"><div class="ml">Overdue</div><div class="mv">' + overdueRows.length + '</div></div>' +
+      '<div class="sales-metric teal"><div class="ml">Enrolled &amp; Active</div><div class="mv">' + allActive.length + '</div></div>';
+  }
+
+  var mode = (document.getElementById('fu-filter')||{value:'due'}).value;
+  var personF = (document.getElementById('fu-person-f')||{value:''}).value;
+  var searchQ = ((document.getElementById('fu-search')||{value:''}).value||'').toLowerCase();
+
+  var rows = getFollowupQueue(mode);
+  if (personF) rows = rows.filter(function(r){ return r.q.salesperson === personF; });
+  if (searchQ) rows = rows.filter(function(r){
+    var q = r.q;
+    return ((q.bride||'')+' '+(q.groom||'')+' '+(q.city||'')+' '+(q.phone||'')).toLowerCase().indexOf(searchQ) > -1;
+  });
+
+  if (!listEl) return;
+  if (!rows.length) { listEl.innerHTML = '<div class="empty" style="padding:30px;color:#aaa;text-align:center">🎉 Nothing here — you\'re all caught up.</div>'; return; }
+
+  listEl.innerHTML = rows.map(function(r) {
+    var q = r.q, tpl = r.tpl;
+    var msg = substituteFollowupVars(tpl.message, q);
+    var dueStr = r.due.toISOString().slice(0,10);
+    var overdueTag = r.overdue ? '<span class="badge b-red" style="margin-left:6px">OVERDUE</span>' : '';
+    return '<div class="card" style="padding:14px 16px;margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">' +
+        '<div>' +
+          '<div style="font-weight:700;font-size:14px;cursor:pointer" onclick="openEditQuotation(\'' + q.id + '\')">' + (q.bride||'') + (q.groom?' &amp; '+q.groom:'') + overdueTag + '</div>' +
+          '<div style="font-size:11px;color:#888;margin-top:2px">' + (q.city||'—') + ' · ' + (q.phone||'—') + (q.salesperson?' · '+q.salesperson:'') + ' · Due ' + dueStr + '</div>' +
+          '<div style="font-size:11px;color:#7c3aed;font-weight:700;margin-top:4px">Step: ' + tpl.name + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+          '<button class="btn btn-sm" onclick="snoozeFollowup(\'' + q.id + '\',1)">⏰ +1 Day</button>' +
+          '<button class="btn btn-sm" onclick="skipFollowup(\'' + q.id + '\')">⏭️ Skip</button>' +
+          '<button class="btn btn-sm" onclick="toggleFollowupPause(\'' + q.id + '\')">' + (q.followupPaused?'▶️ Resume':'⏸️ Pause') + '</button>' +
+          '<button class="btn btn-sm btn-primary" style="background:#16a34a;border-color:#16a34a" onclick="sendFollowup(\'' + q.id + '\')">💬 Send via WhatsApp</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12px;white-space:pre-wrap;color:#374151">' + msg.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ── Template manager modal ──────────────────────────────────────────
+var _fuTplDraft = [];
+
+function openFollowupTemplateModal() {
+  _fuTplDraft = Object.keys(followupTemplates).map(function(k){
+    var t = Object.assign({}, followupTemplates[k]); if (!t.id) t.id = k; return t;
+  }).sort(function(a,b){ return (parseInt(a.dayOffset)||0) - (parseInt(b.dayOffset)||0); });
+  renderFollowupTemplateRows();
+  openModal('fu-templates-modal');
+}
+
+var _fuTplVars = ['bride','groom','phone','city','source','salesperson','value','venue','date'];
+
+function addFollowupTemplateRow() {
+  var maxOffset = _fuTplDraft.length ? Math.max.apply(null, _fuTplDraft.map(function(t){ return parseInt(t.dayOffset)||0; })) : -2;
+  _fuTplDraft.push({ id: 'new' + Date.now() + Math.random().toString(36).slice(2,6), name:'', dayOffset: maxOffset + 2, message:'', active:true });
+  renderFollowupTemplateRows();
+  setTimeout(function(){
+    var wrap = document.getElementById('fu-tpl-list');
+    if (wrap && wrap.lastElementChild) wrap.lastElementChild.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }, 30);
+}
+
+function duplicateFollowupTemplateRow(idx) {
+  var src = _fuTplDraft[idx]; if (!src) return;
+  var copy = Object.assign({}, src, { id: 'new' + Date.now() + Math.random().toString(36).slice(2,6), name: (src.name||'') + ' (copy)' });
+  _fuTplDraft.splice(idx + 1, 0, copy);
+  renderFollowupTemplateRows();
+}
+
+function moveFollowupTemplateRow(idx, dir) {
+  var to = idx + dir;
+  if (to < 0 || to >= _fuTplDraft.length) return;
+  var tmp = _fuTplDraft[idx]; _fuTplDraft[idx] = _fuTplDraft[to]; _fuTplDraft[to] = tmp;
+  renderFollowupTemplateRows();
+}
+
+function removeFollowupTemplateRow(idx) {
+  if (!confirm('Remove this follow-up step?')) return;
+  _fuTplDraft.splice(idx, 1);
+  renderFollowupTemplateRows();
+}
+
+function insertFollowupTemplateVar(idx, varName) {
+  var ta = document.getElementById('fu-tpl-msg-' + idx);
+  var token = '{' + varName + '}';
+  if (!ta) { _fuTplDraft[idx].message = (_fuTplDraft[idx].message||'') + token; renderFollowupTemplateRows(); return; }
+  var start = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+  var end = ta.selectionEnd == null ? ta.value.length : ta.selectionEnd;
+  var v = ta.value;
+  ta.value = v.slice(0, start) + token + v.slice(end);
+  _fuTplDraft[idx].message = ta.value;
+  ta.focus();
+  var pos = start + token.length;
+  ta.setSelectionRange(pos, pos);
+  updateFollowupCharCount(idx, ta.value);
+}
+
+function updateFollowupCharCount(idx, val) {
+  var el = document.getElementById('fu-tpl-cc-' + idx);
+  if (!el) return;
+  var n = (val||'').length;
+  el.textContent = n + ' chars';
+  el.style.color = n > 600 ? '#dc2626' : '#aaa';
+}
+
+function renderFollowupTemplateRows() {
+  var wrap = document.getElementById('fu-tpl-list'); if (!wrap) return;
+  if (!_fuTplDraft.length) {
+    wrap.innerHTML = '<div class="empty" style="padding:28px;color:#aaa;text-align:center;border:1px dashed #e5e5e5;border-radius:10px">No steps yet — add one below to start the sequence.</div>';
+    return;
+  }
+  wrap.innerHTML = _fuTplDraft.map(function(t, idx) {
+    var offset = parseInt(t.dayOffset) || 0;
+    var dayLabel = offset === 0 ? 'Day 0 (enrollment)' : (offset > 0 ? 'Day +' + offset : 'Day ' + offset);
+    var msgEsc = (t.message||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    var nameEsc = (t.name||'').replace(/"/g,'&quot;');
+    var varChips = _fuTplVars.map(function(v){
+      return '<button type="button" class="btn-sm" style="background:#f4f4f6;border:1px solid #e5e5e5;color:#555;border-radius:6px;padding:3px 8px;font-size:10.5px;cursor:pointer;font-family:inherit" onclick="insertFollowupTemplateVar(' + idx + ',\'' + v + '\')">+{' + v + '}</button>';
+    }).join('');
+    return '<div class="card" style="padding:14px;margin-bottom:10px;border:1px solid #eee;position:relative">' +
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">' +
+        '<span style="background:#ede9fe;color:#6d28d9;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;white-space:nowrap">' + dayLabel + '</span>' +
+        '<input class="fi" placeholder="Step name (e.g. Day 1 Check-in)" style="flex:2;min-width:160px" value="' + nameEsc + '" oninput="_fuTplDraft[' + idx + '].name=this.value">' +
+        '<div style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:#888;white-space:nowrap">Day</span><input type="number" class="fi" style="width:60px" value="' + offset + '" oninput="_fuTplDraft[' + idx + '].dayOffset=parseInt(this.value)||0;renderFollowupTemplateRows()"></div>' +
+        '<label style="display:flex;align-items:center;gap:4px;font-size:11px;white-space:nowrap"><input type="checkbox" ' + (t.active!==false?'checked':'') + ' onchange="_fuTplDraft[' + idx + '].active=this.checked"> Active</label>' +
+        '<div style="display:flex;gap:4px;margin-left:auto">' +
+          '<button type="button" title="Move up" class="btn-sm" style="background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:5px 8px;cursor:pointer;font-family:inherit" ' + (idx===0?'disabled style="opacity:.35"':'') + ' onclick="moveFollowupTemplateRow(' + idx + ',-1)">↑</button>' +
+          '<button type="button" title="Move down" class="btn-sm" style="background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:5px 8px;cursor:pointer;font-family:inherit" ' + (idx===_fuTplDraft.length-1?'disabled style="opacity:.35"':'') + ' onclick="moveFollowupTemplateRow(' + idx + ',1)">↓</button>' +
+          '<button type="button" title="Duplicate" class="btn-sm" style="background:#fff;border:1px solid #e5e5e5;border-radius:6px;padding:5px 8px;cursor:pointer;font-family:inherit" onclick="duplicateFollowupTemplateRow(' + idx + ')">⧉</button>' +
+          '<button type="button" class="btn-danger" onclick="removeFollowupTemplateRow(' + idx + ')">✕</button>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px">' + varChips + '</div>' +
+      '<textarea id="fu-tpl-msg-' + idx + '" class="fi" rows="3" placeholder="Message text…" oninput="_fuTplDraft[' + idx + '].message=this.value;updateFollowupCharCount(' + idx + ',this.value)">' + msgEsc + '</textarea>' +
+      '<div id="fu-tpl-cc-' + idx + '" style="text-align:right;font-size:10.5px;color:#aaa;margin-top:3px">' + (t.message||'').length + ' chars</div>' +
+    '</div>';
+  }).join('');
+}
+
+function saveFollowupTemplates() {
+  var valid = _fuTplDraft.filter(function(t){ return (t.name||'').trim() && (t.message||'').trim(); });
+  if (valid.length !== _fuTplDraft.length && !confirm('Some steps are missing a name or message and will be discarded. Continue?')) return;
+  var out = {};
+  valid.forEach(function(t) {
+    var ref = (t.id && String(t.id).indexOf('new') !== 0) ? t.id : db.ref('crm_followup_templates').push().key;
+    out[ref] = { id: ref, name: t.name.trim(), dayOffset: parseInt(t.dayOffset)||0, message: t.message, active: t.active !== false };
+  });
+  db.ref('crm_followup_templates').set(out, function(err) {
+    if (err) { showToast('❌ Error saving templates: ' + err.message); return; }
+    followupTemplates = out;
+    showToast('✅ Follow-up templates saved!');
+    closeModal('fu-templates-modal');
+    renderFollowUps();
+  });
+}
+// ═══ END FOLLOW-UPS ═══════════════════════════════════════════════════════
+
 // ── Status helpers ───────────────────────────────────────────────
 function quotStatusBadge(s) {
   var m = {
@@ -19842,7 +20441,7 @@ function quotStatusBadge(s) {
 // ── Sales role — full quotations access ──────────────────────────────
 (function patchRoles() {
   ROLE_ACCESS.salesperson = {
-    pages: ['quotations'],
+    pages: ['quotations','followups'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -19853,7 +20452,7 @@ function quotStatusBadge(s) {
     isSalesperson:true
   };
   ROLE_ACCESS.sales = {
-    pages: ['dashboard','pipeline','projects','quotations','salessettings','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','activitylog','clienthub'],
+    pages: ['dashboard','pipeline','projects','quotations','followups','salessettings','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','activitylog','clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -20371,7 +20970,7 @@ function openNewQuotation() {
   quotDeliverables = [];
   quotAddlServices = JSON.parse(JSON.stringify(DEFAULT_ADDL_SERVICES)); quotAddlEnabled = false; toggleAddlServices(false); renderAddlServices();
   clearQuotForm();
-  fillSel('qf-source', 'sources', DEFAULT_SOURCES, '');
+  fillSel('qf-source', 'sources', DEFAULT_SOURCES, 'Instagram');
   document.getElementById('quot-modal-title').textContent = 'New Quotation';
   document.getElementById('quot-modal-sub').textContent = '';
   // Auto-load default images from Firebase — no upload needed
@@ -20730,8 +21329,29 @@ function _defaultCrew() {
   return c;
 }
 
+// Returns the ISO date (YYYY-MM-DD) that comes right after dateStr, or ''
+// if dateStr is missing/unparseable. Used to auto-fill each new day's date
+// as "previous day + 1" in both the Quotation Builder and the Project's
+// Event Days tab, so multi-day weddings don't need every date typed by hand.
+function _nextDateStr(dateStr) {
+  var parts = (dateStr || '').split('-');
+  if (parts.length !== 3) return '';
+  var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10) - 1, d = parseInt(parts[2], 10);
+  var dt = new Date(y, m, d);
+  if (isNaN(dt.getTime())) return '';
+  dt.setDate(dt.getDate() + 1);
+  var mm = String(dt.getMonth() + 1).padStart(2, '0');
+  var dd = String(dt.getDate()).padStart(2, '0');
+  return dt.getFullYear() + '-' + mm + '-' + dd;
+}
+
 function addQuotDay() {
-  quotDays.push({ date: '', dateTBD: false, sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
+  var newDate = '';
+  if (quotDays.length) {
+    var lastDay = quotDays[quotDays.length - 1];
+    if (lastDay && lastDay.date && !lastDay.dateTBD) newDate = _nextDateStr(lastDay.date);
+  }
+  quotDays.push({ date: newDate, dateTBD: false, sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
   renderQuotDays();
 }
 
@@ -21421,6 +22041,170 @@ function openNewTimelinePreset() {
   });
 }
 
+// ── Payment Split Presets (Settings → editable, no code changes needed) ────
+// Mirrors the Delivery Timeline Templates pattern above: built-ins live in
+// DEFAULT_PAY_PRESETS, anything saved here lives in crmSettings.payment_presets,
+// and syncPayPresets() (near DEFAULT_PAY_PRESETS' definition) keeps the merged
+// PAY_PRESETS var — and both dropdown <select>s — up to date automatically.
+function renderPaymentPresetSettings(container) {
+  var saved = crmSettings.payment_presets || {};
+  var keys = Object.keys(PAY_PRESETS);
+
+  var html = '<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">' +
+    '<span style="font-size:12px;color:#555">' + keys.length + ' preset' + (keys.length!==1?'s':'') + ' available</span>' +
+    '<button onclick="openNewPaymentPreset()" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">+ New Preset</button>' +
+  '</div>';
+
+  html += keys.map(function(k) {
+    var stages = PAY_PRESETS[k] || [];
+    var isDefault = (k === '30-50-10-5-5');
+    var isSaved = !!saved[k];
+    var total = stages.reduce(function(s,t){ return s + (parseFloat(t.pct)||0); }, 0);
+    return '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:8px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+        '<span style="font-size:13px;font-weight:700">' + escHtml(payPresetOptionLabel(stages)) + '</span>' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+          (isDefault ? '<span style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600">Default</span>' : '') +
+          (Math.round(total) !== 100 ? '<span style="background:#fef2f2;color:#dc2626;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600">Totals ' + total + '%</span>' : '') +
+          '<button onclick="openEditPaymentPreset(\''+k+'\')" style="background:#f1f5f9;border:1px solid #e2e8f0;color:#374151;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600">✏️ Edit</button>' +
+          ((isSaved || !isDefault) ? '<button onclick="deletePaymentPreset(\''+k+'\')" style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:inherit">🗑️ Delete</button>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+        stages.map(function(t) {
+          return '<span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:3px 10px;font-size:11px;color:#374151">' +
+            escHtml(t.label||'') + ' — ' + (t.pct||0) + '% — ' + escHtml(t.desc||'') + '</span>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  container.innerHTML = html;
+}
+
+function closePaymentPresetModal() {
+  var key = window._ppKey;
+  var saved = crmSettings.payment_presets || {};
+  // If this was a brand-new preset never saved to Firebase, drop the in-memory
+  // scaffold entry too so it doesn't linger as a phantom option this session.
+  if (key && key.indexOf('custom_') === 0 && !saved[key]) delete DEFAULT_PAY_PRESETS[key];
+  syncPayPresets();
+  var m = document.getElementById('pp-edit-modal'); if (m) m.remove();
+  refreshActiveSettingsPage();
+}
+
+function openEditPaymentPreset(key) {
+  var stages = (PAY_PRESETS[key] || []).map(function(t){ return Object.assign({}, t); });
+  if (!stages.length && !PAY_PRESETS.hasOwnProperty(key)) { showToast('Preset not found.'); return; }
+
+  var ex = document.getElementById('pp-edit-modal'); if (ex) ex.remove();
+
+  function buildRows() {
+    return stages.map(function(t, i) {
+      return '<div id="pprow-'+i+'" style="display:grid;grid-template-columns:1fr 64px 1.4fr 32px;gap:6px;align-items:center;margin-bottom:6px">' +
+        '<input class="fi" value="'+escHtml(t.label||'')+'" placeholder="Stage label (e.g. Advance)" style="font-size:12px;padding:6px 8px" oninput="_ppRows['+i+'].label=this.value">' +
+        '<input class="fi" type="number" value="'+(t.pct||0)+'" min="0" max="100" style="font-size:12px;padding:6px 8px;text-align:center" oninput="_ppRows['+i+'].pct=parseFloat(this.value)||0;_ppUpdateTotal()">' +
+        '<input class="fi" value="'+escHtml(t.desc||'')+'" placeholder="When it\u2019s due (e.g. Before raw data delivery)" style="font-size:12px;padding:6px 8px" oninput="_ppRows['+i+'].desc=this.value">' +
+        '<button onclick="_ppRows.splice('+i+',1);_ppRebuild()" style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;padding:4px 6px;cursor:pointer;font-size:13px;font-family:inherit;line-height:1">✕</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  window._ppRows = stages;
+  window._ppKey  = key;
+  window._ppRebuild = function() {
+    document.getElementById('pp-rows-wrap').innerHTML = buildRows();
+    window._ppUpdateTotal();
+  };
+  window._ppUpdateTotal = function() {
+    var total = window._ppRows.reduce(function(s,t){ return s + (parseFloat(t.pct)||0); }, 0);
+    var el = document.getElementById('pp-total');
+    if (!el) return;
+    el.textContent = 'Total: ' + total + '%' + (Math.round(total)!==100 ? ' — should add up to 100%' : ' ✓');
+    el.style.color = Math.round(total)===100 ? '#16a34a' : '#dc2626';
+  };
+
+  var modal = document.createElement('div');
+  modal.id = 'pp-edit-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:16px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #f0f0f0;position:sticky;top:0;background:#fff;z-index:1">' +
+        '<div>' +
+          '<div style="font-size:16px;font-weight:800">✏️ Edit Payment Split: '+escHtml(payPresetOptionLabel(stages))+'</div>' +
+          '<div style="font-size:12px;color:#888;margin-top:2px">Changes save to Firebase and apply to all future quotations &amp; projects</div>' +
+        '</div>' +
+        '<button onclick="closePaymentPresetModal()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:18px;line-height:1">×</button>' +
+      '</div>' +
+      '<div style="padding:20px 24px">' +
+        '<div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">' +
+          '<span>Stages</span>' +
+          '<button onclick="_ppRows.push({label:\'\',pct:0,desc:\'\'});_ppRebuild()" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">+ Add Stage</button>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 64px 1.4fr 32px;gap:6px;margin-bottom:4px">' +
+          '<div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase">Label</div>' +
+          '<div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase">%</div>' +
+          '<div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase">When Due</div>' +
+          '<div></div>' +
+        '</div>' +
+        '<div id="pp-rows-wrap">' + buildRows() + '</div>' +
+        '<div id="pp-total" style="font-size:12px;font-weight:700;margin-top:8px"></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;padding:16px 24px;border-top:1px solid #f0f0f0;position:sticky;bottom:0;background:#fff">' +
+        '<button onclick="closePaymentPresetModal()" style="flex:1;padding:10px;background:#f1f5f9;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Cancel</button>' +
+        '<button onclick="saveEditedPaymentPreset()" style="flex:2;padding:10px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">💾 Save Preset</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  window._ppUpdateTotal();
+}
+
+function saveEditedPaymentPreset() {
+  var key = window._ppKey;
+  var stages = (window._ppRows || []).filter(function(t){ return (t.label||'').trim(); });
+  if (!stages.length) { showToast('Add at least one stage.'); return; }
+  var total = stages.reduce(function(s,t){ return s + (parseFloat(t.pct)||0); }, 0);
+  if (Math.round(total) !== 100) { if (!confirm('These stages add up to ' + total + '%, not 100%. Save anyway?')) return; }
+  var cleaned = stages.map(function(t,i){ return { key: t.key || ('s'+i), label: (t.label||'').trim(), pct: parseFloat(t.pct)||0, desc: (t.desc||'').trim() }; });
+  var savedAll = JSON.parse(JSON.stringify(crmSettings.payment_presets || {}));
+  savedAll[key] = cleaned;
+  db.ref('crm_settings/payment_presets').set(savedAll, function(err) {
+    if (err) { showToast('❌ Error saving: ' + err.message); return; }
+    crmSettings.payment_presets = savedAll;
+    syncPayPresets();
+    showToast('✅ Payment split saved!');
+    document.getElementById('pp-edit-modal').remove();
+    refreshActiveSettingsPage();
+  });
+}
+
+function openNewPaymentPreset() {
+  var key = 'custom_' + Date.now();
+  DEFAULT_PAY_PRESETS[key] = [
+    { key: 'p1', label: 'Advance', pct: 50, desc: 'To block the date' },
+    { key: 'p2', label: 'Final Instalment', pct: 50, desc: 'Before final delivery' }
+  ];
+  syncPayPresets();
+  openEditPaymentPreset(key);
+}
+
+function deletePaymentPreset(key) {
+  if (!confirm('Delete this payment split preset?')) return;
+  var savedAll = JSON.parse(JSON.stringify(crmSettings.payment_presets || {}));
+  delete savedAll[key];
+  db.ref('crm_settings/payment_presets').set(savedAll, function(err) {
+    if (err) { showToast('❌ Error deleting: ' + err.message); return; }
+    crmSettings.payment_presets = savedAll;
+    if (!DEFAULT_PAY_PRESETS.hasOwnProperty(key) || key.indexOf('custom_') === 0) {
+      // purely custom key with no built-in fallback — drop it from the live merge too
+      if (key.indexOf('custom_') === 0) delete DEFAULT_PAY_PRESETS[key];
+    }
+    syncPayPresets();
+    showToast('🗑️ Preset deleted.');
+    refreshActiveSettingsPage();
+  });
+}
+
 
 // ══════════════════════════════════════════════════════════════════
 // SMART DELIVERABLES SYSTEM
@@ -21429,9 +22213,9 @@ var QD_PRESETS = [
   // ── Video ──
   { id:'wedding-teaser',    cat:'🎬 Video', label:'Wedding Teaser',       detail:'1.5–2 Min',  icon:'🎞️', durations:['1.5 Min','1.5–2 Min','2–3 Min','3–4 Min','4–5 Min','Custom'] },
   { id:'prewed-teaser',     cat:'🎬 Video', label:'Pre-Wedding Teaser',    detail:'1.5–2 Min',  icon:'🎞️', durations:['1.5 Min','1.5–2 Min','2–3 Min','3–4 Min','4–5 Min','Custom'] },
-  { id:'highlight-film',    cat:'🎬 Video', label:'Highlight Film',        detail:'5–7 Min',    icon:'🎬', durations:['3–5 Min','5–7 Min','7–10 Min','Custom'] },
+  { id:'highlight-film',    cat:'🎬 Video', label:'Highlight Film',        detail:'7–8 Min',    icon:'🎬', durations:['3–5 Min','5–7 Min','7–8 Min','7–10 Min','Custom'] },
   { id:'wedding-film',      cat:'🎬 Video', label:'Wedding Film',          detail:'20–30 Min',  icon:'🎥', durations:['15–20 Min','20–30 Min','30–45 Min','Custom'] },
-  { id:'trad-video',        cat:'🎬 Video', label:'Traditional Video',     detail:'Full Coverage', icon:'📹', durations:['Half Day','Full Coverage','Multi-Day','Custom'], hasPerEvent:true },
+  { id:'trad-video',        cat:'🎬 Video', label:'Traditional Video',     detail:'Full Coverage', icon:'📹', durations:['20–30 Min','15–20 Min','30–45 Min','Half Day','Full Coverage','Multi-Day','Custom'], hasPerEvent:true },
   { id:'short-reels',       cat:'🎬 Video', label:'Short Reels',           detail:'4 Reels',    icon:'📱', durations:['2 Reels','3 Reels','4 Reels','6 Reels','Custom'], isCount:true },
   // ── Photos ──
   { id:'edited-gallery',    cat:'📸 Photos', label:'Edited Photo Gallery', detail:'500 Photos', icon:'🖼️', durations:['100 Photos','200 Photos','300 Photos','400 Photos','500 Photos','600 Photos','Custom'], isCount:true },
@@ -21445,6 +22229,84 @@ var QD_PRESETS = [
   { id:'travel',             cat:'🚗 Other',  label:'Travel',               detail:'Included',   icon:'✈️', durations:['Included','To & Fro Only','Excluded — Extra'] },
   { id:'accommodation',      cat:'🚗 Other',  label:'Stay / Accommodation',  detail:'Included',   icon:'🏨', durations:['Included','Client Managed','Excluded — Extra'] },
 ];
+
+// Quick Packages — one click adds a full pre-configured bundle of deliverables
+// with sensible studio-standard defaults, instead of adding + configuring each
+// one by hand. Extend this array to add more packages (e.g. Pre-Wedding,
+// Engagement) — each `items` entry maps a QD_PRESETS id to its default values;
+// only fields relevant to that preset type need to be set (detail for
+// simple duration/count items, qty+photoCount for albums, perEvent+
+// perEventDur for per-event items like Traditional Video).
+var QD_PACKAGES = [
+  {
+    id: 'wedding-package',
+    label: 'Wedding Package',
+    icon: '💍',
+    desc: 'Teaser, highlight, traditional video, reels, edited photos, gallery link, album & raw data',
+    items: [
+      { id: 'wedding-teaser',  detail: '1.5–2 Min' },
+      { id: 'highlight-film',  detail: '7–8 Min' },
+      { id: 'trad-video',      perEvent: 1, perEventDur: '20–30 Min' },
+      { id: 'short-reels',     detail: '4 Reels' },
+      { id: 'edited-gallery',  detail: '500 Photos' },
+      { id: 'online-gallery',  detail: 'Included' },
+      { id: 'wedding-album',   qty: 2, photoCount: '200 Photos' },
+      { id: 'full-raw',        detail: 'All Files' }
+    ]
+  }
+];
+
+function qdRenderPackageButtons() {
+  var wrap = document.getElementById('qd-package-buttons');
+  if (!wrap) return;
+  wrap.innerHTML = QD_PACKAGES.map(function(pkg) {
+    return '<button type="button" onclick="qdApplyPackage(\'' + pkg.id + '\')" title="' + escHtml(pkg.desc||'') + '" style="' +
+      'display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 16px;border-radius:10px;' +
+      'background:#fff7ed;border:1px solid #fdba74;color:#9a3412;cursor:pointer;font-family:inherit;text-align:left">' +
+      '<span style="font-size:13px;font-weight:700">' + pkg.icon + ' ' + escHtml(pkg.label) + '</span>' +
+      '<span style="font-size:10.5px;color:#c2703d;font-weight:500">' + escHtml(pkg.desc||'') + '</span>' +
+    '</button>';
+  }).join('');
+}
+
+function qdApplyPackage(pkgId) {
+  var pkg = QD_PACKAGES.find(function(p){ return p.id === pkgId; });
+  if (!pkg) return;
+  var addedCount = 0, skippedCount = 0;
+  pkg.items.forEach(function(item) {
+    var preset = QD_PRESETS.find(function(p){ return p.id === item.id; });
+    if (!preset) return;
+    if (quotDeliverables.some(function(d){ return d.id === item.id; })) { skippedCount++; return; } // already added — leave as-is, don't overwrite their edits
+    var entry = { id: preset.id, label: preset.label, icon: preset.icon, note: '', detail: preset.detail };
+    if (item.detail      !== undefined) entry.detail      = item.detail;
+    if (item.qty         !== undefined) entry.qty         = item.qty;
+    if (item.photoCount  !== undefined) entry.photoCount  = item.photoCount;
+    if (item.perEvent    !== undefined) entry.perEvent    = item.perEvent;
+    if (item.perEventDur !== undefined) entry.perEventDur = item.perEventDur;
+    // Compose the display detail string immediately so it's correct without
+    // requiring the user to touch any field (mirrors qdUpdateField's logic)
+    if (preset.hasSizes || preset.hasQty) {
+      var qty = entry.qty || 1;
+      var photoCount = (entry.photoCount && entry.photoCount !== '-- Photos --') ? ' · ' + entry.photoCount : '';
+      var unit = (entry.id === 'photo-frames') ? (qty===1?' Frame':' Frames') : (qty===1?' Album':' Albums');
+      entry.detail = qty + unit + photoCount;
+      entry.customDetail = entry.detail;
+    } else if (preset.hasPerEvent) {
+      var pe = entry.perEvent || 1;
+      var dur = entry.perEventDur || (preset.durations && preset.durations[0]) || 'Full Coverage';
+      entry.detail = pe + (pe===1?' Event':' Events') + ' × ' + dur + ' each';
+      entry.customDetail = entry.detail;
+    }
+    quotDeliverables.push(entry);
+    addedCount++;
+  });
+  qdInit();
+  qdSyncHidden();
+  var msg = pkg.icon + ' ' + pkg.label;
+  if (addedCount)   msg += ' — ' + addedCount + ' deliverable' + (addedCount!==1?'s':'') + ' added';
+  if (skippedCount) msg += (addedCount ? ', ' : ' — ') + skippedCount + ' already present (left untouched)';
+  showToast(msg);
+}
 
 // In-memory deliverables for current quotation
 var quotDeliverables = []; // [{id, label, detail, icon, note}]
@@ -21647,6 +22509,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function qdInit() {
+  qdRenderPackageButtons();
   var chips = document.getElementById('qd-preset-chips');
   if (!chips) return;
   var bycat = {};
@@ -21731,10 +22594,17 @@ function qdRenderList() {
         '</select>';
     } else if (isPerEvent) {
       var peOnChange = "qdUpdateField(" + i + ",'perEvent',this.value)";
+      var pdOnChange = "qdUpdateField(" + i + ",'perEventDur',this.value)";
+      var perEventDur = d.perEventDur || (preset.durations && preset.durations[0]) || '';
       extraFields +=
         '<label style="font-size:11px;color:#64748b;font-weight:600;margin-right:2px">Events:</label>' +
         '<input type="number" min="1" max="20" value="' + (d.perEvent||1) + '" oninput="' + peOnChange + '" onchange="' + peOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;width:52px;font-family:inherit" title="Number of events" placeholder="# events">' +
-        '<span style="font-size:11px;color:#94a3b8">× full video per event</span>';
+        '<select onchange="' + pdOnChange + '" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;background:#f8fafc;color:#374151;font-family:inherit" title="Duration per event">' +
+          (preset.durations||[]).map(function(opt){
+            return '<option value="'+opt+'"'+(perEventDur===opt?' selected':'')+'>'+opt+'</option>';
+          }).join('') +
+        '</select>' +
+        '<span style="font-size:11px;color:#94a3b8">per event</span>';
     }
     return '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;display:flex;align-items:flex-start;gap:10px">' +
       '<span style="font-size:20px;flex-shrink:0;margin-top:2px">' + (d.icon||'📦') + '</span>' +
@@ -21799,9 +22669,10 @@ function qdUpdateField(i, field, val) {
     d.detail       = qty + unit + size + photoCount;
     d.customDetail = d.detail;
   }
-  if (preset && preset.hasPerEvent && field === 'perEvent') {
+  if (preset && preset.hasPerEvent && (field === 'perEvent' || field === 'perEventDur')) {
     var pe = parseInt(d.perEvent, 10) || 1;
-    d.detail = pe + (pe === 1 ? ' Event' : ' Events') + ' — Full Coverage';
+    var dur = d.perEventDur || (preset.durations && preset.durations[0]) || 'Full Coverage';
+    d.detail = pe + (pe === 1 ? ' Event' : ' Events') + ' × ' + dur + ' each';
     d.customDetail = d.detail;
   }
   qdRenderList();
@@ -21986,7 +22857,14 @@ function saveQuotation(silent) {
     // once and never overwritten. (Older quotations saved before this field existed
     // won't have it — analytics falls back to savedAt for those.)
     createdAt: (prevQ && prevQ.createdAt) ? prevQ.createdAt : Date.now(),
-    savedBy: CU ? (CU.name || CU.username) : 'System'
+    savedBy: CU ? (CU.name || CU.username) : 'System',
+    // Follow-up sequence enrollment — defaults every new lead in; existing
+    // leads keep whatever progress/pause state they already had.
+    followupEnabled: prevQ ? (prevQ.followupEnabled !== false) : true,
+    followupStepIndex: prevQ ? (prevQ.followupStepIndex || 0) : 0,
+    followupSnoozeDays: prevQ ? (prevQ.followupSnoozeDays || 0) : 0,
+    followupPaused: prevQ ? (prevQ.followupPaused || false) : false,
+    followupHistory: prevQ ? (prevQ.followupHistory || []) : []
   };
 
   var ref = editQuotId ? db.ref('crm_quotations/' + editQuotId) : db.ref('crm_quotations').push();
@@ -22018,6 +22896,20 @@ function saveQuotation(silent) {
     // Update sub-title
     var sub = document.getElementById('quot-modal-sub');
     if (sub) sub.textContent = 'Last saved: ' + fmtDateTime(data.savedAt);
+
+    // ── AUTO-SYNC: if this quotation already produced a Project, push the
+    // change straight through so quotation edits (deliverables, payment
+    // terms, pricing, event days) never sit un-synced. Payments, stage,
+    // team and refcode are untouched — see syncProjectFromQuotation. ──
+    if (data.convertedToProject) {
+      var linkedProjId = null;
+      if (typeof projects !== 'undefined') {
+        Object.keys(projects).forEach(function(pid) {
+          if (projects[pid] && projects[pid].quotationId === editQuotId) linkedProjId = pid;
+        });
+      }
+      if (linkedProjId) syncProjectFromQuotation(linkedProjId, true);
+    }
   });
 }
 
@@ -22435,14 +23327,14 @@ function kbConfirmLinkQuot(projId) {
   });
 }
 
-function syncProjectFromQuotation(projId) {
+function syncProjectFromQuotation(projId, silent) {
   var p = projects[projId]; if (!p) return;
   var quotId = p.quotationId;
-  if (!quotId) { showToast('⚠️ This project has no linked quotation.'); return; }
+  if (!quotId) { if (!silent) showToast('⚠️ This project has no linked quotation.'); return; }
 
   db.ref('crm_quotations/' + quotId).once('value', function(snap) {
     var q = snap.val();
-    if (!q) { showToast('❌ Linked quotation not found in database.'); return; }
+    if (!q) { if (!silent) showToast('❌ Linked quotation not found in database.'); return; }
 
     // Build what will change — show user a summary before applying
     var changes = [];
@@ -22471,12 +23363,14 @@ function syncProjectFromQuotation(projId) {
     }
 
     if (!changes.length) {
-      showToast('✅ Project is already up to date with the quotation. Nothing to sync.');
+      if (!silent) showToast('✅ Project is already up to date with the quotation. Nothing to sync.');
       return;
     }
 
-    var msg = 'Sync the following from the quotation?\n\n' + changes.map(function(ch){ return '\u2022 ' + ch; }).join('\n') + '\n\n\u26a0\ufe0f Payments, stage, team, and refcode will NOT be changed.';
-    if (!confirm(msg)) return;
+    if (!silent) {
+      var msg = 'Sync the following from the quotation?\n\n' + changes.map(function(ch){ return '\u2022 ' + ch; }).join('\n') + '\n\n\u26a0\ufe0f Payments, stage, team, and refcode will NOT be changed.';
+      if (!confirm(msg)) return;
+    }
 
     // Build event days from quotation sessions
     var newEventDays = [];
@@ -22605,16 +23499,53 @@ function syncProjectFromQuotation(projId) {
 
     db.ref('crm_projects/' + projId).update(upd, function(err) {
       if (err) { showToast('❌ Sync error: ' + err.message); return; }
+      // ── Audit trail: log if the payment schedule's shape actually changed ──
+      if (typeof logActivity === 'function' && upd.kbSchedule) {
+        var schedDiff = _diffKbScheduleStages(p.kbSchedule, upd.kbSchedule);
+        if (schedDiff.length) {
+          logActivity('payment', 'Payment schedule synced from quotation', (p.bride||'')+' & '+(p.groom||'')+' — '+schedDiff.length+' change(s)', { projectId: projId, quotationId: quotId, changes: schedDiff });
+        }
+      }
       // Update local cache
       Object.assign(projects[projId], upd);
-      showToast('✅ Project synced from quotation!');
-      // Re-open project to refresh all fields
-      openProject(projId);
+      if (!silent) {
+        showToast('✅ Project synced from quotation!');
+        // Re-open project to refresh all fields
+        openProject(projId);
+      } else {
+        showToast('🔄 Linked project auto-synced from this quotation.');
+      }
     });
   });
 }
 
+// ── SOURCE OF TRUTH NOTE ──────────────────────────────────────────
+// A quotation's deliverables live in TWO places:
+//   1) q.quotDeliverables — the full chip-based array (presets + custom
+//      items) that the Deliverables tab UI and the quotation PDF actually
+//      use. This is authoritative and can contain items with no legacy
+//      counterpart (any custom-added deliverable, or any preset added to
+//      the chip list after the old fixed fields were defined).
+//   2) q.deliverables — a legacy fixed-field mirror (teaser/film/highlight/
+//      reels/pics/album/raw/etc.) kept only for backward compatibility with
+//      quotations saved before quotDeliverables existed.
+// The two functions below used to read ONLY from (2), the legacy object,
+// which has a fixed, limited set of fields. Any custom deliverable, or any
+// preset item not in that fixed list, was silently dropped when a project
+// was created/synced from a quotation — this was the root cause of
+// deliverables (and their descriptions, like raw data size or highlight
+// video length) going missing or drifting between Quotation → Project →
+// Invoice. Both functions now read from (1) first and only fall back to
+// (2) for old quotations that predate quotDeliverables.
 function buildDelivNotesFromQuot(q) {
+  if (q.quotDeliverables && q.quotDeliverables.length) {
+    return q.quotDeliverables.map(function(item) {
+      var detail = item.customDetail || item.detail || '';
+      var note = item.note ? (' — ' + item.note) : '';
+      return (item.label || 'Item') + (detail ? ': ' + detail : '') + note;
+    }).join('\n');
+  }
+  // ── Legacy fallback (quotations saved before the chip-based deliverables UI) ──
   var d = q.deliverables || {};
   var lines = [];
   if (d.teaser) lines.push('Teaser: ' + d.teaser);
@@ -22630,10 +23561,38 @@ function buildDelivNotesFromQuot(q) {
   return lines.join('\n');
 }
 
+// Best-effort mapping from a quotDeliverables chip/custom item to a project
+// deliverable "type" (used for icons/filters on the Deliverables/editor tabs).
+function _kbInferDelivType(item) {
+  var s = ((item.id||'') + ' ' + (item.label||'')).toLowerCase();
+  if (s.indexOf('raw') !== -1) return 'Raw Data';
+  if (s.indexOf('teaser') !== -1) return 'Teaser';
+  if (s.indexOf('reel') !== -1) return 'Reel';
+  if (s.indexOf('album') !== -1) return 'Album';
+  if (s.indexOf('frame') !== -1) return 'Frame';
+  if (s.indexOf('pic') !== -1 || s.indexOf('gallery') !== -1 || s.indexOf('photo') !== -1) return 'Edited Pictures';
+  if (s.indexOf('film') !== -1 || s.indexOf('video') !== -1 || s.indexOf('highlight') !== -1) return 'Video';
+  return 'Other';
+}
+
 function buildCustomDelivsFromQuot(q) {
+  var ts = Date.now();
+  if (q.quotDeliverables && q.quotDeliverables.length) {
+    // Skip pure logistics line items (travel/stay) — they aren't post-production
+    // deliverables and have no place on the editor/delivery pipeline.
+    var skipIds = { 'travel': true, 'accommodation': true, 'online-gallery': true };
+    return q.quotDeliverables
+      .filter(function(item) { return !skipIds[item.id]; })
+      .map(function(item, i) {
+        var detail = item.customDetail || item.detail || '';
+        // Reels with a quantity > 1 in the chip UI are expanded into individually
+        // trackable rows, matching how presets used to fan out under the old logic.
+        return { id:'qcd_'+ts+'_'+i, name:item.label || 'Deliverable', type:_kbInferDelivType(item), category:'Wedding', specs:detail, qty:item.qty||1, status:'pending', date:'', link:'', editorId:'', note:item.note||'' };
+      });
+  }
+  // ── Legacy fallback (quotations saved before the chip-based deliverables UI) ──
   var d = q.deliverables || {};
   var delivs = [];
-  var ts = Date.now();
   var add = function(name, type, cat, specs) {
     delivs.push({ id:'qcd_'+ts+'_'+delivs.length, name:name, type:type, category:'Wedding', specs:specs||'', qty:1, status:'pending', date:'', link:'', editorId:'' });
   };
@@ -22645,6 +23604,7 @@ function buildCustomDelivsFromQuot(q) {
   if (d.album) add('Wedding Album', 'Album', 'Wedding', d.album);
   if (d.prewedAlbum) add('Pre-Wedding Album', 'Album', 'Pre-Wedding', d.prewedAlbum);
   if (d.frames) add('Photo Frames', 'Frame', 'Wedding', d.frames);
+  if (d.raw && d.raw !== '') add('Raw Data', 'Raw Data', 'Wedding', d.raw);
   return delivs;
 }
 
