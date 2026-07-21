@@ -3665,7 +3665,7 @@ if (!_isClientProofView) {
       </div>
       <div class="fr"><label class="fl">Notes</label><textarea class="fi" id="pe-notes" rows="2"></textarea></div>
       <div class="fr" id="pe-proof-row" style="display:none">
-        <label class="fl">Payment Proof (screenshot) <span style="color:#dc2626;font-weight:700">*</span> <span style="color:#aaa;font-weight:400;font-size:10px">required for non-cash payments</span></label>
+        <label class="fl">Payment Proof (screenshot) <span style="color:#aaa;font-weight:400;font-size:10px">optional</span></label>
         <input class="fi" type="file" id="pe-proof-file" accept="image/*">
         <div id="pe-proof-preview" style="display:none;margin-top:6px"><img id="pe-proof-img" style="max-width:140px;max-height:140px;border-radius:6px;border:1px solid #e2e8f0"></div>
       </div>
@@ -3703,7 +3703,7 @@ if (!_isClientProofView) {
       <div class="fg"><div class="fr"><label class="fl">Transaction / UTR No.</label><input class="fi" id="rp-ref"></div><div class="fr"><label class="fl">Due Date (remaining)</label><input class="fi" type="date" id="rp-due"></div></div>
       <div class="fr"><label class="fl">Notes</label><textarea class="fi" id="rp-notes" rows="2"></textarea></div>
       <div class="fr" id="rp-proof-row" style="display:none">
-        <label class="fl">Payment Proof (screenshot) <span style="color:#dc2626;font-weight:700">*</span> <span style="color:#aaa;font-weight:400;font-size:10px">required for non-cash payments</span></label>
+        <label class="fl">Payment Proof (screenshot) <span style="color:#aaa;font-weight:400;font-size:10px">optional</span></label>
         <input class="fi" type="file" id="rp-proof-file" accept="image/*">
         <div id="rp-proof-preview" style="display:none;margin-top:6px"><img id="rp-proof-img" style="max-width:140px;max-height:140px;border-radius:6px;border:1px solid #e2e8f0"></div>
       </div>
@@ -13622,12 +13622,14 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// ── Shared proof-of-payment validator: returns an error string, or null if OK ──
+// ── Shared proof-of-payment validator for "rest of the payment" entries
+//    (Add Payment Entry / Record Payment). Proof is optional here — attaching
+//    a screenshot is still allowed, it's just never required — so this always
+//    returns null (no error). Only the ADVANCE payment (new-project creation
+//    flow, gated by the Settings → Advance Payment Proof toggle, and the
+//    quotation-to-Won "Record Payment & Mark Won" button) still enforces
+//    mandatory proof; those checks live separately and are unaffected. ──
 function validatePaymentProof(p, mode, fileInputEl){
-  if(!isStrictPaymentsProject(p)) return null; // old projects: no proof requirement at all
-  if(mode && mode.toLowerCase()==='cash') return null; // cash never needs proof
-  var hasFile = fileInputEl && fileInputEl.files && fileInputEl.files.length>0;
-  if(!hasFile) return 'A payment proof (screenshot) is required for non-cash payments. Attach one, or select "Cash" if it was a cash payment.';
   return null;
 }
 // ── Uploads a payment proof file and links it to a payLedger entry; calls cb(proofMeta|null) ──
