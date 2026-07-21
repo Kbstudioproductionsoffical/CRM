@@ -13520,12 +13520,18 @@ function toggleProofRow(modePrefix){
   var modeVal = gv(modePrefix+'-mode');
   var row = $(modePrefix+'-proof-row');
   if(!row) return;
-  var p = null;
-  if(modePrefix==='pe') p = editProjId ? projects[editProjId] : null;
-  else if(modePrefix==='rp'){ var rid=gv('rp-client'); p = rid ? (projects[rid]||projects[parseInt(rid)]) : null; }
-  else if(modePrefix==='np') p = {strictPayments: screenshotProofRequired()}; // new project being created — strict unless Super Admin has turned the requirement off
-  if(modePrefix==='np'){ var offNote=$('np-proof-off-note'); if(offNote) offNote.style.display=screenshotProofRequired()?'none':'block'; }
-  if(!isStrictPaymentsProject(p)){ row.style.display='none'; return; }
+  if(modePrefix==='np'){
+    // Advance payment (new project creation) — still gated by the Settings
+    // → Advance Payment Proof toggle; this is the one place proof stays mandatory.
+    var p = {strictPayments: screenshotProofRequired()};
+    var offNote=$('np-proof-off-note'); if(offNote) offNote.style.display=screenshotProofRequired()?'none':'block';
+    if(!isStrictPaymentsProject(p)){ row.style.display='none'; return; }
+    row.style.display = (modeVal && modeVal.toLowerCase()==='cash') ? 'none' : 'block';
+    return;
+  }
+  // pe / rp — "rest of the payment" entries: proof is always optional (never
+  // mandatory), so always offer the option to attach one regardless of how old
+  // the project is. Only hide it for Cash, where a screenshot isn't relevant.
   row.style.display = (modeVal && modeVal.toLowerCase()==='cash') ? 'none' : 'block';
 }
 document.addEventListener('change', function(e){
