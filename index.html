@@ -3044,6 +3044,7 @@ if (!_isClientProofView) {
         <div id="new-proj-advance-block" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px;margin-bottom:12px">
           <div style="font-size:12px;font-weight:700;color:#92400e;margin-bottom:3px">💰 Advance Payment Required</div>
           <div style="font-size:11px;color:#a16207;margin-bottom:10px">A new project cannot be saved without recording the first payment. Enter the advance received below.</div>
+          <div id="np-proof-off-note" style="display:none;font-size:11px;font-weight:600;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:6px 10px;margin-bottom:10px">ℹ️ Screenshot proof is currently switched OFF by a Super Admin (Settings → Advance Payment Proof) — useful for entering old/backlog clients. Turn it back on once done.</div>
           <div class="fg">
             <div class="fr"><label class="fl">Amount Received (₹) *</label><input class="fi" type="number" id="np-amount" placeholder="e.g. 30000"></div>
             <div class="fr"><label class="fl">Payment Date *</label><input class="fi" type="date" id="np-date"></div>
@@ -3074,6 +3075,7 @@ if (!_isClientProofView) {
         </div>
         <div class="fr"><label class="fl">Special Requirements</label><textarea class="fi" id="f-requirements" rows="2" placeholder="Special requests, family details…"></textarea></div>
         <div class="fg"><div class="fr"><label class="fl">Bride's Date of Birth <span style="font-weight:400;color:#aaa">(for birthday greetings)</span></label><input class="fi" type="date" id="f-bride-dob"></div><div class="fr"><label class="fl">Groom's Date of Birth <span style="font-weight:400;color:#aaa">(for birthday greetings)</span></label><input class="fi" type="date" id="f-groom-dob"></div></div>
+        <div class="fr"><label class="fl">Wedding Anniversary Date <span style="font-weight:400;color:#aaa">(actual wedding day — used for anniversary greetings; may differ from the Wedding/Event Date above if this project isn't the wedding itself)</span></label><input class="fi" type="date" id="f-wedding-date" style="max-width:220px"></div>
         <div class="fg"><div class="fr"><label class="fl">Instagram Handle</label><input class="fi" id="f-instagram" placeholder="@couplename"></div><div class="fr"><label class="fl">General Notes</label><textarea class="fi" id="f-general-notes" rows="2"></textarea></div></div>
       </div>
 
@@ -4803,9 +4805,11 @@ function renderCelebrations() {
   var events = [];
 
   pl().forEach(function(p) {
-    // Wedding anniversary (based on event date = wedding date)
-    if (p.date) {
-      var evDate = parseLocalDate(p.date);
+    // Wedding anniversary (based on the dedicated Wedding Anniversary Date field —
+    // NOT the generic Wedding/Event Date, since that field is reused for every
+    // event type: Engagement, Pre-Wedding, Mehendi, etc. and would give wrong dates)
+    if (p.weddingDate) {
+      var evDate = parseLocalDate(p.weddingDate);
       if (evDate && !isNaN(evDate)) {
         // Anniversary: only show from 1st year onwards (years >= 1)
         // "today" anniversary = if event date month/day matches today exactly
@@ -8542,6 +8546,9 @@ function renderSettings(){
   // ── Field Visibility Panel (superadmin only) ────────────────────
   html += renderFieldVisibilityPanel();
 
+  // ── Advance Payment Proof Requirement toggle (superadmin only) ──
+  html += renderScreenshotProofPanel();
+
   // ── Sidebar Customizer ─────────────────────────────────────────────
   html += '<div class="card" style="margin-top:16px" id="sidebar-customizer-card">' +
     '<div class="card-hdr"><span class="card-title">🗂️ Sidebar Layout Customizer</span>' +
@@ -12264,7 +12271,7 @@ $('btn-new-proj').addEventListener('click',function(){
   editProjId=null;
   $('proj-modal-title').textContent='New Project';
   $('proj-modal-refcode').innerHTML='<span style="font-size:11px;color:#888">Ref code auto-generated on save</span>';
-  ['f-bride','f-groom','f-phone','f-whatsapp','f-email','f-city','f-venue','f-requirements','f-general-notes','f-team-notes','f-stage-notes','f-shotlist','f-prewed','f-drivelink','f-internal','f-deliv-notes','f-raw-notes','f-value','f-discount','f-del-date','f-date','f-bookdate','f-act-del','f-refcode','f-bride-dob','f-groom-dob','f-instagram','f-client-flag','f-flag-note'].forEach(function(id){sv(id,'');});
+  ['f-bride','f-groom','f-phone','f-whatsapp','f-email','f-city','f-venue','f-requirements','f-general-notes','f-team-notes','f-stage-notes','f-shotlist','f-prewed','f-drivelink','f-internal','f-deliv-notes','f-raw-notes','f-value','f-discount','f-del-date','f-date','f-bookdate','f-act-del','f-refcode','f-bride-dob','f-groom-dob','f-wedding-date','f-instagram','f-client-flag','f-flag-note'].forEach(function(id){sv(id,'');});
   sv('f-stage','preprod');sv('f-region','');sv('f-postprod','');sv('f-priority','0');sv('f-pay-preset','30-50-10-5-5');
   var pprev=$('pay-preset-preview');if(pprev)pprev.style.display='none';
   var cpbNew=$('custom-pay-full-builder');if(cpbNew)cpbNew.style.display='none';
@@ -12386,7 +12393,7 @@ $('btn-save-proj').addEventListener('click',function(){
     var _npRef=gv('np-ref');
     var _npProofFile=($('np-proof-file')||{}).files;
     var _npHasProof=_npProofFile&&_npProofFile.length>0;
-    var _npNeedsProof=_npMode.toLowerCase()!=='cash';
+    var _npNeedsProof=screenshotProofRequired()&&_npMode.toLowerCase()!=='cash';
     var _advMissing=null;
     if(!_npAmt||!_npDate){
       _advMissing='No advance payment has been recorded yet. A new project cannot be saved until the first payment is entered above.';
@@ -12448,7 +12455,7 @@ $('btn-save-proj').addEventListener('click',function(){
   for(var i=0;i<rawRowCount;i++){var ph=$('rdr-ph-'+i),sz=$('rdr-sz-'+i),un=$('rdr-un-'+i),loc=$('rdr-loc-'+i),bk=$('rdr-bk-'+i);if(ph&&ph.value)raws.push({photographer:ph.value,size:sz?sz.value:'',unit:un?un.value:'GB',location:loc?loc.value:'',backup:bk?bk.value:'no'});}
   var state=gv('f-state');
   var region=gv('f-region')||getRegionForState(state);
-  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:ex.shootDays||[],dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now(),strictPayments:editProjId?(ex.strictPayments||false):true,kbSchedule:(typeof kbErpGetSchedule==='function'?kbErpGetSchedule():(ex.kbSchedule||null)),kbEventMode:_kbErpEventMode||'single'};
+  var p={id:id,bride:bride,groom:groom,refcode:refcode,payPreset:gv('f-pay-preset')||'30-50-10-5-5',customPayTerms:gv('f-pay-preset')==='custom'?getCustomPayTerms():(ex.customPayTerms||[]),phone:safePhone,whatsapp:safeWhatsapp,email:safeEmail,city:gv('f-city'),state:state,region:region,date:gv('f-date'),bookdate:gv('f-bookdate'),venue:gv('f-venue'),type:gv('f-type'),package:gv('f-package'),source:gv('f-source'),value:parseInt(gv('f-value'))||0,discount:parseInt(gv('f-discount'))||0,stage:gv('f-stage'),requirements:gv('f-requirements'),generalNotes:gv('f-general-notes'),bride_dob:gv('f-bride-dob')||'',groom_dob:gv('f-groom-dob')||'',weddingDate:gv('f-wedding-date')||'',instagram:gv('f-instagram')||'',priority:parseInt(gv('f-priority'))||0,clientFlag:gv('f-client-flag')||'',flagNote:gv('f-flag-note')||'',photographer:gv('f-photographer'),videographer:gv('f-videographer'),editor:gv('f-editor'),coordinator:gv('f-coordinator'),drone:gv('f-drone'),teamNotes:gv('f-team-notes'),stageNotes:gv('f-stage-notes'),deliveryDate:gv('f-del-date'),actualDelivery:gv('f-act-del'),shotlist:gv('f-shotlist'),prewed:gv('f-prewed'),postprodStatus:gv('f-postprod'),drivelink:gv('f-drivelink'),internal:gv('f-internal'),delivNotes:gv('f-deliv-notes'),rawNotes:gv('f-raw-notes'),rawRows:raws,shootDays:ex.shootDays||[],dataEntries:collectDataEntries(),dataLogNotes:gv('f-datalog-notes'),dataLogApproved:ex.dataLogApproved||false,dataLogApprovedBy:ex.dataLogApprovedBy||'',dataLogApprovedAt:ex.dataLogApprovedAt||null,payLedger:ex.payLedger||[],documents:ex.documents||[],eventDays:collectEventDays().filter(function(ed){return ed.date&&/^\d{4}-\d{2}-\d{2}$/.test(ed.date)&&ed.type;}),createdAt:editProjId?(ex.createdAt||Date.now()):Date.now(),updatedAt:Date.now(),strictPayments:editProjId?(ex.strictPayments||false):true,kbSchedule:(typeof kbErpGetSchedule==='function'?kbErpGetSchedule():(ex.kbSchedule||null)),kbEventMode:_kbErpEventMode||'single'};
   Object.assign(p,deliv);
   // ── Carry forward all pay_*_due and pay_*_due_notes fields from existing project ──
   // These are saved separately (not in the main form) and must survive a full project save.
@@ -12883,11 +12890,18 @@ function renderTxnFeed() {
     });
   });
 
-  // Sort newest first
+  // Sort by whichever column the user last clicked (defaults to Date, newest first)
+  var sortMul = _txnSortDir === 'asc' ? 1 : -1;
   allTxns.sort(function(a, b) {
-    var da = a.e.ts || new Date(a.e.date || 0).getTime();
-    var db2 = b.e.ts || new Date(b.e.date || 0).getTime();
-    return db2 - da;
+    if (_txnSortKey === 'date') return txnCompareByDate(a, b, sortMul); // date (default) — the actual date the payment was received
+    var va, vb;
+    if (_txnSortKey === 'amount') { va = parseInt(a.e.amount) || 0; vb = parseInt(b.e.amount) || 0; }
+    else if (_txnSortKey === 'couple') { va = a.couple.toLowerCase(); vb = b.couple.toLowerCase(); }
+    else if (_txnSortKey === 'account') { va = (a.e.account || '').toLowerCase(); vb = (b.e.account || '').toLowerCase(); }
+    else { va = (a.e.mode || '').toLowerCase(); vb = (b.e.mode || '').toLowerCase(); } // mode
+    if (va < vb) return -1 * sortMul;
+    if (va > vb) return 1 * sortMul;
+    return 0;
   });
 
   // Duplicate detection: same projId + stage + amount + date (±1 day)
@@ -12908,6 +12922,9 @@ function renderTxnFeed() {
     }
   }
   var dupCount = dupSet.size / 2 | 0;
+  allTxns.forEach(function(item, i){ item.isDup = dupSet.has(i); });
+  // Note: the "show only duplicates" filter has been removed — duplicate rows are
+  // still flagged inline with a badge in the table below.
 
   // Build extra filter bar
   var filterBar = '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;background:#f9f9fb;border:1px solid #e8e8ee;border-radius:10px;padding:10px 14px">' +
@@ -12915,17 +12932,19 @@ function renderTxnFeed() {
     '<select id="txn-mode-f" class="fi" style="flex:0;width:auto;font-size:12px;padding:5px 10px" onchange="renderTxnFeed()">' +
       '<option value="">All Modes</option>' +
       ['cash','online','cheque','upi','bank_transfer'].map(function(m){
-        return '<option value="'+m+'"'+(modeF===m?' selected':'')+'>'+m.replace(/_/g,' ').replace(/\w/g,function(c){return c.toUpperCase()})+'</option>';
+        return '<option value="'+m+'"'+(modeF===m?' selected':'')+'>'+m.replace(/_/g,' ').replace(/\w/g,function(c){return c.toUpperCase()})+'</option>';
       }).join('') +
     '</select>' +
+    '<button class="btn btn-sm" style="font-size:11px;padding:5px 10px;background:#16a34a;color:#fff;border:none;font-weight:700" onclick="exportTxnFeedExcel()">📊 Export (Excel)</button>' +
     '<span style="font-size:12px;color:#555;font-weight:600">' + allTxns.length + ' transaction' + (allTxns.length!==1?'s':'') +
     ' · <span style="color:#16a34a">₹' + fmtNum(allTxns.reduce(function(s,t){return s+(parseInt(t.e.amount)||0);},0)) + '</span></span>' +
+    '<span style="font-size:11px;color:#aaa;margin-left:auto">↕️ Click any column header to sort</span>' +
     '</div>';
 
-  // Duplicate alert banner
+  // Duplicate alert banner (informational only — duplicate rows are still flagged with a badge below)
   var dupBanner = '';
   if (dupCount > 0) {
-    dupBanner = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">' +
+    dupBanner = '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
       '<span style="font-size:18px">⚠️</span>' +
       '<span style="font-size:13px;font-weight:700;color:#991b1b">' + dupCount + ' possible duplicate pair' + (dupCount>1?'s':'') + ' detected — flagged below</span>' +
       '</div>';
@@ -12939,7 +12958,7 @@ function renderTxnFeed() {
   // Table
   var rows = allTxns.map(function(item, i) {
     var e = item.e, p = item.p;
-    var isDup = dupSet.has(i);
+    var isDup = item.isDup;
     var dateStr = e.date ? fmtDate(e.date) : '—';
     var rowBg = isDup ? 'background:#fff7ed' : (i%2===0 ? '#fff' : '#fafafa');
     var stageLabel2 = e.stage || '—';
@@ -12965,16 +12984,20 @@ function renderTxnFeed() {
     '</tr>';
   }).join('');
 
+  function txnSortHeader(key, label, extraStyle) {
+    var arrow = _txnSortKey === key ? (_txnSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return '<th style="padding:9px 12px;text-align:left;font-weight:700;color:' + (_txnSortKey===key?'#1d4ed8':'#374151') + ';cursor:pointer;user-select:none;white-space:nowrap' + (extraStyle||'') + '" onclick="txnSortBy(\''+key+'\')" title="Click to sort">' + label + arrow + '</th>';
+  }
   var tableHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
     '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e5e7eb">' +
-      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151;white-space:nowrap">Couple</th>' +
+      txnSortHeader('couple', 'Couple') +
       '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Ref</th>' +
       '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Stage</th>' +
-      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Amount</th>' +
-      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Account</th>' +
-      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Mode</th>' +
+      txnSortHeader('amount', 'Amount') +
+      txnSortHeader('account', 'Account') +
+      txnSortHeader('mode', 'Mode') +
       '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Reference</th>' +
-      '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Date</th>' +
+      txnSortHeader('date', 'Date') +
       '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Recorded By</th>' +
       '<th style="padding:9px 12px;text-align:left;font-weight:700;color:#374151">Status</th>' +
       (isSA ? '<th style="padding:9px 12px"></th>' : '') +
@@ -13001,6 +13024,81 @@ function deleteTxnEntry(projId, entryIdx) {
 
 function fmtNum(n) {
   return (n || 0).toLocaleString('en-IN');
+}
+
+// ── Export the currently filtered + sorted Transaction Feed to Excel ──
+function exportTxnFeedExcel() {
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded'); return; }
+
+  var accF = (document.getElementById('pay-acc-f') || {value:''}).value;
+  var dateRange = getPayDateRange();
+  var searchQ = (document.getElementById('txn-search') || {value:''}).value.trim().toLowerCase();
+  var modeF = (document.getElementById('txn-mode-f') || {value:''}).value;
+
+  var allTxns = [];
+  pl().forEach(function(p) {
+    if (p.archived) return;
+    (p.payLedger || []).forEach(function(e) {
+      if (accF && e.account !== accF) return;
+      if (dateRange && !inDateRange(e.date || '', dateRange)) return;
+      if (modeF && (e.mode || '') !== modeF) return;
+      var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+      if (searchQ && couple.toLowerCase().indexOf(searchQ) === -1) return;
+      allTxns.push({ e: e, p: p, couple: couple });
+    });
+  });
+
+  if (!allTxns.length) { showToast('No transactions found for this filter'); return; }
+
+  // Same sort the on-screen table is currently using
+  var sortMul = _txnSortDir === 'asc' ? 1 : -1;
+  allTxns.sort(function(a, b) {
+    if (_txnSortKey === 'date') return txnCompareByDate(a, b, sortMul);
+    var va, vb;
+    if (_txnSortKey === 'amount') { va = parseInt(a.e.amount) || 0; vb = parseInt(b.e.amount) || 0; }
+    else if (_txnSortKey === 'couple') { va = a.couple.toLowerCase(); vb = b.couple.toLowerCase(); }
+    else if (_txnSortKey === 'account') { va = (a.e.account || '').toLowerCase(); vb = (b.e.account || '').toLowerCase(); }
+    else { va = (a.e.mode || '').toLowerCase(); vb = (b.e.mode || '').toLowerCase(); }
+    if (va < vb) return -1 * sortMul;
+    if (va > vb) return 1 * sortMul;
+    return 0;
+  });
+
+  var txRows = [['Date', 'Couple', 'Ref Code', 'Stage', 'Amount (INR)', 'Account', 'Mode', 'Reference', 'Recorded By']];
+  allTxns.forEach(function(x) {
+    var e = x.e, p = x.p;
+    txRows.push([e.date || '', x.couple, p.refcode || '', e.stage || '', parseInt(e.amount) || 0, e.account || '', e.mode || '', e.ref || '', e.recordedBy || '']);
+  });
+
+  var periodLabel = [
+    accF ? 'Account: ' + accF : null,
+    dateRange ? 'Payment date range: ' + dateRange.from + ' to ' + dateRange.to : null,
+    modeF ? 'Mode: ' + modeF : null,
+    searchQ ? 'Search: ' + searchQ : null
+  ].filter(Boolean).join(' | ') || 'All Time — No filter applied';
+  var sumRows = [
+    ['KB Studio Productions — Transaction Feed Export'],
+    ['Generated', new Date().toLocaleString('en-IN')],
+    ['Filter', periodLabel],
+    ['Sorted by', _txnSortKey + ' (' + _txnSortDir + ')'],
+    [],
+    ['Metric', 'Value'],
+    ['Number of Transactions', allTxns.length],
+    ['Total Amount (INR)', allTxns.reduce(function(s, x){ return s + (parseInt(x.e.amount) || 0); }, 0)]
+  ];
+
+  var wb = XLSX.utils.book_new();
+  var wsSum = XLSX.utils.aoa_to_sheet(sumRows);
+  wsSum['!cols'] = [{wch:28},{wch:28}];
+  XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
+
+  var wsTx = XLSX.utils.aoa_to_sheet(txRows);
+  wsTx['!cols'] = [{wch:12},{wch:26},{wch:16},{wch:16},{wch:14},{wch:16},{wch:12},{wch:16},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions');
+
+  var fname = 'KB_Transaction_Feed_' + (dateRange ? dateRange.from+'_to_'+dateRange.to : 'AllTime') + '.xlsx';
+  XLSX.writeFile(wb, fname);
+  showToast('📊 Transaction Feed exported!');
 }
 
 
@@ -13414,6 +13512,10 @@ var _peMode = 'single';
 
 // ── Proof-of-payment: required for any non-cash mode, optional for Cash — only for new (strictPayments) projects ──
 function isStrictPaymentsProject(p){ return !!(p && p.strictPayments); }
+// Global Super Admin switch — Firebase path crm_settings/screenshotProofRequired.
+// Defaults to true (required) whenever it hasn't been explicitly set to false, so
+// existing behaviour is unchanged unless a Super Admin turns it off from Settings.
+function screenshotProofRequired(){ return !(crmSettings && crmSettings.screenshotProofRequired===false); }
 function toggleProofRow(modePrefix){
   var modeVal = gv(modePrefix+'-mode');
   var row = $(modePrefix+'-proof-row');
@@ -13421,7 +13523,8 @@ function toggleProofRow(modePrefix){
   var p = null;
   if(modePrefix==='pe') p = editProjId ? projects[editProjId] : null;
   else if(modePrefix==='rp'){ var rid=gv('rp-client'); p = rid ? (projects[rid]||projects[parseInt(rid)]) : null; }
-  else if(modePrefix==='np') p = {strictPayments:true}; // new project being created — always strict
+  else if(modePrefix==='np') p = {strictPayments: screenshotProofRequired()}; // new project being created — strict unless Super Admin has turned the requirement off
+  if(modePrefix==='np'){ var offNote=$('np-proof-off-note'); if(offNote) offNote.style.display=screenshotProofRequired()?'none':'block'; }
   if(!isStrictPaymentsProject(p)){ row.style.display='none'; return; }
   row.style.display = (modeVal && modeVal.toLowerCase()==='cash') ? 'none' : 'block';
 }
@@ -14470,6 +14573,42 @@ function clearProjDateFilter() {
 var _payRange = ''; var _payDateFrom = ''; var _payDateTo = '';
 var _payDateType = 'payment'; // 'payment' | 'event'
 
+// ── Transaction Feed sort state — click a column header to sort by it ──
+var _txnSortKey = 'date'; var _txnSortDir = 'desc'; // 'date'|'couple'|'amount'|'account'|'mode'
+function txnSortBy(key) {
+  if (_txnSortKey === key) { _txnSortDir = _txnSortDir === 'asc' ? 'desc' : 'asc'; }
+  else { _txnSortKey = key; _txnSortDir = (key === 'amount' || key === 'date') ? 'desc' : 'asc'; }
+  renderTxnFeed();
+}
+// ── Parses a payment entry's date (the actual date the payment was received) into a
+//    real timestamp for reliable chronological sorting. Returns null for missing/invalid
+//    dates so callers can always push those to the bottom regardless of sort direction. ──
+function txnDateTs(dateStr) {
+  if (!dateStr) return null;
+  var t;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    t = new Date(dateStr + 'T00:00:00').getTime(); // standard YYYY-MM-DD from the date picker
+  } else if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+    var parts = dateStr.split('-'); // legacy DD-MM-YYYY entries
+    t = new Date(parts[2] + '-' + parts[1] + '-' + parts[0] + 'T00:00:00').getTime();
+  } else {
+    t = new Date(dateStr).getTime(); // fallback: let JS try
+  }
+  return isNaN(t) ? null : t;
+}
+// ── Compares two transaction-feed items by payment date, newest-or-oldest first per
+//    sortMul, always sinking undated/unparseable entries to the bottom, and breaking
+//    ties (multiple payments recorded on the same date) by recorded-time so the order
+//    stays stable and doesn't look "shuffled". ──
+function txnCompareByDate(a, b, sortMul) {
+  var ta = txnDateTs(a.e.date), tb = txnDateTs(b.e.date);
+  if (ta === null && tb === null) return 0;
+  if (ta === null) return 1;
+  if (tb === null) return -1;
+  if (ta !== tb) return (ta - tb) * sortMul;
+  return (b.e.ts || 0) - (a.e.ts || 0);
+}
+
 function setPayDateType(t) {
   _payDateType = t;
   resetPayDateTypeUI();
@@ -15349,6 +15488,28 @@ var HC_CHECKS = [
     inputHtml: function(p){ return '<input type="email" placeholder="Email address" class="hc-inline-input" data-field="email" data-id="'+p.id+'" value="'+(p.email||'')+'">'; }
   },
   */
+  // ── BIRTHDAYS ────────────────────────────────────────────────────
+  {
+    type: 'birthday', key: 'no_bride_dob',
+    label: "Bride's birthday missing", icon: '🎂', severity: 'low',
+    test: function(p){ return !p.bride_dob || p.bride_dob.trim() === ''; },
+    field: 'bride_dob',
+    inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="bride_dob" data-id="'+p.id+'" value="'+(p.bride_dob||'')+'"> <span style="font-size:11px;color:#888">Bride\u2019s date of birth</span>'; }
+  },
+  {
+    type: 'birthday', key: 'no_groom_dob',
+    label: "Groom's birthday missing", icon: '🎂', severity: 'low',
+    test: function(p){ return !p.groom_dob || p.groom_dob.trim() === ''; },
+    field: 'groom_dob',
+    inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="groom_dob" data-id="'+p.id+'" value="'+(p.groom_dob||'')+'"> <span style="font-size:11px;color:#888">Groom\u2019s date of birth</span>'; }
+  },
+  {
+    type: 'anniversary', key: 'no_wedding_date',
+    label: 'Wedding anniversary date missing', icon: '💍', severity: 'low',
+    test: function(p){ return !p.weddingDate || p.weddingDate.trim() === ''; },
+    field: 'weddingDate',
+    inputHtml: function(p){ return '<input type="date" class="hc-inline-input" data-field="weddingDate" data-id="'+p.id+'" value="'+(p.weddingDate||'')+'"> <span style="font-size:11px;color:#888">Actual wedding day (for anniversary greetings)</span>'; }
+  },
   {
     type: 'location', key: 'no_city',
     label: 'No city entered', icon: '🏙️', severity: 'medium',
@@ -15591,6 +15752,8 @@ var HC_TILES = [
   { type:'location',     label:'No City / State',      icon:'🏙️', color:'#2563eb' },
   { type:'region',       label:'No Zone',              icon:'📍', color:'#2563eb' },
   { type:'contact',      label:'Contact Incomplete',   icon:'📞', color:'#7c3aed' },
+  { type:'birthday',     label:'No Birthday',          icon:'🎂', color:'#db2777' },
+  { type:'anniversary',  label:'No Anniversary Date',  icon:'💍', color:'#be185d' },
   { type:'source',       label:'No Lead Source',       icon:'🔍', color:'#0891b2' },
   { type:'package',      label:'No Package/Type',      icon:'📋', color:'#7c3aed' },
   { type:'refcode',      label:'No Ref Code',          icon:'🔑', color:'#6b7280' },
@@ -16412,6 +16575,44 @@ function saveFieldVisibility() {
   });
 }
 
+// ── Advance Payment Proof Requirement — Super Admin only ──────────────────────
+// Firebase path: crm_settings/screenshotProofRequired (boolean). Missing/true = required
+// (default, unchanged behaviour). false = the screenshot field is hidden and not
+// enforced when creating a new project — meant for bulk-entering old/backlog clients.
+function renderScreenshotProofPanel() {
+  if (!CU || CU.role !== 'superadmin') return '';
+  var isOn = screenshotProofRequired();
+  return '<div class="card" style="margin-top:16px" id="screenshot-proof-card">' +
+    '<div class="card-hdr">' +
+      '<span class="card-title">📸 Advance Payment Proof (New Projects)</span>' +
+      '<span style="font-size:11px;color:#6d28d9;background:#f5f3ff;padding:3px 10px;border-radius:20px;border:1px solid #ddd8fe;font-weight:600">Superadmin only</span>' +
+    '</div>' +
+    '<p style="font-size:12px;color:#888;margin-bottom:14px">Controls whether a payment-proof screenshot is required for the advance payment when creating a <b>new</b> project (non-cash modes). Turn this OFF temporarily while Accounts enters old/backlog clients who don\'t have a screenshot to attach, then switch it back ON.</p>' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;background:' + (isOn ? '#f0fdf4' : '#fff7ed') + ';border:1px solid ' + (isOn ? '#bbf7d0' : '#fed7aa') + ';border-radius:8px;padding:12px 16px">' +
+      '<div>' +
+        '<div style="font-size:13px;font-weight:700;color:' + (isOn ? '#166534' : '#9a3412') + '">' + (isOn ? '✅ Screenshot proof is REQUIRED' : '⚠️ Screenshot proof is OFF') + '</div>' +
+        '<div style="font-size:11px;color:#888;margin-top:2px">' + (isOn ? 'Non-cash advance payments on new projects must have a proof screenshot attached.' : 'New projects can be saved with a non-cash advance and no screenshot attached.') + '</div>' +
+      '</div>' +
+      '<button class="btn btn-sm" id="btn-toggle-screenshot-proof" style="font-weight:700;' + (isOn ? 'background:#dc2626;color:#fff;border-color:#dc2626' : 'background:#16a34a;color:#fff;border-color:#16a34a') + '" onclick="setScreenshotProofRequired(' + (isOn ? 'false' : 'true') + ')">' + (isOn ? 'Turn OFF' : 'Turn back ON') + '</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function setScreenshotProofRequired(val) {
+  if (!CU || CU.role !== 'superadmin') { showToast('⛔ Super Admin only.'); return; }
+  var msg = val
+    ? 'Turn screenshot proof back ON for new-project advance payments?'
+    : '⚠️ Turn OFF the screenshot proof requirement for new-project advance payments?\n\nAny new project can then be saved with a non-cash advance and no proof attached. Remember to turn it back on once old clients are entered.';
+  if (!confirm(msg)) return;
+  db.ref('crm_settings/screenshotProofRequired').set(val, function(err) {
+    if (err) { showToast('❌ Error: ' + err.message); return; }
+    crmSettings.screenshotProofRequired = val;
+    showToast(val ? '✅ Screenshot proof requirement turned back ON.' : '⚠️ Screenshot proof requirement turned OFF.');
+    logActivity('settings', 'Advance Payment Proof ' + (val ? 'Enabled' : 'Disabled'), (val ? 'Screenshot proof requirement re-enabled' : 'Screenshot proof requirement switched off') + ' for new projects by ' + (CU ? CU.name || CU.username : 'Super Admin'));
+    renderSettings();
+  });
+}
+
 // ── Build the settings panel HTML ────────────────────────────────────────────
 function renderFieldVisibilityPanel() {
   if (!CU || CU.role !== 'superadmin') return '';
@@ -17024,7 +17225,7 @@ function openProject(id, tabId) {
   sv('f-del-date', p.deliveryDate); sv('f-act-del', p.actualDelivery); sv('f-shotlist', p.shotlist);
   sv('f-prewed', p.prewed); sv('f-postprod', p.postprodStatus); sv('f-drivelink', p.drivelink);
   sv('f-internal', p.internal); sv('f-deliv-notes', p.delivNotes); sv('f-raw-notes', p.rawNotes); sv('f-refcode', p.refcode || '');
-  sv('f-bride-dob', p.bride_dob || ''); sv('f-groom-dob', p.groom_dob || ''); sv('f-instagram', p.instagram || ''); sv('f-client-flag', p.clientFlag || ''); sv('f-flag-note', p.flagNote || ''); setTimeout(function(){ onClientFlagChange(); initFlagRowVisibility(); }, 50);
+  sv('f-bride-dob', p.bride_dob || ''); sv('f-groom-dob', p.groom_dob || ''); sv('f-wedding-date', p.weddingDate || ''); sv('f-instagram', p.instagram || ''); sv('f-client-flag', p.clientFlag || ''); sv('f-flag-note', p.flagNote || ''); setTimeout(function(){ onClientFlagChange(); initFlagRowVisibility(); }, 50);
   // Star priority — stored as integer 0-5
   var priVal = parseInt(p.priority) || 0;
   sv('f-priority', priVal);
