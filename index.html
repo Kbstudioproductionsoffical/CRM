@@ -6313,6 +6313,22 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
   btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);setTimeout(function(){_attachKbErpListeners();if(editProjId&&projects[editProjId]){var _p2=projects[editProjId];if(_p2.kbSchedule&&typeof kbErpLoadSchedule==='function'){kbErpLoadSchedule(_p2.kbSchedule);}else{onPayPresetChange();kbErpAutoFillEventDate();}}else{onPayPresetChange();}},200);}if(target==='t-docs')renderDocsList();if(target==='t-checklist'&&editProjId&&projects[editProjId])renderChecklistTab(projects[editProjId],editProjId);if(target==='t-client-issues'&&editProjId){var wrap=document.getElementById('client-issues-panel-wrap');if(wrap){wrap.innerHTML='<div id="client-issues-panel-'+editProjId+'"><div style="color:#aaa;font-size:12px;padding:20px;text-align:center">Loading…</div></div>';renderClientIssuesPanel(editProjId);}}if(target==='t-client-timeline'&&editProjId){renderClientTimelinePanel(editProjId);}});
 });
 
+// Attaches the live crm_users listener with automatic retry. Right after Google
+// sign-in, there's a brief window where the database connection hasn't yet
+// picked up the fresh auth token — a read fired in that window can fail with
+// permission_denied even though the user IS properly signed in. Since .on()
+// listeners don't auto-retry after a denial, this wrapper does it manually.
+function attachUsersListener(){
+  db.ref('crm_users').on('value', function(snap){
+    var fb=snap.val()||{};
+    DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});
+    users=fb;
+    if (typeof refresh === 'function') refresh();
+  }, function(err){
+    console.warn('crm_users listener denied, retrying in 1.5s:', err && err.message);
+    setTimeout(attachUsersListener, 1500);
+  });
+}
 function initUsers(cb){
   // Always seed DEFAULT_USERS first
   DEFAULT_USERS.forEach(function(u){ if(!users[u.id]) users[u.id]=u; });
@@ -6495,7 +6511,7 @@ function loadAll(){
       db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
       db.ref('crm_dupe_confirmed').on('value',function(snap){dupeConfirmed=snap.val()||{};if(_hcTab==='dupes')renderHealthCheck();});
       hcLoadTasks();
-      db.ref('crm_users').on('value',function(snap){var fb=snap.val()||{};DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});users=fb;});
+      attachUsersListener();
 
       // ── Step 4: Non-critical stuff last ──
       setTimeout(function(){
@@ -6514,7 +6530,7 @@ function loadAll(){
     db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
     db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
     db.ref('crm_dupe_confirmed').on('value',function(snap){dupeConfirmed=snap.val()||{};if(_hcTab==='dupes')renderHealthCheck();});
-    db.ref('crm_users').on('value',function(snap){var fb=snap.val()||{};DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});users=fb;});
+    attachUsersListener();
   });
 }
 var _dateAutoRan=false;function runDateAutoOnce(){if(!_dateAutoRan&&Object.keys(projects).length){_dateAutoRan=true;runDateAutomations();runIntegrityCheck();}}
