@@ -1561,6 +1561,10 @@ document.addEventListener('wheel', function(e) {
           style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
           🧾 GST Report
         </button>
+        <button class="pay-main-tab" data-ptab="accounts" onclick="switchPayTab('accounts',this)"
+          style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">
+          🏦 Bank Accounts
+        </button>
       </div>
 
       <!-- Projects tab content -->
@@ -1667,6 +1671,15 @@ document.addEventListener('wheel', function(e) {
         </div>
         <div id="pay-gst-report"></div>
       </div>
+
+      <!-- Bank Accounts tab content -->
+      <div id="pay-tab-accounts" style="display:none">
+        <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary" id="btn-pay-add-account" onclick="openAddAccount()">+ Add Account</button>
+          <span style="font-size:12px;color:#888">Track which account receives each payment</span>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden"><div id="pay-accounts-list"></div></div>
+      </div>
     </div>
 
     <div id="page-team" class="page">
@@ -1761,12 +1774,8 @@ document.addEventListener('wheel', function(e) {
       <div id="settings-content"></div>
     </div>
     <div id="page-users" class="page">
-      <div class="page-title">Users &amp; Accounts</div>
-      <div class="page-sub">Manage CRM logins, roles, and financial accounts — Super Admin only.</div>
-      <div style="display:flex;gap:2px;border-bottom:1px solid #e5e5e5;margin-bottom:16px">
-        <button class="tab-btn active" data-tab="t-users-tab" onclick="switchUsersTab('t-users-tab',this)">🔐 Users</button>
-        <button class="tab-btn" data-tab="t-accounts-tab" onclick="switchUsersTab('t-accounts-tab',this)">🏦 Accounts</button>
-      </div>
+      <div class="page-title">Users &amp; Logins</div>
+      <div class="page-sub">Manage CRM logins and roles — Super Admin only.</div>
       <div id="t-users-tab">
         <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
           <button class="btn btn-primary" id="btn-add-user">+ Add User</button>
@@ -1774,92 +1783,9 @@ document.addEventListener('wheel', function(e) {
         </div>
         <div class="card" style="padding:0;overflow:hidden"><div id="user-list"></div></div>
       </div>
-      <div id="t-accounts-tab" style="display:none">
-        <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
-          <button class="btn btn-primary" id="btn-add-account">+ Add Account</button>
-          <span style="font-size:12px;color:#888">Track which account receives each payment</span>
-        </div>
-        <div class="card" style="padding:0;overflow:hidden"><div id="accounts-list"></div></div>
-      </div>
     </div>
 
-    <!-- ══════════════════════════════════════════
-         ACCOUNTS ERP PAGE
-    ══════════════════════════════════════════ -->
-    <div id="page-accounts" class="page" style="display:none">
-      <div id="pay-closed-alerts" style="margin-bottom:16px"></div>
-      <div class="page-title">💰 Accounts ERP</div>
-      <div class="page-sub">Professional payment tracking — instalments, due dates, forecasts, and cash flow.</div>
 
-      <!-- KPI Row -->
-      <div id="erp-kpi-row" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px"></div>
-
-      <!-- Tab bar -->
-      <div style="display:flex;gap:2px;border-bottom:2px solid #e5e5e5;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-        <button class="tab-btn active" id="erp-tab-btn-schedule"  onclick="erpSwitchTab('schedule')">📋 Instalment Schedule</button>
-        <button class="tab-btn"        id="erp-tab-btn-forecast"  onclick="erpSwitchTab('forecast')">📈 Revenue Forecast</button>
-        <button class="tab-btn"        id="erp-tab-btn-aging"     onclick="erpSwitchTab('aging')">📊 Aging Report</button>
-        <button class="tab-btn"        id="erp-tab-btn-overdue"   onclick="erpSwitchTab('overdue')">🔴 Overdue</button>
-        <button class="tab-btn"        id="erp-tab-btn-reminders" onclick="erpSwitchTab('reminders')">🔔 Reminders</button>
-        <button class="tab-btn"        id="erp-tab-btn-received"  onclick="erpSwitchTab('received')">✅ Received History</button>
-        <button class="tab-btn"        id="erp-tab-btn-bankaccs"  onclick="erpSwitchTab('bankaccs')">🏦 Bank Accounts</button>
-        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:2px">
-          <button class="btn btn-sm" onclick="renderAccountsERP()" style="font-size:11px">🔄 Refresh</button>
-          <button class="btn btn-sm" onclick="erpExportCSV()" style="background:#0369a1;color:#fff;border-color:#0369a1;font-size:11px">⬇️ Export CSV</button>
-        </div>
-      </div>
-
-      <!-- Filter bar (shared) -->
-      <div id="erp-filter-bar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-        <input type="text" id="erp-search" placeholder="🔍 Search client…" class="fi" style="width:180px;padding:7px 10px" oninput="kbSearchDebounce(renderAccountsERP)">
-        <select class="fi" id="erp-filter-stage" style="width:160px;padding:7px 10px" onchange="renderAccountsERP()">
-          <option value="">All Stages</option>
-          <option value="preprod">Pre-Prod</option>
-          <option value="production">Production</option>
-          <option value="postprod">Post-Prod</option>
-          <option value="delivery">Delivery</option>
-          <option value="payment">Pay Pending</option>
-          <option value="complete">Complete</option>
-        </select>
-        <select class="fi" id="erp-filter-region" style="width:140px;padding:7px 10px" onchange="renderAccountsERP()">
-          <option value="">All Regions</option>
-          <option value="north">🔵 North</option>
-          <option value="south">🟠 South</option>
-        </select>
-        <select class="fi" id="erp-filter-fy" style="width:150px;padding:7px 10px" onchange="renderAccountsERP()">
-          <option value="">All Financial Years</option>
-        </select>
-      </div>
-
-      <!-- Tab Panes -->
-      <div id="erp-tab-schedule" class="erp-tab-pane">
-        <div id="erp-schedule-content"></div>
-      </div>
-      <div id="erp-tab-forecast" class="erp-tab-pane" style="display:none">
-        <div id="erp-forecast-content"></div>
-      </div>
-      <div id="erp-tab-aging" class="erp-tab-pane" style="display:none">
-        <div id="erp-aging-content"></div>
-      </div>
-      <div id="erp-tab-reminders" class="erp-tab-pane" style="display:none">
-        <div id="erp-reminders-content"></div>
-      </div>
-      <div id="erp-tab-overdue" class="erp-tab-pane" style="display:none">
-        <div id="erp-overdue-content"></div>
-      </div>
-      <div id="erp-tab-received" class="erp-tab-pane" style="display:none">
-        <div id="erp-received-content"></div>
-      </div>
-      <div id="erp-tab-bankaccs" class="erp-tab-pane" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <div style="font-size:14px;font-weight:700">Bank Accounts &amp; UPI</div>
-          <button class="btn btn-sm" onclick="openAddAccount()" style="background:#1a1a1a;color:#fff;font-size:11px">+ Add Account</button>
-        </div>
-        <div id="accounts-list"></div>
-      </div>
-    </div>
-
-    <!-- ERP: Set Due Date Modal -->
     <div class="modal-overlay" id="erp-due-modal">
       <div class="modal-box" style="max-width:400px">
         <div class="modal-header"><span class="modal-title">📅 Set Expected Payment Date</span><button class="modal-close" data-close="erp-due-modal">✕</button></div>
@@ -5289,7 +5215,7 @@ var DEFAULT_USERS=[
 ];
 var DEFAULT_ACCOUNTS=[{id:'acc1',name:'KB Studio Current Account',type:'current',number:'',notes:'Primary business account'},{id:'acc2',name:'Ketan Savings Account',type:'savings',number:'',notes:''},{id:'acc3',name:'Ritesh Savings Account',type:'savings',number:'',notes:''},{id:'acc4',name:'Keshav Savings Account',type:'savings',number:'',notes:''},{id:'acc5',name:'Shivam Savings Account',type:'savings',number:'',notes:''},{id:'acc6',name:'KB Studio UPI',type:'upi',number:'',notes:''},{id:'acc7',name:'Cash',type:'cash',number:'',notes:''}];
 var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight',label:'Highlight Video',hasDuration:true},{key:'longvideo',label:'Long Video / Full Film',hasDuration:true},{key:'reel',label:'Reels'},{key:'album',label:'Album',hasPhotos:true},{key:'frame',label:'Frame'},{key:'editedpics',label:'Edited Pictures'}];
-var DEFAULT_PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}]};
+var DEFAULT_PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}],'50-50-event':[{key:'p50c',label:'Advance',pct:50,desc:'To block the date'},{key:'p50d',label:'Final Instalment',pct:50,desc:'Before the event'}],'30-10-50-5-5':[{key:'p30c',label:'Advance',pct:30,desc:'To block the date'},{key:'p10c',label:'2nd Instalment',pct:10,desc:'Before pre-wedding shoot'},{key:'p50e',label:'3rd Instalment',pct:50,desc:'Before first event'},{key:'p5c',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5d',label:'Final Instalment',pct:5,desc:'Before final delivery'}]};
 // PAY_PRESETS starts as the built-in defaults, then gets overlaid with anything
 // saved under crmSettings.payment_presets (see syncPayPresets, called whenever
 // crm_settings loads/changes). This lets Settings → Payment Split Presets add,
@@ -5571,6 +5497,8 @@ function updatePayBuilderBadge() {
     '30-50-10-10':  '30·50·10·10%',
     '20-60-10-10':  '20·60·10·10%',
     '50-50':        '50·50%',
+    '50-50-event':  '50·50% (Event)',
+    '30-10-50-5-5': '30·10·50·5·5%',
     'custom':       'Custom Split'
   };
   var label = labels[val] || val;
@@ -12372,7 +12300,7 @@ function _erpRenderBankAccounts() {
   var accTotals = {};
   pl().forEach(function(p){ (p.payLedger||[]).forEach(function(e){ if(e.account){ accTotals[e.account]=(accTotals[e.account]||0)+(parseInt(e.amount)||0); } }); });
 
-  document.getElementById('accounts-list').innerHTML = list.length
+  document.getElementById('pay-accounts-list').innerHTML = list.length
     ? '<table class="tbl"><thead><tr><th>Account</th><th>Type</th><th>Account No. / UPI</th><th>Total Collected</th><th>Notes</th>'+(canEdit?'<th></th>':'')+'</tr></thead><tbody>'+
       list.map(function(a) {
         var total = accTotals[a.name] || 0;
@@ -12903,12 +12831,14 @@ function switchPayTab(tab, btn) {
   var collTab = document.getElementById('pay-tab-collections');
   var pipeTab = document.getElementById('pay-tab-pipeline');
   var gstTab = document.getElementById('pay-tab-gst');
+  var acctTab = document.getElementById('pay-tab-accounts');
   if (!projTab || !feedTab || !collTab) return;
   projTab.style.display = 'none';
   feedTab.style.display = 'none';
   collTab.style.display = 'none';
   if (pipeTab) pipeTab.style.display = 'none';
   if (gstTab) gstTab.style.display = 'none';
+  if (acctTab) acctTab.style.display = 'none';
   var calTab = document.getElementById('pay-tab-calendar');
   if (calTab) calTab.style.display = 'none';
   if (tab === 'projects') {
@@ -12930,6 +12860,9 @@ function switchPayTab(tab, btn) {
   } else if (tab === 'calendar') {
     if (calTab) calTab.style.display = '';
     renderPaymentCalendar();
+  } else if (tab === 'accounts') {
+    if (acctTab) acctTab.style.display = '';
+    if (typeof _erpRenderBankAccounts === 'function') _erpRenderBankAccounts();
   }
 }
 
@@ -15007,7 +14940,6 @@ $('btn-add-user').addEventListener('click',function(){editUserId=null;$('user-mo
 function openEditUser(id){var u=users[id];if(!u)return;editUserId=id;$('user-modal-title').textContent='Edit — '+u.name;sv('u-name',u.name);sv('u-displayname',u.displayname||'');sv('u-username',u.username);sv('u-pass',u.password);sv('u-role',u.role);sv('u-department',u.department||'');sv('u-phone',u.phone||'');sv('u-email',u.email||'');sv('u-notes',u.notes||'');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=!!u.mustChangePassword;populateUserTeamDropdown(u.teamId||'');onUserRoleChange();openModal('user-modal');}
 $('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass');if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;db.ref('crm_users/'+id).set({id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:gv('u-email'),notes:gv('u-notes'),mustChangePassword:mustChange},function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
 function deleteUser(id){if(id===CU.id){alert("Can't delete your own account.");return;}if(!confirm('Remove this user?'))return;db.ref('crm_users/'+id).remove(function(){showToast('User removed.');});}
-$('btn-add-account').addEventListener('click',function(){editAccId=null;$('account-modal-title').textContent='Add Account';['acc-name','acc-number','acc-notes'].forEach(function(i){sv(i,'');});sv('acc-type','savings');openModal('account-modal');});
 function openAddAccount(){editAccId=null;var t=$('account-modal-title');if(t)t.textContent='Add Account';['acc-name','acc-number','acc-notes'].forEach(function(i){sv(i,'');});sv('acc-type','savings');openModal('account-modal');}
 function switchUsersTab(tabId, btn){
   ['t-users-tab','t-accounts-tab'].forEach(function(id){
@@ -17468,34 +17400,20 @@ function applyRBAC() {
   });
   var atb = document.getElementById('btn-add-team'); if (atb) atb.style.display = (CU && (CU.role === 'superadmin' || CU.role === 'admin')) ? '' : 'none';
   var aub = document.getElementById('btn-add-user'); if (aub) aub.style.display = ac.canManageUsers ? '' : 'none';
-  var aab = document.getElementById('btn-add-account'); if (aab) aab.style.display = ac.canManageAccounts ? '' : 'none';
+  var aab = document.getElementById('btn-pay-add-account'); if (aab) aab.style.display = ac.canManageAccounts ? '' : 'none';
 }
 
-// Controls what the accounts role sees on the Users & Accounts page:
-// — hides the Users tab entirely, lands them directly on Accounts tab
+// Users with the 'accounts' role only manage bank accounts, not team logins —
+// send them straight to Payments → Bank Accounts (where that feature now lives)
+// instead of the Users & Logins page, which they have no reason to see.
 function applyUsersPageRBAC() {
   if (!CU) return;
-  var isAccountsRole = CU.role === 'accounts';
-  var usersTabBtn  = document.querySelector('[data-tab="t-users-tab"]');
-  var accountsTabBtn = document.querySelector('[data-tab="t-accounts-tab"]');
-  var usersTabPane = document.getElementById('t-users-tab');
-
-  if (isAccountsRole) {
-    // Hide the Users tab button and pane
-    if (usersTabBtn)  usersTabBtn.style.display  = 'none';
-    if (usersTabPane) usersTabPane.style.display  = 'none';
-    // Force-activate the Accounts tab
-    if (accountsTabBtn) {
-      accountsTabBtn.classList.add('active');
-      accountsTabBtn.click();
-    }
-    // Update page subtitle
-    var sub = document.querySelector('#page-users .page-sub');
-    if (sub) sub.textContent = 'Manage financial accounts — track which bank account receives each payment.';
-  } else {
-    // Restore for superadmin
-    if (usersTabBtn)  usersTabBtn.style.display  = '';
-    if (usersTabPane) usersTabPane.style.display  = '';
+  if (CU.role === 'accounts') {
+    navTo('payments');
+    setTimeout(function() {
+      var acctBtn = document.querySelector('[data-ptab="accounts"]');
+      if (acctBtn) switchPayTab('accounts', acctBtn);
+    }, 50);
   }
 }
 
@@ -17838,7 +17756,7 @@ function sidebarPageLabel(page) {
     invoice:'Invoices', reports:'Reports', priority:'Priority Clients',
     whatsapp:'WhatsApp', referral:'Referral', celebrations:'Celebrations',
     team:'Team', inventory:'Asset Inventory', settings:'Settings',
-    users: (CU && CU.role === 'accounts') ? 'Bank Accounts' : 'Users & Accounts',
+    users: 'Users & Logins',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
     clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings',
     followups:'Follow-Ups'
@@ -20141,7 +20059,7 @@ function buildInvoiceHTML(data, showTerms) {
 // ── TAB: Invoice tab inside project modal ────────────────────────
 function initInvoiceTab() {
   var p = editProjId ? projects[editProjId] : null;
-  _invItems = [{desc: (p && p.package) ? p.package : 'Photography + Videography Package', qty:1, rate: p ? (parseInt(p.value)||0)-(parseInt(p.discount)||0) : 0}];
+  _invItems = [{desc: 'Wedding Photography and Filming', qty:1, rate: p ? (parseInt(p.value)||0)-(parseInt(p.discount)||0) : 0}];
   invGenNum(function(num){sv('inv-number',num);renderInvoiceTabPreview();});
   sv('inv-date', tod());
   sv('inv-due', '');
@@ -20184,7 +20102,7 @@ function initPayTabInvoice() {
   if (!p) return;
   var net = netVal(p);
   _ptInvItems = [{
-    desc: (p.package || 'Photography + Videography Package') + (p.type ? ' — ' + p.type : ''),
+    desc: 'Wedding Photography and Filming',
     qty: 1,
     rate: net
   }];
@@ -20389,10 +20307,10 @@ function loadInvoiceFromProject(id) {
   sv('invp-phone', p.phone||''); sv('invp-email', p.email||'');
   sv('invp-city', p.city||''); sv('invp-state', p.state||'');
   sv('invp-region', p.region||'north'); sv('invp-refcode', p.refcode||'');
-  sv('invp-package', p.package||''); sv('invp-eventdate', p.date||'');
+  sv('invp-package', 'Wedding Photography and Filming');
   sv('invp-venue', p.venue||'');
   var net = netVal(p);
-  _invItemsPage = [{desc: (p.package||'Photography + Videography Package') + (p.type ? ' — ' + p.type : ''), qty:1, rate:net}];
+  _invItemsPage = [{desc: 'Wedding Photography and Filming', qty:1, rate:net}];
   sv('invp-paid', paidTotal(p));
   renderInvoicePageItems();
   updateInvoicePageTotals();
@@ -20402,10 +20320,11 @@ function loadInvoiceFromProject(id) {
 }
 
 function clearInvoicePage() {
-  _invItemsPage = [{desc:'Photography + Videography Package',qty:1,rate:0}];
+  _invItemsPage = [{desc:'Wedding Photography and Filming',qty:1,rate:0}];
   _invPageProjId = null;
   ['invp-bride','invp-groom','invp-phone','invp-email','invp-city','invp-state','invp-refcode','invp-package','invp-eventdate','invp-venue','invp-notes','invp-due'].forEach(function(id){sv(id,'');});
   invGenNum(function(num){sv('invp-number',num);if(typeof renderInvoicePagePreview==='function')renderInvoicePagePreview();}); sv('invp-date', tod()); sv('invp-paid','0'); sv('invp-region','north');
+  sv('invp-package', 'Wedding Photography and Filming');
   document.getElementById('inv-page-proj-sel').value='';
   var sc = document.getElementById('invp-pay-sched-card'); if(sc) sc.style.display='none';
   renderInvoicePageItems(); updateInvoicePageTotals(); renderInvoicePagePreview();
@@ -20644,7 +20563,7 @@ printInvoicePageOnly = function() {
   // Pure print (no auto-save-to-PDF hint)
   var win = window.open('','_blank');
   win.document.write('<!DOCTYPE html><html><head>' +
-    '<title>Invoice '+escHtml(data.invoiceNo||'')+' — KB Studio Productions</title>' +
+    '<title>'+escHtml(buildClientPdfFilename(data.bride, data.groom, data.eventDate).replace(/\.pdf$/,''))+'</title>' +
     '<meta charset="UTF-8">' +
     '<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#fff;print-color-adjust:exact;-webkit-print-color-adjust:exact}@page{margin:0;size:A4}.inv-wrap{width:210mm;min-height:297mm}</style>' +
     '</head><body>' + buildInvoiceHTML(data, showTerms) + '</body></html>');
@@ -20668,7 +20587,7 @@ saveInvoiceAsPDF = function() {
   };
   var win = window.open('','_blank');
   win.document.write('<!DOCTYPE html><html><head>' +
-    '<title>Invoice '+escHtml(data.invoiceNo||'')+' — KB Studio Productions</title>' +
+    '<title>'+escHtml(buildClientPdfFilename(data.bride, data.groom, data.eventDate).replace(/\.pdf$/,''))+'</title>' +
     '<meta charset="UTF-8">' +
     '<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#fff;print-color-adjust:exact;-webkit-print-color-adjust:exact}@page{margin:0;size:A4}.inv-wrap{width:210mm;min-height:297mm}' +
     '.pdf-hint-banner{position:fixed;top:0;left:0;right:0;background:#1a1a1a;color:#fff;padding:10px 16px;font-size:12px;font-family:sans-serif;z-index:9999;text-align:center}' +
@@ -22991,8 +22910,10 @@ var TIMELINE_DELIVERABLE_MAP = [
   { keywords: ['highlight film','highlight'],   ids: ['highlight-film'] },
   { keywords: ['wedding film'],                 ids: ['wedding-film'] },
   { keywords: ['traditional video','trad'],     ids: ['trad-video'] },
-  { keywords: ['photo gallery','edited photo'], ids: ['edited-gallery'] },
+  { keywords: ['photo gallery','edited photo'], ids: ['edited-gallery','prewed-edited-photos'] },
   { keywords: ['pre-wedding short film','short film'], ids: ['prewed-teaser'] },
+  { keywords: ['reels','reel delivery'],         ids: ['short-reels','prewed-reels'] },
+  { keywords: ['save the date'],                 ids: ['save-the-date'] },
   { keywords: ['raw data'],                     ids: ['full-raw'] },
   { keywords: ['album design','album dispatch','final album'], ids: ['wedding-album','prewed-album'] },
 ];
@@ -23438,7 +23359,10 @@ function deletePaymentPreset(key) {
 var QD_PRESETS = [
   // ── Video ──
   { id:'wedding-teaser',    cat:'🎬 Video', label:'Wedding Teaser',       detail:'1.5–2 Min',  icon:'🎞️', durations:['1.5 Min','1.5–2 Min','2–3 Min','3–4 Min','4–5 Min','Custom'] },
-  { id:'prewed-teaser',     cat:'🎬 Video', label:'Pre-Wedding Teaser',    detail:'1.5–2 Min',  icon:'🎞️', durations:['1.5 Min','1.5–2 Min','2–3 Min','3–4 Min','4–5 Min','Custom'] },
+  { id:'prewed-teaser',     cat:'🎬 Video', label:'Pre-Wedding Teaser',    detail:'2–3 Min',  icon:'🎞️', durations:['1–2 Min','2–3 Min','3–4 Min','Custom'] },
+  { id:'save-the-date',     cat:'📸 Photos', label:'Save the Date',        detail:'8 Photos', icon:'💌', durations:['4 Photos','6 Photos','8 Photos','10 Photos','12 Photos','Custom'], isCount:true },
+  { id:'prewed-reels',      cat:'🎬 Video', label:'Pre-Wedding Reels',     detail:'2 Reels',  icon:'📱', durations:['2 Reels','3 Reels','4 Reels','5 Reels','Custom'], isCount:true },
+  { id:'prewed-edited-photos', cat:'📸 Photos', label:'Pre-Wedding Edited Photos', detail:'50 Photos', icon:'🖼️', durations:['20 Photos','30 Photos','40 Photos','50 Photos','60 Photos','70 Photos','Custom'], isCount:true },
   { id:'highlight-film',    cat:'🎬 Video', label:'Highlight Film',        detail:'7–8 Min',    icon:'🎬', durations:['3–5 Min','5–7 Min','7–8 Min','7–10 Min','Custom'] },
   { id:'wedding-film',      cat:'🎬 Video', label:'Wedding Film',          detail:'20–30 Min',  icon:'🎥', durations:['15–20 Min','20–30 Min','30–45 Min','Custom'] },
   { id:'trad-video',        cat:'🎬 Video', label:'Traditional Video',     detail:'Full Coverage', icon:'📹', durations:['20–30 Min','15–20 Min','30–45 Min','Half Day','Full Coverage','Multi-Day','Custom'], hasPerEvent:true },
@@ -23478,6 +23402,19 @@ var QD_PACKAGES = [
       { id: 'online-gallery',  detail: 'Included' },
       { id: 'wedding-album',   qty: 2, photoCount: '200 Photos' },
       { id: 'full-raw',        detail: 'All Files' }
+    ]
+  },
+  {
+    id: 'prewedding-package',
+    label: 'Pre-Wedding Package',
+    icon: '📸',
+    desc: 'Teaser, save the date, reels, edited photos & raw data',
+    items: [
+      { id: 'prewed-teaser',          detail: '2–3 Min' },
+      { id: 'save-the-date',          detail: '8 Photos' },
+      { id: 'prewed-reels',           detail: '2 Reels' },
+      { id: 'prewed-edited-photos',   detail: '50 Photos' },
+      { id: 'full-raw',               detail: 'All Files' }
     ]
   }
 ];
@@ -25000,6 +24937,22 @@ function renderQuotPreview() {
 function printQuotation() { downloadQuotationPDF(); }
 function downloadQuotationHTML() { downloadQuotationPDF(); }
 
+// Formats a YYYY-MM-DD date string as DD-MM-YYYY. Falls back to today if blank/invalid.
+function formatDDMMYYYY(dateStr) {
+  var d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  if (isNaN(d.getTime())) d = new Date();
+  var dd = String(d.getDate()).padStart(2,'0');
+  var mm = String(d.getMonth()+1).padStart(2,'0');
+  var yyyy = d.getFullYear();
+  return dd + '-' + mm + '-' + yyyy;
+}
+// Builds a clean "Bride & Groom - DD-MM-YYYY.pdf" filename — just the couple's
+// name and a date, no extra branding/prefix text.
+function buildClientPdfFilename(bride, groom, dateStr) {
+  var namePart = (bride || 'Client') + (groom ? ' & ' + groom : '');
+  namePart = namePart.replace(/[\\/:*?"<>|]/g, ''); // strip characters invalid in filenames
+  return namePart + ' - ' + formatDDMMYYYY(dateStr) + '.pdf';
+}
 function downloadQuotationPDF() {
   var q = collectQuotData();
   q.theme = currentQuotTheme;
@@ -25061,9 +25014,8 @@ function downloadQuotationPDF() {
       function captureNext() {
         if (idx >= pageArr.length) {
           setMsg('Saving file…');
-          var bride = (q.bride || 'Quotation').replace(/[^a-zA-Z0-9]/g,'_');
-          var groom = (q.groom || '').replace(/[^a-zA-Z0-9]/g,'_');
-          var filename = 'KB_Studio_Quotation_' + bride + (groom ? '_'+groom : '') + '_' + new Date().toISOString().slice(0,10) + '.pdf';
+          var eventDate = (q.days && q.days[0] && q.days[0].date) ? q.days[0].date : '';
+          var filename = buildClientPdfFilename(q.bride, q.groom, eventDate);
           pdf.save(filename);
           wrap.remove();
           closeProg();
@@ -25147,7 +25099,10 @@ function buildQuotPDFDom(q) {
     { kw: 'edited photo gallery',   id: 'edited-gallery' },
     { kw: 'photo gallery',          id: 'edited-gallery' },
     { kw: 'pre-wedding short film', id: 'prewed-teaser' },
-    { kw: 'short film',             id: 'prewed-teaser' }
+    { kw: 'short film',             id: 'prewed-teaser' },
+    { kw: 'save the date',          id: 'save-the-date' },
+    { kw: 'pre-wedding reels',      id: 'prewed-reels' },
+    { kw: 'pre-wedding edited photos', id: 'prewed-edited-photos' }
   ];
   // Milestone labels that are process steps, not deliverables — always use stored desc
   var _tlProcessOnlyMilestones = [
@@ -25606,7 +25561,10 @@ function buildQuotPDFDom(q) {
         'photo-frames':    'Archival Prints',
         'full-raw':        'Full Archive Handover',
         'travel':          'Outstation Coverage',
-        'accommodation':   'Hotel / Client Managed'
+        'accommodation':   'Hotel / Client Managed',
+        'save-the-date':   'Pre-Wedding Announcement Shots',
+        'prewed-reels':    'Vertical · Curated Cuts',
+        'prewed-edited-photos': 'High-Res Edited Images'
       };
       // Combine selected duration + type descriptor for subtitle
       var typeDesc = (preset && subMap[qd.id]) ? subMap[qd.id] : '';
