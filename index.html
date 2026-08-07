@@ -59,6 +59,7 @@
 html{touch-action:manipulation;-ms-touch-action:manipulation;overscroll-behavior:none;height:100%}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;background:#f4f4f6;color:#1a1a1a;overscroll-behavior:none;-webkit-text-size-adjust:100%;text-size-adjust:100%;height:100%;overflow:hidden}
 .login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)}
+@keyframes spin{to{transform:rotate(360deg)}}
 .login-box{background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .login-logo{text-align:center;margin-bottom:24px}
 .login-input{width:100%;padding:10px 14px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:12px}
@@ -1296,6 +1297,11 @@ document.addEventListener('wheel', function(e) {
       </div>
       <div style="font-size:13px;color:#888;margin-top:4px">Business Management System</div>
     </div>
+    <div id="login-checking" style="text-align:center;padding:18px 0 6px;color:#888;font-size:13px">
+      <div style="width:26px;height:26px;border:3px solid #e5e5e5;border-top-color:#1a1a1a;border-radius:50%;margin:0 auto 10px;animation:spin .8s linear infinite"></div>
+      Checking your session…
+    </div>
+    <div id="login-form-area" style="display:none">
     <form id="login-form" autocomplete="on" onsubmit="doLogin();return false;" style="margin:0;display:none">
     <input class="login-input" type="text" id="login-user" name="username" placeholder="Username" autocomplete="username" >
     <input class="login-input" type="password" id="login-pass" name="password" placeholder="Password" autocomplete="current-password" >
@@ -1307,6 +1313,7 @@ document.addEventListener('wheel', function(e) {
       Sign in with Google
     </button>
     <div class="login-err" id="login-err">Incorrect username or password.</div>
+    </div>
   </div>
 </div>
 
@@ -1467,10 +1474,10 @@ document.addEventListener('wheel', function(e) {
     <div id="page-postprod" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
         <div>
-          <div class="page-title" style="margin-bottom:2px">Post Production Tracker</div>
-          <div class="page-sub">Live deliverables status across all projects.</div>
+          <div class="page-title" style="margin-bottom:2px">🎬 Post Production</div>
+          <div class="page-sub">Video Production and Album &amp; Photo Production, plus a live pending-report roll-up.</div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div id="pp-export-controls" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <select id="pp-export-stage" class="fi" style="width:160px;padding:7px 10px;font-size:12px">
             <option value="">All Stages</option>
             <option value="preprod">Pre-Production</option>
@@ -1488,17 +1495,10 @@ document.addEventListener('wheel', function(e) {
           <button onclick="exportPPReport('pdf')" style="background:#2563eb;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">📄 PDF</button>
         </div>
       </div>
+      <div id="pp-dept-tabs"></div>
       <div id="pp-content"></div>
-    </div>
-
-    <div id="page-albumprod" class="page">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
-        <div>
-          <div class="page-title" style="margin-bottom:2px">📔 Album &amp; Photo Production</div>
-          <div class="page-sub">Client-selection-driven workflow for the Album Production and Photo Editing teams.</div>
-        </div>
-      </div>
-      <div id="ap-content"></div>
+      <div id="ap-content" style="display:none"></div>
+      <div id="ppr-content" style="display:none"></div>
     </div>
 
     <div id="page-payments" class="page">
@@ -1775,7 +1775,6 @@ document.addEventListener('wheel', function(e) {
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="$('rep-year').value='';$('rep-month').value='';$('rep-region').value='';renderReports()">Clear</button>
         <span id="rep-filter-label" style="font-size:12px;color:#888;margin-left:4px"></span>
       </div>
-      <div id="ppr-content"></div>
       <div id="rep-content"></div>
     </div>
 
@@ -6029,7 +6028,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.46-2026-08-07-post-prod-dept-video-album-photo';
+var CRM_BUILD_VERSION = 'v78.47-2026-08-08-postprod-unified-page-and-session-persist';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -9764,6 +9763,59 @@ function renderPprDrill(key,rows){
 var _ppTab='overview';
 var _ppMonthFilter=''; // 'YYYY-MM' for specific month, '' for all
 
+// ═══════════════════════════════════════════════════════════════════════
+// POST PRODUCTION — department dispatcher (Video Production / Album &
+// Photo Production / Pending Report, all under one "Post Production" page)
+// ═══════════════════════════════════════════════════════════════════════
+var _ppDeptTab=null;
+function _ppDeptTabsForRole(){
+  var r=CU?CU.role:'';
+  if(r==='videohead') return ['video'];
+  if(r==='albumhead'||r==='albumteam'||r==='photoeditor') return ['albumphoto'];
+  if(r==='relmgr') return ['pending'];
+  return ['video','albumphoto','pending']; // postprod / admin / superadmin / intern
+}
+function renderPostProdPage(){
+  // Editor role keeps its own standalone "my assignments" view (unaffected
+  // by department tabs) — rendered straight into #pp-content.
+  if (CU && CU.role==='editor') {
+    var ecTabs=$('pp-dept-tabs'); if(ecTabs) ecTabs.innerHTML='';
+    var ecEx=$('pp-export-controls'); if(ecEx) ecEx.style.display='none';
+    $('pp-content').style.display=''; $('ap-content').style.display='none'; $('ppr-content').style.display='none';
+    renderPostProd();
+    return;
+  }
+  var allowed=_ppDeptTabsForRole();
+  if(!_ppDeptTab || allowed.indexOf(_ppDeptTab)===-1) _ppDeptTab=allowed[0];
+  var defs=[{id:'video',icon:'🎥',label:'Video Production'},{id:'albumphoto',icon:'📔',label:'Album & Photo Production'},{id:'pending',icon:'📦',label:'Pending Report'}];
+  var visible=defs.filter(function(d){return allowed.indexOf(d.id)!==-1;});
+  var tabsEl=$('pp-dept-tabs');
+  if(tabsEl){
+    if(visible.length>1){
+      var th='<div style="display:flex;gap:4px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px">';
+      visible.forEach(function(t){
+        var a=_ppDeptTab===t.id;
+        th+='<button class="pp-dept-tab-btn" data-tab="'+t.id+'" style="flex-shrink:0;padding:9px 16px;border:none;border-radius:8px;font-size:13px;font-weight:'+(a?700:600)+';cursor:pointer;background:'+(a?'#1a1a1a':'#f1f5f9')+';color:'+(a?'#fff':'#64748b')+'">'+t.icon+' '+t.label+'</button>';
+      });
+      th+='</div>';
+      tabsEl.innerHTML=th;
+      document.querySelectorAll('.pp-dept-tab-btn').forEach(function(btn){
+        btn.addEventListener('click',function(){_ppDeptTab=btn.dataset.tab;renderPostProdPage();});
+      });
+    } else {
+      tabsEl.innerHTML='';
+    }
+  }
+  var ppEl=$('pp-content'), apEl=$('ap-content'), pprEl=$('ppr-content'), exEl=$('pp-export-controls');
+  if(ppEl) ppEl.style.display = _ppDeptTab==='video' ? '' : 'none';
+  if(apEl) apEl.style.display = _ppDeptTab==='albumphoto' ? '' : 'none';
+  if(pprEl) pprEl.style.display = _ppDeptTab==='pending' ? '' : 'none';
+  if(exEl) exEl.style.display = _ppDeptTab==='video' ? '' : 'none';
+  if(_ppDeptTab==='video') renderPostProd();
+  else if(_ppDeptTab==='albumphoto') renderAlbumProd();
+  else if(_ppDeptTab==='pending') renderPostProdPendingReport();
+}
+
 function renderPostProd(){
   // Hide export controls for editor role
   var _ppExportStage = document.getElementById('pp-export-stage');
@@ -9881,19 +9933,8 @@ function renderPostProd(){
   }
   // ── END EDITOR ROLE VIEW ──────────────────────────────────────────────────
 
-  // ── POST PROD HEAD / VIDEO HEAD: Update page header ──────────────────
+  // ── VIDEO HEAD: only video-bucket deliverables are visible to this role ──
   var _isVideoHead = CU && CU.role === 'videohead';
-  if (CU && CU.role === 'postprod') {
-    var ptEl = document.querySelector('.page-title');
-    var psEl = document.querySelector('.page-sub');
-    if (ptEl) ptEl.textContent = '🎬 Post Production Head';
-    if (psEl) psEl.textContent = 'Full pipeline view — clients sorted by event date (First Come, First Out).';
-  } else if (_isVideoHead) {
-    var ptEl = document.querySelector('.page-title');
-    var psEl = document.querySelector('.page-sub');
-    if (ptEl) ptEl.textContent = '🎥 Video Production';
-    if (psEl) psEl.textContent = 'Video deliverables only — clients sorted by event date (First Come, First Out). Album & Photo work is tracked separately in Album & Photo Production.';
-  }
 
   // FIFO: sort projects by event date ascending (earliest event = first served)
   var list=pl().slice().sort(function(a,b){
@@ -9904,7 +9945,7 @@ function renderPostProd(){
   list.forEach(function(p){
     (p.customDelivs||[]).forEach(function(d){
       // Video Production Head only sees video-bucket deliverables (Teaser/Highlight/Reel/Long Video).
-      // Album & Photo work is tracked in the dedicated Album & Photo Production page.
+      // Album & Photo work is tracked in the Album & Photo Production tab.
       if (_isVideoHead && delivBucket(d) !== 'video') return;
       allItems.push({projId:p.id,couple:p.bride+' & '+p.groom,city:p.city||'',
         eventDate:p.date,briefDone:!!(p.clientBrief&&p.clientBrief.submittedAt),d:d,p:p});
@@ -17532,7 +17573,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard','pipeline','projects','quotations','followups','postprod','albumprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','activitylog','healthcheck','clienthub','securitylog'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -17540,7 +17581,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   intern: {
-    pages: ['dashboard','pipeline','projects','quotations','followups','postprod','albumprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','healthcheck','clienthub'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'datavault', 'healthcheck', 'clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -17548,7 +17589,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard','pipeline','projects','postprod','albumprod','whatsapp','onboarding','calendar','team','healthcheck','clienthub','datavault'],
+    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17556,7 +17597,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   relmgr: {
-    pages: ['dashboard','pipeline','projects','followups','whatsapp','calendar','clienthub','healthcheck','reports'],
+    pages: ['dashboard', 'pipeline', 'projects', 'followups', 'postprod', 'whatsapp', 'calendar', 'clienthub', 'healthcheck', 'reports'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17564,7 +17605,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canMarkSelection:true
   },
   postprod: {
-    pages: ['dashboard','postprod','albumprod','team','whatsapp','healthcheck'],
+    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17574,7 +17615,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManagePostProd:true, canMarkSelection:true
   },
   videohead: {
-    pages: ['dashboard','postprod','team','whatsapp','healthcheck'],
+    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17584,7 +17625,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManagePostProd:true
   },
   albumhead: {
-    pages: ['dashboard','albumprod','team','whatsapp','healthcheck'],
+    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17594,7 +17635,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManageAlbumProd:true
   },
   albumteam: {
-    pages: ['dashboard','albumprod','healthcheck'],
+    pages: ['dashboard', 'postprod', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17603,7 +17644,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   photoeditor: {
-    pages: ['dashboard','albumprod','healthcheck'],
+    pages: ['dashboard', 'postprod', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17612,7 +17653,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   accounts: {
-    pages: ['dashboard','pipeline','projects','postprod','albumprod','payments','reports','invoice','calendar','users','healthcheck'],
+    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'invoice', 'calendar', 'users', 'healthcheck'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true, canDeletePayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
@@ -17621,7 +17662,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   datamanager: {
-    pages: ['dashboard','projects','datavault','healthcheck'],
+    pages: ['dashboard', 'projects', 'datavault', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17630,7 +17671,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   editor: {
-    pages: ['dashboard','postprod','healthcheck'],
+    pages: ['dashboard', 'postprod', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17639,7 +17680,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   referral: {
-    pages: ['dashboard','referral','whatsapp','healthcheck'],
+    pages: ['dashboard', 'referral', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -17648,7 +17689,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   preprodmanager: {
-    pages: ['dashboard','pipeline','projects','whatsapp','onboarding','healthcheck'],
+    pages: ['dashboard', 'pipeline', 'projects', 'whatsapp', 'onboarding', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17657,7 +17698,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   socialmedia: {
-    pages: ['dashboard','celebrations','healthcheck'],
+    pages: ['dashboard', 'celebrations', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -18047,14 +18088,13 @@ function renderPage(name) {
   if (name === 'dashboard') renderDashboard();
   else if (name === 'pipeline') renderPipeline();
   else if (name === 'projects') renderProjects();
-  else if (name === 'postprod') renderPostProd();
-  else if (name === 'albumprod') renderAlbumProd();
+  else if (name === 'postprod') renderPostProdPage();
   else if (name === 'priority') renderPriorityPage();
   else if (name === 'payments') renderPayments();
   else if (name === 'team') { if (_currentTeamTab === 'freelancer') { switchTeamTab('freelancer'); } else { switchTeamTab('team'); } }
   else if (name === 'referral') renderReferral();
   else if (name === 'whatsapp') { populateWASel(); renderWA(); }
-  else if (name === 'reports') { renderReports(); renderPostProdPendingReport(); }
+  else if (name === 'reports') renderReports();
   else if (name === 'celebrations') renderCelebrations();
   else if (name === 'calendar') renderCalendar();
   else if (name === 'onboarding') { populateObProjSel(); renderObResponses(); loadObFieldConfig(function(){}); }
@@ -18187,7 +18227,7 @@ function buildMobDrawer() {
 // ── Sidebar icon map ────────────────────────────────────────────────
 var SIDEBAR_ICON_MAP = {
   dashboard:'📊', pipeline:'🔄', projects:'📁', quotations:'📄',
-  calendar:'📅', onboarding:'📋', postprod:'🎬', albumprod:'📔', datavault:'🗄️',
+  calendar:'📅', onboarding:'📋', postprod:'🎬', datavault:'🗄️',
   payments:'💳', invoice:'🧾', reports:'📈', priority:'🚨',
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
@@ -18198,7 +18238,7 @@ var SIDEBAR_ICON_MAP = {
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Overview',          items:['dashboard','reports','healthcheck','onboarding','quotations','followups'] },
-  { label:'Post Productions',  items:['projects','pipeline','postprod','albumprod'] },
+  { label:'Post Productions',  items:['projects','pipeline','postprod'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
@@ -20183,53 +20223,90 @@ function populateWASel() {
 }
 
 // ═══ LOGIN HANDLER ════════════════════════════════════════════════════════════
+// Shared "match Firebase account → CRM user → enter app" logic, used both by
+// a fresh Google sign-in click AND by silent session auto-restore on load.
+function loginWithFirebaseUser(fbUser, silent) {
+  var email = fbUser.email;
+  function findAndLogin() {
+    var match = null;
+    Object.values(users).forEach(function(u) {
+      if ((u.email || '').toLowerCase() === (email || '').toLowerCase()) match = u;
+    });
+    if (match) {
+      CU = match;
+      var lc = document.getElementById('login-checking'); if (lc) lc.style.display = 'none';
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('main-app').style.display = 'block';
+      buildSidebar(); applyRBAC();
+      if (match.role === 'salesperson') { navTo('quotations'); }
+      loadDefaultQuotImages(); // pre-load defaults so quotations have images ready
+      var lb = document.getElementById('btn-logout');
+      if (lb) lb.onclick = function() {
+        firebase.auth().signOut();
+        CU = null;
+        document.getElementById('main-app').style.display = 'none';
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('login-checking').style.display = 'none';
+        document.getElementById('login-form-area').style.display = '';
+        document.getElementById('login-user').value = '';
+        document.getElementById('login-pass').value = '';
+        var loginErr = document.getElementById('login-err'); if (loginErr) loginErr.style.display = 'none';
+        var loginBtn = document.getElementById('login-btn'); if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Login →'; }
+        var gBtn = document.getElementById('btn-google-login'); if (gBtn) { gBtn.disabled = false; gBtn.textContent = 'Sign in with Google'; }
+        setTimeout(function(){ var u = document.getElementById('login-user'); if(u) u.focus(); }, 100);
+      };
+      loadAll();
+      if (typeof window._initPresence === 'function') window._initPresence();
+    } else {
+      firebase.auth().signOut();
+      var lc = document.getElementById('login-checking'); if (lc) lc.style.display = 'none';
+      var lf = document.getElementById('login-form-area'); if (lf) lf.style.display = '';
+      if (!silent) {
+        var err = document.getElementById('login-err');
+        if (err) { err.style.display = 'block'; err.textContent = 'Google account (' + email + ') is not registered in the CRM. Contact your admin.'; }
+      }
+    }
+  }
+  initUsers(findAndLogin);
+}
+
 function doGoogleLogin() {
   var btn = document.getElementById('btn-google-login');
   if (btn) { btn.disabled = true; btn.textContent = 'Signing in...'; }
   var provider = new firebase.auth.GoogleAuthProvider();
   firebase.auth().signInWithPopup(provider).then(function(result) {
-    var email = result.user.email;
-    // Find matching CRM user by email
-    function findAndLogin() {
-      var match = null;
-      Object.values(users).forEach(function(u) {
-        if ((u.email || '').toLowerCase() === (email || '').toLowerCase()) match = u;
-      });
-      if (match) {
-        CU = match;
-        document.getElementById('login-screen').style.display = 'none';
-        document.getElementById('main-app').style.display = 'block';
-        buildSidebar(); applyRBAC();
-        if (match.role === 'salesperson') { navTo('quotations'); }
-        loadDefaultQuotImages(); // pre-load defaults so quotations have images ready
-        var lb = document.getElementById('btn-logout');
-        if (lb) lb.onclick = function() {
-          firebase.auth().signOut();
-          CU = null;
-          document.getElementById('main-app').style.display = 'none';
-          document.getElementById('login-screen').style.display = 'flex';
-          document.getElementById('login-user').value = '';
-          document.getElementById('login-pass').value = '';
-          var loginErr = document.getElementById('login-err'); if (loginErr) loginErr.style.display = 'none';
-          var loginBtn = document.getElementById('login-btn'); if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = 'Login →'; }
-          document.getElementById('login-screen').style.display = 'flex';
-          setTimeout(function(){ var u = document.getElementById('login-user'); if(u) u.focus(); }, 100);
-        };
-        loadAll();
-        if (typeof window._initPresence === 'function') window._initPresence();
-      } else {
-        firebase.auth().signOut();
-        var err = document.getElementById('login-err');
-        if (err) { err.style.display = 'block'; err.textContent = 'Google account (' + email + ') is not registered in the CRM. Contact your admin.'; }
-        if (btn) { btn.disabled = false; btn.textContent = 'Sign in with Google'; }
-      }
-    }
-    initUsers(findAndLogin);
+    loginWithFirebaseUser(result.user, false);
   }).catch(function(err) {
     var errEl = document.getElementById('login-err');
     if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Google sign-in failed: ' + err.message; }
     if (btn) { btn.disabled = false; btn.textContent = 'Sign in with Google'; }
   });
+}
+
+// ── Session auto-restore ("stay signed in") ─────────────────────────────
+// Firebase Auth persists a signed-in Google account across browser/PWA
+// restarts by default (LOCAL persistence, backed by IndexedDB) — the CRM
+// previously never checked for that persisted session on load, so it
+// always showed the login screen and made you sign in again every time,
+// especially painful on the "Add to Home Screen" mobile web app. This
+// listener fires once Firebase has rehydrated its stored session (or
+// confirmed there isn't one) and silently logs the user back in when
+// there is one, so the app opens straight into the CRM.
+try {
+  firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function(){});
+  firebase.auth().onAuthStateChanged(function(fbUser) {
+    if (fbUser && !CU) {
+      loginWithFirebaseUser(fbUser, true);
+    } else if (!fbUser && !CU) {
+      var lc = document.getElementById('login-checking'); if (lc) lc.style.display = 'none';
+      var lf = document.getElementById('login-form-area'); if (lf) lf.style.display = '';
+    }
+  });
+} catch (e) {
+  // Firebase Auth unavailable (blocked script, offline, etc.) — fall back
+  // to showing the normal login form instead of hanging on "Checking…"
+  var lc0 = document.getElementById('login-checking'); if (lc0) lc0.style.display = 'none';
+  var lf0 = document.getElementById('login-form-area'); if (lf0) lf0.style.display = '';
 }
 
 function doLogin() {
@@ -20336,6 +20413,8 @@ function submitPasswordChange() {
       CU = null;
       document.getElementById('main-app').style.display = 'none';
       document.getElementById('login-screen').style.display = 'flex';
+      var lc = document.getElementById('login-checking'); if (lc) lc.style.display = 'none';
+      var lf = document.getElementById('login-form-area'); if (lf) lf.style.display = '';
       document.getElementById('login-user').value = '';
       document.getElementById('login-pass').value = '';
       setTimeout(function(){ var u=document.getElementById('login-user'); if(u) u.focus(); }, 100);
@@ -22100,7 +22179,7 @@ function quotStatusBadge(s) {
 // ── Sales role — full quotations access ──────────────────────────────
 (function patchRoles() {
   ROLE_ACCESS.salesperson = {
-    pages: ['quotations','followups'],
+    pages: ['quotations', 'followups'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -22111,7 +22190,7 @@ function quotStatusBadge(s) {
     isSalesperson:true
   };
   ROLE_ACCESS.sales = {
-    pages: ['dashboard','pipeline','projects','quotations','followups','salessettings','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','activitylog','clienthub'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'salessettings', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'activitylog', 'clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
