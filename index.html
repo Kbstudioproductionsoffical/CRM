@@ -1491,6 +1491,16 @@ document.addEventListener('wheel', function(e) {
       <div id="pp-content"></div>
     </div>
 
+    <div id="page-albumprod" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:4px">
+        <div>
+          <div class="page-title" style="margin-bottom:2px">📔 Album &amp; Photo Production</div>
+          <div class="page-sub">Client-selection-driven workflow for the Album Production and Photo Editing teams.</div>
+        </div>
+      </div>
+      <div id="ap-content"></div>
+    </div>
+
     <div id="page-payments" class="page">
       <div class="page-title">Payment Tracker</div>
       <div class="page-sub">Record and track all payments across all accounts.</div>
@@ -1765,6 +1775,7 @@ document.addEventListener('wheel', function(e) {
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="$('rep-year').value='';$('rep-month').value='';$('rep-region').value='';renderReports()">Clear</button>
         <span id="rep-filter-label" style="font-size:12px;color:#888;margin-left:4px"></span>
       </div>
+      <div id="ppr-content"></div>
       <div id="rep-content"></div>
     </div>
 
@@ -3072,6 +3083,7 @@ document.addEventListener('wheel', function(e) {
 
       <div id="t-deliv" class="tab-pane">
         <div class="info info-blue">Add custom deliverables for this project. Each has its own specs, editor assignment, and drive link.</div>
+        <div id="selection-status-card" style="display:none;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:14px"></div>
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:14px">
           <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">➕ Add Deliverable</div>
           <div class="nd-grid-3">
@@ -3906,6 +3918,10 @@ document.addEventListener('wheel', function(e) {
             <option value="relmgr">💬 Relationship Manager — Client comms across all projects</option>
             <option value="accounts">💰 Accounts — Payments &amp; finance only</option>
             <option value="postprod">🎬 Post Production Head — Full pipeline access, no financials</option>
+            <option value="videohead">🎥 Video Production Head — Video pipeline only</option>
+            <option value="albumhead">📔 Album Production Head — Album pipeline only</option>
+            <option value="albumteam">📔 Album Production Team — Album pipeline only</option>
+            <option value="photoeditor">🖼️ Photo Editing Team — Photo editing only</option>
             <option value="editor">✂️ Editor — Own deliverables only</option>
             <option value="sales">💼 Sales Head — Full access + escalations + quotations</option>
             <option value="salesperson">🧑‍💼 Sales Person — Quotations &amp; leads only</option>
@@ -6013,7 +6029,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.34-2026-08-03-save-time-date-order-check';
+var CRM_BUILD_VERSION = 'v78.46-2026-08-07-post-prod-dept-video-album-photo';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -6090,7 +6106,7 @@ function daysUntil(d){
 }
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
-function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',postprod:'🎬 Post Prod Head',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
+function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',relmgr:'💬 Relationship Manager',postprod:'🎬 Post Prod Head',videohead:'🎥 Video Prod Head',albumhead:'📔 Album Prod Head',albumteam:'📔 Album Prod Team',photoeditor:'🖼️ Photo Editing Team',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
 function avatarColor(name){var c=['#1d4ed8','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46'];var h=0;for(var i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length];}
 function stageBadge(s){var m={preprod:['b-preprod','Pre-Prod'],production:['b-prod','Production'],postprod:['b-postprod','Post-Prod'],delivery:['b-delivery','Delivery'],payment:['b-payment','Pay Pending'],complete:['b-complete','Complete']};var v=m[s]||['b-gray',s];return '<span class="badge '+v[0]+'">'+v[1]+'</span>';}
 function regionBadge(r){return r==='north'?'<span class="badge b-north">🔵 North</span>':r==='south'?'<span class="badge b-south">🟠 South</span>':'';}
@@ -8974,6 +8990,7 @@ function buildDelivRows(p){
   renderDelivRows();
   var btn=document.getElementById('btn-add-deliv');
   if(btn)btn.onclick=function(){addCustomDeliv();};
+  if(p) renderSelectionStatusCard(p);
 }
 
 function renderDelivRows(){
@@ -9298,6 +9315,451 @@ function renderBriefFormPublic(formDiv, briefId, p, fields){
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// POST-PRODUCTION DEPARTMENT — VIDEO / ALBUM & PHOTO SUB-DEPARTMENTS
+// ═══════════════════════════════════════════════════════════════════════
+var ALBUM_STAGE_DEFS = [
+  {key:'selection_received', label:'Selection Received', icon:'📥'},
+  {key:'design_layout',      label:'Design &amp; Layout',    icon:'🎨'},
+  {key:'client_proofing',    label:'Client Proofing',    icon:'👁️'},
+  {key:'revision',           label:'Revision Requested', icon:'🔁'},
+  {key:'approved',           label:'Client Approved',    icon:'✅'},
+  {key:'printing',           label:'Printing',           icon:'🖨️'},
+  {key:'quality_check',      label:'Quality Check',      icon:'🔍'},
+  {key:'packed_shipped',     label:'Packed / Shipped',   icon:'📦'},
+  {key:'delivered',          label:'Delivered',          icon:'🎉'}
+];
+function albumStageLabel(k){var s=ALBUM_STAGE_DEFS.find(function(x){return x.key===k;});return s?s.icon+' '+s.label:'—';}
+function albumStageIdx(k){for(var i=0;i<ALBUM_STAGE_DEFS.length;i++){if(ALBUM_STAGE_DEFS[i].key===k)return i;}return -1;}
+var ALBUM_SLA_DAYS = 30; // days from Selection Received to Delivered before the album team is flagged overdue
+
+// Deliverable type buckets — routes items into the Video / Photo / Album queues
+var VIDEO_DELIV_TYPES = ['Video','Teaser','Reel'];
+var PHOTO_DELIV_TYPES = ['Edited Pictures','Frame','Magazine'];
+var ALBUM_DELIV_TYPES = ['Album'];
+function delivBucket(d){
+  var t = d.type || '';
+  if (ALBUM_DELIV_TYPES.indexOf(t)!==-1) return 'album';
+  if (PHOTO_DELIV_TYPES.indexOf(t)!==-1) return 'photo';
+  if (VIDEO_DELIV_TYPES.indexOf(t)!==-1) return 'video';
+  var n = (d.name||'').toLowerCase();
+  if (/album/.test(n)) return 'album';
+  if (/(edited|photo|pic|frame|magazine)/.test(n) && !/video/.test(n)) return 'photo';
+  return 'video';
+}
+
+// ── Client Selection tracking (Photo Selection / Album Selection) ─────────
+function markPhotoSelectionComplete(projId){
+  if(!can('canMarkSelection')){showToast('⛔ Only the Relationship Manager or Post Production Head can mark selection.');return;}
+  var p=projects[projId]; if(!p) return;
+  if(!confirm('Confirm photo selection has been received from '+p.bride+' & '+p.groom+'?\n\nThis will notify the Photo Editing Team to begin work.'))return;
+  var who=CU?(CU.name||CU.username):'Relationship Manager';
+  var now=Date.now();
+  db.ref('crm_projects/'+projId+'/photoSelection').set({status:'received',at:now,by:who},function(err){
+    if(err){showToast('❌ Error: '+err.message);return;}
+    p.photoSelection={status:'received',at:now,by:who};
+    showToast('✅ Photo selection marked complete — Photo Editing Team notified.');
+    logActivity('deliverable','Photo Selection Received',(p.bride+' & '+p.groom+' — photo selection marked complete by '+who),{projId:projId});
+    notifyPhotoTeamSelectionComplete(projId,p);
+    renderSelectionStatusCard(p);
+  });
+}
+
+function markAlbumSelectionComplete(projId){
+  if(!can('canMarkSelection')){showToast('⛔ Only the Relationship Manager or Post Production Head can mark selection.');return;}
+  var p=projects[projId]; if(!p) return;
+  if(!confirm('Confirm album selection has been received from '+p.bride+' & '+p.groom+'?\n\nThis will notify the Album Production Head and Team to begin work. They will have '+ALBUM_SLA_DAYS+' days to complete the album before it is flagged overdue.'))return;
+  var who=CU?(CU.name||CU.username):'Relationship Manager';
+  var now=Date.now();
+  var updates={};
+  updates['crm_projects/'+projId+'/albumSelection']={status:'received',at:now,by:who};
+  updates['crm_projects/'+projId+'/albumStage']='selection_received';
+  updates['crm_projects/'+projId+'/albumStageAt']=now;
+  db.ref().update(updates,function(err){
+    if(err){showToast('❌ Error: '+err.message);return;}
+    p.albumSelection={status:'received',at:now,by:who};
+    p.albumStage='selection_received';
+    p.albumStageAt=now;
+    db.ref('crm_projects/'+projId+'/albumStageHistory').push({stage:'selection_received',at:now,by:who});
+    showToast('✅ Album selection marked complete — Album Production Team notified.');
+    logActivity('deliverable','Album Selection Received',(p.bride+' & '+p.groom+' — album selection marked complete by '+who),{projId:projId});
+    notifyAlbumTeamSelectionComplete(projId,p);
+    renderSelectionStatusCard(p);
+  });
+}
+
+function notifyPhotoTeamSelectionComplete(projId,p){
+  pushSystemNotification({
+    type:'photo_selection_received', icon:'🖼️',
+    title:'Photo Selection Received — Start Editing',
+    body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — client has completed photo selection. Ready for editing.',
+    projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+    forRoles:['photoeditor','postprod','superadmin'],
+    at:new Date().toISOString(), requiresAction:true, actionLabel:'Start Editing'
+  });
+}
+
+function notifyAlbumTeamSelectionComplete(projId,p){
+  pushSystemNotification({
+    type:'album_selection_received', icon:'📔',
+    title:'Album Selection Received — Team Assigned',
+    body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — client has completed album selection. Proceed with album production. Due in '+ALBUM_SLA_DAYS+' days.',
+    projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+    forRoles:['albumhead','albumteam','postprod','superadmin'],
+    at:new Date().toISOString(), requiresAction:true, actionLabel:'Start Album'
+  });
+}
+
+function advanceAlbumStage(projId,newStage){
+  var p=projects[projId]; if(!p) return;
+  if(!can('canManageAlbumProd') && !can('canManagePostProd') && !(CU&&CU.role==='albumteam')){showToast('⛔ Not permitted.');return;}
+  var who=CU?(CU.name||CU.username):'Album Team';
+  var now=Date.now();
+  var updates={};
+  updates['crm_projects/'+projId+'/albumStage']=newStage;
+  updates['crm_projects/'+projId+'/albumStageAt']=now;
+  db.ref().update(updates,function(err){
+    if(err){showToast('❌ Error: '+err.message);return;}
+    p.albumStage=newStage; p.albumStageAt=now;
+    db.ref('crm_projects/'+projId+'/albumStageHistory').push({stage:newStage,at:now,by:who});
+    showToast('✅ Album stage updated: '+albumStageLabel(newStage));
+    logActivity('deliverable','Album Stage Updated',(p.bride+' & '+p.groom+' — moved to '+albumStageLabel(newStage)+' by '+who),{projId:projId});
+    if(newStage==='delivered'){
+      pushSystemNotification({
+        type:'album_delivered', icon:'🎉', title:'Album Delivered',
+        body:(p.bride+' & '+p.groom)+' — album has been delivered to the client.',
+        projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+        forRoles:['postprod','superadmin','relmgr'],
+        at:new Date().toISOString(), requiresAction:false
+      });
+    }
+    renderAlbumProd();
+  });
+}
+
+function albumDaysLeft(p){
+  if(!p||!p.albumSelection||p.albumSelection.status!=='received') return null;
+  var dueAt = p.albumSelection.at + (ALBUM_SLA_DAYS*86400000);
+  return Math.ceil((dueAt-Date.now())/86400000);
+}
+function albumIsOverdue(p){
+  if(!p||p.albumStage==='delivered') return false;
+  var d=albumDaysLeft(p);
+  return d!==null && d<0;
+}
+
+// ── Selection Status card — rendered inside the project's Deliverables tab ──
+function renderSelectionStatusCard(p){
+  var el=document.getElementById('selection-status-card'); if(!el||!p) return;
+  var hasPhoto=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='photo';});
+  var hasAlbum=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='album';});
+  if(!hasPhoto && !hasAlbum){ el.style.display='none'; return; }
+  el.style.display='';
+  var canMark=can('canMarkSelection');
+  var html='<div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">🗂️ Client Selection Status</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  if(hasPhoto){
+    var ps=p.photoSelection||{};
+    var received=ps.status==='received';
+    html+='<div style="border:1px solid '+(received?'#bbf7d0':'#e2e8f0')+';background:'+(received?'#f0fdf4':'#fafafa')+';border-radius:8px;padding:10px 12px">';
+    html+='<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:4px">🖼️ Photo Selection</div>';
+    if(received){
+      html+='<div style="font-size:11.5px;color:#166534">✅ Received '+fmtDate(new Date(ps.at).toISOString().slice(0,10))+'<br>by '+ps.by+'</div>';
+    } else {
+      html+='<div style="font-size:11.5px;color:#888;margin-bottom:6px">⏳ Awaiting client selection</div>';
+      if(canMark) html+='<button class="btn btn-sm" style="font-size:11px" onclick="markPhotoSelectionComplete('+p.id+')">✅ Mark Complete</button>';
+    }
+    html+='</div>';
+  } else html+='<div></div>';
+  if(hasAlbum){
+    var as=p.albumSelection||{};
+    var received=as.status==='received';
+    html+='<div style="border:1px solid '+(received?'#bbf7d0':'#e2e8f0')+';background:'+(received?'#f0fdf4':'#fafafa')+';border-radius:8px;padding:10px 12px">';
+    html+='<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:4px">📔 Album Selection</div>';
+    if(received){
+      var dLeft=albumDaysLeft(p);
+      var overdue=albumIsOverdue(p);
+      html+='<div style="font-size:11.5px;color:#166534">✅ Received '+fmtDate(new Date(as.at).toISOString().slice(0,10))+'<br>by '+as.by+'</div>';
+      html+='<div style="font-size:11px;margin-top:4px;font-weight:700;color:'+(overdue?'#dc2626':'#555')+'">Stage: '+albumStageLabel(p.albumStage)+'</div>';
+      if(p.albumStage!=='delivered') html+='<div style="font-size:10.5px;margin-top:2px;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left')+'</div>';
+    } else {
+      html+='<div style="font-size:11.5px;color:#888;margin-bottom:6px">⏳ Awaiting client selection</div>';
+      if(canMark) html+='<button class="btn btn-sm" style="font-size:11px" onclick="markAlbumSelectionComplete('+p.id+')">✅ Mark Complete</button>';
+    }
+    html+='</div>';
+  } else html+='<div></div>';
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ALBUM & PHOTO PRODUCTION — dedicated department page
+// ═══════════════════════════════════════════════════════════════════════
+var _apTab='album';
+
+function apStatusBadge(s){
+  var m={pending:['#fef9c3','#854d0e','⏳ Pending'],inprogress:['#dbeafe','#1d4ed8','🎬 Editing'],review:['#fdf2f8','#9d174d','👁️ In Review'],delivered:['#dcfce7','#166534','✅ Delivered']};
+  var v=m[s]||['#f1f5f9','#475569',s||'—'];
+  return '<span style="background:'+v[0]+';color:'+v[1]+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">'+v[2]+'</span>';
+}
+function apSaveDelivStatus(projId,delivId,status){
+  var p=projects[projId];if(!p)return;
+  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});if(!d)return;
+  var updates={status:status};
+  if(status==='delivered'&&!d.date) updates.date=(typeof tod==='function'?tod():new Date().toISOString().slice(0,10));
+  ppSaveDeliv(projId,delivId,updates,function(){
+    showToast('✅ Status updated!');
+    logActivity('deliverable','Photo Deliverable Status',(p.bride+' & '+p.groom+' — '+(d.name||d.type)+' → '+status),{projId:projId});
+    renderAlbumProd();
+    setTimeout(function(){if(typeof runDeliverableAutomations==='function')runDeliverableAutomations(projId);},400);
+  });
+}
+
+function renderAlbumProd(){
+  var tab=_apTab||'album';
+  var tabDefs=[{id:'album',icon:'📔',label:'Album Production'},{id:'photo',icon:'🖼️',label:'Photo Editing Queue'}];
+  var html='<div style="display:flex;gap:4px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px">';
+  tabDefs.forEach(function(t){
+    var a=tab===t.id;
+    html+='<button class="ap-tab-btn" data-tab="'+t.id+'" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:8px;font-size:12px;font-weight:'+(a?700:500)+';cursor:pointer;background:'+(a?'#1a1a1a':'#f1f5f9')+';color:'+(a?'#fff':'#64748b')+'">'+t.icon+' '+t.label+'</button>';
+  });
+  html+='</div><div id="ap-tab-body"></div>';
+  $('ap-content').innerHTML=html;
+  document.querySelectorAll('.ap-tab-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){_apTab=btn.dataset.tab;renderAlbumProd();});
+  });
+  if(tab==='album') renderAlbumBoard(); else renderPhotoQueue();
+}
+
+function renderAlbumBoard(){
+  var body=document.getElementById('ap-tab-body'); if(!body) return;
+  var awaiting=[], active=[], done=[];
+  pl().forEach(function(p){
+    var hasAlbum=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='album';});
+    if(!hasAlbum) return;
+    var sel=p.albumSelection||{};
+    if(sel.status!=='received'){ awaiting.push(p); return; }
+    if(p.albumStage==='delivered') done.push(p); else active.push(p);
+  });
+  active.sort(function(a,b){return (albumDaysLeft(a)===null?999:albumDaysLeft(a))-(albumDaysLeft(b)===null?999:albumDaysLeft(b));});
+
+  var html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">';
+  var overdueCount=active.filter(albumIsOverdue).length;
+  html+='<div style="background:#fffbeb;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #f59e0b;text-align:center"><div style="font-size:26px;font-weight:800;color:#854d0e">'+awaiting.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Awaiting Selection</div></div>';
+  html+='<div style="background:#eff6ff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #3b82f6;text-align:center"><div style="font-size:26px;font-weight:800;color:#1d4ed8">'+active.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">In Production</div></div>';
+  html+='<div style="background:#fef2f2;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #dc2626;text-align:center"><div style="font-size:26px;font-weight:800;color:#dc2626">'+overdueCount+'</div><div style="font-size:11px;color:#888;margin-top:3px">Overdue (&gt;'+ALBUM_SLA_DAYS+'d)</div></div>';
+  html+='<div style="background:#f0fdf4;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #10b981;text-align:center"><div style="font-size:26px;font-weight:800;color:#166534">'+done.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Delivered</div></div>';
+  html+='</div>';
+
+  // ── In Production ──────────────────────────────────────────────────
+  html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">🎬 Album Production — In Progress</span><span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-weight:700">📅 Most Urgent First</span></div>';
+  if(!active.length){
+    html+='<div class="empty">✅ No albums currently in production.</div>';
+  } else {
+    html+='<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">';
+    active.forEach(function(p){
+      var dLeft=albumDaysLeft(p);
+      var overdue=albumIsOverdue(p);
+      var idx=albumStageIdx(p.albumStage);
+      var nextStage=(idx>=0 && idx<ALBUM_STAGE_DEFS.length-1)?ALBUM_STAGE_DEFS[idx+1]:null;
+      html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:'+(overdue?'#fff5f5':'#fff')+'">';
+      html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
+      html+='<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+'</div></div>';
+      html+='<div style="text-align:right"><div style="font-size:12px;font-weight:700;color:'+(overdue?'#dc2626':'#1a1a1a')+'">'+albumStageLabel(p.albumStage)+'</div><div style="font-size:11px;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left (of '+ALBUM_SLA_DAYS+')')+'</div></div>';
+      html+='</div>';
+      html+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+      html+='<select class="fi" style="width:auto;font-size:12px;padding:6px 8px" onchange="advanceAlbumStage('+p.id+',this.value)">'+ALBUM_STAGE_DEFS.map(function(s){return '<option value="'+s.key+'"'+(s.key===p.albumStage?' selected':'')+'>'+s.icon+' '+s.label+'</option>';}).join('')+'</select>';
+      if(nextStage) html+='<button class="btn btn-sm" style="font-size:11px;background:#16a34a;color:#fff" onclick="advanceAlbumStage('+p.id+',\''+nextStage.key+'\')">✅ Advance to '+nextStage.label+'</button>';
+      html+='<button class="btn btn-sm pp-open-proj" data-id="'+p.id+'" data-tab="t-deliv" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open Project</button>';
+      html+='</div></div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+
+  // ── Awaiting Selection ─────────────────────────────────────────────
+  html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">⏳ Awaiting Client Album Selection</span></div>';
+  if(!awaiting.length){
+    html+='<div class="empty">🎉 No albums waiting on client selection.</div>';
+  } else {
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>City</th><th>Event Date</th><th></th></tr></thead><tbody>';
+    awaiting.forEach(function(p){
+      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
+      html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
+    });
+    html+='</tbody></table>';
+  }
+  html+='</div>';
+
+  // ── Delivered ───────────────────────────────────────────────────────
+  if(done.length){
+    html+='<div class="card"><div class="card-hdr"><span class="card-title">🎉 Delivered</span></div>';
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>Event Date</th><th>Selection Received</th></tr></thead><tbody>';
+    done.forEach(function(p){
+      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+fmtDate(p.date)+'</td><td>'+(p.albumSelection?fmtDate(new Date(p.albumSelection.at).toISOString().slice(0,10)):'—')+'</td></tr>';
+    });
+    html+='</tbody></table></div>';
+  }
+  body.innerHTML=html;
+}
+
+function renderPhotoQueue(){
+  var body=document.getElementById('ap-tab-body'); if(!body) return;
+  var awaiting=[], items=[];
+  pl().forEach(function(p){
+    var photoDelivs=(p.customDelivs||[]).filter(function(d){return delivBucket(d)==='photo';});
+    if(!photoDelivs.length) return;
+    var sel=p.photoSelection||{};
+    if(sel.status!=='received'){ awaiting.push(p); return; }
+    photoDelivs.forEach(function(d){ items.push({d:d,p:p}); });
+  });
+  var pending=items.filter(function(x){return x.d.status==='pending'||!x.d.status;});
+  var editing=items.filter(function(x){return x.d.status==='inprogress';});
+  var review=items.filter(function(x){return x.d.status==='review';});
+  var done=items.filter(function(x){return x.d.status==='delivered';});
+
+  var html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">';
+  html+='<div style="background:#fef9c3;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #eab308;text-align:center"><div style="font-size:26px;font-weight:800;color:#854d0e">'+pending.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Queued</div></div>';
+  html+='<div style="background:#eff6ff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #3b82f6;text-align:center"><div style="font-size:26px;font-weight:800;color:#1d4ed8">'+editing.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Editing</div></div>';
+  html+='<div style="background:#fdf2f8;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #ec4899;text-align:center"><div style="font-size:26px;font-weight:800;color:#9d174d">'+review.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">In Review</div></div>';
+  html+='<div style="background:#f0fdf4;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #10b981;text-align:center"><div style="font-size:26px;font-weight:800;color:#166534">'+done.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Delivered</div></div>';
+  html+='</div>';
+
+  var active=pending.concat(editing).concat(review);
+  html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">🖼️ Photo Editing Queue</span></div>';
+  if(!active.length){
+    html+='<div class="empty">✅ No photo deliverables in the queue right now.</div>';
+  } else {
+    html+='<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">';
+    active.forEach(function(item){
+      var d=item.d,p=item.p;
+      html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px">';
+      html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
+      html+='<div><div style="font-size:15px;font-weight:800">'+(d.name||d.type||'Deliverable')+'</div><div style="font-size:11px;color:#888">'+p.bride+' & '+p.groom+' · '+(p.city||'')+'</div></div>';
+      html+=apStatusBadge(d.status||'pending');
+      html+='</div>';
+      html+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+      if(!d.status||d.status==='pending') html+='<button class="btn btn-sm" style="font-size:11px;background:#3b82f6;color:#fff" onclick="apSaveDelivStatus('+p.id+',\''+d.id+'\',\'inprogress\')">🎬 Start Editing</button>';
+      else if(d.status==='inprogress') html+='<button class="btn btn-sm" style="font-size:11px;background:#ec4899;color:#fff" onclick="apSaveDelivStatus('+p.id+',\''+d.id+'\',\'review\')">👁️ Submit for Review</button>';
+      else if(d.status==='review') html+='<button class="btn btn-sm" style="font-size:11px;background:#16a34a;color:#fff" onclick="apSaveDelivStatus('+p.id+',\''+d.id+'\',\'delivered\')">✅ Mark Delivered</button>';
+      html+='<button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open Project</button>';
+      html+='</div></div>';
+    });
+    html+='</div>';
+  }
+  html+='</div>';
+
+  html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">⏳ Awaiting Client Photo Selection</span></div>';
+  if(!awaiting.length){
+    html+='<div class="empty">🎉 No projects waiting on photo selection.</div>';
+  } else {
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>City</th><th>Event Date</th><th></th></tr></thead><tbody>';
+    awaiting.forEach(function(p){
+      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
+      html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
+    });
+    html+='</tbody></table>';
+  }
+  html+='</div>';
+
+  if(done.length){
+    html+='<div class="card"><div class="card-hdr"><span class="card-title">✅ Delivered</span></div>';
+    html+='<table class="tbl"><thead><tr><th>Deliverable</th><th>Couple</th><th>Delivered On</th></tr></thead><tbody>';
+    done.forEach(function(item){
+      html+='<tr><td>'+(item.d.name||item.d.type||'Deliverable')+'</td><td>'+item.p.bride+' & '+item.p.groom+'</td><td>'+fmtDate(item.d.date)+'</td></tr>';
+    });
+    html+='</tbody></table></div>';
+  }
+  body.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// POST-PRODUCTION PENDING REPORT — for Reports page (Relationship Manager,
+// Post Production Head, Video/Album Heads, Admin, Superadmin)
+// ═══════════════════════════════════════════════════════════════════════
+var _pprActiveTile='';
+
+function buildPostProdPendingLists(){
+  var lists={teaser:[],highlight:[],editedpics:[],reel:[],albumSelPending:[],albumsPendingAfterSel:[]};
+  pl().forEach(function(p){
+    (p.customDelivs||[]).forEach(function(d){
+      if(d.status==='delivered') return;
+      var n=(d.name||'').toLowerCase(), t=d.type||'';
+      if(t==='Teaser'||/\bteaser\b/.test(n)) lists.teaser.push({d:d,p:p});
+      if(/\bhighlight\b/.test(n)) lists.highlight.push({d:d,p:p});
+      if(t==='Edited Pictures') lists.editedpics.push({d:d,p:p});
+      if(t==='Reel'||/\breels?\b/.test(n)) lists.reel.push({d:d,p:p});
+    });
+    var hasAlbum=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='album';});
+    if(hasAlbum){
+      var sel=p.albumSelection||{};
+      if(sel.status!=='received') lists.albumSelPending.push({p:p});
+      else if(p.albumStage!=='delivered') lists.albumsPendingAfterSel.push({p:p});
+    }
+  });
+  return lists;
+}
+
+function renderPostProdPendingReport(){
+  var el=document.getElementById('ppr-content'); if(!el) return;
+  var lists=buildPostProdPendingLists();
+  var tiles=[
+    {key:'teaser',label:'Teasers Pending',icon:'🎞️',color:'#d97706',count:lists.teaser.length},
+    {key:'highlight',label:'Highlights Pending',icon:'🎬',color:'#2563eb',count:lists.highlight.length},
+    {key:'editedpics',label:'Edited Photos Pending',icon:'🖼️',color:'#7c3aed',count:lists.editedpics.length},
+    {key:'reel',label:'Reels Pending',icon:'📱',color:'#db2777',count:lists.reel.length},
+    {key:'albumSelPending',label:'Album Selections Pending',icon:'⏳',color:'#ea580c',count:lists.albumSelPending.length},
+    {key:'albumsPendingAfterSel',label:'Albums Pending After Selection',icon:'📔',color:'#16a34a',count:lists.albumsPendingAfterSel.length}
+  ];
+  var html='<div class="card" style="margin-bottom:16px"><div class="card-hdr"><span class="card-title">📦 Post-Production Pending — Quick Lists</span></div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:6px">';
+  tiles.forEach(function(t){
+    var a=_pprActiveTile===t.key;
+    html+='<div class="ppr-tile" data-key="'+t.key+'" style="cursor:pointer;background:'+(a?t.color+'18':'#fafafa')+';border:1px solid '+(a?t.color:'#e5e5e5')+';border-left:3px solid '+t.color+';border-radius:12px;padding:14px;text-align:center;transition:all .15s">';
+    html+='<div style="font-size:26px;font-weight:800;color:'+t.color+'">'+t.count+'</div>';
+    html+='<div style="font-size:11px;color:#888;margin-top:3px">'+t.icon+' '+t.label+'</div>';
+    html+='</div>';
+  });
+  html+='</div><div id="ppr-drill"></div></div>';
+  el.innerHTML=html;
+  document.querySelectorAll('.ppr-tile').forEach(function(tile){
+    tile.addEventListener('click',function(){
+      _pprActiveTile = _pprActiveTile===tile.dataset.key ? '' : tile.dataset.key;
+      renderPostProdPendingReport();
+    });
+  });
+  if(_pprActiveTile) renderPprDrill(_pprActiveTile,lists[_pprActiveTile]);
+}
+
+function renderPprDrill(key,rows){
+  var drill=document.getElementById('ppr-drill'); if(!drill) return;
+  var titles={teaser:'Teasers Pending',highlight:'Highlights Pending',editedpics:'Edited Photos Pending',reel:'Reels Pending',albumSelPending:'Album Selections Pending',albumsPendingAfterSel:'Albums Pending After Selection'};
+  if(!rows.length){ drill.innerHTML='<div class="empty" style="margin-top:10px">🎉 Nothing pending here.</div>'; return; }
+  var html='<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0"><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">'+titles[key]+' ('+rows.length+')</div>';
+  if(key==='albumSelPending'||key==='albumsPendingAfterSel'){
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>City</th><th>Event Date</th>'+(key==='albumsPendingAfterSel'?'<th>Stage</th><th>Days Left</th>':'')+'<th></th></tr></thead><tbody>';
+    rows.forEach(function(row){
+      var p=row.p;
+      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
+      if(key==='albumsPendingAfterSel'){
+        var dLeft=albumDaysLeft(p), overdue=albumIsOverdue(p);
+        html+='<td>'+albumStageLabel(p.albumStage)+'</td><td style="color:'+(overdue?'#dc2626':'#555')+';font-weight:'+(overdue?'700':'400')+'">'+(overdue?'⚠️ '+Math.abs(dLeft)+'d overdue':dLeft+'d left')+'</td>';
+      }
+      html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
+    });
+    html+='</tbody></table>';
+  } else {
+    html+='<table class="tbl"><thead><tr><th>Deliverable</th><th>Couple</th><th>City</th><th>Deadline</th><th></th></tr></thead><tbody>';
+    rows.forEach(function(row){
+      var d=row.d,p=row.p;
+      html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div></td><td>'+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td>'+(d.date?fmtDate(d.date):'—')+'</td>';
+      html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
+    });
+    html+='</tbody></table>';
+  }
+  html+='</div>';
+  drill.innerHTML=html;
+}
+
 // ═══ POST PRODUCTION WORKFLOW (Step-by-Step) ═══════════════════════════════
 var _ppTab='overview';
 var _ppMonthFilter=''; // 'YYYY-MM' for specific month, '' for all
@@ -9419,12 +9881,18 @@ function renderPostProd(){
   }
   // ── END EDITOR ROLE VIEW ──────────────────────────────────────────────────
 
-  // ── POST PROD HEAD: Update page header ──────────────────────────────
+  // ── POST PROD HEAD / VIDEO HEAD: Update page header ──────────────────
+  var _isVideoHead = CU && CU.role === 'videohead';
   if (CU && CU.role === 'postprod') {
     var ptEl = document.querySelector('.page-title');
     var psEl = document.querySelector('.page-sub');
     if (ptEl) ptEl.textContent = '🎬 Post Production Head';
     if (psEl) psEl.textContent = 'Full pipeline view — clients sorted by event date (First Come, First Out).';
+  } else if (_isVideoHead) {
+    var ptEl = document.querySelector('.page-title');
+    var psEl = document.querySelector('.page-sub');
+    if (ptEl) ptEl.textContent = '🎥 Video Production';
+    if (psEl) psEl.textContent = 'Video deliverables only — clients sorted by event date (First Come, First Out). Album & Photo work is tracked separately in Album & Photo Production.';
   }
 
   // FIFO: sort projects by event date ascending (earliest event = first served)
@@ -9435,6 +9903,9 @@ function renderPostProd(){
   var allItems=[];
   list.forEach(function(p){
     (p.customDelivs||[]).forEach(function(d){
+      // Video Production Head only sees video-bucket deliverables (Teaser/Highlight/Reel/Long Video).
+      // Album & Photo work is tracked in the dedicated Album & Photo Production page.
+      if (_isVideoHead && delivBucket(d) !== 'video') return;
       allItems.push({projId:p.id,couple:p.bride+' & '+p.groom,city:p.city||'',
         eventDate:p.date,briefDone:!!(p.clientBrief&&p.clientBrief.submittedAt),d:d,p:p});
     });
@@ -17061,7 +17532,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard','pipeline','projects','quotations','followups','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','activitylog','healthcheck','clienthub','securitylog'],
+    pages: ['dashboard','pipeline','projects','quotations','followups','postprod','albumprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','settings','users','accounts','datavault','inventory','activitylog','healthcheck','clienthub','securitylog'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -17069,7 +17540,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   intern: {
-    pages: ['dashboard','pipeline','projects','quotations','followups','postprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','healthcheck','clienthub'],
+    pages: ['dashboard','pipeline','projects','quotations','followups','postprod','albumprod','payments','invoice','calendar','onboarding','whatsapp','team','referral','celebrations','reports','datavault','healthcheck','clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -17077,7 +17548,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard','pipeline','projects','postprod','whatsapp','onboarding','calendar','team','healthcheck','clienthub','datavault'],
+    pages: ['dashboard','pipeline','projects','postprod','albumprod','whatsapp','onboarding','calendar','team','healthcheck','clienthub','datavault'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -17085,14 +17556,24 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   relmgr: {
-    pages: ['dashboard','pipeline','projects','followups','whatsapp','calendar','clienthub','healthcheck'],
+    pages: ['dashboard','pipeline','projects','followups','whatsapp','calendar','clienthub','healthcheck','reports'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
     canSeeAllTabs:true, allowedTabs:null, canManageSettings:false, canExport:true,
-    canSeeContactDetails:true
+    canSeeContactDetails:true, canMarkSelection:true
   },
   postprod: {
+    pages: ['dashboard','postprod','albumprod','team','whatsapp','healthcheck'],
+    canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
+    canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
+    canManageUsers:false, canManageAccounts:false, canManageReferral:false,
+    canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief','t-raw','t-production'],
+    canManageSettings:false, canExport:false,
+    canSeeContactDetails:false,
+    canAssignEditors:true, canManagePostProd:true, canMarkSelection:true
+  },
+  videohead: {
     pages: ['dashboard','postprod','team','whatsapp','healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
@@ -17102,8 +17583,36 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false,
     canAssignEditors:true, canManagePostProd:true
   },
+  albumhead: {
+    pages: ['dashboard','albumprod','team','whatsapp','healthcheck'],
+    canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
+    canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
+    canManageUsers:false, canManageAccounts:false, canManageReferral:false,
+    canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief'],
+    canManageSettings:false, canExport:false,
+    canSeeContactDetails:false,
+    canAssignEditors:true, canManageAlbumProd:true
+  },
+  albumteam: {
+    pages: ['dashboard','albumprod','healthcheck'],
+    canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
+    canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
+    canManageUsers:false, canManageAccounts:false, canManageReferral:false,
+    canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief'],
+    canManageSettings:false, canExport:false,
+    canSeeContactDetails:false
+  },
+  photoeditor: {
+    pages: ['dashboard','albumprod','healthcheck'],
+    canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
+    canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
+    canManageUsers:false, canManageAccounts:false, canManageReferral:false,
+    canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief'],
+    canManageSettings:false, canExport:false,
+    canSeeContactDetails:false
+  },
   accounts: {
-    pages: ['dashboard','pipeline','projects','postprod','payments','reports','invoice','calendar','users','healthcheck'],
+    pages: ['dashboard','pipeline','projects','postprod','albumprod','payments','reports','invoice','calendar','users','healthcheck'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true, canDeletePayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
@@ -17207,7 +17716,7 @@ var MASK_TEXT = '••••••••';
 function saveFieldVisibility() {
   var fv = {};
   var fields  = ['phone', 'whatsapp', 'email'];
-  var roles   = ['admin','relmgr','intern','accounts','preprodmanager','postprod','editor','datamanager','referral','sales','salesperson','socialmedia'];
+  var roles   = ['admin','relmgr','intern','accounts','preprodmanager','postprod','videohead','albumhead','albumteam','photoeditor','editor','datamanager','referral','sales','salesperson','socialmedia'];
   fields.forEach(function(f) {
     fv[f] = {};
     roles.forEach(function(r) {
@@ -17275,6 +17784,10 @@ function renderFieldVisibilityPanel() {
     { key:'accounts',       label:'💰 Accounts ERP' },
     { key:'preprodmanager', label:'📋 Pre-Prod Mgr' },
     { key:'postprod',       label:'🎬 Post Production' },
+    { key:'videohead',      label:'🎥 Video Prod Head' },
+    { key:'albumhead',      label:'📔 Album Prod Head' },
+    { key:'albumteam',      label:'📔 Album Prod Team' },
+    { key:'photoeditor',    label:'🖼️ Photo Editing' },
     { key:'editor',         label:'✂️ Editor' },
     { key:'datamanager',    label:'🗂️ Data Manager' },
     { key:'referral',       label:'🎁 Referral Mgr' },
@@ -17535,12 +18048,13 @@ function renderPage(name) {
   else if (name === 'pipeline') renderPipeline();
   else if (name === 'projects') renderProjects();
   else if (name === 'postprod') renderPostProd();
+  else if (name === 'albumprod') renderAlbumProd();
   else if (name === 'priority') renderPriorityPage();
   else if (name === 'payments') renderPayments();
   else if (name === 'team') { if (_currentTeamTab === 'freelancer') { switchTeamTab('freelancer'); } else { switchTeamTab('team'); } }
   else if (name === 'referral') renderReferral();
   else if (name === 'whatsapp') { populateWASel(); renderWA(); }
-  else if (name === 'reports') renderReports();
+  else if (name === 'reports') { renderReports(); renderPostProdPendingReport(); }
   else if (name === 'celebrations') renderCelebrations();
   else if (name === 'calendar') renderCalendar();
   else if (name === 'onboarding') { populateObProjSel(); renderObResponses(); loadObFieldConfig(function(){}); }
@@ -17673,7 +18187,7 @@ function buildMobDrawer() {
 // ── Sidebar icon map ────────────────────────────────────────────────
 var SIDEBAR_ICON_MAP = {
   dashboard:'📊', pipeline:'🔄', projects:'📁', quotations:'📄',
-  calendar:'📅', onboarding:'📋', postprod:'🎬', datavault:'🗄️',
+  calendar:'📅', onboarding:'📋', postprod:'🎬', albumprod:'📔', datavault:'🗄️',
   payments:'💳', invoice:'🧾', reports:'📈', priority:'🚨',
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
@@ -17684,7 +18198,7 @@ var SIDEBAR_ICON_MAP = {
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Overview',          items:['dashboard','reports','healthcheck','onboarding','quotations','followups'] },
-  { label:'Post Productions',  items:['projects','pipeline','postprod'] },
+  { label:'Post Productions',  items:['projects','pipeline','postprod','albumprod'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
