@@ -6040,7 +6040,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.48-2026-08-08-album-dept-task-chain-and-secondary-roles';
+var CRM_BUILD_VERSION = 'v78.49-2026-08-08-fix-mark-selection-button-visibility';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -17854,7 +17854,7 @@ var ROLE_ACCESS = {
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
     canSeeAllTabs:true, canManageSettings:true, canExport:true,
-    canSeeContactDetails:true, canAssignAlbumTasks:true
+    canSeeContactDetails:true, canAssignAlbumTasks:true, canMarkSelection:true
   },
   intern: {
     pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'datavault', 'healthcheck', 'clienthub'],
@@ -17870,7 +17870,7 @@ var ROLE_ACCESS = {
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
     canSeeAllTabs:true, allowedTabs:null, canManageSettings:false, canExport:true,
-    canSeeContactDetails:true
+    canSeeContactDetails:true, canMarkSelection:true
   },
   relmgr: {
     pages: ['dashboard', 'pipeline', 'projects', 'followups', 'postprod', 'whatsapp', 'calendar', 'clienthub', 'healthcheck', 'reports'],
