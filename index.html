@@ -3919,7 +3919,9 @@ document.addEventListener('wheel', function(e) {
             <option value="postprod">🎬 Post Production Head — Full pipeline access, no financials</option>
             <option value="videohead">🎥 Video Production Head — Video pipeline only</option>
             <option value="albumhead">📔 Album Production Head — Album pipeline only</option>
-            <option value="albumteam">📔 Album Production Team — Album pipeline only</option>
+            <option value="albumselector">🔍 Album Selection &amp; Sorting — Album pipeline only</option>
+            <option value="albumretoucher">🎨 Album Retoucher — Album pipeline only</option>
+            <option value="albummaker">📔 Album Maker — Album pipeline only</option>
             <option value="photoeditor">🖼️ Photo Editing Team — Photo editing only</option>
             <option value="editor">✂️ Editor — Own deliverables only</option>
             <option value="sales">💼 Sales Head — Full access + escalations + quotations</option>
@@ -3937,6 +3939,16 @@ document.addEventListener('wheel', function(e) {
             <option value="south">🟠 South — Mumbai Office</option>
             <option value="both">🌐 Both Offices</option>
           </select>
+        </div>
+      </div>
+      <div class="fr" id="u-secondary-roles-row" style="display:none">
+        <label class="fl">Also Assignable As <span style="color:#888;font-weight:400">(extra task-roles this person can be assigned in the Album/Photo chain, besides their main role above)</span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;padding:8px 2px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;color:#555"><input type="checkbox" class="u-secrole-cb" value="albumselector" style="width:14px;height:14px;cursor:pointer">🔍 Album Selection &amp; Sorting</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;color:#555"><input type="checkbox" class="u-secrole-cb" value="albumretoucher" style="width:14px;height:14px;cursor:pointer">🎨 Album Retoucher</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;color:#555"><input type="checkbox" class="u-secrole-cb" value="albummaker" style="width:14px;height:14px;cursor:pointer">📔 Album Maker</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;color:#555"><input type="checkbox" class="u-secrole-cb" value="photoeditor" style="width:14px;height:14px;cursor:pointer">🖼️ Photo Retoucher</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;color:#555"><input type="checkbox" class="u-secrole-cb" value="albumhead" style="width:14px;height:14px;cursor:pointer">📔 Album Head</label>
         </div>
       </div>
       <div class="fr" id="u-team-link-row">
@@ -6028,7 +6040,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.47-2026-08-08-postprod-unified-page-and-session-persist';
+var CRM_BUILD_VERSION = 'v78.48-2026-08-08-album-dept-task-chain-and-secondary-roles';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -6105,7 +6117,7 @@ function daysUntil(d){
 }
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
-function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',relmgr:'💬 Relationship Manager',postprod:'🎬 Post Prod Head',videohead:'🎥 Video Prod Head',albumhead:'📔 Album Prod Head',albumteam:'📔 Album Prod Team',photoeditor:'🖼️ Photo Editing Team',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
+function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',relmgr:'💬 Relationship Manager',postprod:'🎬 Post Prod Head',videohead:'🎥 Video Prod Head',albumhead:'📔 Album Prod Head',albumselector:'🔍 Album Selection & Sorting',albumretoucher:'🎨 Album Retoucher',albummaker:'📔 Album Maker',photoeditor:'🖼️ Photo Retoucher',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
 function avatarColor(name){var c=['#1d4ed8','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46'];var h=0;for(var i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length];}
 function stageBadge(s){var m={preprod:['b-preprod','Pre-Prod'],production:['b-prod','Production'],postprod:['b-postprod','Post-Prod'],delivery:['b-delivery','Delivery'],payment:['b-payment','Pay Pending'],complete:['b-complete','Complete']};var v=m[s]||['b-gray',s];return '<span class="badge '+v[0]+'">'+v[1]+'</span>';}
 function regionBadge(r){return r==='north'?'<span class="badge b-north">🔵 North</span>':r==='south'?'<span class="badge b-south">🟠 South</span>':'';}
@@ -9317,21 +9329,6 @@ function renderBriefFormPublic(formDiv, briefId, p, fields){
 // ═══════════════════════════════════════════════════════════════════════
 // POST-PRODUCTION DEPARTMENT — VIDEO / ALBUM & PHOTO SUB-DEPARTMENTS
 // ═══════════════════════════════════════════════════════════════════════
-var ALBUM_STAGE_DEFS = [
-  {key:'selection_received', label:'Selection Received', icon:'📥'},
-  {key:'design_layout',      label:'Design &amp; Layout',    icon:'🎨'},
-  {key:'client_proofing',    label:'Client Proofing',    icon:'👁️'},
-  {key:'revision',           label:'Revision Requested', icon:'🔁'},
-  {key:'approved',           label:'Client Approved',    icon:'✅'},
-  {key:'printing',           label:'Printing',           icon:'🖨️'},
-  {key:'quality_check',      label:'Quality Check',      icon:'🔍'},
-  {key:'packed_shipped',     label:'Packed / Shipped',   icon:'📦'},
-  {key:'delivered',          label:'Delivered',          icon:'🎉'}
-];
-function albumStageLabel(k){var s=ALBUM_STAGE_DEFS.find(function(x){return x.key===k;});return s?s.icon+' '+s.label:'—';}
-function albumStageIdx(k){for(var i=0;i<ALBUM_STAGE_DEFS.length;i++){if(ALBUM_STAGE_DEFS[i].key===k)return i;}return -1;}
-var ALBUM_SLA_DAYS = 30; // days from Selection Received to Delivered before the album team is flagged overdue
-
 // Deliverable type buckets — routes items into the Video / Photo / Album queues
 var VIDEO_DELIV_TYPES = ['Video','Teaser','Reel'];
 var PHOTO_DELIV_TYPES = ['Edited Pictures','Frame','Magazine'];
@@ -9347,19 +9344,222 @@ function delivBucket(d){
   return 'video';
 }
 
-// ── Client Selection tracking (Photo Selection / Album Selection) ─────────
+// ── Album task chain — one assignable task per stage ───────────────────
+// Only Superadmin / Relationship Manager can assign (canAssignAlbumTasks).
+// Album Head executes the last three stages but does not assign to others.
+var ALBUM_TASK_STAGES = [
+  {key:'selection_match',  label:'Selection & Sorting Check', icon:'🔍', role:'albumselector'},
+  {key:'album_retouching', label:'Album Retouching',          icon:'🎨', role:'albumretoucher'},
+  {key:'album_making',     label:'Album Making / Layout',     icon:'📔', role:'albummaker'},
+  {key:'client_proofing',  label:'Client Proofing',           icon:'👁️', role:'albumhead'},
+  {key:'approved',         label:'Client Approved',           icon:'✅', role:'albumhead'},
+  {key:'printing',         label:'Sent to Printing',          icon:'🖨️', role:'albumhead'},
+  {key:'delivered',        label:'Delivered',                 icon:'🎉', role:'albumhead'}
+];
+var ALBUM_SLA_DAYS = 30; // days from Selection Received to Printing before flagged overdue
+function albumTaskStageIdx(key){for(var i=0;i<ALBUM_TASK_STAGES.length;i++){if(ALBUM_TASK_STAGES[i].key===key)return i;}return -1;}
+// A user can be assigned/claim a task if it's their primary role OR one of their
+// "Also Assignable As" secondary roles (e.g. Prem is Album Head but also does
+// Album Making; Akhilesh is Photo Retoucher but can also take Album Retouching).
+function userHasRole(u, roleKey){
+  if(!u) return false;
+  if(u.role===roleKey) return true;
+  return (u.secondaryRoles||[]).indexOf(roleKey)!==-1;
+}
+
+// ── Generic nested-task helpers (shared by album chain + photo panel) ───
+function getTaskObj(p, path){
+  var parts=path.split('/'), o=p;
+  for(var i=0;i<parts.length;i++){ o = o && o[parts[i]]; }
+  return o || {status:null};
+}
+function setNestedTask(p, path, obj){
+  var parts=path.split('/');
+  if(parts.length===1){ p[parts[0]]=obj; }
+  else { if(!p[parts[0]]) p[parts[0]]={}; p[parts[0]][parts[1]]=obj; }
+}
+function pathStageIdx(path){
+  var parts=path.split('/');
+  if(parts[0]!=='albumTasks') return -1;
+  return albumTaskStageIdx(parts[1]);
+}
+function isPathLocked(p, path){
+  var idx=pathStageIdx(path);
+  if(idx<=0) return false;
+  var prevKey=ALBUM_TASK_STAGES[idx-1].key;
+  var prevT=getTaskObj(p,'albumTasks/'+prevKey);
+  return prevT.status!=='done';
+}
+function stageRoleForPath(path){
+  if(path==='photoRetouchTask') return 'photoeditor';
+  var idx=pathStageIdx(path);
+  return idx>=0 ? ALBUM_TASK_STAGES[idx].role : '';
+}
+function stageLabelForPath(path){
+  if(path==='photoRetouchTask') return '🖼️ Photo Retouching';
+  var idx=pathStageIdx(path);
+  return idx>=0 ? (ALBUM_TASK_STAGES[idx].icon+' '+ALBUM_TASK_STAGES[idx].label) : path;
+}
+
+// ── Assignment engine — Superadmin / RelMgr only ────────────────────────
+function assignTask(projId, path, mode, targetUserId, roleForBroadcast){
+  if(!can('canAssignAlbumTasks')){showToast('⛔ Only Superadmin or the Relationship Manager can assign tasks.');return;}
+  var p=projects[projId]; if(!p) return;
+  var who=CU?(CU.name||CU.username):'Admin';
+  var now=Date.now();
+  var obj;
+  if(mode==='direct'){
+    var u=users[targetUserId];
+    if(!u){showToast('User not found.');return;}
+    obj={status:'assigned',mode:'direct',assignedTo:targetUserId,assignedToName:u.name||u.username,assignedRole:u.role,assignedBy:who,assignedAt:now};
+  } else {
+    obj={status:'open',mode:'broadcast',assignedTo:null,assignedToName:'',assignedRole:roleForBroadcast,assignedBy:who,assignedAt:now};
+  }
+  db.ref('crm_projects/'+projId+'/'+path).set(obj,function(err){
+    if(err){showToast('❌ Error: '+err.message);return;}
+    setNestedTask(p,path,obj);
+    showToast('✅ '+stageLabelForPath(path)+' assigned'+(mode==='direct'?' to '+obj.assignedToName:' — broadcast to team'));
+    logActivity('deliverable','Task Assigned',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)+' → '+(mode==='direct'?obj.assignedToName:'broadcast/'+roleLabel(roleForBroadcast))+' by '+who),{projId:projId});
+    pushSystemNotification({
+      type:'task_assigned', icon:'📌',
+      title:(mode==='direct'?'Task Assigned To You':'New Task Available'),
+      body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — '+stageLabelForPath(path)+(mode==='direct'?' assigned to you by '+who+'.':' is open — first to claim it gets it.'),
+      projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+      forRoles: mode==='direct' ? [] : [roleForBroadcast],
+      forUserId: mode==='direct' ? targetUserId : undefined,
+      at:new Date().toISOString(), requiresAction:true, actionLabel: mode==='direct'?'Start Task':'Claim Task'
+    });
+    rerenderAlbumViews();
+  });
+}
+
+function claimTask(projId, path){
+  var p=projects[projId]; if(!p) return;
+  var t=getTaskObj(p,path);
+  if(t.status!=='open'){showToast('This task is no longer open.');return;}
+  if(!CU || !userHasRole(CU,t.assignedRole)){showToast('⛔ Only '+roleLabel(t.assignedRole)+' team members can claim this task.');return;}
+  var who=CU.name||CU.username, now=Date.now();
+  var updates={};
+  updates['crm_projects/'+projId+'/'+path+'/status']='assigned';
+  updates['crm_projects/'+projId+'/'+path+'/assignedTo']=CU.id;
+  updates['crm_projects/'+projId+'/'+path+'/assignedToName']=who;
+  updates['crm_projects/'+projId+'/'+path+'/claimedAt']=now;
+  db.ref().update(updates,function(err){
+    if(err){showToast('❌ Error: '+err.message);return;}
+    t.status='assigned'; t.assignedTo=CU.id; t.assignedToName=who; t.claimedAt=now;
+    setNestedTask(p,path,t);
+    showToast('✅ Task claimed — it\'s yours now.');
+    logActivity('deliverable','Task Claimed',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)+' claimed by '+who),{projId:projId});
+    rerenderAlbumViews();
+  });
+}
+
+function startTask(projId, path){
+  var p=projects[projId]; if(!p) return;
+  var t=getTaskObj(p,path);
+  if(!CU || (t.assignedTo!==CU.id && CU.role!=='superadmin')){showToast('⛔ This task isn\'t assigned to you.');return;}
+  if(isPathLocked(p,path)){showToast('⛔ The previous stage must be completed first.');return;}
+  var now=Date.now();
+  db.ref('crm_projects/'+projId+'/'+path+'/status').set('in_progress',function(err){
+    if(err){showToast('❌ Error: '+err.message);return;}
+    db.ref('crm_projects/'+projId+'/'+path+'/startedAt').set(now);
+    t.status='in_progress'; t.startedAt=now;
+    setNestedTask(p,path,t);
+    showToast('🎬 Task started.');
+    logActivity('deliverable','Task Started',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)),{projId:projId});
+    rerenderAlbumViews();
+  });
+}
+
+function completeTask(projId, path){
+  var p=projects[projId]; if(!p) return;
+  var t=getTaskObj(p,path);
+  if(!CU || (t.assignedTo!==CU.id && CU.role!=='superadmin')){showToast('⛔ This task isn\'t assigned to you.');return;}
+  var who=CU.name||CU.username, now=Date.now();
+  var updates={};
+  updates['crm_projects/'+projId+'/'+path+'/status']='done';
+  updates['crm_projects/'+projId+'/'+path+'/completedAt']=now;
+  updates['crm_projects/'+projId+'/'+path+'/completedBy']=who;
+  db.ref().update(updates,function(err){
+    if(err){showToast('❌ Error: '+err.message);return;}
+    t.status='done'; t.completedAt=now; t.completedBy=who;
+    setNestedTask(p,path,t);
+    showToast('✅ '+stageLabelForPath(path)+' marked done!');
+    logActivity('deliverable','Task Completed',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)+' completed by '+who),{projId:projId});
+    notifyNextStageReady(projId,p,path);
+    if(path==='albumTasks/printing'){
+      pushSystemNotification({
+        type:'album_sent_printing', icon:'🖨️', title:'Album Sent to Printing',
+        body:(p.bride+' & '+p.groom)+' — album has gone to print. Removed from the active production board.',
+        projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+        forRoles:['superadmin','relmgr'], at:new Date().toISOString(), requiresAction:false
+      });
+    }
+    rerenderAlbumViews();
+  });
+}
+
+function requestAlbumRevision(projId){
+  var p=projects[projId]; if(!p) return;
+  if(!can('canManageAlbumProd') && CU.role!=='superadmin' && CU.role!=='relmgr'){showToast('⛔ Not permitted.');return;}
+  if(!confirm('Send this album back for revision? This reopens Album Making.'))return;
+  var who=CU?(CU.name||CU.username):'Album Head', now=Date.now();
+  var updates={};
+  updates['crm_projects/'+projId+'/albumTasks/album_making/status']='assigned';
+  updates['crm_projects/'+projId+'/albumTasks/album_making/completedAt']=null;
+  updates['crm_projects/'+projId+'/albumTasks/client_proofing/status']='assigned';
+  updates['crm_projects/'+projId+'/albumTasks/client_proofing/completedAt']=null;
+  updates['crm_projects/'+projId+'/albumRevisionCount']=(p.albumRevisionCount||0)+1;
+  db.ref().update(updates,function(err){
+    if(err){showToast('❌ Error: '+err.message);return;}
+    if(p.albumTasks&&p.albumTasks.album_making){p.albumTasks.album_making.status='assigned';p.albumTasks.album_making.completedAt=null;}
+    if(p.albumTasks&&p.albumTasks.client_proofing){p.albumTasks.client_proofing.status='assigned';p.albumTasks.client_proofing.completedAt=null;}
+    p.albumRevisionCount=(p.albumRevisionCount||0)+1;
+    showToast('🔁 Revision requested — Album Making reopened.');
+    logActivity('deliverable','Album Revision Requested',(p.bride+' & '+p.groom+' — revision #'+p.albumRevisionCount+' by '+who),{projId:projId});
+    pushSystemNotification({
+      type:'album_revision', icon:'🔁', title:'Revision Requested',
+      body:(p.bride+' & '+p.groom)+' — client requested changes. Album Making has been reopened.',
+      projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+      forRoles:['albummaker','albumretoucher'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Resume'
+    });
+    rerenderAlbumViews();
+  });
+}
+
+function notifyNextStageReady(projId,p,completedPath){
+  var idx=pathStageIdx(completedPath);
+  if(idx<0 || idx>=ALBUM_TASK_STAGES.length-1) return;
+  var next=ALBUM_TASK_STAGES[idx+1];
+  var nextT=getTaskObj(p,'albumTasks/'+next.key);
+  if(nextT.status==='done') return; // already handled (e.g. re-run after revision)
+  pushSystemNotification({
+    type:'album_stage_ready', icon:next.icon,
+    title:next.label+' — Ready to Assign',
+    body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — previous stage is done. '+next.label+' is ready to be assigned.',
+    projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+    forRoles:['superadmin','relmgr'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Assign'
+  });
+}
+
+// ── Client Selection tracking (Photo Selection / Album Selection) ───────
 function markPhotoSelectionComplete(projId){
   if(!can('canMarkSelection')){showToast('⛔ Only the Relationship Manager or Post Production Head can mark selection.');return;}
   var p=projects[projId]; if(!p) return;
-  if(!confirm('Confirm photo selection has been received from '+p.bride+' & '+p.groom+'?\n\nThis will notify the Photo Editing Team to begin work.'))return;
+  if(!confirm('Confirm photo selection has been received from '+p.bride+' & '+p.groom+'?\n\nThis will notify Superadmin/RelMgr to assign a Photo Retoucher.'))return;
   var who=CU?(CU.name||CU.username):'Relationship Manager';
   var now=Date.now();
   db.ref('crm_projects/'+projId+'/photoSelection').set({status:'received',at:now,by:who},function(err){
     if(err){showToast('❌ Error: '+err.message);return;}
     p.photoSelection={status:'received',at:now,by:who};
-    showToast('✅ Photo selection marked complete — Photo Editing Team notified.');
+    showToast('✅ Photo selection marked complete.');
     logActivity('deliverable','Photo Selection Received',(p.bride+' & '+p.groom+' — photo selection marked complete by '+who),{projId:projId});
-    notifyPhotoTeamSelectionComplete(projId,p);
+    pushSystemNotification({
+      type:'photo_selection_received', icon:'🖼️', title:'Photo Selection Received — Assign a Retoucher',
+      body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — client has completed photo selection. Ready to assign for retouching.',
+      projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+      forRoles:['superadmin','relmgr'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Assign Retoucher'
+    });
     renderSelectionStatusCard(p);
   });
 }
@@ -9367,84 +9567,44 @@ function markPhotoSelectionComplete(projId){
 function markAlbumSelectionComplete(projId){
   if(!can('canMarkSelection')){showToast('⛔ Only the Relationship Manager or Post Production Head can mark selection.');return;}
   var p=projects[projId]; if(!p) return;
-  if(!confirm('Confirm album selection has been received from '+p.bride+' & '+p.groom+'?\n\nThis will notify the Album Production Head and Team to begin work. They will have '+ALBUM_SLA_DAYS+' days to complete the album before it is flagged overdue.'))return;
+  if(!confirm('Confirm album selection has been received from '+p.bride+' & '+p.groom+'?\n\nThis will notify Superadmin/RelMgr to assign the Selection & Sorting Check task.'))return;
   var who=CU?(CU.name||CU.username):'Relationship Manager';
   var now=Date.now();
-  var updates={};
-  updates['crm_projects/'+projId+'/albumSelection']={status:'received',at:now,by:who};
-  updates['crm_projects/'+projId+'/albumStage']='selection_received';
-  updates['crm_projects/'+projId+'/albumStageAt']=now;
-  db.ref().update(updates,function(err){
+  db.ref('crm_projects/'+projId+'/albumSelection').set({status:'received',at:now,by:who},function(err){
     if(err){showToast('❌ Error: '+err.message);return;}
     p.albumSelection={status:'received',at:now,by:who};
-    p.albumStage='selection_received';
-    p.albumStageAt=now;
-    db.ref('crm_projects/'+projId+'/albumStageHistory').push({stage:'selection_received',at:now,by:who});
-    showToast('✅ Album selection marked complete — Album Production Team notified.');
+    showToast('✅ Album selection marked complete.');
     logActivity('deliverable','Album Selection Received',(p.bride+' & '+p.groom+' — album selection marked complete by '+who),{projId:projId});
-    notifyAlbumTeamSelectionComplete(projId,p);
+    pushSystemNotification({
+      type:'album_selection_received', icon:'📔', title:'Album Selection Received — Assign the Chain',
+      body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — client has completed album selection. Ready to assign Selection & Sorting Check. Due in '+ALBUM_SLA_DAYS+' days.',
+      projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+      forRoles:['superadmin','relmgr'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Assign Task'
+    });
     renderSelectionStatusCard(p);
-  });
-}
-
-function notifyPhotoTeamSelectionComplete(projId,p){
-  pushSystemNotification({
-    type:'photo_selection_received', icon:'🖼️',
-    title:'Photo Selection Received — Start Editing',
-    body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — client has completed photo selection. Ready for editing.',
-    projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
-    forRoles:['photoeditor','postprod','superadmin'],
-    at:new Date().toISOString(), requiresAction:true, actionLabel:'Start Editing'
-  });
-}
-
-function notifyAlbumTeamSelectionComplete(projId,p){
-  pushSystemNotification({
-    type:'album_selection_received', icon:'📔',
-    title:'Album Selection Received — Team Assigned',
-    body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — client has completed album selection. Proceed with album production. Due in '+ALBUM_SLA_DAYS+' days.',
-    projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
-    forRoles:['albumhead','albumteam','postprod','superadmin'],
-    at:new Date().toISOString(), requiresAction:true, actionLabel:'Start Album'
-  });
-}
-
-function advanceAlbumStage(projId,newStage){
-  var p=projects[projId]; if(!p) return;
-  if(!can('canManageAlbumProd') && !can('canManagePostProd') && !(CU&&CU.role==='albumteam')){showToast('⛔ Not permitted.');return;}
-  var who=CU?(CU.name||CU.username):'Album Team';
-  var now=Date.now();
-  var updates={};
-  updates['crm_projects/'+projId+'/albumStage']=newStage;
-  updates['crm_projects/'+projId+'/albumStageAt']=now;
-  db.ref().update(updates,function(err){
-    if(err){showToast('❌ Error: '+err.message);return;}
-    p.albumStage=newStage; p.albumStageAt=now;
-    db.ref('crm_projects/'+projId+'/albumStageHistory').push({stage:newStage,at:now,by:who});
-    showToast('✅ Album stage updated: '+albumStageLabel(newStage));
-    logActivity('deliverable','Album Stage Updated',(p.bride+' & '+p.groom+' — moved to '+albumStageLabel(newStage)+' by '+who),{projId:projId});
-    if(newStage==='delivered'){
-      pushSystemNotification({
-        type:'album_delivered', icon:'🎉', title:'Album Delivered',
-        body:(p.bride+' & '+p.groom)+' — album has been delivered to the client.',
-        projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
-        forRoles:['postprod','superadmin','relmgr'],
-        at:new Date().toISOString(), requiresAction:false
-      });
-    }
-    renderAlbumProd();
   });
 }
 
 function albumDaysLeft(p){
   if(!p||!p.albumSelection||p.albumSelection.status!=='received') return null;
-  var dueAt = p.albumSelection.at + (ALBUM_SLA_DAYS*86400000);
+  var dueAt=p.albumSelection.at+(ALBUM_SLA_DAYS*86400000);
   return Math.ceil((dueAt-Date.now())/86400000);
 }
+function albumIsSentToPrint(p){
+  return !!(p&&p.albumTasks&&p.albumTasks.printing&&p.albumTasks.printing.status==='done');
+}
 function albumIsOverdue(p){
-  if(!p||p.albumStage==='delivered') return false;
+  if(albumIsSentToPrint(p)) return false;
   var d=albumDaysLeft(p);
   return d!==null && d<0;
+}
+function albumCurrentStage(p){
+  if(!p.albumTasks) return null;
+  for(var i=ALBUM_TASK_STAGES.length-1;i>=0;i--){
+    var t=p.albumTasks[ALBUM_TASK_STAGES[i].key];
+    if(t && t.status){ return {stage:ALBUM_TASK_STAGES[i], idx:i, task:t}; }
+  }
+  return null;
 }
 
 // ── Selection Status card — rendered inside the project's Deliverables tab ──
@@ -9462,7 +9622,9 @@ function renderSelectionStatusCard(p){
     html+='<div style="border:1px solid '+(received?'#bbf7d0':'#e2e8f0')+';background:'+(received?'#f0fdf4':'#fafafa')+';border-radius:8px;padding:10px 12px">';
     html+='<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:4px">🖼️ Photo Selection</div>';
     if(received){
+      var pt=p.photoRetouchTask||{};
       html+='<div style="font-size:11.5px;color:#166534">✅ Received '+fmtDate(new Date(ps.at).toISOString().slice(0,10))+'<br>by '+ps.by+'</div>';
+      html+='<div style="font-size:11px;margin-top:4px;font-weight:700">'+(pt.status?taskStatusBadge(pt):'Not yet assigned')+'</div>';
     } else {
       html+='<div style="font-size:11.5px;color:#888;margin-bottom:6px">⏳ Awaiting client selection</div>';
       if(canMark) html+='<button class="btn btn-sm" style="font-size:11px" onclick="markPhotoSelectionComplete('+p.id+')">✅ Mark Complete</button>';
@@ -9477,9 +9639,10 @@ function renderSelectionStatusCard(p){
     if(received){
       var dLeft=albumDaysLeft(p);
       var overdue=albumIsOverdue(p);
+      var cur=albumCurrentStage(p);
       html+='<div style="font-size:11.5px;color:#166534">✅ Received '+fmtDate(new Date(as.at).toISOString().slice(0,10))+'<br>by '+as.by+'</div>';
-      html+='<div style="font-size:11px;margin-top:4px;font-weight:700;color:'+(overdue?'#dc2626':'#555')+'">Stage: '+albumStageLabel(p.albumStage)+'</div>';
-      if(p.albumStage!=='delivered') html+='<div style="font-size:10.5px;margin-top:2px;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left')+'</div>';
+      html+='<div style="font-size:11px;margin-top:4px;font-weight:700;color:'+(overdue?'#dc2626':'#555')+'">Stage: '+(cur?cur.stage.icon+' '+cur.stage.label:'Not yet assigned')+'</div>';
+      if(!albumIsSentToPrint(p)) html+='<div style="font-size:10.5px;margin-top:2px;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left')+'</div>';
     } else {
       html+='<div style="font-size:11.5px;color:#888;margin-bottom:6px">⏳ Awaiting client selection</div>';
       if(canMark) html+='<button class="btn btn-sm" style="font-size:11px" onclick="markAlbumSelectionComplete('+p.id+')">✅ Mark Complete</button>';
@@ -9489,33 +9652,25 @@ function renderSelectionStatusCard(p){
   html+='</div>';
   el.innerHTML=html;
 }
+function taskStatusBadge(t){
+  var s=(t&&t.status)||null;
+  if(!s) return '<span style="background:#f1f5f9;color:#94a3b8;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700">Not Assigned</span>';
+  if(s==='open') return '<span style="background:#fef9c3;color:#854d0e;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700">📢 Open to '+roleLabel(t.assignedRole)+'</span>';
+  if(s==='assigned') return '<span style="background:#e0f2fe;color:#0369a1;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700">👤 '+(t.assignedToName||'Assigned')+'</span>';
+  if(s==='in_progress') return '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700">🎬 '+(t.assignedToName||'')+' — In Progress</span>';
+  if(s==='done') return '<span style="background:#dcfce7;color:#166534;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700">✅ Done</span>';
+  return '';
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // ALBUM & PHOTO PRODUCTION — dedicated department page
 // ═══════════════════════════════════════════════════════════════════════
 var _apTab='album';
-
-function apStatusBadge(s){
-  var m={pending:['#fef9c3','#854d0e','⏳ Pending'],inprogress:['#dbeafe','#1d4ed8','🎬 Editing'],review:['#fdf2f8','#9d174d','👁️ In Review'],delivered:['#dcfce7','#166534','✅ Delivered']};
-  var v=m[s]||['#f1f5f9','#475569',s||'—'];
-  return '<span style="background:'+v[0]+';color:'+v[1]+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">'+v[2]+'</span>';
-}
-function apSaveDelivStatus(projId,delivId,status){
-  var p=projects[projId];if(!p)return;
-  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});if(!d)return;
-  var updates={status:status};
-  if(status==='delivered'&&!d.date) updates.date=(typeof tod==='function'?tod():new Date().toISOString().slice(0,10));
-  ppSaveDeliv(projId,delivId,updates,function(){
-    showToast('✅ Status updated!');
-    logActivity('deliverable','Photo Deliverable Status',(p.bride+' & '+p.groom+' — '+(d.name||d.type)+' → '+status),{projId:projId});
-    renderAlbumProd();
-    setTimeout(function(){if(typeof runDeliverableAutomations==='function')runDeliverableAutomations(projId);},400);
-  });
-}
+function rerenderAlbumViews(){ if(document.getElementById('ap-content')) renderAlbumProd(); }
 
 function renderAlbumProd(){
   var tab=_apTab||'album';
-  var tabDefs=[{id:'album',icon:'📔',label:'Album Production'},{id:'photo',icon:'🖼️',label:'Photo Editing Queue'}];
+  var tabDefs=[{id:'album',icon:'📔',label:'Album Production'},{id:'photo',icon:'🖼️',label:'Photo Retouching'}];
   var html='<div style="display:flex;gap:4px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px">';
   tabDefs.forEach(function(t){
     var a=tab===t.id;
@@ -9526,54 +9681,118 @@ function renderAlbumProd(){
   document.querySelectorAll('.ap-tab-btn').forEach(function(btn){
     btn.addEventListener('click',function(){_apTab=btn.dataset.tab;renderAlbumProd();});
   });
-  if(tab==='album') renderAlbumBoard(); else renderPhotoQueue();
+  if(tab==='album') renderAlbumBoard(); else renderPhotoRetouchPanel();
 }
 
+// ── Album Production Board ───────────────────────────────────────────────
 function renderAlbumBoard(){
   var body=document.getElementById('ap-tab-body'); if(!body) return;
-  var awaiting=[], active=[], done=[];
+  var canAssign=can('canAssignAlbumTasks');
+  var canOversee=canAssign || CU.role==='albumhead' || CU.role==='postprod' || CU.role==='admin' || CU.role==='superadmin';
+  var isExecutorRole = ALBUM_TASK_STAGES.some(function(stage){return userHasRole(CU,stage.role);});
+
+  var awaiting=[], active=[], archived=[];
   pl().forEach(function(p){
     var hasAlbum=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='album';});
     if(!hasAlbum) return;
     var sel=p.albumSelection||{};
     if(sel.status!=='received'){ awaiting.push(p); return; }
-    if(p.albumStage==='delivered') done.push(p); else active.push(p);
+    if(albumIsSentToPrint(p)) archived.push(p); else active.push(p);
   });
   active.sort(function(a,b){return (albumDaysLeft(a)===null?999:albumDaysLeft(a))-(albumDaysLeft(b)===null?999:albumDaysLeft(b));});
 
-  var html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">';
+  var html='';
+
+  // ── Summary tiles ─────────────────────────────────────────────────
   var overdueCount=active.filter(albumIsOverdue).length;
+  html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">';
   html+='<div style="background:#fffbeb;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #f59e0b;text-align:center"><div style="font-size:26px;font-weight:800;color:#854d0e">'+awaiting.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Awaiting Selection</div></div>';
   html+='<div style="background:#eff6ff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #3b82f6;text-align:center"><div style="font-size:26px;font-weight:800;color:#1d4ed8">'+active.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">In Production</div></div>';
   html+='<div style="background:#fef2f2;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #dc2626;text-align:center"><div style="font-size:26px;font-weight:800;color:#dc2626">'+overdueCount+'</div><div style="font-size:11px;color:#888;margin-top:3px">Overdue (&gt;'+ALBUM_SLA_DAYS+'d)</div></div>';
-  html+='<div style="background:#f0fdf4;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #10b981;text-align:center"><div style="font-size:26px;font-weight:800;color:#166534">'+done.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Delivered</div></div>';
+  html+='<div style="background:#f0fdf4;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #10b981;text-align:center"><div style="font-size:26px;font-weight:800;color:#166534">'+archived.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Sent to Printing</div></div>';
   html+='</div>';
 
-  // ── In Production ──────────────────────────────────────────────────
-  html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">🎬 Album Production — In Progress</span><span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-weight:700">📅 Most Urgent First</span></div>';
-  if(!active.length){
-    html+='<div class="empty">✅ No albums currently in production.</div>';
-  } else {
-    html+='<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">';
+  // ── My Tasks (executor roles only) ──────────────────────────────────
+  if(isExecutorRole){
+    var mine=[];
     active.forEach(function(p){
-      var dLeft=albumDaysLeft(p);
-      var overdue=albumIsOverdue(p);
-      var idx=albumStageIdx(p.albumStage);
-      var nextStage=(idx>=0 && idx<ALBUM_STAGE_DEFS.length-1)?ALBUM_STAGE_DEFS[idx+1]:null;
-      html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:'+(overdue?'#fff5f5':'#fff')+'">';
-      html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
-      html+='<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+'</div></div>';
-      html+='<div style="text-align:right"><div style="font-size:12px;font-weight:700;color:'+(overdue?'#dc2626':'#1a1a1a')+'">'+albumStageLabel(p.albumStage)+'</div><div style="font-size:11px;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left (of '+ALBUM_SLA_DAYS+')')+'</div></div>';
-      html+='</div>';
-      html+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
-      html+='<select class="fi" style="width:auto;font-size:12px;padding:6px 8px" onchange="advanceAlbumStage('+p.id+',this.value)">'+ALBUM_STAGE_DEFS.map(function(s){return '<option value="'+s.key+'"'+(s.key===p.albumStage?' selected':'')+'>'+s.icon+' '+s.label+'</option>';}).join('')+'</select>';
-      if(nextStage) html+='<button class="btn btn-sm" style="font-size:11px;background:#16a34a;color:#fff" onclick="advanceAlbumStage('+p.id+',\''+nextStage.key+'\')">✅ Advance to '+nextStage.label+'</button>';
-      html+='<button class="btn btn-sm pp-open-proj" data-id="'+p.id+'" data-tab="t-deliv" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open Project</button>';
-      html+='</div></div>';
+      ALBUM_TASK_STAGES.forEach(function(stage){
+        if(!userHasRole(CU,stage.role)) return;
+        var t=getTaskObj(p,'albumTasks/'+stage.key);
+        if(t.status==='done') return;
+        if(t.status==='assigned'||t.status==='in_progress'){ if(t.assignedTo!==CU.id) return; }
+        if(t.status==='open' && !userHasRole(CU,t.assignedRole)) return;
+        if(!t.status) return; // not yet assigned by admin — nothing to show
+        mine.push({p:p,stage:stage,t:t,path:'albumTasks/'+stage.key});
+      });
     });
+    html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">✅ My Tasks</span></div>';
+    if(!mine.length){
+      html+='<div class="empty">🎉 Nothing assigned to you right now.</div>';
+    } else {
+      html+='<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">';
+      mine.forEach(function(item){
+        var p=item.p,t=item.t,stage=item.stage,path=item.path;
+        var locked=isPathLocked(p,path);
+        html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px">';
+        html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
+        html+='<div><div style="font-size:15px;font-weight:800">'+stage.icon+' '+stage.label+'</div><div style="font-size:11px;color:#888">'+p.bride+' & '+p.groom+' · '+(p.city||'')+'</div></div>';
+        html+=taskStatusBadge(t);
+        html+='</div>';
+        if(locked){
+          html+='<div style="font-size:11px;color:#b45309">⏳ Waiting on the previous stage to finish.</div>';
+        } else {
+          html+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+          if(t.status==='open') html+='<button class="btn btn-sm" style="font-size:11px;background:#eab308;color:#fff" onclick="claimTask('+p.id+',\''+path+'\')">📥 Claim Task</button>';
+          if(t.status==='assigned') html+='<button class="btn btn-sm" style="font-size:11px;background:#3b82f6;color:#fff" onclick="startTask('+p.id+',\''+path+'\')">🎬 Start</button>';
+          if(t.status==='in_progress') html+='<button class="btn btn-sm" style="font-size:11px;background:#16a34a;color:#fff" onclick="completeTask('+p.id+',\''+path+'\')">✅ Mark Done</button>';
+          html+='<button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open Project</button>';
+          html+='</div>';
+        }
+        html+='</div>';
+      });
+      html+='</div>';
+    }
     html+='</div>';
   }
-  html+='</div>';
+
+  // ── Full Department Chain (oversight) ────────────────────────────────
+  if(canOversee){
+    html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">📊 Full Department Chain</span><span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-weight:700">📅 Most Urgent First</span></div>';
+    if(!active.length){
+      html+='<div class="empty">✅ No albums currently in production.</div>';
+    } else {
+      html+='<div style="display:flex;flex-direction:column;gap:14px;padding-top:4px">';
+      active.forEach(function(p){
+        var dLeft=albumDaysLeft(p);
+        var overdue=albumIsOverdue(p);
+        html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:'+(overdue?'#fff5f5':'#fff')+'">';
+        html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
+        html+='<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+(p.albumRevisionCount?' · 🔁 '+p.albumRevisionCount+' revision(s)':'')+'</div></div>';
+        html+='<div style="text-align:right"><div style="font-size:11px;font-weight:700;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left (of '+ALBUM_SLA_DAYS+')')+'</div>';
+        html+='<button class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></div>';
+        html+='</div>';
+        html+='<div style="display:flex;flex-direction:column;gap:6px">';
+        ALBUM_TASK_STAGES.forEach(function(stage){
+          var path='albumTasks/'+stage.key;
+          var t=getTaskObj(p,path);
+          html+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 8px;border-radius:6px;background:#fafafa">';
+          html+='<div style="min-width:170px;font-size:12px;font-weight:600">'+stage.icon+' '+stage.label+'</div>';
+          html+=taskStatusBadge(t);
+          if(canAssign && (!t.status || t.status==='open')){
+            html+=albumAssignControl(p,stage);
+          }
+          if(canAssign && stage.key==='client_proofing' && t.status==='done'){
+            html+='<button class="btn btn-sm" style="font-size:10.5px;background:#f59e0b;color:#fff" onclick="requestAlbumRevision('+p.id+')">🔁 Request Revision</button>';
+          }
+          html+='</div>';
+        });
+        html+='</div></div>';
+      });
+      html+='</div>';
+    }
+    html+='</div>';
+  }
 
   // ── Awaiting Selection ─────────────────────────────────────────────
   html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">⏳ Awaiting Client Album Selection</span></div>';
@@ -9589,63 +9808,104 @@ function renderAlbumBoard(){
   }
   html+='</div>';
 
-  // ── Delivered ───────────────────────────────────────────────────────
-  if(done.length){
-    html+='<div class="card"><div class="card-hdr"><span class="card-title">🎉 Delivered</span></div>';
-    html+='<table class="tbl"><thead><tr><th>Couple</th><th>Event Date</th><th>Selection Received</th></tr></thead><tbody>';
-    done.forEach(function(p){
-      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+fmtDate(p.date)+'</td><td>'+(p.albumSelection?fmtDate(new Date(p.albumSelection.at).toISOString().slice(0,10)):'—')+'</td></tr>';
+  // ── Sent to Printing / Delivered Archive (read-only, oversight only) ──
+  if(canOversee && archived.length){
+    html+='<div class="card"><div class="card-hdr"><span class="card-title">🖨️ Sent to Printing / Delivered — Archive</span></div>';
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>Event Date</th><th>Selection Received</th><th>Sent to Print</th><th>Status</th></tr></thead><tbody>';
+    archived.forEach(function(p){
+      var pt=getTaskObj(p,'albumTasks/printing');
+      var dt=getTaskObj(p,'albumTasks/delivered');
+      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+fmtDate(p.date)+'</td><td>'+(p.albumSelection?fmtDate(new Date(p.albumSelection.at).toISOString().slice(0,10)):'—')+'</td><td>'+(pt.completedAt?fmtDate(new Date(pt.completedAt).toISOString().slice(0,10)):'—')+'</td><td>'+(dt.status==='done'?'🎉 Delivered':'🖨️ At Printer')+'</td></tr>';
     });
     html+='</tbody></table></div>';
   }
   body.innerHTML=html;
 }
 
-function renderPhotoQueue(){
+function albumAssignControl(p, stage){
+  var path='albumTasks/'+stage.key;
+  var teamUsers=Object.values(users).filter(function(u){return userHasRole(u,stage.role);});
+  var onchange="var v=this.value; if(!v){return;} if(v==='__broadcast__'){assignTask("+p.id+",'"+path+"','broadcast',null,'"+stage.role+"');}else{assignTask("+p.id+",'"+path+"','direct',v);} this.value='';";
+  var sel='<select class="fi" style="width:auto;font-size:11px;padding:4px 6px" onchange="'+onchange+'">';
+  sel+='<option value="">Assign to…</option>';
+  sel+='<option value="__broadcast__">📢 Broadcast to whole team</option>';
+  teamUsers.forEach(function(u){ sel+='<option value="'+u.id+'">'+(u.name||u.username)+'</option>'; });
+  sel+='</select>';
+  return sel;
+}
+
+// ── Photo Retouching Panel — separate, single-stage, own assignment ─────
+function renderPhotoRetouchPanel(){
   var body=document.getElementById('ap-tab-body'); if(!body) return;
-  var awaiting=[], items=[];
+  var canAssign=can('canAssignAlbumTasks');
+  var canOversee=canAssign || CU.role==='postprod' || CU.role==='admin' || CU.role==='superadmin';
+
+  var awaiting=[], active=[], done=[];
   pl().forEach(function(p){
-    var photoDelivs=(p.customDelivs||[]).filter(function(d){return delivBucket(d)==='photo';});
-    if(!photoDelivs.length) return;
+    var hasPhoto=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='photo';});
+    if(!hasPhoto) return;
     var sel=p.photoSelection||{};
     if(sel.status!=='received'){ awaiting.push(p); return; }
-    photoDelivs.forEach(function(d){ items.push({d:d,p:p}); });
+    var t=p.photoRetouchTask||{};
+    if(t.status==='done') done.push(p); else active.push(p);
   });
-  var pending=items.filter(function(x){return x.d.status==='pending'||!x.d.status;});
-  var editing=items.filter(function(x){return x.d.status==='inprogress';});
-  var review=items.filter(function(x){return x.d.status==='review';});
-  var done=items.filter(function(x){return x.d.status==='delivered';});
 
-  var html='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">';
-  html+='<div style="background:#fef9c3;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #eab308;text-align:center"><div style="font-size:26px;font-weight:800;color:#854d0e">'+pending.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Queued</div></div>';
-  html+='<div style="background:#eff6ff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #3b82f6;text-align:center"><div style="font-size:26px;font-weight:800;color:#1d4ed8">'+editing.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Editing</div></div>';
-  html+='<div style="background:#fdf2f8;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #ec4899;text-align:center"><div style="font-size:26px;font-weight:800;color:#9d174d">'+review.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">In Review</div></div>';
+  var html='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">';
+  html+='<div style="background:#fffbeb;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #f59e0b;text-align:center"><div style="font-size:26px;font-weight:800;color:#854d0e">'+awaiting.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Awaiting Selection</div></div>';
+  html+='<div style="background:#eff6ff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #3b82f6;text-align:center"><div style="font-size:26px;font-weight:800;color:#1d4ed8">'+active.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">In Production</div></div>';
   html+='<div style="background:#f0fdf4;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #10b981;text-align:center"><div style="font-size:26px;font-weight:800;color:#166534">'+done.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Delivered</div></div>';
   html+='</div>';
 
-  var active=pending.concat(editing).concat(review);
-  html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">🖼️ Photo Editing Queue</span></div>';
-  if(!active.length){
-    html+='<div class="empty">✅ No photo deliverables in the queue right now.</div>';
-  } else {
-    html+='<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">';
-    active.forEach(function(item){
-      var d=item.d,p=item.p;
-      html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px">';
-      html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
-      html+='<div><div style="font-size:15px;font-weight:800">'+(d.name||d.type||'Deliverable')+'</div><div style="font-size:11px;color:#888">'+p.bride+' & '+p.groom+' · '+(p.city||'')+'</div></div>';
-      html+=apStatusBadge(d.status||'pending');
-      html+='</div>';
-      html+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
-      if(!d.status||d.status==='pending') html+='<button class="btn btn-sm" style="font-size:11px;background:#3b82f6;color:#fff" onclick="apSaveDelivStatus('+p.id+',\''+d.id+'\',\'inprogress\')">🎬 Start Editing</button>';
-      else if(d.status==='inprogress') html+='<button class="btn btn-sm" style="font-size:11px;background:#ec4899;color:#fff" onclick="apSaveDelivStatus('+p.id+',\''+d.id+'\',\'review\')">👁️ Submit for Review</button>';
-      else if(d.status==='review') html+='<button class="btn btn-sm" style="font-size:11px;background:#16a34a;color:#fff" onclick="apSaveDelivStatus('+p.id+',\''+d.id+'\',\'delivered\')">✅ Mark Delivered</button>';
-      html+='<button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open Project</button>';
-      html+='</div></div>';
+  // My Tasks (photoeditor + anyone with photoeditor as a secondary role)
+  if(userHasRole(CU,'photoeditor')){
+    var mine=active.filter(function(p){
+      var t=p.photoRetouchTask||{};
+      if(t.status==='open') return userHasRole(CU,t.assignedRole);
+      return t.assignedTo===CU.id;
     });
+    html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">✅ My Retouching Tasks</span></div>';
+    if(!mine.length){
+      html+='<div class="empty">🎉 Nothing assigned to you right now.</div>';
+    } else {
+      html+='<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">';
+      mine.forEach(function(p){
+        var t=p.photoRetouchTask;
+        html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px">';
+        html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
+        html+='<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+'</div></div>';
+        html+=taskStatusBadge(t);
+        html+='</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
+        if(t.status==='open') html+='<button class="btn btn-sm" style="font-size:11px;background:#eab308;color:#fff" onclick="claimTask('+p.id+',\'photoRetouchTask\')">📥 Claim Task</button>';
+        if(t.status==='assigned') html+='<button class="btn btn-sm" style="font-size:11px;background:#3b82f6;color:#fff" onclick="startTask('+p.id+',\'photoRetouchTask\')">🎬 Start</button>';
+        if(t.status==='in_progress') html+='<button class="btn btn-sm" style="font-size:11px;background:#16a34a;color:#fff" onclick="completeTask('+p.id+',\'photoRetouchTask\')">✅ Mark Done</button>';
+        html+='<button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open Project</button>';
+        html+='</div></div>';
+      });
+      html+='</div>';
+    }
     html+='</div>';
   }
-  html+='</div>';
+
+  // Oversight / assignment
+  if(canOversee){
+    html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">🖼️ Photo Retouching Queue</span></div>';
+    if(!active.length){
+      html+='<div class="empty">✅ No photo retouching tasks in progress.</div>';
+    } else {
+      html+='<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">';
+      active.forEach(function(p){
+        var t=p.photoRetouchTask||{};
+        html+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px">';
+        html+='<div style="flex:1;min-width:160px"><div style="font-size:14px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+'</div></div>';
+        html+=taskStatusBadge(t);
+        if(canAssign && (!t.status||t.status==='open')) html+=albumRetouchAssignControl(p);
+        html+='<button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
+    html+='</div>';
+  }
 
   html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">⏳ Awaiting Client Photo Selection</span></div>';
   if(!awaiting.length){
@@ -9660,17 +9920,28 @@ function renderPhotoQueue(){
   }
   html+='</div>';
 
-  if(done.length){
+  if(canOversee && done.length){
     html+='<div class="card"><div class="card-hdr"><span class="card-title">✅ Delivered</span></div>';
-    html+='<table class="tbl"><thead><tr><th>Deliverable</th><th>Couple</th><th>Delivered On</th></tr></thead><tbody>';
-    done.forEach(function(item){
-      html+='<tr><td>'+(item.d.name||item.d.type||'Deliverable')+'</td><td>'+item.p.bride+' & '+item.p.groom+'</td><td>'+fmtDate(item.d.date)+'</td></tr>';
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>Retoucher</th><th>Completed</th></tr></thead><tbody>';
+    done.forEach(function(p){
+      var t=p.photoRetouchTask||{};
+      html+='<tr><td>'+p.bride+' & '+p.groom+'</td><td>'+(t.assignedToName||'—')+'</td><td>'+(t.completedAt?fmtDate(new Date(t.completedAt).toISOString().slice(0,10)):'—')+'</td></tr>';
     });
     html+='</tbody></table></div>';
   }
   body.innerHTML=html;
 }
 
+function albumRetouchAssignControl(p){
+  var teamUsers=Object.values(users).filter(function(u){return userHasRole(u,'photoeditor');});
+  var onchange="var v=this.value; if(!v){return;} if(v==='__broadcast__'){assignTask("+p.id+",'photoRetouchTask','broadcast',null,'photoeditor');}else{assignTask("+p.id+",'photoRetouchTask','direct',v);} this.value='';";
+  var sel='<select class="fi" style="width:auto;font-size:11px;padding:4px 6px" onchange="'+onchange+'">';
+  sel+='<option value="">Assign to…</option>';
+  sel+='<option value="__broadcast__">📢 Broadcast to whole team</option>';
+  teamUsers.forEach(function(u){ sel+='<option value="'+u.id+'">'+(u.name||u.username)+'</option>'; });
+  sel+='</select>';
+  return sel;
+}
 // ═══════════════════════════════════════════════════════════════════════
 // POST-PRODUCTION PENDING REPORT — for Reports page (Relationship Manager,
 // Post Production Head, Video/Album Heads, Admin, Superadmin)
@@ -9692,7 +9963,7 @@ function buildPostProdPendingLists(){
     if(hasAlbum){
       var sel=p.albumSelection||{};
       if(sel.status!=='received') lists.albumSelPending.push({p:p});
-      else if(p.albumStage!=='delivered') lists.albumsPendingAfterSel.push({p:p});
+      else if(!albumIsSentToPrint(p)) lists.albumsPendingAfterSel.push({p:p});
     }
   });
   return lists;
@@ -9741,7 +10012,8 @@ function renderPprDrill(key,rows){
       html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
       if(key==='albumsPendingAfterSel'){
         var dLeft=albumDaysLeft(p), overdue=albumIsOverdue(p);
-        html+='<td>'+albumStageLabel(p.albumStage)+'</td><td style="color:'+(overdue?'#dc2626':'#555')+';font-weight:'+(overdue?'700':'400')+'">'+(overdue?'⚠️ '+Math.abs(dLeft)+'d overdue':dLeft+'d left')+'</td>';
+        var cur=albumCurrentStage(p);
+        html+='<td>'+(cur?cur.stage.icon+' '+cur.stage.label:'Not yet assigned')+'</td><td style="color:'+(overdue?'#dc2626':'#555')+';font-weight:'+(overdue?'700':'400')+'">'+(overdue?'⚠️ '+Math.abs(dLeft)+'d overdue':dLeft+'d left')+'</td>';
       }
       html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
     });
@@ -11510,6 +11782,10 @@ function onUserRoleChange(){
   // Show team link for editor role
   var tlr=document.getElementById('u-team-link-row');
   if(tlr)tlr.style.display='block';
+  // Secondary roles only make sense for people in the Post Production department
+  var ppDeptRoles=['postprod','videohead','albumhead','albumselector','albumretoucher','albummaker','photoeditor'];
+  var srr=document.getElementById('u-secondary-roles-row');
+  if(srr) srr.style.display = ppDeptRoles.indexOf(role)!==-1 ? 'block' : 'none';
 }
 function onTeamMemberSelect(teamId) {
   if (!teamId) return;
@@ -15448,9 +15724,9 @@ document.addEventListener('DOMContentLoaded', function() {
 $('team-search').addEventListener('input',renderTeam);$('team-role-f').addEventListener('change',renderTeam);$('team-region-f').addEventListener('change',renderTeam);
 
 // ═══ USER / ACCOUNT MODALS ════════════════════════════
-$('btn-add-user').addEventListener('click',function(){editUserId=null;$('user-modal-title').textContent='Add User';['u-name','u-displayname','u-username','u-pass','u-phone','u-email','u-notes'].forEach(function(i){sv(i,'');});sv('u-role','admin');sv('u-department','');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=false;populateUserTeamDropdown('');onUserRoleChange();openModal('user-modal');});
-function openEditUser(id){var u=users[id];if(!u)return;editUserId=id;$('user-modal-title').textContent='Edit — '+u.name;sv('u-name',u.name);sv('u-displayname',u.displayname||'');sv('u-username',u.username);sv('u-pass',u.password);sv('u-role',u.role);sv('u-department',u.department||'');sv('u-phone',u.phone||'');sv('u-email',u.email||'');sv('u-notes',u.notes||'');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=!!u.mustChangePassword;populateUserTeamDropdown(u.teamId||'');onUserRoleChange();openModal('user-modal');}
-$('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass');if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;db.ref('crm_users/'+id).set({id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:gv('u-email'),notes:gv('u-notes'),mustChangePassword:mustChange},function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
+$('btn-add-user').addEventListener('click',function(){editUserId=null;$('user-modal-title').textContent='Add User';['u-name','u-displayname','u-username','u-pass','u-phone','u-email','u-notes'].forEach(function(i){sv(i,'');});sv('u-role','admin');sv('u-department','');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=false;document.querySelectorAll('.u-secrole-cb').forEach(function(cb){cb.checked=false;});populateUserTeamDropdown('');onUserRoleChange();openModal('user-modal');});
+function openEditUser(id){var u=users[id];if(!u)return;editUserId=id;$('user-modal-title').textContent='Edit — '+u.name;sv('u-name',u.name);sv('u-displayname',u.displayname||'');sv('u-username',u.username);sv('u-pass',u.password);sv('u-role',u.role);sv('u-department',u.department||'');sv('u-phone',u.phone||'');sv('u-email',u.email||'');sv('u-notes',u.notes||'');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=!!u.mustChangePassword;var secRoles=u.secondaryRoles||[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){cb.checked=secRoles.indexOf(cb.value)!==-1;});populateUserTeamDropdown(u.teamId||'');onUserRoleChange();openModal('user-modal');}
+$('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass');if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;var secRoles=[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){if(cb.checked&&cb.value!==gv('u-role'))secRoles.push(cb.value);});db.ref('crm_users/'+id).set({id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),secondaryRoles:secRoles,department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:gv('u-email'),notes:gv('u-notes'),mustChangePassword:mustChange},function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
 function deleteUser(id){if(id===CU.id){alert("Can't delete your own account.");return;}if(!confirm('Remove this user?'))return;db.ref('crm_users/'+id).remove(function(){showToast('User removed.');});}
 function openAddAccount(){editAccId=null;var t=$('account-modal-title');if(t)t.textContent='Add Account';['acc-name','acc-number','acc-notes'].forEach(function(i){sv(i,'');});sv('acc-type','savings');openModal('account-modal');}
 function switchUsersTab(tabId, btn){
@@ -17578,7 +17854,7 @@ var ROLE_ACCESS = {
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
     canSeeAllTabs:true, canManageSettings:true, canExport:true,
-    canSeeContactDetails:true
+    canSeeContactDetails:true, canAssignAlbumTasks:true
   },
   intern: {
     pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'datavault', 'healthcheck', 'clienthub'],
@@ -17602,7 +17878,7 @@ var ROLE_ACCESS = {
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
     canSeeAllTabs:true, allowedTabs:null, canManageSettings:false, canExport:true,
-    canSeeContactDetails:true, canMarkSelection:true
+    canSeeContactDetails:true, canMarkSelection:true, canAssignAlbumTasks:true
   },
   postprod: {
     pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
@@ -17632,9 +17908,27 @@ var ROLE_ACCESS = {
     canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief'],
     canManageSettings:false, canExport:false,
     canSeeContactDetails:false,
-    canAssignEditors:true, canManageAlbumProd:true
+    canManageAlbumProd:true
   },
-  albumteam: {
+  albumselector: {
+    pages: ['dashboard', 'postprod', 'healthcheck'],
+    canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
+    canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
+    canManageUsers:false, canManageAccounts:false, canManageReferral:false,
+    canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief'],
+    canManageSettings:false, canExport:false,
+    canSeeContactDetails:false
+  },
+  albumretoucher: {
+    pages: ['dashboard', 'postprod', 'healthcheck'],
+    canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
+    canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
+    canManageUsers:false, canManageAccounts:false, canManageReferral:false,
+    canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief'],
+    canManageSettings:false, canExport:false,
+    canSeeContactDetails:false
+  },
+  albummaker: {
     pages: ['dashboard', 'postprod', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
@@ -17757,7 +18051,7 @@ var MASK_TEXT = '••••••••';
 function saveFieldVisibility() {
   var fv = {};
   var fields  = ['phone', 'whatsapp', 'email'];
-  var roles   = ['admin','relmgr','intern','accounts','preprodmanager','postprod','videohead','albumhead','albumteam','photoeditor','editor','datamanager','referral','sales','salesperson','socialmedia'];
+  var roles   = ['admin','relmgr','intern','accounts','preprodmanager','postprod','videohead','albumhead','albumselector','albumretoucher','albummaker','photoeditor','editor','datamanager','referral','sales','salesperson','socialmedia'];
   fields.forEach(function(f) {
     fv[f] = {};
     roles.forEach(function(r) {
@@ -17827,7 +18121,9 @@ function renderFieldVisibilityPanel() {
     { key:'postprod',       label:'🎬 Post Production' },
     { key:'videohead',      label:'🎥 Video Prod Head' },
     { key:'albumhead',      label:'📔 Album Prod Head' },
-    { key:'albumteam',      label:'📔 Album Prod Team' },
+    { key:'albumselector',  label:'🔍 Album Selection' },
+    { key:'albumretoucher', label:'🎨 Album Retoucher' },
+    { key:'albummaker',     label:'📔 Album Maker' },
     { key:'photoeditor',    label:'🖼️ Photo Editing' },
     { key:'editor',         label:'✂️ Editor' },
     { key:'datamanager',    label:'🗂️ Data Manager' },
@@ -27026,7 +27322,9 @@ function loadAndRenderNotifications() {
       // Skip ghost notifications with no meaningful content
       if (!n.title && !n.body) return false;
       var roles = n.forRoles || [];
-      return roles.indexOf(role) !== -1 || roles.length === 0;
+      var roleMatch = roles.indexOf(role) !== -1 || roles.length === 0;
+      var userMatch = !!(n.forUserId && CU && n.forUserId === CU.id);
+      return roleMatch || userMatch;
     }).reverse(); // newest first
     _fbNotifsLoaded = true;
     renderEnhancedNotifPanel();
