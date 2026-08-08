@@ -1495,6 +1495,12 @@ document.addEventListener('wheel', function(e) {
           <button onclick="exportPPReport('pdf')" style="background:#2563eb;color:#fff;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">📄 PDF</button>
         </div>
       </div>
+      <div style="margin:14px 0">
+        <div style="position:relative;max-width:440px">
+          <input type="text" id="pp-search-input" class="fi" placeholder="🔍 Search client name or ref code…" style="width:100%;padding:10px 36px 10px 14px;font-size:13px" oninput="onPPSearchInput(this.value)">
+          <button id="pp-search-clear" onclick="document.getElementById('pp-search-input').value='';onPPSearchInput('');" style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;color:#94a3b8;cursor:pointer;font-size:15px;padding:2px 4px">✕</button>
+        </div>
+      </div>
       <div id="pp-dept-tabs"></div>
       <div id="pp-content"></div>
       <div id="ap-content" style="display:none"></div>
@@ -6040,7 +6046,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.49-2026-08-08-fix-mark-selection-button-visibility';
+var CRM_BUILD_VERSION = 'v78.50-2026-08-08-postprod-client-search-bar';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -9693,6 +9699,7 @@ function renderAlbumBoard(){
 
   var awaiting=[], active=[], archived=[];
   pl().forEach(function(p){
+    if(!ppMatchesSearch(p)) return;
     var hasAlbum=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='album';});
     if(!hasAlbum) return;
     var sel=p.albumSelection||{};
@@ -9842,6 +9849,7 @@ function renderPhotoRetouchPanel(){
 
   var awaiting=[], active=[], done=[];
   pl().forEach(function(p){
+    if(!ppMatchesSearch(p)) return;
     var hasPhoto=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='photo';});
     if(!hasPhoto) return;
     var sel=p.photoSelection||{};
@@ -9951,6 +9959,7 @@ var _pprActiveTile='';
 function buildPostProdPendingLists(){
   var lists={teaser:[],highlight:[],editedpics:[],reel:[],albumSelPending:[],albumsPendingAfterSel:[]};
   pl().forEach(function(p){
+    if(!ppMatchesSearch(p)) return;
     (p.customDelivs||[]).forEach(function(d){
       if(d.status==='delivered') return;
       var n=(d.name||'').toLowerCase(), t=d.type||'';
@@ -10040,10 +10049,23 @@ var _ppMonthFilter=''; // 'YYYY-MM' for specific month, '' for all
 // Photo Production / Pending Report, all under one "Post Production" page)
 // ═══════════════════════════════════════════════════════════════════════
 var _ppDeptTab=null;
+var _ppSearchQuery='';
+function onPPSearchInput(v){
+  _ppSearchQuery=(v||'').trim().toLowerCase();
+  var clr=document.getElementById('pp-search-clear'); if(clr) clr.style.display=_ppSearchQuery?'':'none';
+  if(_ppDeptTab==='video') renderPostProd();
+  else if(_ppDeptTab==='albumphoto') renderAlbumProd();
+  else if(_ppDeptTab==='pending') renderPostProdPendingReport();
+}
+function ppMatchesSearch(p){
+  if(!_ppSearchQuery || !p) return true;
+  var hay=((p.bride||'')+' '+(p.groom||'')+' '+(p.refcode||'')+' '+(p.city||'')).toLowerCase();
+  return hay.indexOf(_ppSearchQuery)!==-1;
+}
 function _ppDeptTabsForRole(){
   var r=CU?CU.role:'';
   if(r==='videohead') return ['video'];
-  if(r==='albumhead'||r==='albumteam'||r==='photoeditor') return ['albumphoto'];
+  if(r==='albumhead'||r==='albumselector'||r==='albumretoucher'||r==='albummaker'||r==='photoeditor') return ['albumphoto'];
   if(r==='relmgr') return ['pending'];
   return ['video','albumphoto','pending']; // postprod / admin / superadmin / intern
 }
@@ -10111,6 +10133,7 @@ function renderPostProd(){
     }
     var myDelivs=[];
     pl().forEach(function(p){
+      if(!ppMatchesSearch(p)) return;
       (p.customDelivs||[]).forEach(function(d){
         if(myTeamId && d.editorId===myTeamId) myDelivs.push({d:d,p:p,projId:p.id});
       });
@@ -10209,7 +10232,7 @@ function renderPostProd(){
   var _isVideoHead = CU && CU.role === 'videohead';
 
   // FIFO: sort projects by event date ascending (earliest event = first served)
-  var list=pl().slice().sort(function(a,b){
+  var list=pl().filter(ppMatchesSearch).sort(function(a,b){
     var da=a.date||'9999-99-99', db=b.date||'9999-99-99';
     return da.localeCompare(db);
   });
