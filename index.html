@@ -5281,7 +5281,7 @@ var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight'
 var DELIV_TYPE_REGISTRY = [
   { type:'Teaser',          icon:'🎞️', bucket:'video', reportKey:'teaser',     nameRegex:/\bteaser\b/ },
   { type:'Highlight',       icon:'🎬', bucket:'video', reportKey:'highlight',  nameRegex:/\bhighlight\b/ },
-  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'longvideo',  nameRegex:/\b(long ?video|full ?film|full-length|wedding ?film|feature ?film|main ?film|cinematic ?film)\b/ },
+  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'highlight',  nameRegex:/\b(long ?video|full ?film|full-length|wedding ?film|feature ?film|main ?film|cinematic ?film)\b/ },
   { type:'Reel',            icon:'📱', bucket:'video', reportKey:'reel',       nameRegex:/\breels?\b/ },
   { type:'Video',           icon:'🎬', bucket:'video', reportKey:null,         nameRegex:null },
   { type:'Album',           icon:'📔', bucket:'album', reportKey:null,         nameRegex:/\balbum\b/ },
@@ -6091,7 +6091,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.52-2026-08-10-deliv-type-registry-and-healthcheck';
+var CRM_BUILD_VERSION = 'v78.54-2026-08-10-wedding-film-counts-as-highlight';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -10350,8 +10350,10 @@ function buildPostProdPendingLists(){
     (p.customDelivs||[]).forEach(function(d){
       if(d.status==='delivered') return;
       var n=(d.name||'').toLowerCase(), t=d.type||'';
+      var pushedKeys={};
       reportedTypes.forEach(function(r){
-        if(t===r.type || (r.nameRegex && r.nameRegex.test(n))) lists[r.reportKey].push({d:d,p:p});
+        if(pushedKeys[r.reportKey]) return; // don't double-count if two registry rows share a reportKey (e.g. Highlight + Long Video)
+        if(t===r.type || (r.nameRegex && r.nameRegex.test(n))) { lists[r.reportKey].push({d:d,p:p}); pushedKeys[r.reportKey]=true; }
       });
     });
     projectAlbumUnits(p).forEach(function(item){
@@ -10382,7 +10384,6 @@ function renderPostProdPendingReport(){
   var tiles=[
     {key:'teaser',label:'Teasers Pending',icon:'🎞️',color:'#d97706',count:lists.teaser.length,breakdown:pprStatusBreakdown(lists.teaser)},
     {key:'highlight',label:'Highlights Pending',icon:'🎬',color:'#2563eb',count:lists.highlight.length,breakdown:pprStatusBreakdown(lists.highlight)},
-    {key:'longvideo',label:'Long Videos Pending',icon:'🎥',color:'#0d9488',count:lists.longvideo.length,breakdown:pprStatusBreakdown(lists.longvideo)},
     {key:'editedpics',label:'Edited Photos Pending',icon:'🖼️',color:'#7c3aed',count:lists.editedpics.length,breakdown:pprStatusBreakdown(lists.editedpics)},
     {key:'reel',label:'Reels Pending',icon:'📱',color:'#db2777',count:lists.reel.length,breakdown:pprStatusBreakdown(lists.reel)},
     {key:'albumSelPending',label:'Album Selections Pending',icon:'⏳',color:'#ea580c',count:lists.albumSelPending.length},
@@ -10413,7 +10414,7 @@ function renderPostProdPendingReport(){
 
 function renderPprDrill(key,rows){
   var drill=document.getElementById('ppr-drill'); if(!drill) return;
-  var titles={teaser:'Teasers Pending',highlight:'Highlights Pending',longvideo:'Long Videos Pending',editedpics:'Edited Photos Pending',reel:'Reels Pending',albumSelPending:'Album Selections Pending',albumsPendingAfterSel:'Albums Pending After Selection'};
+  var titles={teaser:'Teasers Pending',highlight:'Highlights Pending',editedpics:'Edited Photos Pending',reel:'Reels Pending',albumSelPending:'Album Selections Pending',albumsPendingAfterSel:'Albums Pending After Selection'};
   if(!rows.length){ drill.innerHTML='<div class="empty" style="margin-top:10px">🎉 Nothing pending here.</div>'; return; }
   var html='<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0"><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">'+titles[key]+' ('+rows.length+')</div>';
   if(key==='albumSelPending'||key==='albumsPendingAfterSel'){
