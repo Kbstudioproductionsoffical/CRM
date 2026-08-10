@@ -3094,7 +3094,7 @@ document.addEventListener('wheel', function(e) {
           <div class="nd-grid-3">
             <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Name *</label><input class="fi" id="nd-name" placeholder="e.g. Wedding Highlight" style="font-size:12px;padding:6px 8px"></div>
             <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Category</label><select class="fi" id="nd-category" style="font-size:12px;padding:6px 8px"><option>Wedding</option><option>Pre-Wedding</option><option>Engagement</option><option>Mehendi</option><option>Sangeet</option><option>Reception</option><option>Maternity</option><option>Birthday</option><option>Other</option></select></div>
-            <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Type</label><select class="fi" id="nd-type" style="font-size:12px;padding:6px 8px"><option>Video</option><option>Teaser</option><option>Reel</option><option>Album</option><option>Frame</option><option>Magazine</option><option>Edited Pictures</option><option>Raw Data</option><option>Other</option></select></div>
+            <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Type</label><select class="fi" id="nd-type" style="font-size:12px;padding:6px 8px"><option>Teaser</option><option>Highlight</option><option>Long Video</option><option>Video</option><option>Reel</option><option>Album</option><option>Frame</option><option>Magazine</option><option>Edited Pictures</option><option>Raw Data</option><option>Other</option></select></div>
           </div>
           <div style="display:grid;grid-template-columns:70px 1fr 1fr auto;gap:8px;align-items:flex-end">
             <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Qty</label><input class="fi" id="nd-qty" type="number" value="1" min="1" style="font-size:12px;padding:6px 8px"></div>
@@ -5256,6 +5256,43 @@ var DEFAULT_USERS=[
 ];
 var DEFAULT_ACCOUNTS=[{id:'acc1',name:'KB Studio Current Account',type:'current',number:'',notes:'Primary business account'},{id:'acc2',name:'Ketan Savings Account',type:'savings',number:'',notes:''},{id:'acc3',name:'Ritesh Savings Account',type:'savings',number:'',notes:''},{id:'acc4',name:'Keshav Savings Account',type:'savings',number:'',notes:''},{id:'acc5',name:'Shivam Savings Account',type:'savings',number:'',notes:''},{id:'acc6',name:'KB Studio UPI',type:'upi',number:'',notes:''},{id:'acc7',name:'Cash',type:'cash',number:'',notes:''}];
 var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight',label:'Highlight Video',hasDuration:true},{key:'longvideo',label:'Long Video / Full Film',hasDuration:true},{key:'reel',label:'Reels'},{key:'album',label:'Album',hasPhotos:true},{key:'frame',label:'Frame'},{key:'editedpics',label:'Edited Pictures'}];
+
+// ═══════════════════════════════════════════════════════════════════════
+// DELIVERABLE TYPE REGISTRY — single source of truth for every deliverable
+// `type` value used across the app (icons, video/photo/album routing, the
+// Add Deliverable Type dropdown, and the Post-Production Pending Report).
+//
+// TO ADD A NEW DELIVERABLE TYPE: add ONE entry below. Everything else
+// (icon, bucket routing, dropdown option, report tile + drill list) is
+// derived from this array automatically — do NOT hardcode the type name
+// anywhere else. This is what broke Highlight/Long Video reporting before
+// (v78.50 and earlier): 'Video' silently covered two different things
+// because the type list was duplicated by hand in 5 different places.
+//
+//   type       = exact string stored in d.type
+//   icon       = shown next to the deliverable in Deliverables/editor tabs
+//   bucket     = 'video' | 'photo' | 'album' | 'other' — routes to the
+//                right sub-department queue (delivBucket())
+//   reportKey  = key in the Pending Report `lists` object, or null if this
+//                type doesn't get its own report tile
+//   nameRegex  = fallback pattern used ONLY for legacy deliverables saved
+//                before this type existed (matches on free-typed name)
+// ═══════════════════════════════════════════════════════════════════════
+var DELIV_TYPE_REGISTRY = [
+  { type:'Teaser',          icon:'🎞️', bucket:'video', reportKey:'teaser',     nameRegex:/\bteaser\b/ },
+  { type:'Highlight',       icon:'🎬', bucket:'video', reportKey:'highlight',  nameRegex:/\bhighlight\b/ },
+  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'longvideo',  nameRegex:/\b(long ?video|full ?film|full-length|wedding ?film|feature ?film|main ?film|cinematic ?film)\b/ },
+  { type:'Reel',            icon:'📱', bucket:'video', reportKey:'reel',       nameRegex:/\breels?\b/ },
+  { type:'Video',           icon:'🎬', bucket:'video', reportKey:null,         nameRegex:null },
+  { type:'Album',           icon:'📔', bucket:'album', reportKey:null,         nameRegex:/\balbum\b/ },
+  { type:'Frame',           icon:'🖼️', bucket:'photo', reportKey:null,         nameRegex:null },
+  { type:'Magazine',        icon:'📰', bucket:'photo', reportKey:null,         nameRegex:null },
+  { type:'Edited Pictures', icon:'🖼️', bucket:'photo', reportKey:'editedpics', nameRegex:null },
+  { type:'Raw Data',        icon:'💾', bucket:'other', reportKey:null,         nameRegex:null },
+  { type:'Other',           icon:'📦', bucket:'other', reportKey:null,         nameRegex:null }
+];
+function _delivTypeInfo(t){ for(var i=0;i<DELIV_TYPE_REGISTRY.length;i++){ if(DELIV_TYPE_REGISTRY[i].type===t) return DELIV_TYPE_REGISTRY[i]; } return null; }
+function delivTypeIcon(t){ var r=_delivTypeInfo(t); return r?r.icon:'📦'; }
 var DEFAULT_PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}],'50-50-event':[{key:'p50c',label:'Advance',pct:50,desc:'To block the date'},{key:'p50d',label:'Final Instalment',pct:50,desc:'Before the event'}],'30-10-50-5-5':[{key:'p30c',label:'Advance',pct:30,desc:'To block the date'},{key:'p10c',label:'2nd Instalment',pct:10,desc:'Before pre-wedding shoot'},{key:'p50e',label:'3rd Instalment',pct:50,desc:'Before first event'},{key:'p5c',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5d',label:'Final Instalment',pct:5,desc:'Before final delivery'}]};
 // PAY_PRESETS starts as the built-in defaults, then gets overlaid with anything
 // saved under crmSettings.payment_presets (see syncPayPresets, called whenever
@@ -6054,7 +6091,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.50-2026-08-08-postprod-client-search-bar';
+var CRM_BUILD_VERSION = 'v78.52-2026-08-10-deliv-type-registry-and-healthcheck';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -9050,7 +9087,7 @@ function renderDelivRows(){
   var groups={};
   customDelivs.forEach(function(d,i){var c=d.category||'Other';if(!groups[c])groups[c]=[];groups[c].push({d:d,i:i});});
   var catColors={'Wedding':'#3b82f6','Pre-Wedding':'#8b5cf6','Engagement':'#ec4899','Mehendi':'#f59e0b','Sangeet':'#10b981','Reception':'#06b6d4','Maternity':'#f97316','Birthday':'#84cc16','Other':'#6b7280'};
-  var typeIcons={'Video':'🎬','Teaser':'🎞️','Reel':'📱','Album':'📔','Frame':'🖼️','Magazine':'📰','Edited Pictures':'🖼️','Raw Data':'💾','Other':'📦'};
+  // Icon derived from DELIV_TYPE_REGISTRY — see registry near DELIV_ITEMS for how to add new types.
   var html='';
   Object.keys(groups).forEach(function(cat){
     var color=catColors[cat]||'#6b7280';
@@ -9059,7 +9096,7 @@ function renderDelivRows(){
     groups[cat].forEach(function(item){
       var d=item.d,i=item.i;
       var sc=d.status==='delivered'?'#10b981':d.status==='inprogress'?'#f59e0b':d.status==='changes'?'#dc2626':'#94a3b8';
-      var typeIco=typeIcons[d.type]||'📦';
+      var typeIco=delivTypeIcon(d.type);
       var statusOpts=[
         {v:'pending',    l:'⏳ Pending'},
         {v:'inprogress', l:'🔄 In Progress'},
@@ -9417,10 +9454,11 @@ function renderBriefFormPublic(formDiv, briefId, p, fields){
 // ═══════════════════════════════════════════════════════════════════════
 // POST-PRODUCTION DEPARTMENT — VIDEO / ALBUM & PHOTO SUB-DEPARTMENTS
 // ═══════════════════════════════════════════════════════════════════════
-// Deliverable type buckets — routes items into the Video / Photo / Album queues
-var VIDEO_DELIV_TYPES = ['Video','Teaser','Reel'];
-var PHOTO_DELIV_TYPES = ['Edited Pictures','Frame','Magazine'];
-var ALBUM_DELIV_TYPES = ['Album'];
+// Deliverable type buckets — derived from DELIV_TYPE_REGISTRY (see registry near DELIV_ITEMS).
+// Routes items into the Video / Photo / Album sub-department queues.
+var VIDEO_DELIV_TYPES = DELIV_TYPE_REGISTRY.filter(function(r){return r.bucket==='video';}).map(function(r){return r.type;});
+var PHOTO_DELIV_TYPES = DELIV_TYPE_REGISTRY.filter(function(r){return r.bucket==='photo';}).map(function(r){return r.type;});
+var ALBUM_DELIV_TYPES = DELIV_TYPE_REGISTRY.filter(function(r){return r.bucket==='album';}).map(function(r){return r.type;});
 function delivBucket(d){
   var t = d.type || '';
   if (ALBUM_DELIV_TYPES.indexOf(t)!==-1) return 'album';
@@ -10303,18 +10341,18 @@ function albumRetouchAssignControl(p){
 var _pprActiveTile='';
 
 function buildPostProdPendingLists(){
-  var lists={teaser:[],highlight:[],longvideo:[],editedpics:[],reel:[],albumSelPending:[],albumsPendingAfterSel:[]};
+  var lists={albumSelPending:[],albumsPendingAfterSel:[]};
+  var reportedTypes=DELIV_TYPE_REGISTRY.filter(function(r){return r.reportKey;});
+  reportedTypes.forEach(function(r){ lists[r.reportKey]=[]; });
   pl().forEach(function(p){
     if(p.stage!=='postprod') return; // only clients currently in the Post-Production stage
     if(!ppMatchesSearch(p)) return;
     (p.customDelivs||[]).forEach(function(d){
       if(d.status==='delivered') return;
       var n=(d.name||'').toLowerCase(), t=d.type||'';
-      if(t==='Teaser'||/\bteaser\b/.test(n)) lists.teaser.push({d:d,p:p});
-      if(/\bhighlight\b/.test(n)) lists.highlight.push({d:d,p:p});
-      if(/\b(long ?video|full ?film|full-length|wedding ?film|feature ?film|main ?film|cinematic ?film)\b/.test(n)) lists.longvideo.push({d:d,p:p});
-      if(t==='Edited Pictures') lists.editedpics.push({d:d,p:p});
-      if(t==='Reel'||/\breels?\b/.test(n)) lists.reel.push({d:d,p:p});
+      reportedTypes.forEach(function(r){
+        if(t===r.type || (r.nameRegex && r.nameRegex.test(n))) lists[r.reportKey].push({d:d,p:p});
+      });
     });
     projectAlbumUnits(p).forEach(function(item){
       var received=item.u.selection && item.u.selection.status==='received';
@@ -17458,6 +17496,31 @@ var HC_CHECKS = [
     test: function(p){ return !(p.customDelivs && p.customDelivs.length > 0); },
     field: null, inputHtml: function(p){ return '<button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Deliverables Tab</button>'; }
   },
+  {
+    // Catches the exact drift that hid Highlight/Long Video from reports before v78.51:
+    // a deliverable left on the generic 'Video'/'Other' type even though its name clearly
+    // matches a specific registered type (Highlight, Long Video, Teaser, Reel...). Runs
+    // against DELIV_TYPE_REGISTRY so it auto-covers any new type added there later.
+    type: 'deliv_type', key: 'ambiguous_deliv_type',
+    label: 'Deliverable type unclear — may be hidden from Pending Report', icon: '🎬', severity: 'medium',
+    test: function(p){
+      return (p.customDelivs||[]).some(function(d){
+        if(d.type!=='Video' && d.type!=='Other' && d.type) return false;
+        var n=(d.name||'').toLowerCase();
+        return DELIV_TYPE_REGISTRY.some(function(r){ return r.nameRegex && r.nameRegex.test(n); });
+      });
+    },
+    field: null,
+    inputHtml: function(p){
+      var hits=(p.customDelivs||[]).filter(function(d){
+        if(d.type!=='Video' && d.type!=='Other' && d.type) return false;
+        var n=(d.name||'').toLowerCase();
+        return DELIV_TYPE_REGISTRY.some(function(r){ return r.nameRegex && r.nameRegex.test(n); });
+      });
+      var names=hits.map(function(d){ return d.name||'(unnamed)'; }).join(', ');
+      return '<span style="font-size:11px;color:#92400e">'+hits.length+' item(s) look like they need a specific Type: '+escHtml(names)+'. </span><button class="btn btn-sm btn-primary" onclick="openProject('+p.id+',\'t-deliv\')" style="font-size:11px;margin-left:6px">Open → Fix Type</button>'
+    }
+  },
 
   // ── DRIVE LINK ───────────────────────────────────────────────────
   {
@@ -17591,6 +17654,7 @@ var HC_TILES = [
   { type:'refcode',      label:'No Ref Code',          icon:'🔑', color:'#6b7280' },
   { type:'team',         label:'No Team Assigned',     icon:'👥', color:'#0891b2' },
   { type:'deliverables', label:'No Deliverables',      icon:'📦', color:'#d97706' },
+  { type:'deliv_type',   label:'Deliverable Type Unclear', icon:'🎬', color:'#c2410c' },
   { type:'drivelink',    label:'No Drive Link',        icon:'☁️', color:'#6b7280' },
   { type:'schedule',     label:'Schedule Mismatch',    icon:'🧾', color:'#be123c' },
   { type:'__dupes',      label:'Duplicates',           icon:'👯', color:'#dc2626' }
@@ -26015,7 +26079,9 @@ function _kbInferDelivType(item) {
   if (s.indexOf('album') !== -1) return 'Album';
   if (s.indexOf('frame') !== -1) return 'Frame';
   if (s.indexOf('pic') !== -1 || s.indexOf('gallery') !== -1 || s.indexOf('photo') !== -1) return 'Edited Pictures';
-  if (s.indexOf('film') !== -1 || s.indexOf('video') !== -1 || s.indexOf('highlight') !== -1) return 'Video';
+  if (s.indexOf('highlight') !== -1) return 'Highlight';
+  if (s.indexOf('long') !== -1 || s.indexOf('full film') !== -1 || s.indexOf('full-length') !== -1 || s.indexOf('feature film') !== -1 || s.indexOf('main film') !== -1) return 'Long Video';
+  if (s.indexOf('film') !== -1 || s.indexOf('video') !== -1) return 'Video';
   return 'Other';
 }
 
@@ -26041,8 +26107,8 @@ function buildCustomDelivsFromQuot(q) {
     delivs.push({ id:'qcd_'+ts+'_'+delivs.length, name:name, type:type, category:'Wedding', specs:specs||'', qty:1, status:'pending', date:'', link:'', editorId:'' });
   };
   if (d.teaser) add('Wedding Teaser', 'Teaser', 'Wedding', d.teaser);
-  if (d.film) add('Wedding Film', 'Video', 'Wedding', d.film);
-  if (d.highlight) add('Highlight Video', 'Video', 'Wedding', d.highlight);
+  if (d.film) add('Wedding Film', 'Long Video', 'Wedding', d.film);
+  if (d.highlight) add('Highlight Video', 'Highlight', 'Wedding', d.highlight);
   if (d.reels && parseInt(d.reels) > 0) { for (var i=0;i<Math.min(parseInt(d.reels),5);i++) add('Reel ' + (i+1), 'Reel', 'Wedding', ''); }
   if (d.pics) add('Edited Photographs', 'Edited Pictures', 'Wedding', d.pics + ' pictures');
   if (d.album) add('Wedding Album', 'Album', 'Wedding', d.album);
