@@ -10303,7 +10303,7 @@ function albumRetouchAssignControl(p){
 var _pprActiveTile='';
 
 function buildPostProdPendingLists(){
-  var lists={teaser:[],highlight:[],editedpics:[],reel:[],albumSelPending:[],albumsPendingAfterSel:[]};
+  var lists={teaser:[],highlight:[],longvideo:[],editedpics:[],reel:[],albumSelPending:[],albumsPendingAfterSel:[]};
   pl().forEach(function(p){
     if(p.stage!=='postprod') return; // only clients currently in the Post-Production stage
     if(!ppMatchesSearch(p)) return;
@@ -10312,6 +10312,7 @@ function buildPostProdPendingLists(){
       var n=(d.name||'').toLowerCase(), t=d.type||'';
       if(t==='Teaser'||/\bteaser\b/.test(n)) lists.teaser.push({d:d,p:p});
       if(/\bhighlight\b/.test(n)) lists.highlight.push({d:d,p:p});
+      if(/\b(long ?video|full ?film|full-length|wedding ?film|feature ?film|main ?film|cinematic ?film)\b/.test(n)) lists.longvideo.push({d:d,p:p});
       if(t==='Edited Pictures') lists.editedpics.push({d:d,p:p});
       if(t==='Reel'||/\breels?\b/.test(n)) lists.reel.push({d:d,p:p});
     });
@@ -10323,15 +10324,29 @@ function buildPostProdPendingLists(){
   });
   return lists;
 }
+// Splits a deliverable-item list by its d.status, so a tile can show
+// "40 not started · 24 in progress · 12 changes requested" instead of one
+// flat number that hides where things are actually stuck.
+function pprStatusBreakdown(list){
+  var out={notstarted:0, inprogress:0, changes:0};
+  list.forEach(function(row){
+    var s=row.d?row.d.status:null;
+    if(s==='inprogress') out.inprogress++;
+    else if(s==='changes') out.changes++;
+    else out.notstarted++; // 'pending'/unset also counts as not started
+  });
+  return out;
+}
 
 function renderPostProdPendingReport(){
   var el=document.getElementById('ppr-content'); if(!el) return;
   var lists=buildPostProdPendingLists();
   var tiles=[
-    {key:'teaser',label:'Teasers Pending',icon:'🎞️',color:'#d97706',count:lists.teaser.length},
-    {key:'highlight',label:'Highlights Pending',icon:'🎬',color:'#2563eb',count:lists.highlight.length},
-    {key:'editedpics',label:'Edited Photos Pending',icon:'🖼️',color:'#7c3aed',count:lists.editedpics.length},
-    {key:'reel',label:'Reels Pending',icon:'📱',color:'#db2777',count:lists.reel.length},
+    {key:'teaser',label:'Teasers Pending',icon:'🎞️',color:'#d97706',count:lists.teaser.length,breakdown:pprStatusBreakdown(lists.teaser)},
+    {key:'highlight',label:'Highlights Pending',icon:'🎬',color:'#2563eb',count:lists.highlight.length,breakdown:pprStatusBreakdown(lists.highlight)},
+    {key:'longvideo',label:'Long Videos Pending',icon:'🎥',color:'#0d9488',count:lists.longvideo.length,breakdown:pprStatusBreakdown(lists.longvideo)},
+    {key:'editedpics',label:'Edited Photos Pending',icon:'🖼️',color:'#7c3aed',count:lists.editedpics.length,breakdown:pprStatusBreakdown(lists.editedpics)},
+    {key:'reel',label:'Reels Pending',icon:'📱',color:'#db2777',count:lists.reel.length,breakdown:pprStatusBreakdown(lists.reel)},
     {key:'albumSelPending',label:'Album Selections Pending',icon:'⏳',color:'#ea580c',count:lists.albumSelPending.length},
     {key:'albumsPendingAfterSel',label:'Albums Pending After Selection',icon:'📔',color:'#16a34a',count:lists.albumsPendingAfterSel.length}
   ];
@@ -10342,6 +10357,9 @@ function renderPostProdPendingReport(){
     html+='<div class="ppr-tile" data-key="'+t.key+'" style="cursor:pointer;background:'+(a?t.color+'18':'#fafafa')+';border:1px solid '+(a?t.color:'#e5e5e5')+';border-left:3px solid '+t.color+';border-radius:12px;padding:14px;text-align:center;transition:all .15s">';
     html+='<div style="font-size:26px;font-weight:800;color:'+t.color+'">'+t.count+'</div>';
     html+='<div style="font-size:11px;color:#888;margin-top:3px">'+t.icon+' '+t.label+'</div>';
+    if(t.breakdown && t.count){
+      html+='<div style="font-size:9.5px;color:#aaa;margin-top:6px;line-height:1.5">'+t.breakdown.notstarted+' not started<br>'+t.breakdown.inprogress+' in progress · '+t.breakdown.changes+' changes req.</div>';
+    }
     html+='</div>';
   });
   html+='</div><div id="ppr-drill"></div></div>';
@@ -10357,7 +10375,7 @@ function renderPostProdPendingReport(){
 
 function renderPprDrill(key,rows){
   var drill=document.getElementById('ppr-drill'); if(!drill) return;
-  var titles={teaser:'Teasers Pending',highlight:'Highlights Pending',editedpics:'Edited Photos Pending',reel:'Reels Pending',albumSelPending:'Album Selections Pending',albumsPendingAfterSel:'Albums Pending After Selection'};
+  var titles={teaser:'Teasers Pending',highlight:'Highlights Pending',longvideo:'Long Videos Pending',editedpics:'Edited Photos Pending',reel:'Reels Pending',albumSelPending:'Album Selections Pending',albumsPendingAfterSel:'Albums Pending After Selection'};
   if(!rows.length){ drill.innerHTML='<div class="empty" style="margin-top:10px">🎉 Nothing pending here.</div>'; return; }
   var html='<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0"><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">'+titles[key]+' ('+rows.length+')</div>';
   if(key==='albumSelPending'||key==='albumsPendingAfterSel'){
@@ -10374,10 +10392,15 @@ function renderPprDrill(key,rows){
     });
     html+='</tbody></table>';
   } else {
-    html+='<table class="tbl"><thead><tr><th>Deliverable</th><th>Couple</th><th>City</th><th>Deadline</th><th></th></tr></thead><tbody>';
+    var statusBadges={pending:'⏳ Not Started',inprogress:'🔄 In Progress',changes:'🔁 Changes Requested'};
+    var statusColors={pending:'#94a3b8',inprogress:'#f59e0b',changes:'#dc2626'};
+    html+='<table class="tbl"><thead><tr><th>Deliverable</th><th>Status</th><th>Couple</th><th>City</th><th>Deadline</th><th></th></tr></thead><tbody>';
     rows.forEach(function(row){
       var d=row.d,p=row.p;
-      html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div></td><td>'+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td>'+(d.date?fmtDate(d.date):'—')+'</td>';
+      var s=d.status||'pending';
+      html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div></td>';
+      html+='<td><span style="font-size:10.5px;font-weight:700;color:'+(statusColors[s]||'#94a3b8')+'">'+(statusBadges[s]||'⏳ Not Started')+'</span></td>';
+      html+='<td>'+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td>'+(d.date?fmtDate(d.date):'—')+'</td>';
       html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
     });
     html+='</tbody></table>';
