@@ -8752,6 +8752,13 @@ function renderSettings(){
     '<div id="album-default-assignee-mount"></div>' +
   '</div>';
 
+  // ── Repair Album Data (superadmin only — cleans up the runaway-count bug) ──
+  html += '<div class="card" style="margin-top:16px;border-color:#fecaca">' +
+    '<div class="card-hdr"><span class="card-title">🛠️ Repair Album Data</span></div>' +
+    '<p style="font-size:12px;color:#888;margin-bottom:12px">Scans every project for album deliverables with an abnormally high album count (a bug from an earlier version could write hundreds of blank "albums" instead of one). Nothing is changed until you review the list and click Fix.</p>' +
+    '<div id="album-repair-mount"></div>' +
+  '</div>';
+
   sc.innerHTML = html;
 
   // Mount timeline settings
@@ -8765,6 +8772,10 @@ function renderSettings(){
   // Mount album default-assignee settings
   var adaMount = document.getElementById('album-default-assignee-mount');
   if (adaMount) renderAlbumDefaultAssigneeSettings(adaMount);
+
+  // Mount album repair tool
+  var arMount = document.getElementById('album-repair-mount');
+  if (arMount) renderAlbumRepairTool(arMount);
 
 
   sc.querySelectorAll('.stag-del').forEach(function(btn){btn.addEventListener('click',function(){var t=btn.closest('.stag');removeSettingItem(t.dataset.key,t.dataset.val);});});
@@ -9102,13 +9113,18 @@ function renderDelivRows(){
         html+='</div>';
       }
 
-      // ── Album Breakdown — name each individual album (matching your Samaro
-      // selection-folder names, e.g. "Wedding Album", "Coffee Table Album")
-      // and its own photo count. Qty above controls how many rows appear. ──
+      // ── Album Breakdown — a dedicated "Number of Albums" control (NOT the
+      // generic Qty field above — Qty may hold unrelated legacy numbers on
+      // older records) plus a name + photo count row per album, matching
+      // your Samaro selection-folder names, e.g. "Wedding Album". Capped at
+      // 12 albums as a safety limit. ─────────────────────────────────────
       if(isAlbumDelivItem(d)){
         ensureAlbumUnits(d);
         html+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:6px">';
-        html+='<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📔 Album Breakdown — name to match your Samaro selection folders</div>';
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">';
+        html+='<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em">📔 Album Breakdown — name to match your Samaro selection folders</div>';
+        html+='<div style="display:flex;align-items:center;gap:6px"><label style="font-size:10.5px;color:#64748b;font-weight:600">Number of Albums</label><input type="number" min="1" max="'+ALBUM_UNIT_MAX+'" class="album-count-field" data-idx="'+i+'" value="'+(d.albumCount!=null?d.albumCount:d.albumUnits.length)+'" style="width:56px;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px;text-align:center"></div>';
+        html+='</div>';
         d.albumUnits.forEach(function(u,ui){
           html+='<div style="display:grid;grid-template-columns:1fr 110px;gap:6px;align-items:center;margin-bottom:4px;background:#fff;border:1px solid #e8edf2;border-radius:6px;padding:5px 8px">';
           html+='<input type="text" class="album-unit-name" data-idx="'+i+'" data-ui="'+ui+'" value="'+(u.name||'').replace(/"/g,'&quot;')+'" placeholder="e.g. Coffee Table Album" style="border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px">';
@@ -9126,28 +9142,34 @@ function renderDelivRows(){
   container.querySelectorAll('.dlv-del-btn').forEach(function(el){el.addEventListener('click',function(){removeCustomDeliv(parseInt(el.dataset.idx));});});
   container.querySelectorAll('.dlv-field').forEach(function(el){el.addEventListener('change',function(){
     var idx=parseInt(el.dataset.idx);
-    var dRef=customDelivs[idx];
-    if(el.dataset.field==='qty' && dRef && isAlbumDelivItem(dRef)){
-      var newQty=parseInt(el.value)||1;
-      ensureAlbumUnits(dRef); // sizes to the CURRENT (old) qty — safe reference before we change anything
-      if(newQty < dRef.albumUnits.length){
-        var atRisk=dRef.albumUnits.slice(newQty).filter(albumUnitHasProgress);
-        if(atRisk.length){
-          var names=atRisk.map(function(u,i){return u.name||('Album '+(newQty+i+1));}).join(', ');
-          var ok=confirm('Reducing to '+newQty+' album(s) will permanently delete: '+names+'.\n\nThis removes their selection status, task history, and any progress already tracked. This cannot be undone.\n\nContinue?');
-          if(!ok){ el.value=dRef.qty; return; }
-        }
-      }
-    }
     updateDelivField(idx,el.dataset.field,el.value);
     var dRef2=customDelivs[idx];
-    // If qty changed on a Reel or Album, re-render to resize sub-rows
-    if(el.dataset.field==='qty' && dRef2 && (dRef2.type==='Reel' || /\breels?\b/i.test(dRef2.name||'') || isAlbumDelivItem(dRef2))){renderDelivRows();}
+    // If qty changed on a Reel, re-render to resize sub-rows (Album count is
+    // handled by its own dedicated control below, not this generic field)
+    if(el.dataset.field==='qty' && dRef2 && (dRef2.type==='Reel' || /\breels?\b/i.test(dRef2.name||''))){renderDelivRows();}
   });});
   // Per-reel item listeners
   container.querySelectorAll('.reel-item-status').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'status',el.value);});});
   container.querySelectorAll('.reel-item-date').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'date',el.value);});});
   container.querySelectorAll('.reel-item-link').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'link',el.value);});});
+  // Dedicated album-count control — capped, with a confirm before any
+  // shrink that would drop an album that already has real progress on it.
+  container.querySelectorAll('.album-count-field').forEach(function(el){el.addEventListener('change',function(){
+    var idx=parseInt(el.dataset.idx);
+    var dRef=customDelivs[idx]; if(!dRef) return;
+    var newCount=Math.max(1,Math.min(ALBUM_UNIT_MAX,parseInt(el.value)||1));
+    ensureAlbumUnits(dRef); // sizes to the CURRENT (old) count — safe reference before we change anything
+    if(newCount < dRef.albumUnits.length){
+      var atRisk=dRef.albumUnits.slice(newCount).filter(albumUnitHasProgress);
+      if(atRisk.length){
+        var names=atRisk.map(function(u){return u.name||'Album';}).join(', ');
+        var ok=confirm('Reducing to '+newCount+' album(s) will permanently delete: '+names+'.\n\nThis removes their selection status, task history, and any progress already tracked. This cannot be undone.\n\nContinue?');
+        if(!ok){ el.value=dRef.albumCount!=null?dRef.albumCount:dRef.albumUnits.length; return; }
+      }
+    }
+    dRef.albumCount=newCount;
+    renderDelivRows();
+  });});
   // Per-album-unit listeners (name / photo count)
   container.querySelectorAll('.album-unit-name').forEach(function(el){el.addEventListener('change',function(){
     var d=customDelivs[parseInt(el.dataset.idx)]; if(!d)return; ensureAlbumUnits(d);
@@ -9484,10 +9506,15 @@ function stageLabelForPath(path){
 // ── Album Units — one project can have several albums (e.g. Wedding Album,
 // Coffee Table Album), each with its own photo count, selection status and
 // full task chain. Units live inside their Album-type deliverable as
-// customDelivs[di].albumUnits[ui], sized to that deliverable's qty. ───────
+// customDelivs[di].albumUnits[ui]. Count comes from d.albumCount (a
+// dedicated field set via the "Number of Albums" stepper — NOT the generic
+// Qty field, which may hold unrelated legacy numbers for older records). ──
+var ALBUM_UNIT_MAX = 12; // hard safety cap — no realistic order needs more
 function isAlbumDelivItem(d){ return delivBucket(d)==='album'; }
 function ensureAlbumUnits(d){
-  var qty=parseInt(d.qty)||1;
+  var raw = (d.albumCount!=null && d.albumCount!=='') ? d.albumCount : 1;
+  var qty = parseInt(raw)||1;
+  qty = Math.max(1, Math.min(ALBUM_UNIT_MAX, qty));
   if(!d.albumUnits) d.albumUnits=[];
   while(d.albumUnits.length<qty){
     var n=d.albumUnits.length+1;
@@ -9496,24 +9523,27 @@ function ensureAlbumUnits(d){
       photoCount:'', selection:null, tasks:{}, revisionCount:0
     });
   }
-  if(d.albumUnits.length>qty) d.albumUnits=d.albumUnits.slice(0,qty);
+  if(d.albumUnits.length>qty){
+    // Trim from the end, but NEVER silently delete a unit that already has
+    // real progress on it — leave it in place even if that means the array
+    // stays longer than "qty" until someone consciously resolves it.
+    for(var idx=d.albumUnits.length-1; idx>=qty; idx--){
+      if(!albumUnitHasProgress(d.albumUnits[idx])) d.albumUnits.splice(idx,1);
+    }
+  }
   return d.albumUnits;
 }
 // Flattens every album unit across a project's deliverables, each with the
-// Firebase base path needed to read/write it directly.
+// Firebase base path needed to read/write it directly. Pure in-memory —
+// this must NEVER write to Firebase on its own, since it's called from
+// read-only views (reports, dashboards) that run across every project.
+// Persistence only happens from an explicit user action (mark complete,
+// assign, revision) or when the Deliverables tab is consciously saved.
 function projectAlbumUnits(p){
   var out=[];
   (p.customDelivs||[]).forEach(function(d,di){
     if(!isAlbumDelivItem(d)) return;
-    var wasMissing = !d.albumUnits || !d.albumUnits.length;
     ensureAlbumUnits(d);
-    if(wasMissing && p.id){
-      // One-time silent activation for projects created before per-album
-      // tracking existed — persist the freshly-generated breakdown to
-      // Firebase right away so nobody has to remember to open-and-save
-      // every old project by hand.
-      db.ref('crm_projects/'+p.id+'/customDelivs/'+di+'/albumUnits').set(d.albumUnits);
-    }
     d.albumUnits.forEach(function(u,ui){
       out.push({d:d, di:di, u:u, ui:ui, base:'customDelivs/'+di+'/albumUnits/'+ui, delivName:d.name});
     });
@@ -9522,7 +9552,8 @@ function projectAlbumUnits(p){
 }
 // True if an album unit has any real progress worth protecting (selection
 // received, any task ever assigned/started/done, or a revision on record) —
-// used to decide whether shrinking Qty needs a confirmation.
+// used to decide whether shrinking needs a confirmation, and to protect
+// against ever silently deleting real work.
 function albumUnitHasProgress(u){
   if(!u) return false;
   if(u.selection && u.selection.status==='received') return true;
@@ -9602,7 +9633,61 @@ function renderAlbumDefaultAssigneeSettings(mount){
   });
 }
 
-// ── Assignment engine — Superadmin / RelMgr only ────────────────────────
+// ── Repair Album Data — cleans up runaway album counts written by an
+// earlier bug. Superadmin only. Two-step: scan (read-only, shows a
+// preview) then an explicit Fix click before anything is written. ──────
+function renderAlbumRepairTool(mount){
+  if(!(CU && CU.role==='superadmin')){
+    mount.innerHTML='<div style="font-size:12px;color:#aaa">Superadmin only.</div>';
+    return;
+  }
+  mount.innerHTML='<button class="btn btn-sm" id="album-repair-scan-btn" style="font-size:12px">🔍 Scan for Corrupted Album Data</button><div id="album-repair-results" style="margin-top:10px"></div>';
+  document.getElementById('album-repair-scan-btn').addEventListener('click', scanAlbumRepair);
+}
+function scanAlbumRepair(){
+  var resultsEl=document.getElementById('album-repair-results');
+  resultsEl.innerHTML='<div style="font-size:12px;color:#888">Scanning every project…</div>';
+  var findings=[];
+  Object.values(projects).forEach(function(p){
+    (p.customDelivs||[]).forEach(function(d,di){
+      if(!isAlbumDelivItem(d)) return;
+      if(!Array.isArray(d.albumUnits) || d.albumUnits.length<=ALBUM_UNIT_MAX) return;
+      var withProgress=d.albumUnits.filter(albumUnitHasProgress);
+      var keep = withProgress.length ? withProgress.slice(0,ALBUM_UNIT_MAX) : [d.albumUnits[0]];
+      findings.push({projId:p.id, projName:(p.bride+' & '+p.groom), di:di, delivName:d.name, currentCount:d.albumUnits.length, keepUnits:keep});
+    });
+  });
+  if(!findings.length){
+    resultsEl.innerHTML='<div style="font-size:12px;color:#16a34a">✅ No corrupted album data found.</div>';
+    return;
+  }
+  var html='<div style="font-size:12.5px;color:#dc2626;font-weight:700;margin-bottom:8px">⚠️ Found '+findings.length+' deliverable(s) with runaway album counts:</div>';
+  html+='<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;max-height:260px;overflow:auto">';
+  findings.forEach(function(f){
+    html+='<div style="font-size:12px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:6px 10px">'+f.projName+' — "'+f.delivName+'": '+f.currentCount+' → will trim to '+f.keepUnits.length+'</div>';
+  });
+  html+='</div>';
+  html+='<button class="btn btn-sm" style="background:#dc2626;color:#fff;font-size:12px" id="album-repair-apply-btn">🛠️ Fix All '+findings.length+' Now</button>';
+  resultsEl.innerHTML=html;
+  document.getElementById('album-repair-apply-btn').addEventListener('click', function(){ applyAlbumRepair(findings); });
+}
+function applyAlbumRepair(findings){
+  if(!confirm('This will permanently trim '+findings.length+' corrupted album deliverable(s) back to a safe count. Any album with real progress is kept — only untouched blank placeholders are removed. This cannot be undone. Continue?')) return;
+  var resultsEl=document.getElementById('album-repair-results');
+  resultsEl.innerHTML='<div style="font-size:12px;color:#888">Applying fixes…</div>';
+  var done=0, errors=[];
+  findings.forEach(function(f){
+    db.ref('crm_projects/'+f.projId+'/customDelivs/'+f.di+'/albumUnits').set(f.keepUnits, function(err){
+      done++;
+      if(err) errors.push(f.projName+': '+err.message);
+      if(done===findings.length){
+        resultsEl.innerHTML = errors.length
+          ? '<div style="font-size:12px;color:#dc2626">Done, but '+errors.length+' error(s): '+errors.join('; ')+'</div>'
+          : '<div style="font-size:12px;color:#16a34a">✅ Fixed '+findings.length+' deliverable(s). Refresh the Pending Report to confirm the numbers look right.</div>';
+      }
+    });
+  });
+}
 function assignTask(projId, path, mode, targetUserId, roleForBroadcast){
   if(!can('canAssignAlbumTasks')){showToast('⛔ Only Superadmin or the Relationship Manager can assign tasks.');return;}
   var p=projects[projId]; if(!p) return;
@@ -9946,6 +10031,7 @@ function renderAlbumBoard(){
 
   var awaiting=[], active=[], archived=[];
   pl().forEach(function(p){
+    if(p.stage!=='postprod') return; // only clients currently in the Post-Production stage
     if(!ppMatchesSearch(p)) return;
     projectAlbumUnits(p).forEach(function(item){
       item.p=p;
@@ -10108,6 +10194,7 @@ function renderPhotoRetouchPanel(){
 
   var awaiting=[], active=[], done=[];
   pl().forEach(function(p){
+    if(p.stage!=='postprod') return; // only clients currently in the Post-Production stage
     if(!ppMatchesSearch(p)) return;
     var hasPhoto=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='photo';});
     if(!hasPhoto) return;
@@ -10218,6 +10305,7 @@ var _pprActiveTile='';
 function buildPostProdPendingLists(){
   var lists={teaser:[],highlight:[],editedpics:[],reel:[],albumSelPending:[],albumsPendingAfterSel:[]};
   pl().forEach(function(p){
+    if(p.stage!=='postprod') return; // only clients currently in the Post-Production stage
     if(!ppMatchesSearch(p)) return;
     (p.customDelivs||[]).forEach(function(d){
       if(d.status==='delivered') return;
