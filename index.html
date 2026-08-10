@@ -1784,6 +1784,59 @@ document.addEventListener('wheel', function(e) {
       <div id="rep-content"></div>
     </div>
 
+    <div id="page-reportbuilder" class="page">
+      <div class="page-title">📑 Report Builder</div>
+      <div class="page-sub">Pull complete, row-level detail — every client, payment, deliverable or lead — straight to Excel or PDF. No summaries, no rounding.</div>
+
+      <div style="background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:16px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:4px">
+          <div>
+            <label style="font-size:11px;color:#888;font-weight:600;display:block;margin-bottom:4px">REPORT TYPE</label>
+            <select id="rb-type" class="fi" style="width:100%" onchange="rbOnTypeChange()">
+              <option value="clients">👰 Clients &amp; Projects</option>
+              <option value="payments">💳 Payments / Transactions</option>
+              <option value="deliverables">🎬 Deliverables</option>
+              <option value="reels">📱 Reel Breakdown</option>
+              <option value="sales">📄 Sales / Quotations &amp; Leads</option>
+            </select>
+          </div>
+          <div>
+            <label id="rb-status-label" style="font-size:11px;color:#888;font-weight:600;display:block;margin-bottom:4px">STAGE / STATUS</label>
+            <select id="rb-status" class="fi" style="width:100%"><option value="">All</option></select>
+          </div>
+          <div>
+            <label id="rb-date-label" style="font-size:11px;color:#888;font-weight:600;display:block;margin-bottom:4px">DATE FROM</label>
+            <input type="date" id="rb-date-from" class="fi" style="width:100%">
+          </div>
+          <div>
+            <label style="font-size:11px;color:#888;font-weight:600;display:block;margin-bottom:4px">DATE TO</label>
+            <input type="date" id="rb-date-to" class="fi" style="width:100%">
+          </div>
+          <div>
+            <label style="font-size:11px;color:#888;font-weight:600;display:block;margin-bottom:4px">SEARCH (name / phone / ref code)</label>
+            <input type="text" id="rb-search" class="fi" style="width:100%" placeholder="e.g. Sharma, 98765..., KBS-...">
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn" style="background:#1a1a1a;color:#fff;padding:9px 18px;font-size:13px;font-weight:700" onclick="rbGenerate()">🔎 Generate Report</button>
+          <button class="btn" style="padding:9px 14px;font-size:13px" onclick="rbClearFilters()">Clear Filters</button>
+          <span id="rb-summary" style="font-size:12.5px;color:#888;margin-left:4px"></span>
+        </div>
+      </div>
+
+      <div id="rb-export-bar" style="display:none;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn" style="background:#16a34a;color:#fff;padding:9px 16px;font-size:13px;font-weight:700" onclick="rbExportExcel()">📊 Export Complete Excel</button>
+        <button class="btn" style="background:#dc2626;color:#fff;padding:9px 16px;font-size:13px;font-weight:700" onclick="rbExportPDF()">📄 Export Complete PDF</button>
+        <span style="font-size:11.5px;color:#888">Exports include <b>every</b> matching record — the preview below is capped for display speed only.</span>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e5e5e5;border-radius:12px;overflow:auto;max-height:520px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px" id="rb-preview-table">
+          <thead><tr><td style="padding:24px;color:#aaa;text-align:center">Choose a report type and click "Generate Report" to preview data.</td></tr></thead>
+        </table>
+      </div>
+    </div>
+
     <div id="page-settings" class="page">
       <div class="page-title">⚙️ Settings</div>
       <div class="page-sub">Customise dropdown options used across all projects.</div>
@@ -12018,6 +12071,342 @@ function deleteAllOrphaned(){
 }
 
 // ═══ REPORTS ════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+// UNIVERSAL REPORT BUILDER — full row-level detail exports (Excel + PDF)
+// covering Clients/Projects, Payments, Deliverables, Reel Breakdown, and
+// Sales/Quotations & Leads. Reuses exportStatementExcel/exportStatementPDF
+// so branding + formatting stay identical to every other export in the app.
+// Every export contains COMPLETE record detail — never a summarized/rolled-
+// up view — per KB Studio's requirement.
+// ═══════════════════════════════════════════════════════════════════════
+var _rbCols = [], _rbRows = [], _rbTitle = '', _rbFilterLabel = '';
+
+var RB_CONFIG = {
+  clients: {
+    label: 'Clients & Projects',
+    dateLabel: 'EVENT DATE FROM',
+    statusLabel: 'STAGE',
+    statusOptions: function(){ return STAGE_ORDER.map(function(s){ return {v:s,l:stageLabel(s)}; }); },
+    cols: [
+      {header:'Couple', key:'couple', width:26, pdfWidth:30},
+      {header:'Phone', key:'phone', width:14, pdfWidth:18},
+      {header:'WhatsApp', key:'whatsapp', width:14, pdfWidth:18},
+      {header:'Email', key:'email', width:24, pdfWidth:24},
+      {header:'City', key:'city', width:14, pdfWidth:16},
+      {header:'State', key:'state', width:12, pdfWidth:14},
+      {header:'Region', key:'region', width:10, pdfWidth:12},
+      {header:'Venue', key:'venue', width:20, pdfWidth:20},
+      {header:'Event Type', key:'type', width:14, pdfWidth:16},
+      {header:'Package', key:'package', width:16, pdfWidth:16},
+      {header:'Source', key:'source', width:14, pdfWidth:14},
+      {header:'Event Date', key:'eventDate', width:12, pdfWidth:14},
+      {header:'Booking Date', key:'bookDate', width:12, pdfWidth:14},
+      {header:'Ref Code', key:'refcode', width:14, pdfWidth:16},
+      {header:'Stage', key:'stage', width:14, pdfWidth:16},
+      {header:'Package Value', key:'value', width:14, pdfWidth:16},
+      {header:'Discount', key:'discount', width:12, pdfWidth:14},
+      {header:'Net Value', key:'netValue', width:14, pdfWidth:16},
+      {header:'Paid Total', key:'paid', width:14, pdfWidth:16},
+      {header:'Balance Due', key:'balance', width:14, pdfWidth:16},
+      {header:'GST Collected', key:'gst', width:14, pdfWidth:14}
+    ],
+    rows: function(f){
+      return pl().filter(function(p){
+        if (p.archived) return false;
+        if (f.status && p.stage !== f.status) return false;
+        var ed = firstEventDate(p) || '';
+        if (f.dateRange && !inDateRange(ed, f.dateRange)) return false;
+        if (f.search) {
+          var hay = ((p.bride||'')+' '+(p.groom||'')+' '+(p.phone||'')+' '+(p.refcode||'')).toLowerCase();
+          if (hay.indexOf(f.search) === -1) return false;
+        }
+        return true;
+      }).map(function(p){
+        return {
+          couple: (p.bride||'')+(p.groom?' & '+p.groom:''),
+          phone: p.phone||'', whatsapp: p.whatsapp||'', email: p.email||'',
+          city: p.city||'', state: p.state||'', region: p.region||'',
+          venue: p.venue||'', type: p.type||'', package: p.package||'', source: p.source||'',
+          eventDate: firstEventDate(p)||'', bookDate: p.bookdate||'',
+          refcode: p.refcode||'', stage: stageLabel(p.stage),
+          value: parseInt(p.value)||0, discount: parseInt(p.discount)||0,
+          netValue: netVal(p), paid: paidTotal(p), balance: balDue(p),
+          gst: gstCollectedTotal(p)
+        };
+      });
+    }
+  },
+  payments: {
+    label: 'Payments / Transactions',
+    dateLabel: 'PAYMENT DATE FROM',
+    statusLabel: 'PAYMENT MODE',
+    statusOptions: function(){ return [{v:'UPI',l:'UPI'},{v:'Bank Transfer',l:'Bank Transfer'},{v:'Cash',l:'Cash'},{v:'Cheque',l:'Cheque'},{v:'Mixed',l:'Mixed'}]; },
+    cols: [
+      {header:'Date', key:'date', width:12, pdfWidth:14},
+      {header:'Couple', key:'couple', width:24, pdfWidth:26},
+      {header:'Phone', key:'phone', width:14, pdfWidth:16},
+      {header:'Ref Code', key:'refcode', width:14, pdfWidth:16},
+      {header:'Event Date', key:'eventDate', width:12, pdfWidth:14},
+      {header:'Stage/Term', key:'stage', width:16, pdfWidth:18},
+      {header:'Amount', key:'amount', width:12, pdfWidth:14},
+      {header:'GST Amount', key:'gstAmount', width:12, pdfWidth:14},
+      {header:'Account', key:'account', width:16, pdfWidth:16},
+      {header:'Mode', key:'mode', width:12, pdfWidth:14},
+      {header:'Reference', key:'ref', width:16, pdfWidth:16},
+      {header:'Recorded By', key:'recordedBy', width:16, pdfWidth:16},
+      {header:'Notes', key:'notes', width:24, pdfWidth:20}
+    ],
+    rows: function(f){
+      var out = [];
+      pl().forEach(function(p){
+        if (p.archived) return;
+        (p.payLedger||[]).forEach(function(e){
+          if (f.status && (e.mode||'') !== f.status) return;
+          if (f.dateRange && !inDateRange(e.date||'', f.dateRange)) return;
+          if (f.search) {
+            var hay = ((p.bride||'')+' '+(p.groom||'')+' '+(p.phone||'')+' '+(p.refcode||'')).toLowerCase();
+            if (hay.indexOf(f.search) === -1) return;
+          }
+          out.push({
+            date: e.date||'', couple: (p.bride||'')+(p.groom?' & '+p.groom:''),
+            phone: p.phone||'', refcode: p.refcode||'', eventDate: firstEventDate(p)||'',
+            stage: e.stage||'', amount: parseInt(e.amount)||0, gstAmount: parseInt(e.gstAmount)||0,
+            account: e.account||'', mode: e.mode||'', ref: e.ref||'',
+            recordedBy: e.recordedBy||'', notes: e.notes||''
+          });
+        });
+      });
+      return out;
+    }
+  },
+  deliverables: {
+    label: 'Deliverables',
+    dateLabel: 'DELIVERY DATE FROM',
+    statusLabel: 'STATUS',
+    statusOptions: function(){ return [{v:'pending',l:'⏳ Pending'},{v:'inprogress',l:'🔄 In Progress'},{v:'delivered',l:'✅ Delivered'},{v:'changes',l:'🔁 Changes Requested'}]; },
+    cols: [
+      {header:'Couple', key:'couple', width:24, pdfWidth:26},
+      {header:'Ref Code', key:'refcode', width:14, pdfWidth:16},
+      {header:'City', key:'city', width:14, pdfWidth:14},
+      {header:'Event Date', key:'eventDate', width:12, pdfWidth:14},
+      {header:'Stage', key:'stage', width:14, pdfWidth:14},
+      {header:'Category', key:'category', width:14, pdfWidth:14},
+      {header:'Deliverable Name', key:'name', width:22, pdfWidth:24},
+      {header:'Type', key:'type', width:14, pdfWidth:14},
+      {header:'Qty', key:'qty', width:8, pdfWidth:8},
+      {header:'Specs / Notes', key:'specs', width:26, pdfWidth:24},
+      {header:'Status', key:'status', width:14, pdfWidth:16},
+      {header:'Delivery Date', key:'date', width:12, pdfWidth:14},
+      {header:'Drive Link', key:'link', width:30, pdfWidth:24}
+    ],
+    rows: function(f){
+      var out = [];
+      pl().forEach(function(p){
+        if (p.archived) return;
+        (p.customDelivs||[]).forEach(function(d){
+          if (f.status && (d.status||'pending') !== f.status) return;
+          if (f.dateRange && !inDateRange(d.date||'', f.dateRange)) return;
+          if (f.search) {
+            var hay = ((p.bride||'')+' '+(p.groom||'')+' '+(p.refcode||'')+' '+(d.name||'')).toLowerCase();
+            if (hay.indexOf(f.search) === -1) return;
+          }
+          out.push({
+            couple: (p.bride||'')+(p.groom?' & '+p.groom:''), refcode: p.refcode||'',
+            city: p.city||'', eventDate: firstEventDate(p)||'', stage: stageLabel(p.stage),
+            category: d.category||'', name: d.name||'', type: d.type||'',
+            qty: parseInt(d.qty)||1, specs: d.specs||'',
+            status: {pending:'Pending',inprogress:'In Progress',delivered:'Delivered',changes:'Changes Requested'}[d.status||'pending']||d.status,
+            date: d.date||'', link: d.link||''
+          });
+        });
+      });
+      return out;
+    }
+  },
+  reels: {
+    label: 'Reel Breakdown',
+    dateLabel: 'DELIVERY DATE FROM',
+    statusLabel: 'STATUS',
+    statusOptions: function(){ return [{v:'pending',l:'⏳ Pending'},{v:'inprogress',l:'🔄 In Progress'},{v:'delivered',l:'✅ Delivered'},{v:'changes',l:'🔁 Changes'}]; },
+    cols: [
+      {header:'Couple', key:'couple', width:24, pdfWidth:28},
+      {header:'Ref Code', key:'refcode', width:14, pdfWidth:16},
+      {header:'Deliverable', key:'delivName', width:18, pdfWidth:20},
+      {header:'Reel #', key:'reelNum', width:8, pdfWidth:10},
+      {header:'Status', key:'status', width:14, pdfWidth:16},
+      {header:'Delivery Date', key:'date', width:12, pdfWidth:14},
+      {header:'Drive Link', key:'link', width:30, pdfWidth:26}
+    ],
+    rows: function(f){
+      var out = [];
+      pl().forEach(function(p){
+        if (p.archived) return;
+        (p.customDelivs||[]).forEach(function(d){
+          if (!d.reelItems || !d.reelItems.length) return;
+          d.reelItems.forEach(function(ri, idx){
+            if (f.status && (ri.status||'pending') !== f.status) return;
+            if (f.dateRange && !inDateRange(ri.date||'', f.dateRange)) return;
+            if (f.search) {
+              var hay = ((p.bride||'')+' '+(p.groom||'')+' '+(p.refcode||'')).toLowerCase();
+              if (hay.indexOf(f.search) === -1) return;
+            }
+            out.push({
+              couple: (p.bride||'')+(p.groom?' & '+p.groom:''), refcode: p.refcode||'',
+              delivName: d.name||'', reelNum: idx+1,
+              status: {pending:'Pending',inprogress:'In Progress',delivered:'Delivered',changes:'Changes'}[ri.status||'pending']||ri.status,
+              date: ri.date||'', link: ri.link||''
+            });
+          });
+        });
+      });
+      return out;
+    }
+  },
+  sales: {
+    label: 'Sales / Quotations & Leads',
+    dateLabel: 'EVENT DATE FROM',
+    statusLabel: 'STATUS',
+    statusOptions: function(){ return Object.keys(QT_STATUS_LABELS).map(function(k){ return {v:k,l:QT_STATUS_LABELS[k]}; }); },
+    cols: [
+      {header:'Client', key:'bride', width:20, pdfWidth:22},
+      {header:'Partner', key:'groom', width:18, pdfWidth:18},
+      {header:'Phone', key:'phone', width:14, pdfWidth:16},
+      {header:'Email', key:'email', width:24, pdfWidth:22},
+      {header:'City', key:'city', width:14, pdfWidth:14},
+      {header:'Venue', key:'venue', width:20, pdfWidth:18},
+      {header:'Region', key:'region', width:10, pdfWidth:12},
+      {header:'Source', key:'source', width:14, pdfWidth:14},
+      {header:'Salesperson', key:'salesperson', width:16, pdfWidth:16},
+      {header:'Status', key:'status', width:14, pdfWidth:16},
+      {header:'Value', key:'value', width:12, pdfWidth:14},
+      {header:'Discount', key:'discount', width:12, pdfWidth:14},
+      {header:'Net Value', key:'netValue', width:14, pdfWidth:16},
+      {header:'Event Date', key:'eventDate', width:12, pdfWidth:14},
+      {header:'Notes', key:'notes', width:26, pdfWidth:20}
+    ],
+    rows: function(f){
+      return ql().filter(function(q){
+        if (f.status && q.status !== f.status) return false;
+        var ed = (q.days && q.days[0] && q.days[0].date) ? q.days[0].date : (q.date||'');
+        if (f.dateRange && !inDateRange(ed, f.dateRange)) return false;
+        if (f.search) {
+          var hay = ((q.bride||'')+' '+(q.groom||'')+' '+(q.phone||'')).toLowerCase();
+          if (hay.indexOf(f.search) === -1) return false;
+        }
+        return true;
+      }).map(function(q){
+        var ed = (q.days && q.days[0] && q.days[0].date) ? q.days[0].date : (q.date||'');
+        return {
+          bride: q.bride||'', groom: q.groom||'', phone: q.phone||'', email: q.email||'',
+          city: q.city||'', venue: q.venue||'', region: q.region||'', source: q.source||'',
+          salesperson: q.salesperson||'', status: QT_STATUS_LABELS[q.status||'draft']||q.status,
+          value: parseFloat(q.value)||0, discount: parseFloat(q.discount)||0,
+          netValue: (parseFloat(q.value)||0)-(parseFloat(q.discount)||0),
+          eventDate: ed||'', notes: q.notes||''
+        };
+      });
+    }
+  }
+};
+
+function rbOnTypeChange(){
+  var type = $('rb-type').value;
+  var cfg = RB_CONFIG[type];
+  if (!cfg) return;
+  var statusSel = $('rb-status');
+  var opts = cfg.statusOptions();
+  statusSel.innerHTML = '<option value="">All</option>' + opts.map(function(o){ return '<option value="'+o.v+'">'+o.l+'</option>'; }).join('');
+  $('rb-status-label').textContent = cfg.statusLabel.toUpperCase();
+  $('rb-date-label').textContent = cfg.dateLabel;
+  $('rb-preview-table').innerHTML = '<thead><tr><td style="padding:24px;color:#aaa;text-align:center">Click "Generate Report" to preview data.</td></tr></thead>';
+  $('rb-summary').textContent = '';
+  $('rb-export-bar').style.display = 'none';
+}
+
+function rbClearFilters(){
+  $('rb-status').value = '';
+  $('rb-date-from').value = '';
+  $('rb-date-to').value = '';
+  $('rb-search').value = '';
+}
+
+function rbGetFilters(){
+  var status = $('rb-status').value;
+  var from = $('rb-date-from').value;
+  var to = $('rb-date-to').value;
+  var search = $('rb-search').value.trim().toLowerCase();
+  var dateRange = (from && to) ? {from:from, to:to} : null;
+  return { status: status, dateRange: dateRange, search: search, fromRaw: from, toRaw: to };
+}
+
+function rbGenerate(){
+  var type = $('rb-type').value;
+  var cfg = RB_CONFIG[type];
+  if (!cfg) return;
+  var f = rbGetFilters();
+  var rows = cfg.rows(f);
+
+  _rbCols = cfg.cols;
+  _rbRows = rows;
+  _rbTitle = cfg.label + ' — Complete Report';
+  var parts = [];
+  if (f.status) { var opt = cfg.statusOptions().find(function(o){return o.v===f.status;}); parts.push(cfg.statusLabel+': '+(opt?opt.l:f.status)); }
+  if (f.dateRange) parts.push('Date range: '+f.fromRaw+' to '+f.toRaw);
+  if (f.search) parts.push('Search: "'+f.search+'"');
+  _rbFilterLabel = parts.length ? parts.join(' | ') : 'All Time — No filter applied';
+
+  var previewRows = rows.slice(0, 200);
+  var thead = '<thead><tr>' + cfg.cols.map(function(c){ return '<th style="position:sticky;top:0;background:#f8fafc;border-bottom:2px solid #e5e5e5;padding:8px 10px;text-align:left;font-size:11px;color:#555;white-space:nowrap">'+c.header+'</th>'; }).join('') + '</tr></thead>';
+  var tbody = '<tbody>' + previewRows.map(function(r,i){
+    return '<tr style="background:'+(i%2===0?'#fff':'#fafafa')+'">' + cfg.cols.map(function(c){
+      var v = r[c.key];
+      return '<td style="padding:6px 10px;border-bottom:1px solid #f0f0f0;white-space:nowrap">'+(v===undefined||v===null||v===''?'—':String(v))+'</td>';
+    }).join('') + '</tr>';
+  }).join('') + '</tbody>';
+  $('rb-preview-table').innerHTML = thead + tbody;
+
+  if (!rows.length) {
+    $('rb-summary').textContent = 'No records match this filter.';
+    $('rb-export-bar').style.display = 'none';
+    showToast('No records found for this filter');
+    return;
+  }
+  $('rb-summary').textContent = rows.length + ' record(s) found' + (rows.length>200 ? ' (showing first 200 in preview — export includes all '+rows.length+')' : '') + '.';
+  $('rb-export-bar').style.display = 'flex';
+}
+
+function rbExportExcel(){
+  if (!_rbRows.length) { showToast('Generate a report first'); return; }
+  exportStatementExcel({
+    title: _rbTitle,
+    filterLabel: _rbFilterLabel,
+    cols: _rbCols,
+    rows: _rbRows,
+    filenamePrefix: 'KB_ReportBuilder_' + $('rb-type').value,
+    sheetName: RB_CONFIG[$('rb-type').value].label.slice(0,31)
+  });
+}
+
+function rbExportPDF(){
+  if (!_rbRows.length) { showToast('Generate a report first'); return; }
+  exportStatementPDF({
+    title: _rbTitle,
+    filterLabel: _rbFilterLabel,
+    cols: _rbCols,
+    rows: _rbRows,
+    filenamePrefix: 'KB_ReportBuilder_' + $('rb-type').value
+  });
+}
+
+function renderReportBuilder(){
+  var typeSel = $('rb-type');
+  if (typeSel && !typeSel._rbInit) {
+    typeSel._rbInit = true;
+    rbOnTypeChange();
+  }
+}
+
+
 function renderReports(){
   destroyCharts(repCharts);
   var allList=pl();
@@ -18407,7 +18796,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -18415,7 +18804,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canAssignAlbumTasks:true, canMarkSelection:true
   },
   intern: {
-    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'datavault', 'healthcheck', 'clienthub'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'datavault', 'healthcheck', 'clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -18431,7 +18820,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canMarkSelection:true
   },
   relmgr: {
-    pages: ['dashboard', 'pipeline', 'projects', 'followups', 'postprod', 'whatsapp', 'calendar', 'clienthub', 'healthcheck', 'reports'],
+    pages: ['dashboard', 'pipeline', 'projects', 'followups', 'postprod', 'whatsapp', 'calendar', 'clienthub', 'healthcheck', 'reports', 'reportbuilder'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -18505,7 +18894,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   accounts: {
-    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'invoice', 'calendar', 'users', 'healthcheck'],
+    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true, canDeletePayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
@@ -18949,6 +19338,7 @@ function renderPage(name) {
   else if (name === 'referral') renderReferral();
   else if (name === 'whatsapp') { populateWASel(); renderWA(); }
   else if (name === 'reports') renderReports();
+  else if (name === 'reportbuilder') renderReportBuilder();
   else if (name === 'celebrations') renderCelebrations();
   else if (name === 'calendar') renderCalendar();
   else if (name === 'onboarding') { populateObProjSel(); renderObResponses(); loadObFieldConfig(function(){}); }
@@ -19086,12 +19476,12 @@ var SIDEBAR_ICON_MAP = {
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
   healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
-  securitylog:'🛡️', salessettings:'⚙️', followups:'📲'
+  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
-  { label:'Overview',          items:['dashboard','reports','healthcheck','onboarding','quotations','followups'] },
+  { label:'Overview',          items:['dashboard','reports','reportbuilder','healthcheck','onboarding','quotations','followups'] },
   { label:'Post Productions',  items:['projects','pipeline','postprod'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
@@ -19167,7 +19557,7 @@ function sidebarPageLabel(page) {
     users: 'Users & Logins',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
     clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings',
-    followups:'Follow-Ups'
+    followups:'Follow-Ups', reportbuilder:'Report Builder'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
 }
@@ -23044,7 +23434,7 @@ function quotStatusBadge(s) {
     isSalesperson:true
   };
   ROLE_ACCESS.sales = {
-    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'salessettings', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'activitylog', 'clienthub'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'salessettings', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'activitylog', 'clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
