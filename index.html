@@ -3899,6 +3899,14 @@ document.addEventListener('wheel', function(e) {
   </div>
 </div>
 
+<!-- ALBUM TASK ASSIGNMENT CONFIRM MODAL -->
+<div class="modal-overlay" id="album-assign-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-hdr"><div class="modal-title">Confirm Assignment</div><button class="modal-close" data-close="album-assign-modal">✕</button></div>
+    <div class="modal-body" id="album-assign-modal-body"></div>
+  </div>
+</div>
+
 <!-- USER MODAL -->
 <div class="modal-overlay" id="user-modal">
   <div class="modal" style="max-width:580px">
@@ -8736,6 +8744,14 @@ function renderSettings(){
     '<div id="payment-preset-settings-mount"></div>' +
   '</div>';
 
+  // ── Album Pipeline — Default Assignees ──────────────────────────────
+  html += '<div class="card" style="margin-top:16px">' +
+    '<div class="card-hdr"><span class="card-title">📔 Album Pipeline — Default Assignees</span>' +
+    '<span style="font-size:11px;color:#16a34a;background:#f0fdf4;padding:3px 10px;border-radius:20px;border:1px solid #bbf7d0;font-weight:600">Saved to Firebase</span></div>' +
+    '<p style="font-size:12px;color:#888;margin-bottom:12px">Set one default person per stage of the album chain. When an album\u2019s selection is marked complete, Superadmin / Relationship Manager / Album &amp; Photo Production Head get a pre-filled confirmation popup — this is who it\u2019s pre-filled with. Nothing is ever auto-assigned without that confirmation.</p>' +
+    '<div id="album-default-assignee-mount"></div>' +
+  '</div>';
+
   sc.innerHTML = html;
 
   // Mount timeline settings
@@ -8745,6 +8761,10 @@ function renderSettings(){
   // Mount payment preset settings
   var ppMount = document.getElementById('payment-preset-settings-mount');
   if (ppMount && typeof renderPaymentPresetSettings === 'function') renderPaymentPresetSettings(ppMount);
+
+  // Mount album default-assignee settings
+  var adaMount = document.getElementById('album-default-assignee-mount');
+  if (adaMount) renderAlbumDefaultAssigneeSettings(adaMount);
 
 
   sc.querySelectorAll('.stag-del').forEach(function(btn){btn.addEventListener('click',function(){var t=btn.closest('.stag');removeSettingItem(t.dataset.key,t.dataset.val);});});
@@ -9081,6 +9101,22 @@ function renderDelivRows(){
         if(d.link)html+='<a href="'+d.link+'" target="_blank" style="color:#3b82f6;font-size:11px;font-weight:600;white-space:nowrap;margin-top:14px">Open ↗</a>';
         html+='</div>';
       }
+
+      // ── Album Breakdown — name each individual album (matching your Samaro
+      // selection-folder names, e.g. "Wedding Album", "Coffee Table Album")
+      // and its own photo count. Qty above controls how many rows appear. ──
+      if(isAlbumDelivItem(d)){
+        ensureAlbumUnits(d);
+        html+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:6px">';
+        html+='<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📔 Album Breakdown — name to match your Samaro selection folders</div>';
+        d.albumUnits.forEach(function(u,ui){
+          html+='<div style="display:grid;grid-template-columns:1fr 110px;gap:6px;align-items:center;margin-bottom:4px;background:#fff;border:1px solid #e8edf2;border-radius:6px;padding:5px 8px">';
+          html+='<input type="text" class="album-unit-name" data-idx="'+i+'" data-ui="'+ui+'" value="'+(u.name||'').replace(/"/g,'&quot;')+'" placeholder="e.g. Coffee Table Album" style="border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px">';
+          html+='<input type="text" class="album-unit-photos" data-idx="'+i+'" data-ui="'+ui+'" value="'+(u.photoCount||'').replace(/"/g,'&quot;')+'" placeholder="e.g. 250 pics" style="border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px">';
+          html+='</div>';
+        });
+        html+='</div>';
+      }
       html+='</div>';
     });
     html+='</div>';
@@ -9089,14 +9125,38 @@ function renderDelivRows(){
   container.querySelectorAll('.dlv-status-sel').forEach(function(el){el.addEventListener('change',function(){setDelivStatus(parseInt(el.dataset.idx),el.value);});});
   container.querySelectorAll('.dlv-del-btn').forEach(function(el){el.addEventListener('click',function(){removeCustomDeliv(parseInt(el.dataset.idx));});});
   container.querySelectorAll('.dlv-field').forEach(function(el){el.addEventListener('change',function(){
-    updateDelivField(parseInt(el.dataset.idx),el.dataset.field,el.value);
-    // If qty changed on a Reel, re-render to resize sub-rows
-    if(el.dataset.field==='qty' && customDelivs[parseInt(el.dataset.idx)] && (customDelivs[parseInt(el.dataset.idx)].type==='Reel' || /\breels?\b/i.test(customDelivs[parseInt(el.dataset.idx)].name||''))){renderDelivRows();}
+    var idx=parseInt(el.dataset.idx);
+    var dRef=customDelivs[idx];
+    if(el.dataset.field==='qty' && dRef && isAlbumDelivItem(dRef)){
+      var newQty=parseInt(el.value)||1;
+      ensureAlbumUnits(dRef); // sizes to the CURRENT (old) qty — safe reference before we change anything
+      if(newQty < dRef.albumUnits.length){
+        var atRisk=dRef.albumUnits.slice(newQty).filter(albumUnitHasProgress);
+        if(atRisk.length){
+          var names=atRisk.map(function(u,i){return u.name||('Album '+(newQty+i+1));}).join(', ');
+          var ok=confirm('Reducing to '+newQty+' album(s) will permanently delete: '+names+'.\n\nThis removes their selection status, task history, and any progress already tracked. This cannot be undone.\n\nContinue?');
+          if(!ok){ el.value=dRef.qty; return; }
+        }
+      }
+    }
+    updateDelivField(idx,el.dataset.field,el.value);
+    var dRef2=customDelivs[idx];
+    // If qty changed on a Reel or Album, re-render to resize sub-rows
+    if(el.dataset.field==='qty' && dRef2 && (dRef2.type==='Reel' || /\breels?\b/i.test(dRef2.name||'') || isAlbumDelivItem(dRef2))){renderDelivRows();}
   });});
   // Per-reel item listeners
   container.querySelectorAll('.reel-item-status').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'status',el.value);});});
   container.querySelectorAll('.reel-item-date').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'date',el.value);});});
   container.querySelectorAll('.reel-item-link').forEach(function(el){el.addEventListener('change',function(){updateReelItem(parseInt(el.dataset.idx),parseInt(el.dataset.ri),'link',el.value);});});
+  // Per-album-unit listeners (name / photo count)
+  container.querySelectorAll('.album-unit-name').forEach(function(el){el.addEventListener('change',function(){
+    var d=customDelivs[parseInt(el.dataset.idx)]; if(!d)return; ensureAlbumUnits(d);
+    d.albumUnits[parseInt(el.dataset.ui)].name=el.value;
+  });});
+  container.querySelectorAll('.album-unit-photos').forEach(function(el){el.addEventListener('change',function(){
+    var d=customDelivs[parseInt(el.dataset.idx)]; if(!d)return; ensureAlbumUnits(d);
+    d.albumUnits[parseInt(el.dataset.ui)].photoCount=el.value;
+  });});
 }
 
 function addCustomDeliv(){
@@ -9374,6 +9434,8 @@ function userHasRole(u, roleKey){
 }
 
 // ── Generic nested-task helpers (shared by album chain + photo panel) ───
+// Paths can be any depth, e.g. legacy 'albumTasks/album_making' or the new
+// per-album-unit 'customDelivs/2/albumUnits/1/tasks/album_making'.
 function getTaskObj(p, path){
   var parts=path.split('/'), o=p;
   for(var i=0;i<parts.length;i++){ o = o && o[parts[i]]; }
@@ -9381,19 +9443,31 @@ function getTaskObj(p, path){
 }
 function setNestedTask(p, path, obj){
   var parts=path.split('/');
-  if(parts.length===1){ p[parts[0]]=obj; }
-  else { if(!p[parts[0]]) p[parts[0]]={}; p[parts[0]][parts[1]]=obj; }
+  var o=p;
+  for(var i=0;i<parts.length-1;i++){
+    var isNextArrIdx=/^\d+$/.test(parts[i+1]);
+    if(o[parts[i]]==null) o[parts[i]] = isNextArrIdx ? [] : {};
+    o=o[parts[i]];
+  }
+  o[parts[parts.length-1]]=obj;
 }
+// Stage key is always the last path segment (works for both legacy and
+// per-unit paths since both end in the stage key).
 function pathStageIdx(path){
   var parts=path.split('/');
-  if(parts[0]!=='albumTasks') return -1;
-  return albumTaskStageIdx(parts[1]);
+  return albumTaskStageIdx(parts[parts.length-1]);
+}
+// Builds the sibling path for the previous/next stage by swapping the last
+// path segment — works regardless of how deep the path is.
+function stageSiblingPath(path, stageKey){
+  var parts=path.split('/');
+  parts[parts.length-1]=stageKey;
+  return parts.join('/');
 }
 function isPathLocked(p, path){
   var idx=pathStageIdx(path);
   if(idx<=0) return false;
-  var prevKey=ALBUM_TASK_STAGES[idx-1].key;
-  var prevT=getTaskObj(p,'albumTasks/'+prevKey);
+  var prevT=getTaskObj(p, stageSiblingPath(path, ALBUM_TASK_STAGES[idx-1].key));
   return prevT.status!=='done';
 }
 function stageRoleForPath(path){
@@ -9405,6 +9479,127 @@ function stageLabelForPath(path){
   if(path==='photoRetouchTask') return '🖼️ Photo Retouching';
   var idx=pathStageIdx(path);
   return idx>=0 ? (ALBUM_TASK_STAGES[idx].icon+' '+ALBUM_TASK_STAGES[idx].label) : path;
+}
+
+// ── Album Units — one project can have several albums (e.g. Wedding Album,
+// Coffee Table Album), each with its own photo count, selection status and
+// full task chain. Units live inside their Album-type deliverable as
+// customDelivs[di].albumUnits[ui], sized to that deliverable's qty. ───────
+function isAlbumDelivItem(d){ return delivBucket(d)==='album'; }
+function ensureAlbumUnits(d){
+  var qty=parseInt(d.qty)||1;
+  if(!d.albumUnits) d.albumUnits=[];
+  while(d.albumUnits.length<qty){
+    var n=d.albumUnits.length+1;
+    d.albumUnits.push({
+      name:(qty===1 && d.albumUnits.length===0)?(d.name||'Album'):('Album '+n),
+      photoCount:'', selection:null, tasks:{}, revisionCount:0
+    });
+  }
+  if(d.albumUnits.length>qty) d.albumUnits=d.albumUnits.slice(0,qty);
+  return d.albumUnits;
+}
+// Flattens every album unit across a project's deliverables, each with the
+// Firebase base path needed to read/write it directly.
+function projectAlbumUnits(p){
+  var out=[];
+  (p.customDelivs||[]).forEach(function(d,di){
+    if(!isAlbumDelivItem(d)) return;
+    var wasMissing = !d.albumUnits || !d.albumUnits.length;
+    ensureAlbumUnits(d);
+    if(wasMissing && p.id){
+      // One-time silent activation for projects created before per-album
+      // tracking existed — persist the freshly-generated breakdown to
+      // Firebase right away so nobody has to remember to open-and-save
+      // every old project by hand.
+      db.ref('crm_projects/'+p.id+'/customDelivs/'+di+'/albumUnits').set(d.albumUnits);
+    }
+    d.albumUnits.forEach(function(u,ui){
+      out.push({d:d, di:di, u:u, ui:ui, base:'customDelivs/'+di+'/albumUnits/'+ui, delivName:d.name});
+    });
+  });
+  return out;
+}
+// True if an album unit has any real progress worth protecting (selection
+// received, any task ever assigned/started/done, or a revision on record) —
+// used to decide whether shrinking Qty needs a confirmation.
+function albumUnitHasProgress(u){
+  if(!u) return false;
+  if(u.selection && u.selection.status==='received') return true;
+  if(u.tasks){ for(var k in u.tasks){ if(u.tasks[k] && u.tasks[k].status) return true; } }
+  if(u.revisionCount) return true;
+  return false;
+}
+function albumUnitDisplayName(item){
+  return item.u.name || (item.delivName+' — Album '+(item.ui+1));
+}
+// Writes the whole unit object back to Firebase (simplest way to keep name/
+// photoCount/selection/tasks all in sync, since edits can come from either
+// the project's Deliverables tab or the Album & Photo Production board).
+function persistAlbumUnit(projId, di, ui, cb){
+  var p=projects[projId]; if(!p){ if(cb)cb('Project not found'); return; }
+  var d=(p.customDelivs||[])[di]; if(!d){ if(cb)cb('Deliverable not found'); return; }
+  ensureAlbumUnits(d);
+  db.ref('crm_projects/'+projId+'/customDelivs/'+di+'/albumUnits/'+ui).set(d.albumUnits[ui],function(err){
+    if(cb) cb(err?(err.message||String(err)):null);
+  });
+}
+function unitDaysLeft(u){
+  if(!u||!u.selection||u.selection.status!=='received') return null;
+  var dueAt=u.selection.at+(ALBUM_SLA_DAYS*86400000);
+  return Math.ceil((dueAt-Date.now())/86400000);
+}
+function unitIsSentToPrint(u){
+  return !!(u&&u.tasks&&u.tasks.printing&&u.tasks.printing.status==='done');
+}
+function unitIsOverdue(u){
+  if(unitIsSentToPrint(u)) return false;
+  var d=unitDaysLeft(u);
+  return d!==null && d<0;
+}
+function unitCurrentStage(u){
+  if(!u||!u.tasks) return null;
+  for(var i=ALBUM_TASK_STAGES.length-1;i>=0;i--){
+    var t=u.tasks[ALBUM_TASK_STAGES[i].key];
+    if(t && t.status){ return {stage:ALBUM_TASK_STAGES[i], idx:i, task:t}; }
+  }
+  return null;
+}
+// ── Default assignees (Settings → Album Pipeline Defaults) ─────────────
+// Stored at crm_settings/albumDefaultAssignees/{stageKey} = userId, and
+// loaded automatically as part of the existing crmSettings listener.
+function getAlbumDefaultAssignee(stageKey){
+  var map=(crmSettings&&crmSettings.albumDefaultAssignees)||{};
+  var uid=map[stageKey];
+  return (uid && users[uid]) ? users[uid] : null;
+}
+function renderAlbumDefaultAssigneeSettings(mount){
+  var map=(crmSettings&&crmSettings.albumDefaultAssignees)||{};
+  var html='<div style="display:flex;flex-direction:column;gap:8px">';
+  ALBUM_TASK_STAGES.forEach(function(stage){
+    var teamUsers=Object.values(users).filter(function(u){return userHasRole(u,stage.role);});
+    var cur=map[stage.key]||'';
+    html+='<div style="display:grid;grid-template-columns:220px 1fr;gap:10px;align-items:center;background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px">';
+    html+='<div style="font-size:12.5px;font-weight:700;color:#444">'+stage.icon+' '+stage.label+'</div>';
+    html+='<select class="fi album-default-sel" data-stage="'+stage.key+'" style="font-size:12px;padding:6px 8px">';
+    html+='<option value="">— No default (assign manually each time) —</option>';
+    teamUsers.forEach(function(u){ html+='<option value="'+u.id+'"'+(cur===u.id?' selected':'')+'>'+(u.name||u.username)+'</option>'; });
+    html+='</select></div>';
+  });
+  html+='</div>';
+  mount.innerHTML=html;
+  mount.querySelectorAll('.album-default-sel').forEach(function(sel){
+    sel.addEventListener('change',function(){
+      var stageKey=sel.dataset.stage, uid=sel.value;
+      db.ref('crm_settings/albumDefaultAssignees/'+stageKey).set(uid||null,function(err){
+        if(err){showToast('❌ Error: '+err.message);return;}
+        if(!crmSettings) crmSettings={};
+        if(!crmSettings.albumDefaultAssignees) crmSettings.albumDefaultAssignees={};
+        crmSettings.albumDefaultAssignees[stageKey]=uid;
+        showToast('✅ Default assignee saved.');
+      });
+    });
+  });
 }
 
 // ── Assignment engine — Superadmin / RelMgr only ────────────────────────
@@ -9421,9 +9616,10 @@ function assignTask(projId, path, mode, targetUserId, roleForBroadcast){
   } else {
     obj={status:'open',mode:'broadcast',assignedTo:null,assignedToName:'',assignedRole:roleForBroadcast,assignedBy:who,assignedAt:now};
   }
-  db.ref('crm_projects/'+projId+'/'+path).set(obj,function(err){
+  setNestedTask(p,path,obj);
+  var parts=path.split('/');
+  var finish=function(err){
     if(err){showToast('❌ Error: '+err.message);return;}
-    setNestedTask(p,path,obj);
     showToast('✅ '+stageLabelForPath(path)+' assigned'+(mode==='direct'?' to '+obj.assignedToName:' — broadcast to team'));
     logActivity('deliverable','Task Assigned',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)+' → '+(mode==='direct'?obj.assignedToName:'broadcast/'+roleLabel(roleForBroadcast))+' by '+who),{projId:projId});
     pushSystemNotification({
@@ -9436,7 +9632,57 @@ function assignTask(projId, path, mode, targetUserId, roleForBroadcast){
       at:new Date().toISOString(), requiresAction:true, actionLabel: mode==='direct'?'Start Task':'Claim Task'
     });
     rerenderAlbumViews();
-  });
+  };
+  if(parts[0]==='customDelivs'){
+    // Per-album-unit path — persist the whole unit object so name/photoCount
+    // written elsewhere never get clobbered by a partial write here.
+    var di=parseInt(parts[1]), ui=parseInt(parts[3]);
+    persistAlbumUnit(projId, di, ui, finish);
+  } else {
+    db.ref('crm_projects/'+projId+'/'+path).set(obj,finish);
+  }
+}
+
+// ── Pre-filled assignment confirmation popup ────────────────────────────
+// Shown to Superadmin / RelMgr / Album & Photo Production Head right after
+// an album unit's selection is marked complete. It's pre-filled with the
+// default assignee for the first stage (Selection & Sorting Check) from
+// Settings → Album Pipeline Defaults, but can be changed before confirming —
+// nothing is assigned until they hit Confirm.
+function openAssignConfirmModal(projId, di, ui, stageKey){
+  if(!can('canAssignAlbumTasks')) return; // only shown to people who can actually assign
+  var p=projects[projId]; if(!p) return;
+  var d=(p.customDelivs||[])[di]; if(!d) return;
+  ensureAlbumUnits(d);
+  var u=d.albumUnits[ui]; if(!u) return;
+  var stage=ALBUM_TASK_STAGES[albumTaskStageIdx(stageKey)]; if(!stage) return;
+  var path='customDelivs/'+di+'/albumUnits/'+ui+'/tasks/'+stageKey;
+  var teamUsers=Object.values(users).filter(function(us){return userHasRole(us,stage.role);});
+  var def=getAlbumDefaultAssignee(stageKey);
+  var opts='<option value="">— Select —</option>'+teamUsers.map(function(us){
+    return '<option value="'+us.id+'"'+(def&&def.id===us.id?' selected':'')+'>'+(us.name||us.username)+(def&&def.id===us.id?' (default)':'')+'</option>';
+  }).join('');
+  var html='<div style="padding:4px 2px">'+
+    '<div style="font-size:15px;font-weight:800;margin-bottom:4px">'+stage.icon+' Assign '+stage.label+'</div>'+
+    '<div style="font-size:12px;color:#888;margin-bottom:14px">'+(p.bride+' & '+p.groom)+' — "'+(u.name||'Album')+'"'+(u.photoCount?' · '+u.photoCount+' photos':'')+'. Selection was just marked complete — confirm who should take this task.</div>'+
+    '<label class="fl">Assign To'+(def?' <span style="color:#888;font-weight:400">(pre-filled with the default for this stage)</span>':'')+'</label>'+
+    '<select class="fi" id="acm-assignee" style="margin-bottom:14px">'+opts+'</select>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+    '<button class="btn btn-sm" onclick="closeModal(\'album-assign-modal\')">Not Now</button>'+
+    '<button class="btn btn-sm" style="background:#1a1a1a;color:#fff" onclick="confirmAssignFromModal('+projId+',\''+path+'\',\''+stageKey+'\')">✅ Confirm Assignment</button>'+
+    '</div></div>';
+  var body=document.getElementById('album-assign-modal-body');
+  if(!body) return; // modal markup not present — skip silently rather than error
+  body.innerHTML=html;
+  openModal('album-assign-modal');
+}
+function confirmAssignFromModal(projId, path, stageKey){
+  var sel=document.getElementById('acm-assignee');
+  var uid=sel?sel.value:'';
+  if(!uid){showToast('Pick a team member first.');return;}
+  var stage=ALBUM_TASK_STAGES[albumTaskStageIdx(stageKey)];
+  assignTask(projId, path, 'direct', uid, stage?stage.role:'');
+  closeModal('album-assign-modal');
 }
 
 function claimTask(projId, path){
@@ -9493,7 +9739,7 @@ function completeTask(projId, path){
     showToast('✅ '+stageLabelForPath(path)+' marked done!');
     logActivity('deliverable','Task Completed',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)+' completed by '+who),{projId:projId});
     notifyNextStageReady(projId,p,path);
-    if(path==='albumTasks/printing'){
+    if(path.split('/').pop()==='printing'){
       pushSystemNotification({
         type:'album_sent_printing', icon:'🖨️', title:'Album Sent to Printing',
         body:(p.bride+' & '+p.groom)+' — album has gone to print. Removed from the active production board.',
@@ -9505,27 +9751,33 @@ function completeTask(projId, path){
   });
 }
 
-function requestAlbumRevision(projId){
+function requestAlbumRevision(projId, di, ui){
   var p=projects[projId]; if(!p) return;
   if(!can('canManageAlbumProd') && CU.role!=='superadmin' && CU.role!=='relmgr'){showToast('⛔ Not permitted.');return;}
-  if(!confirm('Send this album back for revision? This reopens Album Making.'))return;
-  var who=CU?(CU.name||CU.username):'Album Head', now=Date.now();
-  var updates={};
-  updates['crm_projects/'+projId+'/albumTasks/album_making/status']='assigned';
-  updates['crm_projects/'+projId+'/albumTasks/album_making/completedAt']=null;
-  updates['crm_projects/'+projId+'/albumTasks/client_proofing/status']='assigned';
-  updates['crm_projects/'+projId+'/albumTasks/client_proofing/completedAt']=null;
-  updates['crm_projects/'+projId+'/albumRevisionCount']=(p.albumRevisionCount||0)+1;
-  db.ref().update(updates,function(err){
-    if(err){showToast('❌ Error: '+err.message);return;}
-    if(p.albumTasks&&p.albumTasks.album_making){p.albumTasks.album_making.status='assigned';p.albumTasks.album_making.completedAt=null;}
-    if(p.albumTasks&&p.albumTasks.client_proofing){p.albumTasks.client_proofing.status='assigned';p.albumTasks.client_proofing.completedAt=null;}
-    p.albumRevisionCount=(p.albumRevisionCount||0)+1;
+  var d=(p.customDelivs||[])[di]; if(!d) return;
+  ensureAlbumUnits(d);
+  var u=d.albumUnits[ui]; if(!u) return;
+  if(!confirm('Send "'+(u.name||'this album')+'" back for revision? This reopens Album Making.'))return;
+  var who=CU?(CU.name||CU.username):'Album Head';
+  var prevMaking=u.tasks?JSON.parse(JSON.stringify(u.tasks.album_making||null)):null;
+  var prevProofing=u.tasks?JSON.parse(JSON.stringify(u.tasks.client_proofing||null)):null;
+  var prevRevisionCount=u.revisionCount||0;
+  if(!u.tasks) u.tasks={};
+  if(u.tasks.album_making){u.tasks.album_making.status='assigned';u.tasks.album_making.completedAt=null;}
+  if(u.tasks.client_proofing){u.tasks.client_proofing.status='assigned';u.tasks.client_proofing.completedAt=null;}
+  u.revisionCount=prevRevisionCount+1;
+  persistAlbumUnit(projId, di, ui, function(err){
+    if(err){
+      if(u.tasks){u.tasks.album_making=prevMaking;u.tasks.client_proofing=prevProofing;}
+      u.revisionCount=prevRevisionCount;
+      showToast('❌ Error: '+err);
+      return;
+    }
     showToast('🔁 Revision requested — Album Making reopened.');
-    logActivity('deliverable','Album Revision Requested',(p.bride+' & '+p.groom+' — revision #'+p.albumRevisionCount+' by '+who),{projId:projId});
+    logActivity('deliverable','Album Revision Requested',(p.bride+' & '+p.groom+' — "'+(u.name||'Album')+'" revision #'+u.revisionCount+' by '+who),{projId:projId});
     pushSystemNotification({
       type:'album_revision', icon:'🔁', title:'Revision Requested',
-      body:(p.bride+' & '+p.groom)+' — client requested changes. Album Making has been reopened.',
+      body:(p.bride+' & '+p.groom)+' — client requested changes on "'+(u.name||'Album')+'". Album Making has been reopened.',
       projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
       forRoles:['albummaker','albumretoucher'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Resume'
     });
@@ -9537,7 +9789,7 @@ function notifyNextStageReady(projId,p,completedPath){
   var idx=pathStageIdx(completedPath);
   if(idx<0 || idx>=ALBUM_TASK_STAGES.length-1) return;
   var next=ALBUM_TASK_STAGES[idx+1];
-  var nextT=getTaskObj(p,'albumTasks/'+next.key);
+  var nextT=getTaskObj(p,stageSiblingPath(completedPath,next.key));
   if(nextT.status==='done') return; // already handled (e.g. re-run after revision)
   pushSystemNotification({
     type:'album_stage_ready', icon:next.icon,
@@ -9570,47 +9822,35 @@ function markPhotoSelectionComplete(projId){
   });
 }
 
-function markAlbumSelectionComplete(projId){
+// Marks ONE specific album (e.g. "Coffee Table Album", matched to its
+// Samaro selection-folder name) as selection-received — not the whole
+// project. Client may finish Album 1 and say "proceed" while Album 2 is
+// still pending; each album tracks this independently. After marking,
+// opens the pre-filled assignment popup for the first stage.
+function markAlbumSelectionComplete(projId, di, ui){
   if(!can('canMarkSelection')){showToast('⛔ Only the Relationship Manager or Post Production Head can mark selection.');return;}
   var p=projects[projId]; if(!p) return;
-  if(!confirm('Confirm album selection has been received from '+p.bride+' & '+p.groom+'?\n\nThis will notify Superadmin/RelMgr to assign the Selection & Sorting Check task.'))return;
+  var d=(p.customDelivs||[])[di]; if(!d) return;
+  ensureAlbumUnits(d);
+  var u=d.albumUnits[ui]; if(!u) return;
+  if(!confirm('Confirm selection has been received for "'+(u.name||'this album')+'" from '+p.bride+' & '+p.groom+'?\n\nThis will notify Superadmin/RelMgr/Album & Photo Head to assign the Selection & Sorting Check task.'))return;
   var who=CU?(CU.name||CU.username):'Relationship Manager';
   var now=Date.now();
-  db.ref('crm_projects/'+projId+'/albumSelection').set({status:'received',at:now,by:who},function(err){
-    if(err){showToast('❌ Error: '+err.message);return;}
-    p.albumSelection={status:'received',at:now,by:who};
-    showToast('✅ Album selection marked complete.');
-    logActivity('deliverable','Album Selection Received',(p.bride+' & '+p.groom+' — album selection marked complete by '+who),{projId:projId});
+  var prevSelection=u.selection;
+  u.selection={status:'received',at:now,by:who};
+  persistAlbumUnit(projId, di, ui, function(err){
+    if(err){ u.selection=prevSelection; showToast('❌ Error: '+err); renderSelectionStatusCard(p); return; }
+    showToast('✅ Selection marked complete for "'+(u.name||'Album')+'".');
+    logActivity('deliverable','Album Selection Received',(p.bride+' & '+p.groom+' — "'+(u.name||'Album')+'" selection marked complete by '+who),{projId:projId});
     pushSystemNotification({
       type:'album_selection_received', icon:'📔', title:'Album Selection Received — Assign the Chain',
-      body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — client has completed album selection. Ready to assign Selection & Sorting Check. Due in '+ALBUM_SLA_DAYS+' days.',
+      body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — "'+(u.name||'Album')+'" selection is complete. Ready to assign Selection & Sorting Check. Due in '+ALBUM_SLA_DAYS+' days.',
       projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
-      forRoles:['superadmin','relmgr'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Assign Task'
+      forRoles:['superadmin','relmgr','albumhead'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Assign Task'
     });
     renderSelectionStatusCard(p);
+    if(can('canAssignAlbumTasks')) openAssignConfirmModal(projId, di, ui, 'selection_match');
   });
-}
-
-function albumDaysLeft(p){
-  if(!p||!p.albumSelection||p.albumSelection.status!=='received') return null;
-  var dueAt=p.albumSelection.at+(ALBUM_SLA_DAYS*86400000);
-  return Math.ceil((dueAt-Date.now())/86400000);
-}
-function albumIsSentToPrint(p){
-  return !!(p&&p.albumTasks&&p.albumTasks.printing&&p.albumTasks.printing.status==='done');
-}
-function albumIsOverdue(p){
-  if(albumIsSentToPrint(p)) return false;
-  var d=albumDaysLeft(p);
-  return d!==null && d<0;
-}
-function albumCurrentStage(p){
-  if(!p.albumTasks) return null;
-  for(var i=ALBUM_TASK_STAGES.length-1;i>=0;i--){
-    var t=p.albumTasks[ALBUM_TASK_STAGES[i].key];
-    if(t && t.status){ return {stage:ALBUM_TASK_STAGES[i], idx:i, task:t}; }
-  }
-  return null;
 }
 
 // ── Selection Status card — rendered inside the project's Deliverables tab ──
@@ -9638,22 +9878,26 @@ function renderSelectionStatusCard(p){
     html+='</div>';
   } else html+='<div></div>';
   if(hasAlbum){
-    var as=p.albumSelection||{};
-    var received=as.status==='received';
-    html+='<div style="border:1px solid '+(received?'#bbf7d0':'#e2e8f0')+';background:'+(received?'#f0fdf4':'#fafafa')+';border-radius:8px;padding:10px 12px">';
-    html+='<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:4px">📔 Album Selection</div>';
-    if(received){
-      var dLeft=albumDaysLeft(p);
-      var overdue=albumIsOverdue(p);
-      var cur=albumCurrentStage(p);
-      html+='<div style="font-size:11.5px;color:#166534">✅ Received '+fmtDate(new Date(as.at).toISOString().slice(0,10))+'<br>by '+as.by+'</div>';
-      html+='<div style="font-size:11px;margin-top:4px;font-weight:700;color:'+(overdue?'#dc2626':'#555')+'">Stage: '+(cur?cur.stage.icon+' '+cur.stage.label:'Not yet assigned')+'</div>';
-      if(!albumIsSentToPrint(p)) html+='<div style="font-size:10.5px;margin-top:2px;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left')+'</div>';
-    } else {
-      html+='<div style="font-size:11.5px;color:#888;margin-bottom:6px">⏳ Awaiting client selection</div>';
-      if(canMark) html+='<button class="btn btn-sm" style="font-size:11px" onclick="markAlbumSelectionComplete('+p.id+')">✅ Mark Complete</button>';
-    }
-    html+='</div>';
+    var units=projectAlbumUnits(p);
+    html+='<div style="border:1px solid #e2e8f0;background:#fafafa;border-radius:8px;padding:10px 12px">';
+    html+='<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">📔 Album Selection <span style="font-weight:400;color:#aaa">('+units.length+' album'+(units.length===1?'':'s')+')</span></div>';
+    html+='<div style="display:flex;flex-direction:column;gap:6px">';
+    units.forEach(function(item){
+      var u=item.u, as=u.selection||{};
+      var received=as.status==='received';
+      html+='<div style="border:1px solid '+(received?'#bbf7d0':'#e5e7eb')+';background:'+(received?'#f0fdf4':'#fff')+';border-radius:6px;padding:7px 9px">';
+      html+='<div style="font-size:11.5px;font-weight:700;color:#333">'+(u.name||'Album '+(item.ui+1))+(u.photoCount?' <span style="font-weight:400;color:#888">· '+u.photoCount+' photos</span>':'')+'</div>';
+      if(received){
+        var dLeft=unitDaysLeft(u), overdue=unitIsOverdue(u), cur=unitCurrentStage(u);
+        html+='<div style="font-size:11px;color:#166534;margin-top:2px">✅ Received '+fmtDate(new Date(as.at).toISOString().slice(0,10))+' by '+as.by+'</div>';
+        html+='<div style="font-size:10.5px;margin-top:2px;font-weight:700;color:'+(overdue?'#dc2626':'#555')+'">'+(cur?cur.stage.icon+' '+cur.stage.label:'Not yet assigned')+(unitIsSentToPrint(u)?'':(overdue?' · ⚠️ OVERDUE by '+Math.abs(dLeft)+'d':' · '+dLeft+'d left'))+'</div>';
+      } else {
+        html+='<div style="font-size:11px;color:#888;margin:3px 0 5px">⏳ Awaiting client selection</div>';
+        if(canMark) html+='<button class="btn btn-sm" style="font-size:10.5px;padding:3px 8px" onclick="markAlbumSelectionComplete('+p.id+','+item.di+','+item.ui+')">✅ Mark Complete</button>';
+      }
+      html+='</div>';
+    });
+    html+='</div></div>';
   } else html+='<div></div>';
   html+='</div>';
   el.innerHTML=html;
@@ -9691,6 +9935,9 @@ function renderAlbumProd(){
 }
 
 // ── Album Production Board ───────────────────────────────────────────────
+// Everything below operates on individual album UNITS (one row per album —
+// e.g. "Wedding Album", "Coffee Table Album" — each with its own selection
+// status and its own 7-stage task chain), not one status per project.
 function renderAlbumBoard(){
   var body=document.getElementById('ap-tab-body'); if(!body) return;
   var canAssign=can('canAssignAlbumTasks');
@@ -9700,18 +9947,19 @@ function renderAlbumBoard(){
   var awaiting=[], active=[], archived=[];
   pl().forEach(function(p){
     if(!ppMatchesSearch(p)) return;
-    var hasAlbum=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='album';});
-    if(!hasAlbum) return;
-    var sel=p.albumSelection||{};
-    if(sel.status!=='received'){ awaiting.push(p); return; }
-    if(albumIsSentToPrint(p)) archived.push(p); else active.push(p);
+    projectAlbumUnits(p).forEach(function(item){
+      item.p=p;
+      var received=item.u.selection && item.u.selection.status==='received';
+      if(!received){ awaiting.push(item); return; }
+      if(unitIsSentToPrint(item.u)) archived.push(item); else active.push(item);
+    });
   });
-  active.sort(function(a,b){return (albumDaysLeft(a)===null?999:albumDaysLeft(a))-(albumDaysLeft(b)===null?999:albumDaysLeft(b));});
+  active.sort(function(a,b){var da=unitDaysLeft(a.u),db_=unitDaysLeft(b.u);return (da===null?999:da)-(db_===null?999:db_);});
 
   var html='';
 
   // ── Summary tiles ─────────────────────────────────────────────────
-  var overdueCount=active.filter(albumIsOverdue).length;
+  var overdueCount=active.filter(function(item){return unitIsOverdue(item.u);}).length;
   html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">';
   html+='<div style="background:#fffbeb;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #f59e0b;text-align:center"><div style="font-size:26px;font-weight:800;color:#854d0e">'+awaiting.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Awaiting Selection</div></div>';
   html+='<div style="background:#eff6ff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #3b82f6;text-align:center"><div style="font-size:26px;font-weight:800;color:#1d4ed8">'+active.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">In Production</div></div>';
@@ -9722,15 +9970,17 @@ function renderAlbumBoard(){
   // ── My Tasks (executor roles only) ──────────────────────────────────
   if(isExecutorRole){
     var mine=[];
-    active.forEach(function(p){
+    active.forEach(function(item){
+      var p=item.p;
       ALBUM_TASK_STAGES.forEach(function(stage){
         if(!userHasRole(CU,stage.role)) return;
-        var t=getTaskObj(p,'albumTasks/'+stage.key);
+        var path=item.base+'/tasks/'+stage.key;
+        var t=getTaskObj(p,path);
         if(t.status==='done') return;
         if(t.status==='assigned'||t.status==='in_progress'){ if(t.assignedTo!==CU.id) return; }
         if(t.status==='open' && !userHasRole(CU,t.assignedRole)) return;
         if(!t.status) return; // not yet assigned by admin — nothing to show
-        mine.push({p:p,stage:stage,t:t,path:'albumTasks/'+stage.key});
+        mine.push({p:p,item:item,stage:stage,t:t,path:path});
       });
     });
     html+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">✅ My Tasks</span></div>';
@@ -9738,12 +9988,12 @@ function renderAlbumBoard(){
       html+='<div class="empty">🎉 Nothing assigned to you right now.</div>';
     } else {
       html+='<div style="display:flex;flex-direction:column;gap:12px;padding-top:4px">';
-      mine.forEach(function(item){
-        var p=item.p,t=item.t,stage=item.stage,path=item.path;
+      mine.forEach(function(row){
+        var p=row.p,t=row.t,stage=row.stage,path=row.path,item=row.item;
         var locked=isPathLocked(p,path);
         html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px">';
         html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
-        html+='<div><div style="font-size:15px;font-weight:800">'+stage.icon+' '+stage.label+'</div><div style="font-size:11px;color:#888">'+p.bride+' & '+p.groom+' · '+(p.city||'')+'</div></div>';
+        html+='<div><div style="font-size:15px;font-weight:800">'+stage.icon+' '+stage.label+'</div><div style="font-size:11px;color:#888">'+p.bride+' & '+p.groom+' · '+(p.city||'')+' · <b>'+albumUnitDisplayName(item)+'</b></div></div>';
         html+=taskStatusBadge(t);
         html+='</div>';
         if(locked){
@@ -9770,27 +10020,28 @@ function renderAlbumBoard(){
       html+='<div class="empty">✅ No albums currently in production.</div>';
     } else {
       html+='<div style="display:flex;flex-direction:column;gap:14px;padding-top:4px">';
-      active.forEach(function(p){
-        var dLeft=albumDaysLeft(p);
-        var overdue=albumIsOverdue(p);
+      active.forEach(function(item){
+        var p=item.p, u=item.u;
+        var dLeft=unitDaysLeft(u);
+        var overdue=unitIsOverdue(u);
         html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:'+(overdue?'#fff5f5':'#fff')+'">';
         html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
-        html+='<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+(p.albumRevisionCount?' · 🔁 '+p.albumRevisionCount+' revision(s)':'')+'</div></div>';
+        html+='<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+' <span style="font-weight:600;color:#3b82f6">· '+albumUnitDisplayName(item)+'</span>'+(u.photoCount?' <span style="font-weight:400;color:#aaa;font-size:12px">('+u.photoCount+' photos)</span>':'')+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+(u.revisionCount?' · 🔁 '+u.revisionCount+' revision(s)':'')+'</div></div>';
         html+='<div style="text-align:right"><div style="font-size:11px;font-weight:700;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left (of '+ALBUM_SLA_DAYS+')')+'</div>';
         html+='<button class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></div>';
         html+='</div>';
         html+='<div style="display:flex;flex-direction:column;gap:6px">';
         ALBUM_TASK_STAGES.forEach(function(stage){
-          var path='albumTasks/'+stage.key;
+          var path=item.base+'/tasks/'+stage.key;
           var t=getTaskObj(p,path);
           html+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 8px;border-radius:6px;background:#fafafa">';
           html+='<div style="min-width:170px;font-size:12px;font-weight:600">'+stage.icon+' '+stage.label+'</div>';
           html+=taskStatusBadge(t);
           if(canAssign && (!t.status || t.status==='open')){
-            html+=albumAssignControl(p,stage);
+            html+=albumAssignControl(p,item,stage);
           }
           if(canAssign && stage.key==='client_proofing' && t.status==='done'){
-            html+='<button class="btn btn-sm" style="font-size:10.5px;background:#f59e0b;color:#fff" onclick="requestAlbumRevision('+p.id+')">🔁 Request Revision</button>';
+            html+='<button class="btn btn-sm" style="font-size:10.5px;background:#f59e0b;color:#fff" onclick="requestAlbumRevision('+p.id+','+item.di+','+item.ui+')">🔁 Request Revision</button>';
           }
           html+='</div>';
         });
@@ -9806,10 +10057,15 @@ function renderAlbumBoard(){
   if(!awaiting.length){
     html+='<div class="empty">🎉 No albums waiting on client selection.</div>';
   } else {
-    html+='<table class="tbl"><thead><tr><th>Couple</th><th>City</th><th>Event Date</th><th></th></tr></thead><tbody>';
-    awaiting.forEach(function(p){
-      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
-      html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>Album</th><th>City</th><th>Event Date</th><th></th></tr></thead><tbody>';
+    awaiting.forEach(function(item){
+      var p=item.p, u=item.u;
+      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td>';
+      html+='<td>'+(u.name||'Album '+(item.ui+1))+(u.photoCount?' <span style="color:#aaa">· '+u.photoCount+'</span>':'')+'</td>';
+      html+='<td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
+      html+='<td style="display:flex;gap:6px;flex-wrap:wrap">';
+      if(can('canMarkSelection')) html+='<button class="btn btn-sm" style="font-size:11px" onclick="markAlbumSelectionComplete('+p.id+','+item.di+','+item.ui+')">✅ Mark Complete</button>';
+      html+='<button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
     });
     html+='</tbody></table>';
   }
@@ -9818,26 +10074,29 @@ function renderAlbumBoard(){
   // ── Sent to Printing / Delivered Archive (read-only, oversight only) ──
   if(canOversee && archived.length){
     html+='<div class="card"><div class="card-hdr"><span class="card-title">🖨️ Sent to Printing / Delivered — Archive</span></div>';
-    html+='<table class="tbl"><thead><tr><th>Couple</th><th>Event Date</th><th>Selection Received</th><th>Sent to Print</th><th>Status</th></tr></thead><tbody>';
-    archived.forEach(function(p){
-      var pt=getTaskObj(p,'albumTasks/printing');
-      var dt=getTaskObj(p,'albumTasks/delivered');
-      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+fmtDate(p.date)+'</td><td>'+(p.albumSelection?fmtDate(new Date(p.albumSelection.at).toISOString().slice(0,10)):'—')+'</td><td>'+(pt.completedAt?fmtDate(new Date(pt.completedAt).toISOString().slice(0,10)):'—')+'</td><td>'+(dt.status==='done'?'🎉 Delivered':'🖨️ At Printer')+'</td></tr>';
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>Album</th><th>Event Date</th><th>Selection Received</th><th>Sent to Print</th><th>Status</th></tr></thead><tbody>';
+    archived.forEach(function(item){
+      var p=item.p, u=item.u;
+      var pt=getTaskObj(p,item.base+'/tasks/printing');
+      var dt=getTaskObj(p,item.base+'/tasks/delivered');
+      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(u.name||'Album '+(item.ui+1))+'</td><td>'+fmtDate(p.date)+'</td><td>'+(u.selection?fmtDate(new Date(u.selection.at).toISOString().slice(0,10)):'—')+'</td><td>'+(pt.completedAt?fmtDate(new Date(pt.completedAt).toISOString().slice(0,10)):'—')+'</td><td>'+(dt.status==='done'?'🎉 Delivered':'🖨️ At Printer')+'</td></tr>';
     });
     html+='</tbody></table></div>';
   }
   body.innerHTML=html;
 }
 
-function albumAssignControl(p, stage){
-  var path='albumTasks/'+stage.key;
+function albumAssignControl(p, item, stage){
+  var path=item.base+'/tasks/'+stage.key;
   var teamUsers=Object.values(users).filter(function(u){return userHasRole(u,stage.role);});
+  var def=getAlbumDefaultAssignee(stage.key);
   var onchange="var v=this.value; if(!v){return;} if(v==='__broadcast__'){assignTask("+p.id+",'"+path+"','broadcast',null,'"+stage.role+"');}else{assignTask("+p.id+",'"+path+"','direct',v);} this.value='';";
   var sel='<select class="fi" style="width:auto;font-size:11px;padding:4px 6px" onchange="'+onchange+'">';
   sel+='<option value="">Assign to…</option>';
   sel+='<option value="__broadcast__">📢 Broadcast to whole team</option>';
-  teamUsers.forEach(function(u){ sel+='<option value="'+u.id+'">'+(u.name||u.username)+'</option>'; });
+  teamUsers.forEach(function(u){ sel+='<option value="'+u.id+'">'+(u.name||u.username)+(def&&def.id===u.id?' ⭐ default':'')+'</option>'; });
   sel+='</select>';
+  if(def) sel+='<button class="btn btn-sm" style="font-size:10.5px;background:#eef2ff;color:#4338ca" onclick="assignTask('+p.id+',\''+path+'\',\'direct\',\''+def.id+'\')" title="Assign to the default for this stage">⭐ Use Default ('+(def.name||def.username)+')</button>';
   return sel;
 }
 
@@ -9968,12 +10227,11 @@ function buildPostProdPendingLists(){
       if(t==='Edited Pictures') lists.editedpics.push({d:d,p:p});
       if(t==='Reel'||/\breels?\b/.test(n)) lists.reel.push({d:d,p:p});
     });
-    var hasAlbum=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='album';});
-    if(hasAlbum){
-      var sel=p.albumSelection||{};
-      if(sel.status!=='received') lists.albumSelPending.push({p:p});
-      else if(!albumIsSentToPrint(p)) lists.albumsPendingAfterSel.push({p:p});
-    }
+    projectAlbumUnits(p).forEach(function(item){
+      var received=item.u.selection && item.u.selection.status==='received';
+      if(!received) lists.albumSelPending.push({p:p,item:item});
+      else if(!unitIsSentToPrint(item.u)) lists.albumsPendingAfterSel.push({p:p,item:item});
+    });
   });
   return lists;
 }
@@ -10015,13 +10273,13 @@ function renderPprDrill(key,rows){
   if(!rows.length){ drill.innerHTML='<div class="empty" style="margin-top:10px">🎉 Nothing pending here.</div>'; return; }
   var html='<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0"><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">'+titles[key]+' ('+rows.length+')</div>';
   if(key==='albumSelPending'||key==='albumsPendingAfterSel'){
-    html+='<table class="tbl"><thead><tr><th>Couple</th><th>City</th><th>Event Date</th>'+(key==='albumsPendingAfterSel'?'<th>Stage</th><th>Days Left</th>':'')+'<th></th></tr></thead><tbody>';
+    html+='<table class="tbl"><thead><tr><th>Couple</th><th>Album</th><th>City</th><th>Event Date</th>'+(key==='albumsPendingAfterSel'?'<th>Stage</th><th>Days Left</th>':'')+'<th></th></tr></thead><tbody>';
     rows.forEach(function(row){
-      var p=row.p;
-      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
+      var p=row.p, item=row.item, u=item.u;
+      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(u.name||'Album '+(item.ui+1))+'</td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
       if(key==='albumsPendingAfterSel'){
-        var dLeft=albumDaysLeft(p), overdue=albumIsOverdue(p);
-        var cur=albumCurrentStage(p);
+        var dLeft=unitDaysLeft(u), overdue=unitIsOverdue(u);
+        var cur=unitCurrentStage(u);
         html+='<td>'+(cur?cur.stage.icon+' '+cur.stage.label:'Not yet assigned')+'</td><td style="color:'+(overdue?'#dc2626':'#555')+';font-weight:'+(overdue?'700':'400')+'">'+(overdue?'⚠️ '+Math.abs(dLeft)+'d overdue':dLeft+'d left')+'</td>';
       }
       html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
@@ -17931,7 +18189,7 @@ var ROLE_ACCESS = {
     canSeeAllTabs:false, allowedTabs:['t-deliv','t-brief'],
     canManageSettings:false, canExport:false,
     canSeeContactDetails:false,
-    canManageAlbumProd:true
+    canManageAlbumProd:true, canMarkSelection:true, canAssignAlbumTasks:true
   },
   albumselector: {
     pages: ['dashboard', 'postprod', 'healthcheck'],
