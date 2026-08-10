@@ -3092,9 +3092,11 @@ document.addEventListener('wheel', function(e) {
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:14px">
           <div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">➕ Add Deliverable</div>
           <div class="nd-grid-3">
-            <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Name *</label><input class="fi" id="nd-name" placeholder="e.g. Wedding Highlight" style="font-size:12px;padding:6px 8px"></div>
+            <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Type *</label><select class="fi" id="nd-type" style="font-size:12px;padding:6px 8px"><option value="">-- Select Type --</option><option>Teaser</option><option>Highlight</option><option>Long Video</option><option>Reel</option><option>Album</option><option>Frame</option><option>Magazine</option><option>Edited Pictures</option><option>Raw Data</option><option>Other</option></select>
+              <div id="nd-type-hint" style="font-size:10px;color:#0d9488;margin-top:3px;display:none"></div>
+            </div>
+            <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Name *</label><input class="fi" id="nd-name" placeholder="Select a Type first" style="font-size:12px;padding:6px 8px" readonly></div>
             <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Category</label><select class="fi" id="nd-category" style="font-size:12px;padding:6px 8px"><option>Wedding</option><option>Pre-Wedding</option><option>Engagement</option><option>Mehendi</option><option>Sangeet</option><option>Reception</option><option>Maternity</option><option>Birthday</option><option>Other</option></select></div>
-            <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Type</label><select class="fi" id="nd-type" style="font-size:12px;padding:6px 8px"><option>Teaser</option><option>Highlight</option><option>Long Video</option><option>Video</option><option>Reel</option><option>Album</option><option>Frame</option><option>Magazine</option><option>Edited Pictures</option><option>Raw Data</option><option>Other</option></select></div>
           </div>
           <div style="display:grid;grid-template-columns:70px 1fr 1fr auto;gap:8px;align-items:flex-end">
             <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Qty</label><input class="fi" id="nd-qty" type="number" value="1" min="1" style="font-size:12px;padding:6px 8px"></div>
@@ -5278,10 +5280,16 @@ var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight'
 //   nameRegex  = fallback pattern used ONLY for legacy deliverables saved
 //                before this type existed (matches on free-typed name)
 // ═══════════════════════════════════════════════════════════════════════
+// NOTE on Highlight vs Long Video (settled 2026-08-10 per studio owner):
+// "Wedding Film" and "Wedding Highlight" are the SAME deliverable at KB
+// Studio (the short cinematic edit) — both count as Highlight. "Long Video"
+// / "Full Film" is the separate, complete-length deliverable and gets its
+// own report tile (reportKey:'longvideo') so it no longer gets folded into
+// the Highlight count.
 var DELIV_TYPE_REGISTRY = [
   { type:'Teaser',          icon:'🎞️', bucket:'video', reportKey:'teaser',     nameRegex:/\bteaser\b/ },
-  { type:'Highlight',       icon:'🎬', bucket:'video', reportKey:'highlight',  nameRegex:/\bhighlight\b/ },
-  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'highlight',  nameRegex:/\b(long ?video|full ?film|full-length|wedding ?film|feature ?film|main ?film|cinematic ?film)\b/ },
+  { type:'Highlight',       icon:'🎬', bucket:'video', reportKey:'highlight',  nameRegex:/\b(highlight|wedding ?film)\b/ },
+  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'longvideo',  nameRegex:/\b(long ?video|full ?film|full-length|feature ?film|main ?film|cinematic ?film)\b/ },
   { type:'Reel',            icon:'📱', bucket:'video', reportKey:'reel',       nameRegex:/\breels?\b/ },
   { type:'Video',           icon:'🎬', bucket:'video', reportKey:null,         nameRegex:null },
   { type:'Album',           icon:'📔', bucket:'album', reportKey:null,         nameRegex:/\balbum\b/ },
@@ -5293,6 +5301,35 @@ var DELIV_TYPE_REGISTRY = [
 ];
 function _delivTypeInfo(t){ for(var i=0;i<DELIV_TYPE_REGISTRY.length;i++){ if(DELIV_TYPE_REGISTRY[i].type===t) return DELIV_TYPE_REGISTRY[i]; } return null; }
 function delivTypeIcon(t){ var r=_delivTypeInfo(t); return r?r.icon:'📦'; }
+// Canonical Name auto-filled into nd-name once a Type is picked in the Add
+// Deliverable form (see wireNdTypeAutofill). Keeps the stored name consistent
+// so it always matches its Type instead of relying on free-typed text —
+// this is what caused Wedding Film / Wedding Highlight / Long Video to get
+// mixed up before. 'Other' is the only type that stays free-text.
+var NAME_FOR_TYPE = {
+  'Teaser':'Teaser', 'Highlight':'Wedding Highlight', 'Long Video':'Long Video / Full Film',
+  'Reel':'Reels', 'Album':'Album', 'Frame':'Frame', 'Magazine':'Magazine',
+  'Edited Pictures':'Edited Pictures', 'Raw Data':'Raw Data'
+};
+function wireNdTypeAutofill(){
+  var typeEl=document.getElementById('nd-type'), nameEl=document.getElementById('nd-name'), hint=document.getElementById('nd-type-hint');
+  if(!typeEl||!nameEl) return;
+  typeEl.onchange=function(){
+    var t=typeEl.value;
+    if(t==='Other'){
+      nameEl.readOnly=false; nameEl.value=''; nameEl.placeholder='e.g. Drone Coverage';
+    } else if(t && NAME_FOR_TYPE[t]){
+      nameEl.readOnly=true; nameEl.value=NAME_FOR_TYPE[t];
+    } else {
+      nameEl.readOnly=true; nameEl.value=''; nameEl.placeholder='Select a Type first';
+    }
+    if(hint){
+      if(t==='Highlight'){ hint.style.display=''; hint.textContent='ℹ️ "Wedding Film" & "Wedding Highlight" are tracked as one deliverable — Highlight.'; }
+      else if(t==='Long Video'){ hint.style.display=''; hint.textContent='ℹ️ The full-length / traditional film — tracked separately from Highlight.'; }
+      else { hint.style.display='none'; }
+    }
+  };
+}
 var DEFAULT_PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}],'50-50-event':[{key:'p50c',label:'Advance',pct:50,desc:'To block the date'},{key:'p50d',label:'Final Instalment',pct:50,desc:'Before the event'}],'30-10-50-5-5':[{key:'p30c',label:'Advance',pct:30,desc:'To block the date'},{key:'p10c',label:'2nd Instalment',pct:10,desc:'Before pre-wedding shoot'},{key:'p50e',label:'3rd Instalment',pct:50,desc:'Before first event'},{key:'p5c',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5d',label:'Final Instalment',pct:5,desc:'Before final delivery'}]};
 // PAY_PRESETS starts as the built-in defaults, then gets overlaid with anything
 // saved under crmSettings.payment_presets (see syncPayPresets, called whenever
@@ -6091,7 +6128,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.54-2026-08-10-wedding-film-counts-as-highlight';
+var CRM_BUILD_VERSION = 'v78.55-2026-08-10-highlight-longvideo-split';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -9075,6 +9112,10 @@ function buildDelivRows(p){
   renderDelivRows();
   var btn=document.getElementById('btn-add-deliv');
   if(btn)btn.onclick=function(){addCustomDeliv();};
+  wireNdTypeAutofill();
+  var ndNameReset=document.getElementById('nd-name'); if(ndNameReset){ndNameReset.readOnly=true; ndNameReset.value=''; ndNameReset.placeholder='Select a Type first';}
+  var ndTypeReset=document.getElementById('nd-type'); if(ndTypeReset) ndTypeReset.value='';
+  var ndHintReset=document.getElementById('nd-type-hint'); if(ndHintReset) ndHintReset.style.display='none';
   if(p) renderSelectionStatusCard(p);
 }
 
@@ -9219,17 +9260,24 @@ function renderDelivRows(){
 }
 
 function addCustomDeliv(){
+  var type=(document.getElementById('nd-type')||{}).value||'';
+  if(!type){alert('Select a deliverable Type first.');return;}
   var name=(document.getElementById('nd-name')||{}).value||'';
-  name=name.trim();if(!name){alert('Enter a deliverable name.');return;}
+  name=name.trim();
+  if(type==='Other'){ if(!name){alert('Enter a name for this Other deliverable.');return;} }
+  else { name=NAME_FOR_TYPE[type]||type; } // Name is always Type-derived except for 'Other' — keeps report bucketing reliable
   customDelivs.push({id:'cd_'+Date.now(),name:name,
     category:(document.getElementById('nd-category')||{}).value||'Wedding',
-    type:(document.getElementById('nd-type')||{}).value||'Video',
+    type:type,
     qty:parseInt((document.getElementById('nd-qty')||{}).value)||1,
     specs:(document.getElementById('nd-specs')||{}).value||'',
     editorId:'',
     status:'pending',date:'',link:''});
   renderDelivRows();
-  ['nd-name','nd-specs'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+  var ndName=document.getElementById('nd-name'); if(ndName){ndName.readOnly=true;ndName.value='';ndName.placeholder='Select a Type first';}
+  var ndType=document.getElementById('nd-type'); if(ndType) ndType.value='';
+  var ndHint=document.getElementById('nd-type-hint'); if(ndHint) ndHint.style.display='none';
+  var ndSpecs=document.getElementById('nd-specs'); if(ndSpecs) ndSpecs.value='';
   var q=document.getElementById('nd-qty');if(q)q.value='1';
 }
 function removeCustomDeliv(idx){customDelivs.splice(idx,1);renderDelivRows();}
@@ -10350,11 +10398,17 @@ function buildPostProdPendingLists(){
     (p.customDelivs||[]).forEach(function(d){
       if(d.status==='delivered') return;
       var n=(d.name||'').toLowerCase(), t=d.type||'';
-      var pushedKeys={};
-      reportedTypes.forEach(function(r){
-        if(pushedKeys[r.reportKey]) return; // don't double-count if two registry rows share a reportKey (e.g. Highlight + Long Video)
-        if(t===r.type || (r.nameRegex && r.nameRegex.test(n))) { lists[r.reportKey].push({d:d,p:p}); pushedKeys[r.reportKey]=true; }
-      });
+      // An exact Type match always wins (e.g. explicitly set to 'Long Video'),
+      // so one deliverable never lands in two tiles at once (Highlight vs
+      // Long Video have overlapping name-sniffing patterns like "film").
+      // Only fall back to name-sniffing for legacy items with no exact type match.
+      var exact=null;
+      for(var i=0;i<reportedTypes.length;i++){ if(t===reportedTypes[i].type){ exact=reportedTypes[i]; break; } }
+      if(exact){ lists[exact.reportKey].push({d:d,p:p}); return; }
+      for(var j=0;j<reportedTypes.length;j++){
+        var r=reportedTypes[j];
+        if(r.nameRegex && r.nameRegex.test(n)){ lists[r.reportKey].push({d:d,p:p}); break; }
+      }
     });
     projectAlbumUnits(p).forEach(function(item){
       var received=item.u.selection && item.u.selection.status==='received';
@@ -10384,6 +10438,7 @@ function renderPostProdPendingReport(){
   var tiles=[
     {key:'teaser',label:'Teasers Pending',icon:'🎞️',color:'#d97706',count:lists.teaser.length,breakdown:pprStatusBreakdown(lists.teaser)},
     {key:'highlight',label:'Highlights Pending',icon:'🎬',color:'#2563eb',count:lists.highlight.length,breakdown:pprStatusBreakdown(lists.highlight)},
+    {key:'longvideo',label:'Long Videos Pending',icon:'🎥',color:'#0d9488',count:lists.longvideo.length,breakdown:pprStatusBreakdown(lists.longvideo)},
     {key:'editedpics',label:'Edited Photos Pending',icon:'🖼️',color:'#7c3aed',count:lists.editedpics.length,breakdown:pprStatusBreakdown(lists.editedpics)},
     {key:'reel',label:'Reels Pending',icon:'📱',color:'#db2777',count:lists.reel.length,breakdown:pprStatusBreakdown(lists.reel)},
     {key:'albumSelPending',label:'Album Selections Pending',icon:'⏳',color:'#ea580c',count:lists.albumSelPending.length},
@@ -10414,7 +10469,7 @@ function renderPostProdPendingReport(){
 
 function renderPprDrill(key,rows){
   var drill=document.getElementById('ppr-drill'); if(!drill) return;
-  var titles={teaser:'Teasers Pending',highlight:'Highlights Pending',editedpics:'Edited Photos Pending',reel:'Reels Pending',albumSelPending:'Album Selections Pending',albumsPendingAfterSel:'Albums Pending After Selection'};
+  var titles={teaser:'Teasers Pending',highlight:'Highlights Pending',longvideo:'Long Videos Pending',editedpics:'Edited Photos Pending',reel:'Reels Pending',albumSelPending:'Album Selections Pending',albumsPendingAfterSel:'Albums Pending After Selection'};
   if(!rows.length){ drill.innerHTML='<div class="empty" style="margin-top:10px">🎉 Nothing pending here.</div>'; return; }
   var html='<div style="margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0"><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:8px">'+titles[key]+' ('+rows.length+')</div>';
   if(key==='albumSelPending'||key==='albumsPendingAfterSel'){
@@ -28303,6 +28358,65 @@ setTimeout(function() {
     runB64MigrationCheck();
   }
 }, 3000);
+
+// ══════════════════════════════════════════════════════════════
+// DATA MIGRATION: reclassify legacy "Wedding Film" deliverables (runs once)
+// Before 2026-08-10, free-typed deliverables named "Wedding Film" could get
+// saved with type:'Long Video' (old regex treated it as the full-length
+// film). Studio owner confirmed Wedding Film = Wedding Highlight, so any
+// deliverable explicitly typed 'Long Video' whose name is ONLY a "wedding
+// film" mention (not also "long video"/"full film"/etc.) gets corrected to
+// type:'Highlight' so it reports and tracks correctly going forward.
+// Also catches items left on the old generic 'Video'/'Other' type.
+// ══════════════════════════════════════════════════════════════
+function runWeddingFilmReclassMigration() {
+  var MIGRATION_KEY = 'kb_crm_wedding_film_reclass_v1';
+  if (localStorage.getItem(MIGRATION_KEY)) return; // Already ran
+
+  var WEDDING_FILM_RE = /\bwedding ?film\b/i;
+  var LONG_VIDEO_RE = /\b(long ?video|full ?film|full-length|feature ?film|main ?film|cinematic ?film)\b/i;
+  var HIGHLIGHT_RE = /\bhighlight\b/i;
+
+  db.ref('crm_projects').once('value').then(function(snap) {
+    var allProj = snap.val() || {};
+    var updates = {};
+    var found = 0;
+
+    Object.keys(allProj).forEach(function(pid) {
+      var p = allProj[pid];
+      if (!p || !p.customDelivs || !p.customDelivs.length) return;
+      var changed = false;
+      var delivs = p.customDelivs.map(function(d) {
+        if (!d) return d;
+        var n = (d.name || '').toLowerCase();
+        var needsFix = (d.type === 'Long Video' || d.type === 'Video' || d.type === 'Other' || !d.type)
+          && (WEDDING_FILM_RE.test(n) || HIGHLIGHT_RE.test(n))
+          && !LONG_VIDEO_RE.test(n);
+        if (needsFix && d.type !== 'Highlight') {
+          found++; changed = true;
+          return Object.assign({}, d, { type: 'Highlight' });
+        }
+        return d;
+      });
+      if (changed) updates['crm_projects/' + pid + '/customDelivs'] = delivs;
+    });
+
+    if (found > 0 && Object.keys(updates).length > 0) {
+      db.ref().update(updates).then(function() {
+        showToast('✅ Reclassified ' + found + ' legacy "Wedding Film" deliverable(s) as Highlight');
+        logActivity('deliverable', 'Data Migration', 'Reclassified ' + found + ' legacy Wedding Film deliverable(s) to type Highlight (Long Video split from Highlight in Pending Report)');
+        localStorage.setItem(MIGRATION_KEY, '1');
+      });
+    } else {
+      localStorage.setItem(MIGRATION_KEY, '1');
+    }
+  });
+}
+setTimeout(function() {
+  if (typeof CU !== 'undefined' && CU && CU.role === 'admin') {
+    runWeddingFilmReclassMigration();
+  }
+}, 4000);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KB STUDIO CRM v23 — PHASE 1 & 2 UPGRADES
