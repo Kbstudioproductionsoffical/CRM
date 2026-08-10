@@ -6186,7 +6186,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.56-2026-08-10-video-prod-aging-not-brief-gated';
+var CRM_BUILD_VERSION = 'v79-2026-08-10-report-builder-live-project-value';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -12348,16 +12348,30 @@ var RB_CONFIG = {
       {header:'Notes', key:'notes', width:26, pdfWidth:18}
     ],
     rows: function(f){
-      // "Activity date" = when the deal record was last touched (status change, e.g. marked
-      // Won) — falls back to when it was created/saved if never updated. This is the same
-      // basis the Sales Dashboard uses for "Won This Month", so a sales-period report here
-      // matches what the dashboard already shows, instead of the (often much later) wedding
-      // event date.
+      // "Activity date" = when the deal actually turned into what it is now.
+      // For a quotation that converted into a project, that's the conversion
+      // moment (convertedAt) — the true "won" timestamp — not whenever the
+      // quotation record happened to last be saved (which conversion itself
+      // never touches). Falls back to updatedAt/savedAt/createdAt for
+      // quotations that never converted.
       function activityDateStr(q){
-        var ts = q.updatedAt || q.savedAt || q.createdAt || null;
+        var ts = q.convertedAt || q.updatedAt || q.savedAt || q.createdAt || null;
         if (!ts) return '';
         var d = new Date(ts);
         return isNaN(d) ? '' : d.toISOString().slice(0,10);
+      }
+      // A converted quotation's own value/discount freeze at whatever they
+      // were at conversion time. If the deal was later revised on the
+      // project side (add-ons, upsells, renegotiation), that only updates
+      // the project — the quotation record is never synced back. Pull the
+      // live figures from the linked project when one exists so Won totals
+      // here match what's actually been booked, not the original quote.
+      function liveValueDiscount(q){
+        if (q.convertedToProject && q.projectId && projects[q.projectId]) {
+          var p = projects[q.projectId];
+          return { value: parseFloat(p.value)||0, discount: parseFloat(p.discount)||0 };
+        }
+        return { value: parseFloat(q.value)||0, discount: parseFloat(q.discount)||0 };
       }
       return ql().filter(function(q){
         if (f.status && q.status !== f.status) return false;
@@ -12370,12 +12384,13 @@ var RB_CONFIG = {
         return true;
       }).map(function(q){
         var ed = (q.days && q.days[0] && q.days[0].date) ? q.days[0].date : (q.date||'');
+        var vd = liveValueDiscount(q);
         return {
           bride: q.bride||'', groom: q.groom||'', phone: q.phone||'', email: q.email||'',
           city: q.city||'', venue: q.venue||'', region: q.region||'', source: q.source||'',
           salesperson: q.salesperson||'', status: QT_STATUS_LABELS[q.status||'draft']||q.status,
-          value: parseFloat(q.value)||0, discount: parseFloat(q.discount)||0,
-          netValue: (parseFloat(q.value)||0)-(parseFloat(q.discount)||0),
+          value: vd.value, discount: vd.discount,
+          netValue: vd.value - vd.discount,
           activityDate: activityDateStr(q)||'', eventDate: ed||'', notes: q.notes||''
         };
       }).sort(function(a,b){ return (a.activityDate||'').localeCompare(b.activityDate||''); });
