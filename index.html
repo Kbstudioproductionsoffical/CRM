@@ -6128,7 +6128,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v78.55-2026-08-10-highlight-longvideo-split';
+var CRM_BUILD_VERSION = 'v78.56-2026-08-10-video-prod-aging-not-brief-gated';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -6609,6 +6609,32 @@ function firstEventDate(p){
     return evDays[0].date;
   }
   return p.date||null;
+}
+
+// ── Aging: how long a project has been sitting in Post-Production ──
+// Used by the Video Production dashboard to surface which clients have been
+// waiting longest (i.e. most likely to be getting impatient) instead of
+// gating work on a client brief. Reads the most recent stageLog entry that
+// moved the project INTO 'postprod'; falls back to null for legacy projects
+// with no stageLog record (their aging just won't be shown, rather than
+// showing a misleading number).
+var PP_AGING_WARN_DAYS = 7;   // amber past this many days pending
+var PP_AGING_URGENT_DAYS = 15; // red / "client may be getting impatient" past this
+function postprodEnteredAt(p){
+  var log = p.stageLog ? Object.values(p.stageLog) : [];
+  var entries = log.filter(function(e){return e && e.to==='postprod';}).sort(function(a,b){return b.at-a.at;});
+  return entries.length ? entries[0].at : null;
+}
+function daysInPostProd(p){
+  var at=postprodEnteredAt(p);
+  if(!at) return null;
+  return Math.floor((Date.now()-at)/86400000);
+}
+function ppAgingBadge(days){
+  if(days===null) return '<span style="color:#aaa;font-size:11px">—</span>';
+  if(days>PP_AGING_URGENT_DAYS) return '<span style="color:#dc2626;font-weight:800;font-size:12px">🔴 '+days+'d</span>';
+  if(days>PP_AGING_WARN_DAYS) return '<span style="color:#d97706;font-weight:700;font-size:12px">🟡 '+days+'d</span>';
+  return '<span style="color:#16a34a;font-weight:700;font-size:12px">🟢 '+days+'d</span>';
 }
 
 // ── Core: advance stage — but NEVER bypass a gate ──
@@ -10573,6 +10599,13 @@ function renderPostProdPage(){
   else if(_ppDeptTab==='pending') renderPostProdPendingReport();
 }
 
+// NOTE (2026-08-10, per studio owner): Video Production no longer gates
+// editor assignment on a client brief — assignment is Type/deadline driven
+// only. "Step 1" now surfaces AGING instead ("Needs Attention" — projects
+// sitting longest in Post-Production, i.e. most likely to have an impatient
+// client), via daysInPostProd()/ppAgingBadge() above. The Client Brief
+// tab/data itself (t-brief, p.clientBrief) is untouched elsewhere in the
+// app — only the Video Production flow stopped depending on it.
 function renderPostProd(){
   // Hide export controls for editor role
   var _ppExportStage = document.getElementById('pp-export-stage');
@@ -10706,13 +10739,13 @@ function renderPostProd(){
       // Album & Photo work is tracked in the Album & Photo Production tab.
       if (_isVideoHead && delivBucket(d) !== 'video') return;
       allItems.push({projId:p.id,couple:p.bride+' & '+p.groom,city:p.city||'',
-        eventDate:p.date,briefDone:!!(p.clientBrief&&p.clientBrief.submittedAt),d:d,p:p});
+        eventDate:p.date,d:d,p:p});
     });
   });
   var tab=_ppTab||'overview';
   var tabDefs=[
     {id:'overview',icon:'📋',label:'Overview'},
-    {id:'step1',icon:'1️⃣',label:'Awaiting Brief'},
+    {id:'step1',icon:'⏱️',label:'Needs Attention'},
     {id:'step2',icon:'2️⃣',label:'Assign Editor'},
     {id:'step3',icon:'3️⃣',label:'Editing'},
     {id:'step4',icon:'4️⃣',label:'Review'},
@@ -10802,25 +10835,31 @@ function renderPostProd(){
   }
 
   // ── COUNTS ────────────────────────────────────────────────────────────────
-  var cnt1=list.filter(function(p){return!(p.clientBrief&&p.clientBrief.submittedAt)&&p.customDelivs&&p.customDelivs.length;}).length;
-  var cnt2=allItems.filter(function(i){return i.briefDone&&!i.d.editorId&&i.d.status==='pending';}).length;
+  // "Needs Attention" = projects with unfinished deliverables that have been
+  // sitting in Post-Production past the warn threshold — i.e. the clients
+  // most likely getting impatient. No longer gated on a client brief.
+  var cnt1=list.filter(function(p){
+    var d=daysInPostProd(p);
+    return d!==null && d>PP_AGING_WARN_DAYS && (p.customDelivs||[]).some(function(x){return x.status!=='delivered';});
+  }).length;
+  var cnt2=allItems.filter(function(i){return !i.d.editorId&&i.d.status==='pending';}).length;
   var cnt3=allItems.filter(function(i){return i.d.status==='inprogress';}).length;
   var cnt4=allItems.filter(function(i){return i.d.status==='review';}).length;
   var cnt5=allItems.filter(function(i){return i.d.status==='delivered';}).length;
 
   if(tab==='overview'){
     html+='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">';
-    [{n:'1',l:'Awaiting Brief',v:cnt1,c:'#f59e0b',bg:'#fffbeb'},{n:'2',l:'Assign Editor',v:cnt2,c:'#8b5cf6',bg:'#f5f3ff'},{n:'3',l:'Editing',v:cnt3,c:'#3b82f6',bg:'#eff6ff'},{n:'4',l:'In Review',v:cnt4,c:'#ec4899',bg:'#fdf2f8'},{n:'5',l:'Delivered',v:cnt5,c:'#10b981',bg:'#f0fdf4'}].forEach(function(s){
+    [{n:'1',l:'Needs Attention',v:cnt1,c:'#dc2626',bg:'#fef2f2'},{n:'2',l:'Assign Editor',v:cnt2,c:'#8b5cf6',bg:'#f5f3ff'},{n:'3',l:'Editing',v:cnt3,c:'#3b82f6',bg:'#eff6ff'},{n:'4',l:'In Review',v:cnt4,c:'#ec4899',bg:'#fdf2f8'},{n:'5',l:'Delivered',v:cnt5,c:'#10b981',bg:'#f0fdf4'}].forEach(function(s){
       html+='<div style="background:'+s.bg+';border-radius:12px;padding:14px;text-align:center;cursor:pointer;border:2px solid transparent" onclick="setPPTab(\'step'+s.n+'\')" onmouseover="this.style.borderColor=\''+s.c+'\'" onmouseout="this.style.borderColor=\'transparent\'">';
       html+='<div style="font-size:26px;font-weight:800;color:'+s.c+'">'+s.v+'</div>';
-      html+='<div style="font-size:11px;color:'+s.c+';font-weight:600;margin-top:4px">Step '+s.n+'</div>';
+      html+='<div style="font-size:11px;color:'+s.c+';font-weight:600;margin-top:4px">'+(s.n==='1'?'⏱️':'Step '+s.n)+'</div>';
       html+='<div style="font-size:10px;color:#888;margin-top:2px">'+s.l+'</div></div>';
     });
     html+='</div>';
     // Flow arrows
     html+='<div style="background:#f8fafc;border-radius:12px;padding:14px 16px;margin-bottom:16px;border:1px solid #e2e8f0;overflow-x:auto">';
     html+='<div style="display:flex;align-items:center;gap:6px;min-width:max-content">';
-    [['📤','Brief Sent','#f59e0b'],['✅','Brief Received','#10b981'],['👤','Editor Assigned','#8b5cf6'],['🎬','Editing','#3b82f6'],['👁️','Under Review','#ec4899'],['🎉','Delivered','#10b981']].forEach(function(s,i,a){
+    [['🆕','In Post-Prod','#f59e0b'],['👤','Editor Assigned','#8b5cf6'],['🎬','Editing','#3b82f6'],['👁️','Under Review','#ec4899'],['🎉','Delivered','#10b981']].forEach(function(s,i,a){
       html+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:15px">'+s[0]+'</span><span style="font-size:12px;font-weight:600;color:'+s[2]+'">'+s[1]+'</span></div>';
       if(i<a.length-1)html+='<span style="color:#cbd5e1;font-size:18px;flex-shrink:0">→</span>';
     });
@@ -10828,56 +10867,62 @@ function renderPostProd(){
     // Projects table
     html+='<div class="card"><div class="card-hdr"><span class="card-title">📋 Post-Production Queue — First Come, First Out</span><span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-weight:700">📅 Sorted by Event Date</span></div>';
     html+='<div class="info info-blue" style="margin-bottom:12px">📌 Queue order is based on <b>event date</b> — earliest event is served first. All projects in Post-Production stage appear here.</div>';
-    html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th style="width:36px">#</th><th>Couple</th><th>Event Date</th><th>City</th><th>Brief</th><th>Items</th><th>Pending</th><th>Editing</th><th>Review</th><th>Done</th><th></th></tr></thead><tbody>';
+    html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th style="width:36px">#</th><th>Couple</th><th>Event Date</th><th>City</th><th>Days in PP</th><th>Items</th><th>Pending</th><th>Editing</th><th>Review</th><th>Done</th><th></th></tr></thead><tbody>';
     var _qNum=0;
     list.forEach(function(p){
       var pd=p.customDelivs||[];if(!pd.length)return;
       _qNum++;
-      var hasBrief=!!(p.clientBrief&&p.clientBrief.submittedAt);
       var del=pd.filter(function(d){return d.status==='delivered';}).length;
       var pct=pd.length?Math.round(del/pd.length*100):0;
       html+='<tr><td style="text-align:center;font-weight:800;color:#0369a1;font-size:13px">'+_qNum+'</td>';
       html+='<td><div style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</div></td>';
       html+='<td style="font-size:12px;font-weight:700;color:#0369a1">'+fmtDate(p.date)+'</td>';
       html+='<td style="font-size:12px">'+(p.city||'—')+'</td>';
-      html+='<td style="text-align:center">'+(hasBrief?'<span style="color:#10b981;font-weight:700;font-size:16px">✅</span>':'<span style="color:#f59e0b;font-weight:700;font-size:16px">⏳</span>')+'</td>';
+      html+='<td style="text-align:center">'+ppAgingBadge(daysInPostProd(p))+'</td>';
       html+='<td style="text-align:center;font-weight:700">'+pd.length+'</td>';
       html+='<td style="text-align:center;color:#854d0e;font-weight:600">'+(pd.filter(function(d){return d.status==='pending';}).length||'—')+'</td>';
       html+='<td style="text-align:center;color:#1d4ed8;font-weight:600">'+(pd.filter(function(d){return d.status==='inprogress';}).length||'—')+'</td>';
       html+='<td style="text-align:center;color:#9d174d;font-weight:600">'+(pd.filter(function(d){return d.status==='review';}).length||'—')+'</td>';
       html+='<td><div style="display:flex;align-items:center;gap:6px;justify-content:center"><span style="color:#10b981;font-weight:700">'+del+'</span><div style="background:#e5e7eb;border-radius:4px;height:6px;width:50px;overflow:hidden"><div style="background:#10b981;height:100%;width:'+pct+'%"></div></div></div></td>';
-      html+='<td><button class="btn btn-sm pp-open-proj" data-id="'+p.id+'" data-tab="t-brief">Open Brief</button></td></tr>';
+      html+='<td><button class="btn btn-sm pp-open-proj" data-id="'+p.id+'" data-tab="t-deliv">Open</button></td></tr>';
     });
     html+='</tbody></table></div></div>';
 
   } else if(tab==='step1'){
-    html+='<div class="info info-amber" style="margin-bottom:14px">⏳ These projects need client brief before editing can start. Send the brief link to the client.</div>';
-    var need=list.filter(function(p){return!(p.clientBrief&&p.clientBrief.submittedAt)&&p.customDelivs&&p.customDelivs.length;});
-    // already FIFO sorted by event date from list
-    if(!need.length){html+='<div class="empty">🎉 All projects with deliverables have received client brief!</div>';}
+    html+='<div class="info info-amber" style="margin-bottom:14px">⏱️ Projects with unfinished deliverables, sorted by how long they\'ve been sitting in Post-Production — longest-waiting (most likely impatient) clients first.</div>';
+    var attn=list.filter(function(p){return (p.customDelivs||[]).some(function(x){return x.status!=='delivered';});});
+    attn.sort(function(a,b){
+      var da=daysInPostProd(a), db=daysInPostProd(b);
+      if(da===null&&db===null) return 0;
+      if(da===null) return 1;
+      if(db===null) return -1;
+      return db-da;
+    });
+    if(!attn.length){html+='<div class="empty">🎉 Nothing pending in Post-Production right now.</div>';}
     else{
-      html+='<div class="info info-amber" style="margin-bottom:10px">📅 Sorted by event date — earliest event first.</div>';
-      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>#</th><th>Couple</th><th>City</th><th>Event Date</th><th>Deliverables</th><th>Send Brief</th><th></th></tr></thead><tbody>';
+      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>#</th><th>Couple</th><th>City</th><th>Event Date</th><th>Days in PP</th><th>Not Assigned</th><th>Editing</th><th>Review</th><th></th></tr></thead><tbody>';
       var _s1n=0;
-      need.forEach(function(p){_s1n++;
-        var url=window.location.origin+window.location.pathname+'?brief='+p.id;
-        var waNum=(fieldVisible('phone') || fieldVisible('whatsapp')) ? (p.whatsapp||p.phone||'').replace(/[^0-9]/g,'') : '';
-        html+='<tr><td style="text-align:center;font-weight:800;color:#0369a1">'+_s1n+'</td><td style="font-weight:700">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td style="font-weight:700;color:#0369a1">'+fmtDate(p.date)+'</td>';
-        html+='<td><span class="badge b-blue">'+(p.customDelivs||[]).length+' items</span></td>';
-        html+='<td style="display:flex;gap:5px;flex-wrap:wrap">'+
-          '<button class="btn btn-sm pp-copy-brief" data-url="'+url+'" style="font-size:11px">📋 Copy Link</button>'+
-          (waNum ? '<button class="btn btn-sm pp-wa-brief" data-url="'+url+'" data-phone="'+waNum+'" data-bride="'+(p.bride||'')+'" style="background:#25D366;color:#fff;font-size:11px">📱 WA Msg</button>' : '<button class="btn btn-sm" style="background:#f1f5f9;color:#94a3b8;cursor:not-allowed;font-size:11px" title="Phone hidden for your role">🔒 WA Msg</button>')+
-        '</td>';
-        html+='<td><button class="btn btn-sm pp-open-proj" data-id="'+p.id+'" data-tab="t-brief">Open Brief</button></td></tr>';
+      attn.forEach(function(p){_s1n++;
+        var pd=p.customDelivs||[];
+        var notAssigned=pd.filter(function(d){return d.status==='pending'&&!d.editorId;}).length;
+        var editing=pd.filter(function(d){return d.status==='inprogress';}).length;
+        var review=pd.filter(function(d){return d.status==='review';}).length;
+        var days=daysInPostProd(p);
+        html+='<tr style="background:'+(days!==null&&days>PP_AGING_URGENT_DAYS?'#fef2f2':'')+'"><td style="text-align:center;font-weight:800;color:#0369a1">'+_s1n+'</td><td style="font-weight:700">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td style="font-weight:700;color:#0369a1">'+fmtDate(p.date)+'</td>';
+        html+='<td style="text-align:center">'+ppAgingBadge(days)+'</td>';
+        html+='<td style="text-align:center;'+(notAssigned?'color:#854d0e;font-weight:700':'color:#aaa')+'">'+(notAssigned||'—')+'</td>';
+        html+='<td style="text-align:center;'+(editing?'color:#1d4ed8;font-weight:700':'color:#aaa')+'">'+(editing||'—')+'</td>';
+        html+='<td style="text-align:center;'+(review?'color:#9d174d;font-weight:700':'color:#aaa')+'">'+(review||'—')+'</td>';
+        html+='<td><button class="btn btn-sm pp-open-proj" data-id="'+p.id+'" data-tab="t-deliv">Open</button></td></tr>';
       });
       html+='</tbody></table></div>';
     }
 
   } else if(tab==='step2'){
-    html+='<div class="info info-blue" style="margin-bottom:14px">👤 Client brief received. Assign an editor and set a deadline. <b>📅 Sorted by event date — earliest first (FIFO).</b></div>';
-    var ready=allItems.filter(function(i){return i.briefDone&&!i.d.editorId&&i.d.status==='pending';});
+    html+='<div class="info info-blue" style="margin-bottom:14px">👤 Assign an editor and set a deadline. <b>📅 Sorted by event date — earliest first (FIFO).</b></div>';
+    var ready=allItems.filter(function(i){return !i.d.editorId&&i.d.status==='pending';});
     // FIFO: already sorted by event date from allItems
-    if(!ready.length){html+='<div class="empty">✅ All ready deliverables have editors assigned!</div>';}
+    if(!ready.length){html+='<div class="empty">✅ All deliverables have editors assigned!</div>';}
     else{
       var editors=Object.values(teamData).filter(function(t){
         var r=(t.role||'').toLowerCase();
@@ -10886,12 +10931,13 @@ function renderPostProd(){
       if(!editors.length){
         html+='<div class="info info-amber">⚠️ No editors found in your Team section. Add team members with role <b>Editor</b> or <b>Videographer</b> first.</div>';
       } else {
-      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Specs</th><th>Assign Editor</th><th>Deadline</th><th></th></tr></thead><tbody>';
+      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Days Waiting</th><th>Specs</th><th>Assign Editor</th><th>Deadline</th><th></th></tr></thead><tbody>';
       ready.forEach(function(item){
         var d=item.d;var p=item.p;
         var edOpts='<option value="">— Select Editor —</option>'+editors.map(function(e){return '<option value="'+e.id+'" '+(d.editorId===e.id?'selected':'')+'>'+e.name+' ('+(e.city||e.region||'—')+')</option>';}).join('');
         html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div><span style="font-size:11px;color:#888">'+(d.category||d.type||'')+'</span></td>';
         html+='<td style="font-weight:600">'+item.couple+'</td>';
+        html+='<td style="text-align:center">'+ppAgingBadge(daysInPostProd(p))+'</td>';
         html+='<td style="font-size:12px;color:#888">'+(d.specs||'—')+'</td>';
         html+='<td><select id="ed-'+p.id+'-'+d.id+'" class="fi" style="padding:6px 8px;font-size:12px;min-width:140px">'+edOpts+'</select></td>';
         html+='<td><input id="dl-'+p.id+'-'+d.id+'" type="date" class="fi" style="padding:6px 8px;font-size:12px;width:130px" value="'+(d.date||'')+'" min="'+tod()+'"></td>';
