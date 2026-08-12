@@ -1770,6 +1770,22 @@ document.addEventListener('wheel', function(e) {
       <div id="wa-area"></div>
     </div>
 
+    <div id="page-workprogress" class="page">
+      <div class="page-title">🎬 Work Progress</div>
+      <div class="page-sub">Month-wise deliverable status for every client currently in post-production — Teaser, Highlight, Long Video and Reels, permanently tracked on each project.</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;background:#f9f9f9;padding:12px 16px;border-radius:10px;border:1px solid #eee">
+        <span style="font-size:13px;font-weight:600;color:#555">Filter:</span>
+        <select id="wp-priority-only" class="fi" style="width:170px;padding:7px 10px;font-size:13px" onchange="renderWorkProgress()">
+          <option value="">All clients</option>
+          <option value="1">⭐ Priority only</option>
+        </select>
+        <input type="text" id="wp-search" class="fi" style="width:220px;padding:7px 10px;font-size:13px" placeholder="Search name / phone..." oninput="renderWorkProgress()">
+        <button class="btn" style="padding:7px 14px;font-size:13px" onclick="$('wp-priority-only').value='';$('wp-search').value='';renderWorkProgress()">Clear</button>
+        <span style="font-size:11.5px;color:#888;margin-left:4px">Set which month each client should finish in using the dropdown on their card — grouping below follows that, not the wedding date.</span>
+      </div>
+      <div id="wp-content"></div>
+    </div>
+
     <div id="page-reports" class="page">
       <div class="page-title">Reports &amp; Analytics</div>
       <div class="page-sub">Business performance with interactive charts and filters.</div>
@@ -6186,7 +6202,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v79-2026-08-10-report-builder-live-project-value';
+var CRM_BUILD_VERSION = 'v81-2026-08-10-work-progress-manual-target-month';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -8954,7 +8970,7 @@ function mountSidebarCustomizer() {
     {page:'dashboard',label:'Dashboard'},{page:'pipeline',label:'Project Pipeline'},
     {page:'projects',label:'All Projects'},{page:'quotations',label:'Quotations & Leads'},
     {page:'calendar',label:'Shoot Calendar'},{page:'onboarding',label:'Client Onboarding'},
-    {page:'postprod',label:'Post Production'},{page:'datavault',label:'Data Vault'},
+    {page:'postprod',label:'Post Production'},{page:'workprogress',label:'Work Progress'},{page:'datavault',label:'Data Vault'},
     {page:'payments',label:'Payments'},{page:'invoice',label:'Invoices'},
     {page:'reports',label:'Reports'},{page:'priority',label:'Priority Clients'},
     {page:'whatsapp',label:'WhatsApp'},{page:'referral',label:'Referrals'},
@@ -10585,6 +10601,110 @@ function renderPprDrill(key,rows){
   }
   html+='</div>';
   drill.innerHTML=html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// WORK PROGRESS — deliverable status per client, grouped by a MANUALLY set
+// target month ("we want to finish these clients in August, these in
+// September") rather than the wedding/delivery date. Set inline per client
+// right on this page. Saved on the project itself (wpTargetMonth), so it's
+// a permanent, live record — not a one-off list that goes stale.
+// ═══════════════════════════════════════════════════════════════════════
+var WP_MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+function wpMonthLabel(mk){
+  var parts=mk.split('-'), y=parts[0], m=parseInt(parts[1],10)-1;
+  return (WP_MONTH_NAMES[m]||'')+' '+y;
+}
+// Current month + next 5, for the picker dropdown
+function wpUpcomingMonths(){
+  var out=[], d=new Date(); d.setDate(1);
+  for(var i=0;i<6;i++){
+    out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
+    d.setMonth(d.getMonth()+1);
+  }
+  return out;
+}
+function wpSetTargetMonth(pid,val){
+  var p=projects[pid]; if(!p) return;
+  p.wpTargetMonth=val; p.updatedAt=Date.now();
+  db.ref('crm_projects/'+pid).update({wpTargetMonth:val,updatedAt:Date.now()});
+  renderWorkProgress();
+}
+function renderWorkProgress(){
+  var el=document.getElementById('wp-content'); if(!el) return;
+  var priorityOnly=(document.getElementById('wp-priority-only')||{}).value||'';
+  var search=((document.getElementById('wp-search')||{}).value||'').trim().toLowerCase();
+  var videoTypes=DELIV_TYPE_REGISTRY.filter(function(r){return r.bucket==='video' && r.reportKey;}); // Teaser, Highlight, Long Video, Reel
+
+  var groups={};
+  pl().forEach(function(p){
+    if(p.stage!=='postprod') return; // only clients currently being worked on
+    if(priorityOnly && !(parseInt(p.priority)||0)) return;
+    if(search){
+      var hay=((p.bride||'')+' '+(p.groom||'')+' '+(p.phone||'')).toLowerCase();
+      if(hay.indexOf(search)===-1) return;
+    }
+    var mk=p.wpTargetMonth||'unplanned';
+    (groups[mk]=groups[mk]||[]).push(p);
+  });
+
+  var monthKeys=Object.keys(groups).filter(function(k){return k!=='unplanned';}).sort();
+  if(groups.unplanned) monthKeys.push('unplanned');
+  if(!monthKeys.length){ el.innerHTML='<div class="empty">No clients currently in Post-Production match this filter.</div>'; return; }
+
+  var html='';
+  monthKeys.forEach(function(mk){
+    var list=groups[mk];
+    html+='<div style="margin-bottom:22px">';
+    html+='<div style="font-size:14px;font-weight:800;color:#1a1a1a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #eee">'+
+      (mk==='unplanned'?'📌 Not Yet Assigned to a Month':'🎯 Finish in '+wpMonthLabel(mk))+
+      ' <span style="font-weight:500;color:#999;font-size:12px">('+list.length+' client'+(list.length!==1?'s':'')+')</span></div>';
+    list.forEach(function(p){ html+=wpClientCard(p,videoTypes); });
+    html+='</div>';
+  });
+  el.innerHTML=html;
+}
+function wpClientCard(p,videoTypes){
+  var delivs=p.customDelivs||[];
+  var months=wpUpcomingMonths();
+  var cur=p.wpTargetMonth||'';
+  var monthSel='<select class="fi" style="width:150px;padding:5px 8px;font-size:11px" onchange="wpSetTargetMonth('+p.id+',this.value)"><option value="">— Not planned —</option>';
+  var seenCur=false;
+  months.forEach(function(mk){ monthSel+='<option value="'+mk+'"'+(mk===cur?' selected':'')+'>'+wpMonthLabel(mk)+'</option>'; if(mk===cur) seenCur=true; });
+  if(cur && !seenCur) monthSel+='<option value="'+cur+'" selected>'+wpMonthLabel(cur)+'</option>'; // keep a past/custom month visible instead of silently dropping it
+  monthSel+='</select>';
+  var html='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:14px">';
+  html+='<div style="min-width:170px;flex:1"><div style="font-weight:700;font-size:13px;cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</div>' +
+    '<div style="font-size:11px;color:#999">'+(p.city||'—')+' · '+(p.date?('Event: '+fmtDate(p.date)):'No event date')+'</div></div>';
+  html+='<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start"><label style="font-size:9.5px;color:#aaa;font-weight:700;text-transform:uppercase">Target Month</label>'+monthSel+'</div>';
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  videoTypes.forEach(function(vt){
+    var matches=delivs.filter(function(d){
+      if(d.type===vt.type) return true;
+      var exactOther=videoTypes.some(function(o){return o.type===d.type;});
+      return !exactOther && vt.nameRegex && vt.nameRegex.test((d.name||'').toLowerCase());
+    });
+    html+=wpDelivPill(vt,matches,p.id);
+  });
+  html+='</div></div>';
+  return html;
+}
+function wpDelivPill(vt,matches,pid){
+  var icon=vt.icon,label=vt.type;
+  if(!matches.length){
+    return '<div style="background:#f9fafb;border:1px dashed #ddd;border-radius:8px;padding:6px 10px;font-size:11px;color:#bbb;min-width:92px;text-align:center;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')">'+icon+' '+label+'<br>not added</div>';
+  }
+  var done=matches.filter(function(d){return d.status==='delivered';}).length, total=matches.length;
+  var color=done===total?'#16a34a':(done>0?'#f59e0b':'#94a3b8');
+  var bg=done===total?'#f0fdf4':(done>0?'#fffbeb':'#f9fafb');
+  var sub;
+  if(total>1){
+    sub=done+' of '+total+' done';
+  } else {
+    var labels={delivered:'✅ Delivered',inprogress:'🔄 In Progress',changes:'🔁 Changes Req.'};
+    sub=labels[matches[0].status]||'⏳ Not Started';
+  }
+  return '<div style="background:'+bg+';border:1px solid '+color+'33;border-left:3px solid '+color+';border-radius:8px;padding:6px 10px;font-size:11px;color:#333;min-width:92px;text-align:center;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')"><b>'+icon+' '+label+'</b><br><span style="color:'+color+';font-weight:700">'+sub+'</span></div>';
 }
 
 // ═══ POST PRODUCTION WORKFLOW (Step-by-Step) ═══════════════════════════════
@@ -19033,7 +19153,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -19049,7 +19169,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
+    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -19057,7 +19177,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canMarkSelection:true
   },
   relmgr: {
-    pages: ['dashboard', 'pipeline', 'projects', 'followups', 'postprod', 'whatsapp', 'calendar', 'clienthub', 'healthcheck', 'reports'],
+    pages: ['dashboard', 'pipeline', 'projects', 'followups', 'postprod', 'workprogress', 'whatsapp', 'calendar', 'clienthub', 'healthcheck', 'reports'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -19065,7 +19185,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canMarkSelection:true, canAssignAlbumTasks:true
   },
   postprod: {
-    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['dashboard', 'postprod', 'workprogress', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -19075,7 +19195,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManagePostProd:true, canMarkSelection:true
   },
   videohead: {
-    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['dashboard', 'postprod', 'workprogress', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -19592,6 +19712,7 @@ function renderPage(name) {
   else if (name === 'inventory') { loadAssets(); renderInventory(); }
   else if (name === 'clientissues') { renderCIHub(true); }
   else if (name === 'clienthub') { switchHubTab(_hubTab || 'overview'); }
+  else if (name === 'workprogress') { renderWorkProgress(); }
 }
 
 // Jump into Projects, filtered to a single lead source (used by Reports > Lead Sources drill-through)
@@ -19727,7 +19848,7 @@ var SIDEBAR_ICON_MAP = {
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Overview',          items:['dashboard','reports','reportbuilder','healthcheck','onboarding','quotations','followups'] },
-  { label:'Post Productions',  items:['projects','pipeline','postprod'] },
+  { label:'Post Productions',  items:['projects','pipeline','postprod','workprogress'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
