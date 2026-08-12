@@ -6222,7 +6222,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v83-2026-08-12-work-progress-bulk-assign';
+var CRM_BUILD_VERSION = 'v84-2026-08-12-work-progress-table-layout';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -10769,17 +10769,23 @@ function renderWorkProgress(){
       list.forEach(function(p,i){ html+=wpClientRowCompact(p,i<list.length-1); });
       html+='</div>';
     } else {
-      list.forEach(function(p){ html+=wpClientCard(p,videoTypes); });
+      html+='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden"><table class="tbl" style="table-layout:fixed">';
+      html+='<colgroup><col style="width:24%"><col style="width:16%"><col style="width:15%"><col style="width:15%"><col style="width:15%"><col style="width:15%"></colgroup>';
+      html+='<thead><tr><th>Client</th><th>Target Month</th>';
+      videoTypes.forEach(function(vt){ html+='<th style="text-align:center">'+vt.icon+' '+vt.type+'</th>'; });
+      html+='</tr></thead><tbody>';
+      list.forEach(function(p){ html+=wpClientRow(p,videoTypes); });
+      html+='</tbody></table></div>';
     }
     html+='</div>';
   });
   el.innerHTML=html;
 }
-// Shared month-picker markup, used by both the full card and the compact row
+// Shared month-picker markup, used by every row style
 function wpMonthSelect(p){
   var months=wpUpcomingMonths();
   var cur=p.wpTargetMonth||'';
-  var sel='<select class="fi" style="width:150px;padding:5px 8px;font-size:11px" onchange="wpSetTargetMonth('+p.id+',this.value)"><option value="">— Not planned —</option>';
+  var sel='<select class="fi" style="width:100%;max-width:160px;padding:5px 8px;font-size:11px" onchange="wpSetTargetMonth('+p.id+',this.value)"><option value="">— Not planned —</option>';
   var seenCur=false;
   months.forEach(function(mk){ sel+='<option value="'+mk+'"'+(mk===cur?' selected':'')+'>'+wpMonthLabel(mk)+'</option>'; if(mk===cur) seenCur=true; });
   if(cur && !seenCur) sel+='<option value="'+cur+'" selected>'+wpMonthLabel(cur)+'</option>'; // keep a past/custom month visible instead of silently dropping it
@@ -10797,29 +10803,31 @@ function wpClientRowCompact(p,border){
     '</div>' + wpMonthSelect(p) +
   '</div>';
 }
-function wpClientCard(p,videoTypes){
+// Aligned table row — name/date in a fixed-width first column, month picker
+// in a fixed second column, then one evenly-sized column per deliverable
+// type, so every card lines up instead of wrapping raggedly (was the
+// original messy flex-card layout).
+function wpClientRow(p,videoTypes){
   var delivs=p.customDelivs||[];
-  var monthSel=wpMonthSelect(p);
-  var html='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:14px">';
-  html+='<div style="min-width:170px;flex:1"><div style="font-weight:700;font-size:13px;cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</div>' +
-    '<div style="font-size:11px;color:#999">'+(p.city||'—')+' · '+(p.date?('Event: '+fmtDate(p.date)):'No event date')+'</div></div>';
-  html+='<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start"><label style="font-size:9.5px;color:#aaa;font-weight:700;text-transform:uppercase">Target Month</label>'+monthSel+'</div>';
-  html+='<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  var html='<tr>';
+  html+='<td style="cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')"><div style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</div>' +
+    '<div style="font-size:10.5px;color:#999;margin-top:2px">'+(p.city||'—')+' · '+(p.date?('Event: '+fmtDate(p.date)):'No event date')+'</div></td>';
+  html+='<td>'+wpMonthSelect(p)+'</td>';
   videoTypes.forEach(function(vt){
     var matches=delivs.filter(function(d){
       if(d.type===vt.type) return true;
       var exactOther=videoTypes.some(function(o){return o.type===d.type;});
       return !exactOther && vt.nameRegex && vt.nameRegex.test((d.name||'').toLowerCase());
     });
-    html+=wpDelivPill(vt,matches,p.id);
+    html+='<td style="text-align:center">'+wpDelivPill(vt,matches,p.id)+'</td>';
   });
-  html+='</div></div>';
+  html+='</tr>';
   return html;
 }
 function wpDelivPill(vt,matches,pid){
   var icon=vt.icon,label=vt.type;
   if(!matches.length){
-    return '<div style="background:#f9fafb;border:1px dashed #ddd;border-radius:8px;padding:6px 10px;font-size:11px;color:#bbb;min-width:92px;text-align:center;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')">'+icon+' '+label+'<br>not added</div>';
+    return '<span style="display:inline-block;background:#f9fafb;border:1px dashed #ddd;border-radius:8px;padding:5px 8px;font-size:10.5px;color:#bbb;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')">not added</span>';
   }
   var done=matches.filter(function(d){return d.status==='delivered';}).length, total=matches.length;
   var color=done===total?'#16a34a':(done>0?'#f59e0b':'#94a3b8');
@@ -10831,7 +10839,7 @@ function wpDelivPill(vt,matches,pid){
     var labels={delivered:'✅ Delivered',inprogress:'🔄 In Progress',changes:'🔁 Changes Req.'};
     sub=labels[matches[0].status]||'⏳ Not Started';
   }
-  return '<div style="background:'+bg+';border:1px solid '+color+'33;border-left:3px solid '+color+';border-radius:8px;padding:6px 10px;font-size:11px;color:#333;min-width:92px;text-align:center;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')"><b>'+icon+' '+label+'</b><br><span style="color:'+color+';font-weight:700">'+sub+'</span></div>';
+  return '<span style="display:inline-block;background:'+bg+';border:1px solid '+color+'33;border-left:3px solid '+color+';border-radius:8px;padding:5px 8px;font-size:10.5px;color:'+color+';font-weight:700;cursor:pointer;min-width:76px" onclick="openProject('+pid+',\'t-deliv\')">'+sub+'</span>';
 }
 
 // ═══ POST PRODUCTION WORKFLOW (Step-by-Step) ═══════════════════════════════
