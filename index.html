@@ -3190,7 +3190,10 @@ document.addEventListener('wheel', function(e) {
               <div id="nd-type-hint" style="font-size:10px;color:#0d9488;margin-top:3px;display:none"></div>
             </div>
             <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Name *</label><input class="fi" id="nd-name" placeholder="Select a Type first" style="font-size:12px;padding:6px 8px" readonly></div>
-            <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Category</label><select class="fi" id="nd-category" style="font-size:12px;padding:6px 8px"><option>Wedding</option><option>Pre-Wedding</option><option>Engagement</option><option>Mehendi</option><option>Sangeet</option><option>Reception</option><option>Maternity</option><option>Birthday</option><option>Other</option></select></div>
+            <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Category / Event</label><select class="fi" id="nd-category" style="font-size:12px;padding:6px 8px"><option>Wedding</option><option>Pre-Wedding</option><option>Engagement</option><option>Mehendi</option><option>Haldi</option><option>Sangeet</option><option>Reception</option><option>Maternity</option><option>Birthday</option><option>Other</option><option value="__custom__">+ Custom Event…</option></select>
+              <input class="fi" id="nd-category-custom" list="nd-category-suggestions" placeholder="e.g. Tilak, Cocktail, Griha Shanti…" style="font-size:12px;padding:6px 8px;margin-top:5px;display:none">
+              <datalist id="nd-category-suggestions"></datalist>
+            </div>
           </div>
           <div style="display:grid;grid-template-columns:70px 1fr 1fr auto;gap:8px;align-items:flex-end">
             <div><label style="font-size:11px;color:#888;display:block;margin-bottom:3px">Qty</label><input class="fi" id="nd-qty" type="number" value="1" min="1" style="font-size:12px;padding:6px 8px"></div>
@@ -5394,6 +5397,19 @@ var DELIV_TYPE_REGISTRY = [
   { type:'Other',           icon:'📦', bucket:'other', reportKey:null,         nameRegex:null }
 ];
 function _delivTypeInfo(t){ for(var i=0;i<DELIV_TYPE_REGISTRY.length;i++){ if(DELIV_TYPE_REGISTRY[i].type===t) return DELIV_TYPE_REGISTRY[i]; } return null; }
+// Category/Event color — fixed colors for the known presets; any custom
+// event name (Tilak, Cocktail, Griha Shanti, regional rituals, etc.) gets
+// a deterministic color derived from its own text, so it's stable across
+// reloads and distinct from other custom events, without needing every
+// possible ritual name hardcoded here.
+var CAT_PRESET_COLORS={'Wedding':'#3b82f6','Pre-Wedding':'#8b5cf6','Engagement':'#ec4899','Mehendi':'#f59e0b','Haldi':'#eab308','Sangeet':'#10b981','Reception':'#06b6d4','Maternity':'#f97316','Birthday':'#84cc16','Other':'#6b7280'};
+var CAT_CUSTOM_PALETTE=['#0ea5e9','#d946ef','#14b8a6','#f43f5e','#a855f7','#22c55e','#eab308','#6366f1','#f97316','#0d9488'];
+function catColorFor(cat){
+  if(!cat) return CAT_PRESET_COLORS.Other;
+  if(CAT_PRESET_COLORS[cat]) return CAT_PRESET_COLORS[cat];
+  var h=0; for(var i=0;i<cat.length;i++){ h=(h*31+cat.charCodeAt(i))>>>0; }
+  return CAT_CUSTOM_PALETTE[h%CAT_CUSTOM_PALETTE.length];
+}
 function delivTypeIcon(t){ var r=_delivTypeInfo(t); return r?r.icon:'📦'; }
 // Canonical Name auto-filled into nd-name once a Type is picked in the Add
 // Deliverable form (see wireNdTypeAutofill). Keeps the stored name consistent
@@ -5423,6 +5439,35 @@ function wireNdTypeAutofill(){
       else { hint.style.display='none'; }
     }
   };
+  wireNdCategoryCustom();
+}
+// Preset list (Wedding, Mehendi, Haldi, Sangeet, Reception...) covers the
+// common cases with one click. "+ Custom Event…" opens a free-text field
+// for anything client-specific — Tilak, Cocktail, Griha Shanti, Vidaai,
+// regional rituals, whatever — so the category tag isn't limited to a
+// fixed list. The datalist suggests names already used on OTHER clients
+// so the same ritual doesn't end up spelled three different ways across
+// your projects.
+function wireNdCategoryCustom(){
+  var catEl=document.getElementById('nd-category'), customEl=document.getElementById('nd-category-custom');
+  if(!catEl||!customEl) return;
+  catEl.onchange=function(){
+    if(catEl.value==='__custom__'){ customEl.style.display=''; customEl.focus(); }
+    else { customEl.style.display='none'; customEl.value=''; }
+  };
+  // populate suggestions from custom event names already typed elsewhere
+  var dl=document.getElementById('nd-category-suggestions');
+  if(dl){
+    var known={};
+    var PRESET=['Wedding','Pre-Wedding','Engagement','Mehendi','Haldi','Sangeet','Reception','Maternity','Birthday','Other'];
+    Object.values(projects||{}).forEach(function(p){
+      (p.customDelivs||[]).forEach(function(d){
+        var c=(d.category||'').trim();
+        if(c && PRESET.indexOf(c)===-1) known[c]=true;
+      });
+    });
+    dl.innerHTML=Object.keys(known).sort().map(function(c){return '<option value="'+c.replace(/"/g,'&quot;')+'">';}).join('');
+  }
 }
 var DEFAULT_PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}],'50-50-event':[{key:'p50c',label:'Advance',pct:50,desc:'To block the date'},{key:'p50d',label:'Final Instalment',pct:50,desc:'Before the event'}],'30-10-50-5-5':[{key:'p30c',label:'Advance',pct:30,desc:'To block the date'},{key:'p10c',label:'2nd Instalment',pct:10,desc:'Before pre-wedding shoot'},{key:'p50e',label:'3rd Instalment',pct:50,desc:'Before first event'},{key:'p5c',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5d',label:'Final Instalment',pct:5,desc:'Before final delivery'}]};
 // PAY_PRESETS starts as the built-in defaults, then gets overlaid with anything
@@ -6222,7 +6267,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v85-2026-08-12-anon-auth-permission-fix';
+var CRM_BUILD_VERSION = 'v87-2026-08-12-custom-event-tagging';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -9247,11 +9292,10 @@ function renderDelivRows(){
   }
   var groups={};
   customDelivs.forEach(function(d,i){var c=d.category||'Other';if(!groups[c])groups[c]=[];groups[c].push({d:d,i:i});});
-  var catColors={'Wedding':'#3b82f6','Pre-Wedding':'#8b5cf6','Engagement':'#ec4899','Mehendi':'#f59e0b','Sangeet':'#10b981','Reception':'#06b6d4','Maternity':'#f97316','Birthday':'#84cc16','Other':'#6b7280'};
   // Icon derived from DELIV_TYPE_REGISTRY — see registry near DELIV_ITEMS for how to add new types.
   var html='';
   Object.keys(groups).forEach(function(cat){
-    var color=catColors[cat]||'#6b7280';
+    var color=catColorFor(cat);
     html+='<div style="margin-bottom:14px">';
     html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:3px;height:16px;background:'+color+';border-radius:2px"></div><span style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:0.5px">'+cat+'</span></div>';
     groups[cat].forEach(function(item){
@@ -9269,6 +9313,7 @@ function renderDelivRows(){
       html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">';
       html+='<span style="font-size:13px;font-weight:700;flex:1">'+typeIco+' '+(d.name||'Unnamed')+'</span>';
       html+='<span style="font-size:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:2px 8px;color:#475569">'+(d.type||'')+'</span>';
+      if(d.category && d.category!=='Other') html+='<span style="font-size:10px;background:'+color+'18;border:1px solid '+color+'44;border-radius:10px;padding:2px 8px;color:'+color+';font-weight:700">'+d.category+'</span>';
       html+='<select class="dlv-status-sel" data-idx="'+i+'" style="font-size:11px;padding:3px 8px;border-radius:8px;border:1.5px solid '+sc+';background:'+sc+'18;color:'+sc+';font-weight:700;cursor:pointer;font-family:inherit;outline:none">'+statusOpts+'</select>';
       html+='<button class="dlv-del-btn" data-idx="'+i+'" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:18px;padding:0;line-height:1">×</button>';
       html+='</div>';
@@ -9386,8 +9431,26 @@ function addCustomDeliv(){
   name=name.trim();
   if(type==='Other'){ if(!name){alert('Enter a name for this Other deliverable.');return;} }
   else { name=NAME_FOR_TYPE[type]||type; } // Name is always Type-derived except for 'Other' — keeps report bucketing reliable
+  var category=(document.getElementById('nd-category')||{}).value||'Wedding';
+  if(category==='__custom__'){
+    var customCat=((document.getElementById('nd-category-custom')||{}).value||'').trim();
+    if(!customCat){ alert('Enter a name for this custom event (e.g. Tilak, Cocktail, Griha Shanti).'); return; }
+    category=customCat;
+  }
+  // Repeatable video types (Teaser/Highlight/Long Video/Reel) commonly get
+  // one entry PER EVENT — e.g. a Haldi Long Video and a separate Wedding
+  // Long Video. Work Progress tells those apart by Category, so adding a
+  // second one under the same Category makes them indistinguishable there
+  // (both just show up as "Long Video" with no way to tell which is which).
+  var repeatable = DELIV_TYPE_REGISTRY.some(function(r){return r.type===type && r.bucket==='video' && r.reportKey;});
+  if(repeatable){
+    var dupe = customDelivs.some(function(d){ return d.type===type && (d.category||'Wedding')===category; });
+    if(dupe){
+      showToast('⚠️ Another '+type+' already exists under "'+category+'" — pick a different Category (e.g. Haldi vs Wedding) so Work Progress can tell them apart.');
+    }
+  }
   customDelivs.push({id:'cd_'+Date.now(),name:name,
-    category:(document.getElementById('nd-category')||{}).value||'Wedding',
+    category:category,
     type:type,
     qty:parseInt((document.getElementById('nd-qty')||{}).value)||1,
     specs:(document.getElementById('nd-specs')||{}).value||'',
@@ -10829,17 +10892,40 @@ function wpDelivPill(vt,matches,pid){
   if(!matches.length){
     return '<span style="display:inline-block;background:#f9fafb;border:1px dashed #ddd;border-radius:8px;padding:5px 8px;font-size:10.5px;color:#bbb;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')">not added</span>';
   }
-  var done=matches.filter(function(d){return d.status==='delivered';}).length, total=matches.length;
-  var color=done===total?'#16a34a':(done>0?'#f59e0b':'#94a3b8');
-  var bg=done===total?'#f0fdf4':(done>0?'#fffbeb':'#f9fafb');
-  var sub;
-  if(total>1){
-    sub=done+' of '+total+' done';
-  } else {
-    var labels={delivered:'✅ Delivered',inprogress:'🔄 In Progress',changes:'🔁 Changes Req.'};
-    sub=labels[matches[0].status]||'⏳ Not Started';
+  // urgency: higher = needs more attention. A single "x of y done" count
+  // used to hide a Changes-Requested item behind what looked like decent
+  // progress — e.g. "1 of 2 done" reads the same whether the other item
+  // is simply not started yet or has been rejected and needs rework.
+  var STATUS_META={
+    delivered:  {icon:'✅', label:'Delivered',    color:'#16a34a', bg:'#f0fdf4', urgency:0},
+    pending:    {icon:'⏳', label:'Not Started',  color:'#94a3b8', bg:'#f9fafb', urgency:1},
+    inprogress: {icon:'🔄', label:'In Progress',  color:'#f59e0b', bg:'#fffbeb', urgency:2},
+    changes:    {icon:'🔁', label:'Changes Req.', color:'#dc2626', bg:'#fef2f2', urgency:3}
+  };
+  function meta(s){ return STATUS_META[s]||STATUS_META.pending; }
+
+  if(matches.length===1){
+    var d=matches[0], m=meta(d.status);
+    var tag=(d.category && d.category!=='Other')?d.category+' — ':'';
+    return '<span style="display:inline-block;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:5px 8px;font-size:10.5px;color:'+m.color+';font-weight:700;cursor:pointer;min-width:76px" onclick="openProject('+pid+',\'t-deliv\')" title="'+tag+m.label+'">'+tag+m.icon+' '+m.label+'</span>';
   }
-  return '<span style="display:inline-block;background:'+bg+';border:1px solid '+color+'33;border-left:3px solid '+color+';border-radius:8px;padding:5px 8px;font-size:10.5px;color:'+color+';font-weight:700;cursor:pointer;min-width:76px" onclick="openProject('+pid+',\'t-deliv\')">'+sub+'</span>';
+
+  // Multiple items in this bucket — almost always one per event (Haldi vs
+  // Wedding Long Video, etc). Show each one's own status instead of a
+  // collapsed fraction, so a Changes-Requested item is never buried.
+  var sameCat = matches.every(function(d){ return (d.category||'Wedding')===(matches[0].category||'Wedding'); });
+  var worstUrgency = matches.reduce(function(acc,d){ var u=meta(d.status).urgency; return u>acc?u:acc; },0);
+  var worstColor='#94a3b8';
+  Object.keys(STATUS_META).forEach(function(k){ if(STATUS_META[k].urgency===worstUrgency) worstColor=STATUS_META[k].color; });
+  var chips=matches.map(function(d,idx){
+    var m=meta(d.status);
+    var tag=(!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(idx+1));
+    var tagColor=(!sameCat && d.category && d.category!=='Other')?catColorFor(d.category):'#555';
+    return '<div style="display:flex;align-items:center;gap:4px;font-size:9.5px;line-height:1.55;white-space:nowrap"><span>'+m.icon+'</span><span style="color:'+tagColor+';font-weight:700">'+tag+':</span><span style="color:'+m.color+';font-weight:700">'+m.label+'</span></div>';
+  }).join('');
+  var tooltip=matches.map(function(d,idx){ var m=meta(d.status); var tag=(!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(idx+1)); return tag+': '+m.label; }).join(' · ');
+  var hint=sameCat?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px;font-weight:600">⚠️ Tag by event for clarity</div>':'';
+  return '<div style="display:inline-block;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:8px;padding:5px 8px;cursor:pointer;min-width:92px" onclick="openProject('+pid+',\'t-deliv\')" title="'+tooltip+'">'+chips+hint+'</div>';
 }
 
 // ═══ POST PRODUCTION WORKFLOW (Step-by-Step) ═══════════════════════════════
@@ -19977,7 +20063,7 @@ var SIDEBAR_ICON_MAP = {
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
   healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
-  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑'
+  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑', workprogress:'📶'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
@@ -20058,7 +20144,7 @@ function sidebarPageLabel(page) {
     users: 'Users & Logins',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
     clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings',
-    followups:'Follow-Ups', reportbuilder:'Report Builder'
+    followups:'Follow-Ups', reportbuilder:'Report Builder', workprogress:'Work Progress'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
 }
