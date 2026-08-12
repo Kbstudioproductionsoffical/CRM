@@ -1780,8 +1780,11 @@ document.addEventListener('wheel', function(e) {
           <option value="1">⭐ Priority only</option>
         </select>
         <input type="text" id="wp-search" class="fi" style="width:220px;padding:7px 10px;font-size:13px" placeholder="Search name / phone..." oninput="renderWorkProgress()">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#555;cursor:pointer;background:#fff;border:1px solid #ddd;border-radius:8px;padding:6px 10px">
+          <input type="checkbox" id="wp-quick-mode" onchange="renderWorkProgress()"> ⚡ Quick Assign mode
+        </label>
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="$('wp-priority-only').value='';$('wp-search').value='';renderWorkProgress()">Clear</button>
-        <span style="font-size:11.5px;color:#888;margin-left:4px">Set which month each client should finish in using the dropdown on their card — grouping below follows that, not the wedding date.</span>
+        <span style="font-size:11.5px;color:#888;margin-left:4px">Set each client's finish month with the dropdown. Turn on Quick Assign mode to skip the deliverable cards and just search + assign fast, A–Z.</span>
       </div>
       <div id="wp-content"></div>
     </div>
@@ -6202,7 +6205,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v81-2026-08-10-work-progress-manual-target-month';
+var CRM_BUILD_VERSION = 'v82-2026-08-12-work-progress-quick-assign';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -10634,6 +10637,7 @@ function renderWorkProgress(){
   var el=document.getElementById('wp-content'); if(!el) return;
   var priorityOnly=(document.getElementById('wp-priority-only')||{}).value||'';
   var search=((document.getElementById('wp-search')||{}).value||'').trim().toLowerCase();
+  var quickMode=(document.getElementById('wp-quick-mode')||{}).checked||false;
   var videoTypes=DELIV_TYPE_REGISTRY.filter(function(r){return r.bucket==='video' && r.reportKey;}); // Teaser, Highlight, Long Video, Reel
 
   var groups={};
@@ -10654,25 +10658,47 @@ function renderWorkProgress(){
 
   var html='';
   monthKeys.forEach(function(mk){
-    var list=groups[mk];
+    var list=groups[mk].slice().sort(function(a,b){ return (a.bride||'').localeCompare(b.bride||''); }); // A–Z, so a name is easy to spot in a long list
     html+='<div style="margin-bottom:22px">';
     html+='<div style="font-size:14px;font-weight:800;color:#1a1a1a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #eee">'+
       (mk==='unplanned'?'📌 Not Yet Assigned to a Month':'🎯 Finish in '+wpMonthLabel(mk))+
       ' <span style="font-weight:500;color:#999;font-size:12px">('+list.length+' client'+(list.length!==1?'s':'')+')</span></div>';
-    list.forEach(function(p){ html+=wpClientCard(p,videoTypes); });
+    if(quickMode){
+      html+='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden">';
+      list.forEach(function(p,i){ html+=wpClientRowCompact(p,i<list.length-1); });
+      html+='</div>';
+    } else {
+      list.forEach(function(p){ html+=wpClientCard(p,videoTypes); });
+    }
     html+='</div>';
   });
   el.innerHTML=html;
 }
-function wpClientCard(p,videoTypes){
-  var delivs=p.customDelivs||[];
+// Shared month-picker markup, used by both the full card and the compact row
+function wpMonthSelect(p){
   var months=wpUpcomingMonths();
   var cur=p.wpTargetMonth||'';
-  var monthSel='<select class="fi" style="width:150px;padding:5px 8px;font-size:11px" onchange="wpSetTargetMonth('+p.id+',this.value)"><option value="">— Not planned —</option>';
+  var sel='<select class="fi" style="width:150px;padding:5px 8px;font-size:11px" onchange="wpSetTargetMonth('+p.id+',this.value)"><option value="">— Not planned —</option>';
   var seenCur=false;
-  months.forEach(function(mk){ monthSel+='<option value="'+mk+'"'+(mk===cur?' selected':'')+'>'+wpMonthLabel(mk)+'</option>'; if(mk===cur) seenCur=true; });
-  if(cur && !seenCur) monthSel+='<option value="'+cur+'" selected>'+wpMonthLabel(cur)+'</option>'; // keep a past/custom month visible instead of silently dropping it
-  monthSel+='</select>';
+  months.forEach(function(mk){ sel+='<option value="'+mk+'"'+(mk===cur?' selected':'')+'>'+wpMonthLabel(mk)+'</option>'; if(mk===cur) seenCur=true; });
+  if(cur && !seenCur) sel+='<option value="'+cur+'" selected>'+wpMonthLabel(cur)+'</option>'; // keep a past/custom month visible instead of silently dropping it
+  sel+='</select>';
+  return sel;
+}
+// One thin row per client — just name + target month, no deliverable pills —
+// so 100+ unassigned clients can be scanned and assigned in seconds instead
+// of scrolling past full status cards for each one.
+function wpClientRowCompact(p,border){
+  return '<div style="display:flex;align-items:center;gap:12px;padding:8px 14px;'+(border?'border-bottom:1px solid #f0f0f0':'')+'">' +
+    '<div style="flex:1;min-width:150px;cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')">' +
+      '<span style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</span>' +
+      '<span style="font-size:11px;color:#999;margin-left:8px">'+(p.city||'—')+(p.date?(' · '+fmtDate(p.date)):'')+'</span>' +
+    '</div>' + wpMonthSelect(p) +
+  '</div>';
+}
+function wpClientCard(p,videoTypes){
+  var delivs=p.customDelivs||[];
+  var monthSel=wpMonthSelect(p);
   var html='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;flex-wrap:wrap;align-items:center;gap:14px">';
   html+='<div style="min-width:170px;flex:1"><div style="font-weight:700;font-size:13px;cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</div>' +
     '<div style="font-size:11px;color:#999">'+(p.city||'—')+' · '+(p.date?('Event: '+fmtDate(p.date)):'No event date')+'</div></div>';
