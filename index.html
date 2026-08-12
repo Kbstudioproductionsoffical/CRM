@@ -6222,7 +6222,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v84-2026-08-12-work-progress-table-layout';
+var CRM_BUILD_VERSION = 'v85-2026-08-12-anon-auth-permission-fix';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -22040,9 +22040,12 @@ function doGoogleLogin() {
 try {
   firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function(){});
   firebase.auth().onAuthStateChanged(function(fbUser) {
-    if (fbUser && !CU) {
+    // Anonymous sessions are created silently after username/password login
+    // (see doLogin) purely so Firebase writes pass "auth != null" rules —
+    // they carry no email, so they must never be matched against crm_users.
+    if (fbUser && !fbUser.isAnonymous && !CU) {
       loginWithFirebaseUser(fbUser, true);
-    } else if (!fbUser && !CU) {
+    } else if ((!fbUser || fbUser.isAnonymous) && !CU) {
       var lc = document.getElementById('login-checking'); if (lc) lc.style.display = 'none';
       var lf = document.getElementById('login-form-area'); if (lf) lf.style.display = '';
     }
@@ -22072,6 +22075,21 @@ function doLogin() {
     if (match) {
       CU = match;
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Login →'; }
+      // Username/password login never authenticates with Firebase itself,
+      // which means db.ref().set()/.update() calls fail with
+      // PERMISSION_DENIED on any rule requiring auth != null — regardless
+      // of the user's CRM role. Sign in anonymously here (unless a real
+      // Firebase session, e.g. from Google login, already exists) purely
+      // to satisfy that rule. This carries no identity of its own — CU
+      // (set above from crm_users) remains the single source of truth for
+      // who's logged in and what they can do.
+      try {
+        if (firebase.auth && !firebase.auth().currentUser) {
+          firebase.auth().signInAnonymously().catch(function(e) {
+            console.warn('Anonymous Firebase auth failed — saves may fail with PERMISSION_DENIED:', e);
+          });
+        }
+      } catch (e) {}
       // Force password change on first login
       if (match.mustChangePassword) {
         document.getElementById('login-screen').style.display = 'none';
@@ -22088,6 +22106,7 @@ function doLogin() {
       loadDefaultQuotImages();
       var lb = document.getElementById('btn-logout');
       if (lb) lb.onclick = function() {
+        try { if (firebase.auth().currentUser && firebase.auth().currentUser.isAnonymous) firebase.auth().signOut(); } catch (e) {}
         CU = null;
         document.getElementById('main-app').style.display = 'none';
         document.getElementById('login-screen').style.display = 'flex';
