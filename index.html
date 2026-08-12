@@ -22123,6 +22123,45 @@ function doGoogleLogin() {
 // listener fires once Firebase has rehydrated its stored session (or
 // confirmed there isn't one) and silently logs the user back in when
 // there is one, so the app opens straight into the CRM.
+// ── Robust anonymous-auth helper ───────────────────────────────────────
+// Username/password logins need SOME Firebase Auth session (even an
+// anonymous one) purely so writes satisfy "auth != null" security rules.
+// The old code fired signInAnonymously() exactly once and only logged a
+// warning on failure — if that single attempt lost the race (slow
+// network, a brief outage, token not issued yet) every Save afterwards
+// failed with PERMISSION_DENIED until a full page reload, with no
+// automatic recovery. This retries with backoff (up to 5 tries, ~15s
+// total) and can be called any number of times safely — concurrent
+// callers share the same in-flight attempt.
+var _anonAuthPromise = null;
+function ensureAnonAuth(cb) {
+  cb = cb || function(){};
+  try {
+    if (firebase.auth().currentUser) { cb(null); return; }
+  } catch (e) { cb(e); return; }
+  if (_anonAuthPromise) { _anonAuthPromise.then(function(){ cb(null); }, cb); return; }
+  var attempts = 0;
+  _anonAuthPromise = new Promise(function(resolve, reject) {
+    function attempt() {
+      attempts++;
+      firebase.auth().signInAnonymously().then(function(){
+        _anonAuthPromise = null;
+        resolve();
+      }).catch(function(err){
+        console.warn('Anonymous Firebase auth attempt ' + attempts + ' failed:', err);
+        if (attempts < 5) {
+          setTimeout(attempt, Math.min(1000 * Math.pow(2, attempts - 1), 8000));
+        } else {
+          _anonAuthPromise = null;
+          reject(err);
+        }
+      });
+    }
+    attempt();
+  });
+  _anonAuthPromise.then(function(){ cb(null); }, cb);
+}
+
 try {
   firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function(){});
   firebase.auth().onAuthStateChanged(function(fbUser) {
@@ -22134,6 +22173,12 @@ try {
     } else if ((!fbUser || fbUser.isAnonymous) && !CU) {
       var lc = document.getElementById('login-checking'); if (lc) lc.style.display = 'none';
       var lf = document.getElementById('login-form-area'); if (lf) lf.style.display = '';
+    } else if (!fbUser && CU) {
+      // Watchdog: a user is already active in the app (password login) but
+      // the Firebase session has dropped (token expired/revoked, brief
+      // network loss, etc.) — silently re-establish it in the background
+      // so Save doesn't keep failing until someone thinks to reload.
+      ensureAnonAuth();
     }
   });
 } catch (e) {
@@ -22160,7 +22205,6 @@ function doLogin() {
     });
     if (match) {
       CU = match;
-      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Login →'; }
       // Username/password login never authenticates with Firebase itself,
       // which means db.ref().set()/.update() calls fail with
       // PERMISSION_DENIED on any rule requiring auth != null — regardless
@@ -22169,41 +22213,51 @@ function doLogin() {
       // to satisfy that rule. This carries no identity of its own — CU
       // (set above from crm_users) remains the single source of truth for
       // who's logged in and what they can do.
-      try {
-        if (firebase.auth && !firebase.auth().currentUser) {
-          firebase.auth().signInAnonymously().catch(function(e) {
-            console.warn('Anonymous Firebase auth failed — saves may fail with PERMISSION_DENIED:', e);
-          });
+      //
+      // Previously this fired signInAnonymously() and immediately opened
+      // the app regardless of the outcome — on a slow/flaky connection the
+      // app could open before the session was actually established, so the
+      // very first Save (and every one after it) failed with
+      // PERMISSION_DENIED. Now we wait for ensureAnonAuth (which retries
+      // with backoff) before opening the app. If it still hasn't succeeded
+      // after retrying, we open anyway rather than lock the user out —
+      // the background watchdog above keeps trying, and login is not the
+      // only path to recovery.
+      if (btnEl) { btnEl.textContent = 'Connecting…'; }
+      ensureAnonAuth(function(authErr) {
+        if (authErr) {
+          console.warn('Could not establish Firebase session after retries — opening anyway; saves may fail until connection recovers:', authErr);
         }
-      } catch (e) {}
-      // Force password change on first login
-      if (match.mustChangePassword) {
-        document.getElementById('login-screen').style.display = 'none';
-        var cps = document.getElementById('change-pass-screen');
-        if (cps) { cps.style.display = 'flex'; setTimeout(function(){ var el=document.getElementById('cp-new'); if(el) el.focus(); }, 100); }
-        return;
-      }
-      // Editor role gets the editor portal view inside the main app
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('main-app').style.display = 'block';
-      buildSidebar();
-      applyRBAC();
-      if (match.role === 'salesperson') { navTo('quotations'); }
-      loadDefaultQuotImages();
-      var lb = document.getElementById('btn-logout');
-      if (lb) lb.onclick = function() {
-        try { if (firebase.auth().currentUser && firebase.auth().currentUser.isAnonymous) firebase.auth().signOut(); } catch (e) {}
-        CU = null;
-        document.getElementById('main-app').style.display = 'none';
-        document.getElementById('login-screen').style.display = 'flex';
-        document.getElementById('login-user').value = '';
-        document.getElementById('login-pass').value = '';
-        if (errEl) errEl.style.display = 'none';
         if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Login →'; }
-        setTimeout(function(){ var u = document.getElementById('login-user'); if(u) u.focus(); }, 100);
-      };
-      loadAll();
-      if (typeof window._initPresence === 'function') window._initPresence();
+        // Force password change on first login
+        if (match.mustChangePassword) {
+          document.getElementById('login-screen').style.display = 'none';
+          var cps = document.getElementById('change-pass-screen');
+          if (cps) { cps.style.display = 'flex'; setTimeout(function(){ var el=document.getElementById('cp-new'); if(el) el.focus(); }, 100); }
+          return;
+        }
+        // Editor role gets the editor portal view inside the main app
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('main-app').style.display = 'block';
+        buildSidebar();
+        applyRBAC();
+        if (match.role === 'salesperson') { navTo('quotations'); }
+        loadDefaultQuotImages();
+        var lb = document.getElementById('btn-logout');
+        if (lb) lb.onclick = function() {
+          try { if (firebase.auth().currentUser && firebase.auth().currentUser.isAnonymous) firebase.auth().signOut(); } catch (e) {}
+          CU = null;
+          document.getElementById('main-app').style.display = 'none';
+          document.getElementById('login-screen').style.display = 'flex';
+          document.getElementById('login-user').value = '';
+          document.getElementById('login-pass').value = '';
+          if (errEl) errEl.style.display = 'none';
+          if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Login →'; }
+          setTimeout(function(){ var u = document.getElementById('login-user'); if(u) u.focus(); }, 100);
+        };
+        loadAll();
+        if (typeof window._initPresence === 'function') window._initPresence();
+      });
     } else {
       if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'Incorrect username or password.'; }
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Login →'; }
