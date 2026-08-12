@@ -1786,6 +1786,23 @@ document.addEventListener('wheel', function(e) {
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="$('wp-priority-only').value='';$('wp-search').value='';renderWorkProgress()">Clear</button>
         <span style="font-size:11.5px;color:#888;margin-left:4px">Set each client's finish month with the dropdown. Turn on Quick Assign mode to skip the deliverable cards and just search + assign fast, A–Z.</span>
       </div>
+
+      <div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 16px;margin-bottom:18px">
+        <div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:4px">📋 Bulk Assign from a Pasted List</div>
+        <div style="font-size:11.5px;color:#888;margin-bottom:10px">Paste client names from your Google Sheet (one per line, e.g. from the CLIENT NAME column) — this matches them to projects here and assigns all of them to one month in one go.</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
+          <textarea id="wp-bulk-paste" class="fi" style="width:320px;height:90px;font-size:12px;padding:8px" placeholder="Saanvi & Abhishek&#10;Shreya & Ayush&#10;Neha & Palkesh&#10;..."></textarea>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div>
+              <label style="font-size:10px;color:#aaa;font-weight:700;text-transform:uppercase;display:block;margin-bottom:3px">Assign matched clients to</label>
+              <select id="wp-bulk-month" class="fi" style="width:170px;padding:6px 8px;font-size:12px"></select>
+            </div>
+            <button class="btn" style="background:#1a1a1a;color:#fff;padding:8px 14px;font-size:12.5px;font-weight:700" onclick="wpBulkMatch()">🔎 Match Clients</button>
+          </div>
+        </div>
+        <div id="wp-bulk-results"></div>
+      </div>
+
       <div id="wp-content"></div>
     </div>
 
@@ -6205,7 +6222,7 @@ function getPayTerms(p){
 // BUILD VERSION — bump this string every time the file is updated.
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
-var CRM_BUILD_VERSION = 'v82-2026-08-12-work-progress-quick-assign';
+var CRM_BUILD_VERSION = 'v83-2026-08-12-work-progress-bulk-assign';
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -10633,8 +10650,92 @@ function wpSetTargetMonth(pid,val){
   db.ref('crm_projects/'+pid).update({wpTargetMonth:val,updatedAt:Date.now()});
   renderWorkProgress();
 }
+// Populates the bulk-assign month dropdown whenever the page renders
+function wpFillBulkMonthSelect(){
+  var sel=document.getElementById('wp-bulk-month'); if(!sel || sel.options.length) return; // fill once
+  wpUpcomingMonths().forEach(function(mk){ sel.innerHTML+='<option value="'+mk+'">'+wpMonthLabel(mk)+'</option>'; });
+}
+// ── Bulk Assign from a pasted list ──────────────────────────────────────
+// Matches free-typed names (e.g. copied from a Google Sheet) against
+// projects currently in Post-Production, so a whole list can be assigned to
+// one target month at once instead of one search+click per client.
+var _wpBulkResults=[];
+function wpNormName(s){ return (s||'').toLowerCase().replace(/[^a-z&\s]/g,'').replace(/\s+/g,' ').trim(); }
+function wpFindCandidates(raw){
+  var norm=wpNormName(raw);
+  if(!norm) return [];
+  var parts=norm.split('&').map(function(x){return x.trim();}).filter(Boolean);
+  return pl().filter(function(p){
+    if(p.stage!=='postprod') return false;
+    var b=wpNormName(p.bride), g=wpNormName(p.groom);
+    var full1=wpNormName(p.bride+' & '+p.groom), full2=wpNormName(p.groom+' & '+p.bride);
+    if(full1===norm || full2===norm) return true;
+    if(parts.length===2){
+      if((b===parts[0]&&g===parts[1]) || (b===parts[1]&&g===parts[0])) return true;
+    }
+    if(parts.length && (b===parts[0]||g===parts[0]||(parts[1]&&(b===parts[1]||g===parts[1])))) return true;
+    return false;
+  });
+}
+function wpBulkMatch(){
+  var ta=document.getElementById('wp-bulk-paste');
+  var lines=((ta&&ta.value)||'').split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(!lines.length){ showToast('⚠️ Paste at least one client name first.'); return; }
+  _wpBulkResults=lines.map(function(line){
+    var cands=wpFindCandidates(line);
+    return {raw:line, candidates:cands, chosenId:cands.length===1?cands[0].id:null};
+  });
+  renderWpBulkResults();
+}
+function wpBulkPickChoice(i,val){ _wpBulkResults[i].chosenId=val?parseInt(val):null; }
+function renderWpBulkResults(){
+  var el=document.getElementById('wp-bulk-results'); if(!el) return;
+  if(!_wpBulkResults.length){ el.innerHTML=''; return; }
+  var matched=_wpBulkResults.filter(function(r){return r.chosenId;}).length;
+  var html='<div style="margin-top:12px;padding-top:10px;border-top:1px solid #f0f0f0">';
+  html+='<table class="tbl"><thead><tr><th>Pasted Name</th><th>Matched Project</th></tr></thead><tbody>';
+  _wpBulkResults.forEach(function(r,i){
+    html+='<tr><td style="font-weight:600">'+r.raw+'</td><td>';
+    if(!r.candidates.length){
+      html+='<span style="color:#dc2626;font-size:11px">⚠️ No match — check spelling, or assign this one manually below</span>';
+    } else if(r.candidates.length===1){
+      html+='<span style="color:#16a34a;font-size:11px">✅ '+r.candidates[0].bride+' &amp; '+r.candidates[0].groom+' ('+(r.candidates[0].city||'—')+')</span>';
+    } else {
+      html+='<select class="fi" style="font-size:11px;padding:4px 6px" onchange="wpBulkPickChoice('+i+',this.value)"><option value="">— multiple matches, pick one —</option>';
+      r.candidates.forEach(function(c){ html+='<option value="'+c.id+'">'+c.bride+' &amp; '+c.groom+' ('+(c.city||'—')+')</option>'; });
+      html+='</select>';
+    }
+    html+='</td></tr>';
+  });
+  html+='</tbody></table>';
+  html+='<button class="btn" style="background:#16a34a;color:#fff;padding:8px 16px;font-size:12.5px;font-weight:700;margin-top:10px" onclick="wpBulkAssignAll()">✅ Assign '+matched+' Matched Client'+(matched!==1?'s':'')+'</button>';
+  html+='</div>';
+  el.innerHTML=html;
+}
+function wpBulkAssignAll(){
+  var mk=(document.getElementById('wp-bulk-month')||{}).value;
+  if(!mk){ showToast('⚠️ Pick a target month first.'); return; }
+  var updates={}, count=0;
+  _wpBulkResults.forEach(function(r){
+    var id=r.chosenId; if(!id) return;
+    updates['crm_projects/'+id+'/wpTargetMonth']=mk;
+    updates['crm_projects/'+id+'/updatedAt']=Date.now();
+    if(projects[id]){ projects[id].wpTargetMonth=mk; projects[id].updatedAt=Date.now(); }
+    count++;
+  });
+  if(!count){ showToast('⚠️ Nothing to assign yet — resolve the matches above first.'); return; }
+  db.ref().update(updates, function(err){
+    if(err){ showToast('❌ Could not save: '+err.message); return; }
+    showToast('✅ Assigned '+count+' client(s) to '+wpMonthLabel(mk));
+    _wpBulkResults=[];
+    var ta=document.getElementById('wp-bulk-paste'); if(ta) ta.value='';
+    var res=document.getElementById('wp-bulk-results'); if(res) res.innerHTML='';
+    renderWorkProgress();
+  });
+}
 function renderWorkProgress(){
   var el=document.getElementById('wp-content'); if(!el) return;
+  wpFillBulkMonthSelect();
   var priorityOnly=(document.getElementById('wp-priority-only')||{}).value||'';
   var search=((document.getElementById('wp-search')||{}).value||'').trim().toLowerCase();
   var quickMode=(document.getElementById('wp-quick-mode')||{}).checked||false;
