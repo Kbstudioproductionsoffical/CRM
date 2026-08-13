@@ -109,6 +109,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .btn-sm{padding:5px 10px;font-size:11px;border-radius:6px}
 .btn-view{background:#f8f8f8;border:1px solid #ddd;border-radius:6px;padding:5px 11px;font-size:12px;cursor:pointer;font-family:inherit}
 .btn-view.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.wp-drop-target{outline:2px dashed #2563eb;outline-offset:-2px;background:#eff6ff !important}
 .fl{font-size:12px;color:#555;margin-bottom:4px;display:block;font-weight:600}
 .fr{margin-bottom:12px}
 .fi{width:100%;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:inherit;background:#fff}
@@ -10914,22 +10915,48 @@ function renderWorkProgress(){
   el.innerHTML=html;
 }
 // ── Priority reordering within a month group ────────────────────────────
-// Drag handle (mouse/desktop) + ▲▼ buttons (always work, incl. touch/mobile)
-// both call through to the same persist step, so priority order is a real,
-// saved field (wpOrder) — not just a visual reshuffle that resets on refresh.
-var _wpDrag={pid:null,mk:null};
-function wpDragStart(ev,pid,mk){
-  _wpDrag={pid:pid,mk:mk};
-  ev.currentTarget.style.opacity='0.4';
-  try{ ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',String(pid)); }catch(e){}
-}
-function wpDragEnd(ev){ ev.currentTarget.style.opacity=''; _wpDrag={pid:null,mk:null}; }
-function wpDragOver(ev){ ev.preventDefault(); try{ ev.dataTransfer.dropEffect='move'; }catch(e){} }
-function wpDrop(ev,targetPid,mk){
+// A manual pointer-based drag (not native HTML5 draggable) — native drag on
+// table rows is unreliable across browsers, especially with <select>/button
+// elements inside the row stealing the mousedown before drag can start.
+// This only starts from the ⠿ handle itself, tracks the pointer, and
+// highlights whichever row it's currently over — works with mouse AND touch.
+// The ▲▼ buttons remain as a second, always-reliable way to reorder.
+var _wpDrag={active:false,pid:null,mk:null,targetPid:null};
+function wpHandlePointerDown(ev,pid,mk){
   ev.preventDefault();
-  if(_wpDrag.pid==null || _wpDrag.mk!==mk || _wpDrag.pid===targetPid) return;
+  _wpDrag={active:true,pid:pid,mk:mk,targetPid:null};
+  document.addEventListener('pointermove',wpHandlePointerMove);
+  document.addEventListener('pointerup',wpHandlePointerUp);
+  document.addEventListener('pointercancel',wpHandlePointerUp);
+  var src=document.querySelector('[data-wp-row="'+pid+'"]');
+  if(src) src.style.opacity='0.4';
+}
+function wpHandlePointerMove(ev){
+  if(!_wpDrag.active) return;
+  ev.preventDefault();
+  var el=document.elementFromPoint(ev.clientX,ev.clientY);
+  var row=el&&el.closest?el.closest('[data-wp-row]'):null;
+  document.querySelectorAll('.wp-drop-target').forEach(function(r){ r.classList.remove('wp-drop-target'); });
+  if(row && row.dataset.wpMk===_wpDrag.mk && row.dataset.wpRow!==String(_wpDrag.pid)){
+    row.classList.add('wp-drop-target');
+    _wpDrag.targetPid=parseInt(row.dataset.wpRow,10);
+  } else {
+    _wpDrag.targetPid=null;
+  }
+}
+function wpHandlePointerUp(){
+  if(!_wpDrag.active) return;
+  document.removeEventListener('pointermove',wpHandlePointerMove);
+  document.removeEventListener('pointerup',wpHandlePointerUp);
+  document.removeEventListener('pointercancel',wpHandlePointerUp);
+  document.querySelectorAll('.wp-drop-target').forEach(function(r){ r.classList.remove('wp-drop-target'); });
+  var src=document.querySelector('[data-wp-row="'+_wpDrag.pid+'"]');
+  if(src) src.style.opacity='';
+  var pid=_wpDrag.pid, mk=_wpDrag.mk, targetPid=_wpDrag.targetPid;
+  _wpDrag={active:false,pid:null,mk:null,targetPid:null};
+  if(targetPid==null || targetPid===pid) return;
   var list=(_wpLastGroups[mk]||[]).slice();
-  var fromIdx=list.findIndex(function(p){return p.id===_wpDrag.pid;});
+  var fromIdx=list.findIndex(function(p){return p.id===pid;});
   var toIdx=list.findIndex(function(p){return p.id===targetPid;});
   if(fromIdx===-1||toIdx===-1) return;
   var item=list.splice(fromIdx,1)[0];
@@ -11101,7 +11128,7 @@ function wpMonthSelect(p){
 // of scrolling past full status cards for each one.
 function wpClientRowCompact(p,border,mk,idx,total){
   mk=mk||''; idx=idx||0; total=total||1;
-  return '<div draggable="true" ondragstart="wpDragStart(event,'+p.id+',\''+mk+'\')" ondragend="wpDragEnd(event)" ondragover="wpDragOver(event)" ondrop="wpDrop(event,'+p.id+',\''+mk+'\')" '+
+  return '<div data-wp-row="'+p.id+'" data-wp-mk="'+mk+'" '+
     'style="display:flex;align-items:center;gap:10px;padding:8px 14px;'+(border?'border-bottom:1px solid #f0f0f0':'')+'">' +
     wpOrderControls(p,mk,idx,total) +
     '<div style="flex:1;min-width:150px;cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')">' +
@@ -11113,11 +11140,14 @@ function wpClientRowCompact(p,border,mk,idx,total){
 }
 // Drag handle + ▲▼ move buttons, shared by both row styles. Buttons are
 // disabled (not hidden) at the top/bottom of a group so the row heights
-// stay aligned down the list.
+// stay aligned down the list. The handle starts a pointer-based drag (see
+// wpHandlePointerDown) rather than native HTML5 drag, which is unreliable
+// on table rows and gets swallowed by the <select>/<button> elements
+// sitting inside the same row.
 function wpOrderControls(p,mk,idx,total){
   var atTop=idx<=0, atBottom=idx>=total-1;
   return '<span style="display:flex;align-items:center;gap:2px;flex-shrink:0">' +
-    '<span title="Drag to reorder" style="cursor:grab;color:#ccc;font-size:14px;padding:2px 2px;user-select:none">⠿</span>' +
+    '<span title="Drag to reorder" onpointerdown="wpHandlePointerDown(event,'+p.id+',\''+mk+'\')" style="cursor:grab;color:#999;font-size:16px;padding:2px 4px;user-select:none;touch-action:none">⠿</span>' +
     '<span style="display:flex;flex-direction:column">' +
       '<button type="button" title="Move up (higher priority)" onclick="event.stopPropagation();wpMove('+p.id+',\''+mk+'\',-1)" '+(atTop?'disabled':'')+' style="border:none;background:none;cursor:'+(atTop?'default':'pointer')+';color:'+(atTop?'#e0e0e0':'#888')+';font-size:10px;line-height:10px;padding:1px 3px">▲</button>' +
       '<button type="button" title="Move down (lower priority)" onclick="event.stopPropagation();wpMove('+p.id+',\''+mk+'\',1)" '+(atBottom?'disabled':'')+' style="border:none;background:none;cursor:'+(atBottom?'default':'pointer')+';color:'+(atBottom?'#e0e0e0':'#888')+';font-size:10px;line-height:10px;padding:1px 3px">▼</button>' +
@@ -11142,7 +11172,7 @@ function wpAmbiguousFlag(p){
 function wpClientRow(p,videoTypes,mk,idx,total){
   mk=mk||''; idx=idx||0; total=total||1;
   var delivs=p.customDelivs||[];
-  var html='<tr draggable="true" ondragstart="wpDragStart(event,'+p.id+',\''+mk+'\')" ondragend="wpDragEnd(event)" ondragover="wpDragOver(event)" ondrop="wpDrop(event,'+p.id+',\''+mk+'\')">';
+  var html='<tr data-wp-row="'+p.id+'" data-wp-mk="'+mk+'">';
   html+='<td style="text-align:center;vertical-align:middle">'+wpOrderControls(p,mk,idx,total)+'</td>';
   html+='<td style="cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')"><div style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+wpAmbiguousFlag(p)+'</div>' +
     '<div style="font-size:10.5px;color:#999;margin-top:2px">'+(p.city||'—')+' · '+(p.date?('Event: '+fmtDate(p.date)):'No event date')+'</div></td>';
