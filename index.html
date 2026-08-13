@@ -11256,15 +11256,19 @@ function wpDelivPill(vt,matches,pid){
   Object.keys(STATUS_META).forEach(function(k){ if(STATUS_META[k].urgency===worstUrgency) worstColor=STATUS_META[k].color; });
   var chips=rows.map(function(r){
     var m=meta(r.status);
-    var noteFlag=r.note?'<span title="'+r.note.replace(/"/g,'&quot;')+'">📝</span>':'';
-    return '<div style="display:flex;align-items:center;gap:3px;font-size:9.5px;line-height:1.55;white-space:nowrap"><span>'+m.icon+'</span><span style="color:#555;font-weight:700">'+(r.label||'Item')+':</span>' +
-      '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:9.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:0;max-width:104px">'+delivStatusOptionsHtml(r.status)+'</select>'+noteFlag+'</div>';
+    var noteFlag=r.note?'<span title="'+r.note.replace(/"/g,'&quot;')+'" style="flex-shrink:0">📝</span>':'';
+    return '<div style="display:flex;align-items:center;gap:3px;font-size:9.5px;line-height:1.55;min-width:0"><span style="flex-shrink:0">'+m.icon+'</span><span style="color:#555;font-weight:700;flex-shrink:0">'+(r.label||'Item')+':</span>' +
+      '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:9.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:0;min-width:0;flex:1 1 auto;text-overflow:ellipsis">'+delivStatusOptionsHtml(r.status)+'</select>'+noteFlag+'</div>';
   }).join('');
   var tooltip=rows.map(function(r){ return (r.label||'Item')+': '+meta(r.status).label; }).join(' · ');
   var hint=(sameCat && matches.length>1 && !matches.some(function(d){return d.reelItems&&d.reelItems.length>1;}))?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px;font-weight:600">⚠️ Tag by event for clarity</div>':'';
-  return '<div style="display:inline-block;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:8px;padding:4px 4px 4px 8px;min-width:92px" title="'+tooltip+'">' +
+  // Boxed to the column's own width (not inline-block/unbounded) and the
+  // chip list scrolls internally past a handful of rows — otherwise a
+  // client with many reels (or, later, per-reel notes) just gets hard-cut
+  // by the table wrapper's overflow:hidden with no way to see the rest.
+  return '<div style="display:block;max-width:100%;box-sizing:border-box;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:8px;padding:4px 4px 4px 8px;min-width:92px" title="'+tooltip+'">' +
     '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:0 0 2px 4px">↗</button></div>' +
-    chips+hint+
+    '<div style="max-height:130px;overflow-y:auto;overflow-x:hidden;padding-right:2px">'+chips+'</div>'+hint+
   '</div>';
 }
 // Change a deliverable's status directly from Work Progress, without
@@ -15310,10 +15314,16 @@ $('btn-save-proj').addEventListener('click',function(){
   // ── Sanity check: booking date should not be AFTER the event date ──
   // Doesn't block the save outright (a late data-entry for a past event can be
   // legitimate) but forces a deliberate confirmation so it isn't a silent mistake.
+  // The visible "Wedding/Event Date *" field (f-date) is always the source of
+  // truth here — NOT the day-by-day event schedule. That schedule (Haldi/
+  // Sangeet/Wedding shoot days) can go stale or out of sync with f-date (e.g.
+  // someone corrects the main date but forgets the schedule), and comparing
+  // against it silently used to produce a warning quoting a date the user
+  // can't even see on the form. A schedule/field mismatch is now its own,
+  // clearly-labelled check instead of feeding bad data into this one.
   var _bdCheck = gv('f-bookdate');
   if (_bdCheck) {
-    var _evDaysNow = collectEventDays();
-    var _edCheck = _evDaysNow.length ? _evDaysNow.map(function(d){return d.date;}).sort()[0] : gv('f-date');
+    var _edCheck = gv('f-date');
     if (_edCheck) {
       var _bdDateCheck = new Date(_bdCheck), _edDateCheck = new Date(_edCheck);
       if (!isNaN(_bdDateCheck.getTime()) && !isNaN(_edDateCheck.getTime()) && _bdDateCheck > _edDateCheck) {
@@ -15321,6 +15331,12 @@ $('btn-save-proj').addEventListener('click',function(){
         var _dateOk = confirm('⚠️ Booking date (' + _bdCheck + ') is ' + _daysOff + ' day' + (_daysOff!==1?'s':'') + ' AFTER the event date (' + _edCheck + ').\n\nThis is unusual and will be flagged in Healthcheck. Save anyway?');
         if (!_dateOk) return;
       }
+    }
+    var _evDaysNow = collectEventDays();
+    var _earliestSched = _evDaysNow.length ? _evDaysNow.map(function(d){return d.date;}).sort()[0] : '';
+    if (_earliestSched && _edCheck && _earliestSched !== _edCheck) {
+      var _schedOk = confirm('⚠️ Your event-day schedule\'s earliest date (' + _earliestSched + ') doesn\'t match the Wedding/Event Date field (' + _edCheck + ').\n\nThey\'ll show inconsistent info around the app until this is fixed. Save anyway?');
+      if (!_schedOk) return;
     }
   }
   _projSaving=true;
@@ -18773,6 +18789,28 @@ var HC_CHECKS = [
     },
     field: null,
     inputHtml: function(p){ return '<div style="background:#fef9c3;border-radius:6px;padding:8px 10px;font-size:11px;color:#854d0e">This project has <strong>'+((p.eventDays||[]).length)+' event day(s)</strong> with no dates set.<br><div style="margin-top:6px"><button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Set Event Dates</button></div></div>'; }
+  },
+  {
+    type: 'eventdate', key: 'eventdate_schedule_mismatch',
+    label: 'Wedding/Event Date doesn\'t match the event-day schedule', icon: '📅', severity: 'high',
+    // firstEventDate(p) — the earliest date in the day-by-day event schedule —
+    // is what Shoot Calendar, Pipeline filters, payment due-dates, and the
+    // other Health Check date rules all actually use as "the" event date.
+    // If it's ever silently drifted away from the plain p.date field (e.g.
+    // someone corrected one and not the other), every one of those places
+    // is quietly working off the wrong date. This scans every client for
+    // that drift, not just ones that happen to also fail booking_after_event.
+    test: function(p){
+      if (!p.eventDays || p.eventDays.length === 0) return false;
+      var fed = firstEventDate(p);
+      return !!(fed && p.date && fed !== p.date);
+    },
+    field: 'date',
+    inputHtml: function(p){
+      return '<div style="background:#fef9c3;border-radius:6px;padding:8px 10px;font-size:11px;color:#854d0e">'+
+        'Wedding/Event Date field says <b>'+p.date+'</b> but the earliest event-day in the schedule says <b>'+firstEventDate(p)+'</b>.'+
+        '<div style="margin-top:6px"><button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Fix Dates</button></div></div>';
+    }
   },
   {
     type: 'bookdate', key: 'no_booking_date',
