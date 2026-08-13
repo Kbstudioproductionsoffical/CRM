@@ -11104,9 +11104,12 @@ function wpExportRows(){
   var filterSet=wpGetExportStatusFilter();
   var rows=[];
   monthKeys.forEach(function(mk){
-    var list=groups[mk].slice().sort(function(a,b){ return (a.bride||'').localeCompare(b.bride||''); });
-    list.forEach(function(p){
+    // groups[mk] is already in the on-screen priority (drag) order — renderWorkProgress
+    // sorts it that way and stores it back — so just use it as-is, don't re-sort A–Z.
+    var list=groups[mk].slice();
+    list.forEach(function(p,idx){
       var row={
+        seq:idx+1,
         client:(p.bride||'')+' & '+(p.groom||''),
         city:p.city||'—',
         eventDate:p.date?fmtDate(p.date):'—',
@@ -11132,17 +11135,17 @@ function wpExportRows(){
 function wpExportExcel(){
   var data=wpExportRows();
   if(!data.rows.length){ showToast(data.filtered?'⚠️ No clients match the selected statuses for this selection.':'⚠️ No clients to export for this selection.'); return; }
-  var header=['Client','City','Event Date','Target Month'].concat(data.videoTypes.map(function(vt){return vt.type;})).concat(['Notes']);
+  var header=['#','Client','City','Event Date','Target Month'].concat(data.videoTypes.map(function(vt){return vt.type;})).concat(['Notes']);
   var aoa=[header];
   data.rows.forEach(function(r){
-    var line=[r.client,r.city,r.eventDate,r.targetMonth];
+    var line=[r.seq,r.client,r.city,r.eventDate,r.targetMonth];
     data.videoTypes.forEach(function(vt){ line.push(r[vt.type]); });
     line.push(r.notes||'');
     aoa.push(line);
   });
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:26},{wch:14},{wch:14},{wch:16}].concat(data.videoTypes.map(function(){return {wch:20};})).concat([{wch:36}]);
+  ws['!cols']=[{wch:5},{wch:26},{wch:14},{wch:14},{wch:16}].concat(data.videoTypes.map(function(){return {wch:20};})).concat([{wch:36}]);
   XLSX.utils.book_append_sheet(wb,ws,'Work Progress');
   XLSX.writeFile(wb,'KB_Work_Progress_'+data.monthLabel.replace(/\s+/g,'_')+(data.filtered?'_Outstanding':'')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showToast('✅ Excel exported'+(data.filtered?' ('+data.rows.length+' with outstanding work)':'')+'!');
@@ -11166,7 +11169,7 @@ function wpExportPDF(){
   doc.setTextColor(154,52,18); doc.setFontSize(9); doc.setFont('helvetica','bold');
   doc.text(data.rows.length+' client'+(data.rows.length!==1?'s':'')+' — '+data.monthLabel+(data.filtered?' — deliverables outstanding, fully-approved clients excluded':''),18,29);
 
-  var baseCols=[{header:'Client',width:52},{header:'City',width:24},{header:'Event Date',width:24},{header:'Target Month',width:26}];
+  var baseCols=[{header:'#',width:10},{header:'Client',width:48},{header:'City',width:22},{header:'Event Date',width:22},{header:'Target Month',width:26}];
   var vtCols=data.videoTypes.map(function(vt){return {header:vt.type,width:34};});
   var cols=baseCols.concat(vtCols).concat([{header:'Notes',width:pageW-28-baseCols.concat(vtCols).reduce(function(s,c){return s+c.width;},0)}]);
   var startX=14, rowH=9, currentY=36;
@@ -11184,10 +11187,10 @@ function wpExportPDF(){
     if(currentY+rowH>pageH-12){ doc.addPage(); currentY=14; drawHeader(currentY); currentY+=rowH; }
     if(i%2===0){ doc.setFillColor(249,250,251); doc.rect(startX,currentY,pageW-28,rowH,'F'); }
     doc.setDrawColor(240,240,240); doc.line(startX,currentY+rowH,startX+(pageW-28),currentY+rowH);
-    var vals=[r.client,r.city,r.eventDate,r.targetMonth].concat(data.videoTypes.map(function(vt){return r[vt.type];})).concat([r.notes||'—']);
+    var vals=[r.seq,r.client,r.city,r.eventDate,r.targetMonth].concat(data.videoTypes.map(function(vt){return r[vt.type];})).concat([r.notes||'—']);
     var cx=startX+3;
     vals.forEach(function(v,vi){
-      doc.setFont('helvetica',vi===0?'bold':'normal'); doc.setFontSize(7);
+      doc.setFont('helvetica',vi===1?'bold':'normal'); doc.setFontSize(7);
       doc.setTextColor(30,30,30);
       doc.text(String(v||'—'),cx,currentY+6,{maxWidth:cols[vi].width-4});
       cx+=cols[vi].width;
