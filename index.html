@@ -1785,6 +1785,11 @@ document.addEventListener('wheel', function(e) {
         </label>
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="$('wp-priority-only').value='';$('wp-search').value='';renderWorkProgress()">Clear</button>
         <span style="font-size:11.5px;color:#888;margin-left:4px">Set each client's finish month with the dropdown. Turn on Quick Assign mode to skip the deliverable cards and just search + assign fast, A–Z.</span>
+        <span style="flex-basis:100%;height:0"></span>
+        <span style="font-size:13px;font-weight:600;color:#555">Export:</span>
+        <select id="wp-export-month" class="fi" style="width:190px;padding:7px 10px;font-size:13px"></select>
+        <button class="btn" style="padding:7px 14px;font-size:13px" onclick="wpExportPDF()">📄 Export PDF</button>
+        <button class="btn" style="padding:7px 14px;font-size:13px" onclick="wpExportExcel()">📊 Export Excel</button>
       </div>
 
       <div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 16px;margin-bottom:18px">
@@ -9322,6 +9327,15 @@ function renderDelivRows(){
       html+='<div><span style="font-size:10px;color:#888;font-weight:600;display:block;margin-bottom:2px">QTY</span><input type="number" class="dlv-field" data-field="qty" data-idx="'+i+'" value="'+(d.qty||1)+'" min="1" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px"></div>';
       html+='<div><span style="font-size:10px;color:#888;font-weight:600;display:block;margin-bottom:2px">SPECS / NOTES</span><input type="text" class="dlv-field" data-field="specs" data-idx="'+i+'" value="'+(d.specs||'')+'" placeholder="e.g. 250 pics, 10x12 size, frame dimensions..." style="width:100%;border:1px solid #ddd;border-radius:6px;padding:4px 6px;font-size:12px"></div>';
       html+='</div>';
+      // Team note — a free-text note anyone with access to this deliverable
+      // (post-production team, video/album heads, admins, relationship
+      // managers) can leave or read. Separate from Specs (physical specs
+      // like size/photo count) — this is for instructions / flags like
+      // "client wants slow-motion intro" or "priority — client anxious".
+      html+='<div style="margin-bottom:6px">';
+      html+='<span style="font-size:10px;color:#b45309;font-weight:700;display:block;margin-bottom:2px">📝 TEAM NOTE '+(d.note?'':'<span style="font-weight:500;color:#bbb">(visible to post-production team)</span>')+'</span>';
+      html+='<textarea class="dlv-field" data-field="note" data-idx="'+i+'" placeholder="Add a note for whoever works on this deliverable..." style="width:100%;min-height:40px;border:1px solid '+(d.note?'#fcd34d':'#ddd')+';background:'+(d.note?'#fffbeb':'#fff')+';border-radius:6px;padding:6px 8px;font-size:12px;font-family:inherit;resize:vertical">'+(d.note||'')+'</textarea>';
+      html+='</div>';
 
       // ── Per-reel sub-rows (only for Reel-type/named deliverables with qty > 1) ──
       var qty=parseInt(d.qty)||1;
@@ -10818,6 +10832,8 @@ function renderWorkProgress(){
 
   var monthKeys=Object.keys(groups).filter(function(k){return k!=='unplanned';}).sort();
   if(groups.unplanned) monthKeys.push('unplanned');
+  _wpLastGroups=groups; _wpLastVideoTypes=videoTypes; // kept for export, respects current filters
+  wpFillExportMonthSelect(monthKeys);
   if(!monthKeys.length){ el.innerHTML='<div class="empty">No clients currently in Post-Production match this filter.</div>'; return; }
 
   var html='';
@@ -10843,6 +10859,133 @@ function renderWorkProgress(){
     html+='</div>';
   });
   el.innerHTML=html;
+}
+// ── Export (respects the current Filter: priority/search, and lets the
+// user pick one target month or all of them) ────────────────────────────
+var _wpLastGroups={}, _wpLastVideoTypes=[];
+function wpFillExportMonthSelect(monthKeys){
+  var sel=document.getElementById('wp-export-month'); if(!sel) return;
+  var cur=sel.value;
+  var opts='<option value="__all__">All months (current filter)</option>';
+  monthKeys.forEach(function(mk){
+    opts+='<option value="'+mk+'">'+(mk==='unplanned'?'Not Yet Assigned':wpMonthLabel(mk))+'</option>';
+  });
+  sel.innerHTML=opts;
+  if(cur && monthKeys.concat('__all__').indexOf(cur)!==-1) sel.value=cur;
+}
+function wpDelivStatusText(p,vt){
+  var delivs=p.customDelivs||[];
+  var matches=delivs.filter(function(d){
+    if(d.type===vt.type) return true;
+    var exactOther=_wpLastVideoTypes.some(function(o){return o.type===d.type;});
+    return !exactOther && vt.nameRegex && vt.nameRegex.test((d.name||'').toLowerCase());
+  });
+  var LBL={delivered:'Delivered',pending:'Not Started',inprogress:'In Progress',changes:'Changes Req.'};
+  if(!matches.length) return 'Not Added';
+  return matches.map(function(d){
+    var tag=(d.category && d.category!=='Other')?d.category+': ':'';
+    return tag+(LBL[d.status]||'Not Started');
+  }).join(' | ');
+}
+function wpDelivNotesText(p){
+  var delivs=p.customDelivs||[];
+  return delivs.filter(function(d){return d.note;}).map(function(d){ return (d.name||d.type||'Item')+' — '+d.note; }).join(' | ');
+}
+function wpExportRows(){
+  var monthSel=(document.getElementById('wp-export-month')||{}).value||'__all__';
+  var groups=_wpLastGroups, videoTypes=_wpLastVideoTypes;
+  var monthKeys=monthSel==='__all__'?Object.keys(groups):[monthSel];
+  monthKeys=monthKeys.filter(function(k){return groups[k];});
+  monthKeys.sort(function(a,b){ if(a==='unplanned')return 1; if(b==='unplanned')return -1; return a.localeCompare(b); });
+  var rows=[];
+  monthKeys.forEach(function(mk){
+    var list=groups[mk].slice().sort(function(a,b){ return (a.bride||'').localeCompare(b.bride||''); });
+    list.forEach(function(p){
+      var row={
+        client:(p.bride||'')+' & '+(p.groom||''),
+        city:p.city||'—',
+        eventDate:p.date?fmtDate(p.date):'—',
+        targetMonth:mk==='unplanned'?'Not Yet Assigned':wpMonthLabel(mk),
+        notes:wpDelivNotesText(p)
+      };
+      videoTypes.forEach(function(vt){ row[vt.type]=wpDelivStatusText(p,vt); });
+      rows.push(row);
+    });
+  });
+  return {rows:rows, videoTypes:videoTypes, monthLabel: monthSel==='__all__'?'All Months':(monthSel==='unplanned'?'Not Yet Assigned':wpMonthLabel(monthSel))};
+}
+function wpExportExcel(){
+  var data=wpExportRows();
+  if(!data.rows.length){ showToast('⚠️ No clients to export for this selection.'); return; }
+  var header=['Client','City','Event Date','Target Month'].concat(data.videoTypes.map(function(vt){return vt.type;})).concat(['Notes']);
+  var aoa=[header];
+  data.rows.forEach(function(r){
+    var line=[r.client,r.city,r.eventDate,r.targetMonth];
+    data.videoTypes.forEach(function(vt){ line.push(r[vt.type]); });
+    line.push(r.notes||'');
+    aoa.push(line);
+  });
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:26},{wch:14},{wch:14},{wch:16}].concat(data.videoTypes.map(function(){return {wch:20};})).concat([{wch:36}]);
+  XLSX.utils.book_append_sheet(wb,ws,'Work Progress');
+  XLSX.writeFile(wb,'KB_Work_Progress_'+data.monthLabel.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showToast('✅ Excel exported!');
+}
+function wpExportPDF(){
+  var data=wpExportRows();
+  if(!data.rows.length){ showToast('⚠️ No clients to export for this selection.'); return; }
+  var jsPDFLib=window.jspdf && window.jspdf.jsPDF;
+  if(!jsPDFLib){ showToast('PDF library not loaded'); return; }
+  var doc=new jsPDFLib({orientation:'landscape',unit:'mm',format:'a4'});
+  var pageW=doc.internal.pageSize.getWidth(), pageH=doc.internal.pageSize.getHeight();
+
+  doc.setFillColor(26,26,26); doc.rect(0,0,pageW,18,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(12); doc.setFont('helvetica','bold');
+  doc.text('KB Studio Productions — Work Progress: '+data.monthLabel,14,12);
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.text('Exported: '+new Date().toLocaleString('en-IN'),pageW-14,12,{align:'right'});
+
+  doc.setFillColor(255,247,237); doc.setDrawColor(254,215,170);
+  doc.roundedRect(14,22,pageW-28,10,2,2,'FD');
+  doc.setTextColor(154,52,18); doc.setFontSize(9); doc.setFont('helvetica','bold');
+  doc.text(data.rows.length+' client'+(data.rows.length!==1?'s':'')+' — '+data.monthLabel,18,29);
+
+  var baseCols=[{header:'Client',width:52},{header:'City',width:24},{header:'Event Date',width:24},{header:'Target Month',width:26}];
+  var vtCols=data.videoTypes.map(function(vt){return {header:vt.type,width:34};});
+  var cols=baseCols.concat(vtCols).concat([{header:'Notes',width:pageW-28-baseCols.concat(vtCols).reduce(function(s,c){return s+c.width;},0)}]);
+  var startX=14, rowH=9, currentY=36;
+
+  function drawHeader(y){
+    doc.setFillColor(248,250,252); doc.rect(startX,y,pageW-28,rowH,'F');
+    doc.setDrawColor(229,231,235); doc.rect(startX,y,pageW-28,rowH,'D');
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(30,30,30);
+    var cx=startX+3;
+    cols.forEach(function(c){ doc.text(c.header,cx,y+6); cx+=c.width; });
+  }
+  drawHeader(currentY); currentY+=rowH;
+
+  data.rows.forEach(function(r,i){
+    if(currentY+rowH>pageH-12){ doc.addPage(); currentY=14; drawHeader(currentY); currentY+=rowH; }
+    if(i%2===0){ doc.setFillColor(249,250,251); doc.rect(startX,currentY,pageW-28,rowH,'F'); }
+    doc.setDrawColor(240,240,240); doc.line(startX,currentY+rowH,startX+(pageW-28),currentY+rowH);
+    var vals=[r.client,r.city,r.eventDate,r.targetMonth].concat(data.videoTypes.map(function(vt){return r[vt.type];})).concat([r.notes||'—']);
+    var cx=startX+3;
+    vals.forEach(function(v,vi){
+      doc.setFont('helvetica',vi===0?'bold':'normal'); doc.setFontSize(7);
+      doc.setTextColor(30,30,30);
+      doc.text(String(v||'—'),cx,currentY+6,{maxWidth:cols[vi].width-4});
+      cx+=cols[vi].width;
+    });
+    currentY+=rowH;
+  });
+
+  doc.setTextColor(150,150,150); doc.setFontSize(7); doc.setFont('helvetica','normal');
+  doc.text('KB Studio CRM — Confidential',14,pageH-5);
+  doc.text('Total: '+data.rows.length+' records',pageW-14,pageH-5,{align:'right'});
+
+  doc.save('KB_Work_Progress_'+data.monthLabel.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
+  showToast('✅ PDF exported!');
 }
 // Shared month-picker markup, used by every row style
 function wpMonthSelect(p){
@@ -10907,7 +11050,9 @@ function wpDelivPill(vt,matches,pid){
   if(matches.length===1){
     var d=matches[0], m=meta(d.status);
     var tag=(d.category && d.category!=='Other')?d.category+' — ':'';
-    return '<span style="display:inline-block;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:5px 8px;font-size:10.5px;color:'+m.color+';font-weight:700;cursor:pointer;min-width:76px" onclick="openProject('+pid+',\'t-deliv\')" title="'+tag+m.label+'">'+tag+m.icon+' '+m.label+'</span>';
+    var noteTip=d.note?(' — 📝 '+d.note.replace(/"/g,'&quot;')):'';
+    var noteFlag=d.note?'<span style="margin-left:3px" title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'';
+    return '<span style="display:inline-block;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:5px 8px;font-size:10.5px;color:'+m.color+';font-weight:700;cursor:pointer;min-width:76px" onclick="openProject('+pid+',\'t-deliv\')" title="'+tag+m.label+noteTip+'">'+tag+m.icon+' '+m.label+noteFlag+'</span>';
   }
 
   // Multiple items in this bucket — almost always one per event (Haldi vs
@@ -10921,7 +11066,8 @@ function wpDelivPill(vt,matches,pid){
     var m=meta(d.status);
     var tag=(!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(idx+1));
     var tagColor=(!sameCat && d.category && d.category!=='Other')?catColorFor(d.category):'#555';
-    return '<div style="display:flex;align-items:center;gap:4px;font-size:9.5px;line-height:1.55;white-space:nowrap"><span>'+m.icon+'</span><span style="color:'+tagColor+';font-weight:700">'+tag+':</span><span style="color:'+m.color+';font-weight:700">'+m.label+'</span></div>';
+    var noteFlag=d.note?'<span title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'';
+    return '<div style="display:flex;align-items:center;gap:4px;font-size:9.5px;line-height:1.55;white-space:nowrap"><span>'+m.icon+'</span><span style="color:'+tagColor+';font-weight:700">'+tag+':</span><span style="color:'+m.color+';font-weight:700">'+m.label+'</span>'+noteFlag+'</div>';
   }).join('');
   var tooltip=matches.map(function(d,idx){ var m=meta(d.status); var tag=(!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(idx+1)); return tag+': '+m.label; }).join(' · ');
   var hint=sameCat?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px;font-weight:600">⚠️ Tag by event for clarity</div>':'';
@@ -11098,6 +11244,12 @@ function renderPostProd(){
         eHtml+='<div><span style="color:#888">⏰ Deadline:</span> '+deadlineText+'</div>';
         eHtml+=(d.specs?'<div style="grid-column:1/-1"><span style="color:#888">📐 Specs:</span> '+d.specs+'</div>':'');
         eHtml+='</div>';
+        if(d.note){
+          eHtml+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:8px 10px;margin-bottom:10px">'
+            +'<div style="font-size:10.5px;font-weight:800;color:#854d0e;margin-bottom:2px">📝 Note</div>'
+            +'<div style="font-size:12.5px;color:#78350f;line-height:1.5">'+escHtml(d.note)+'</div>'
+            +'</div>';
+        }
         eHtml+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+actionBtns+'</div>';
         eHtml+='</div>';
       });
@@ -11334,7 +11486,7 @@ function renderPostProd(){
       ready.forEach(function(item){
         var d=item.d;var p=item.p;
         var edOpts='<option value="">— Select Editor —</option>'+editors.map(function(e){return '<option value="'+e.id+'" '+(d.editorId===e.id?'selected':'')+'>'+e.name+' ('+(e.city||e.region||'—')+')</option>';}).join('');
-        html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div><span style="font-size:11px;color:#888">'+(d.category||d.type||'')+'</span></td>';
+        html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+(d.note?' <span title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'')+'</div><span style="font-size:11px;color:#888">'+(d.category||d.type||'')+'</span></td>';
         html+='<td style="font-weight:600">'+item.couple+'</td>';
         html+='<td style="text-align:center">'+ppAgingBadge(daysInPostProd(p))+'</td>';
         html+='<td style="font-size:12px;color:#888">'+(d.specs||'—')+'</td>';
@@ -19406,7 +19558,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canMarkSelection:true, canAssignAlbumTasks:true
   },
   postprod: {
-    pages: ['dashboard', 'postprod', 'workprogress', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -19416,7 +19568,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManagePostProd:true, canMarkSelection:true
   },
   videohead: {
-    pages: ['dashboard', 'postprod', 'workprogress', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
