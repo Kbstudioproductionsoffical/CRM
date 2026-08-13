@@ -11048,23 +11048,59 @@ function wpFillExportMonthSelect(monthKeys){
   sel.innerHTML=opts;
   if(cur && monthKeys.concat('__all__').indexOf(cur)!==-1) sel.value=cur;
 }
-function wpDelivStatusText(p,vt,filterSet){
+// Returns an ARRAY of lines (not a joined string) so the PDF can put each
+// item on its own line (wrapped, nothing cut) while Excel can join them
+// with a separator. "Wedding" is the default category almost every
+// deliverable is filed under, so tagging every single line with it just
+// repeats "Wedding: Wedding: Wedding:" across the whole sheet — only tag a
+// line with its category when that category is meaningful (i.e. not the
+// default 'Wedding' and not 'Other'), or fall back to a plain Item N so
+// same-category duplicates are still distinguishable. Reel deliverables
+// with a qty>1 breakdown (reelItems[]) are expanded into one "Reel N:
+// Status" line each, exactly like the in-project Reel Breakdown / the
+// on-screen wpDelivPill chips — so a client with 3 reels shows which
+// specific reel is pending vs which needs changes, instead of one
+// lumped-together status.
+function wpDelivStatusLines(p,vt,filterSet){
   var delivs=p.customDelivs||[];
   var matches=delivs.filter(function(d){
     if(d.type===vt.type) return true;
     var exactOther=_wpLastVideoTypes.some(function(o){return o.type===d.type;});
     return !exactOther && vt.nameRegex && vt.nameRegex.test((d.name||'').toLowerCase());
   });
-  if(filterSet) matches=matches.filter(function(d){ return filterSet[d.status||'pending']; });
-  if(!matches.length) return filterSet?'':'Not Added'; // under a status filter, a non-match should just be blank, not flagged
-  return matches.map(function(d){
-    var tag=(d.category && d.category!=='Other')?d.category+': ':'';
-    return tag+_delivStatusInfo(d.status).label;
-  }).join(' | ');
+  if(filterSet) matches=matches.filter(function(d){
+    if(d.reelItems && d.reelItems.length>1) return d.reelItems.some(function(ri){ return filterSet[ri.status||'pending']; });
+    return filterSet[d.status||'pending'];
+  });
+  if(!matches.length) return filterSet?[]:['Not Added']; // under a status filter, a non-match should just be blank, not flagged
+  var sameCat=matches.every(function(d){ return (d.category||'Wedding')===(matches[0].category||'Wedding'); });
+  function meaningfulCat(c){ return c && c!=='Other' && c!=='Wedding'; }
+  var lines=[];
+  matches.forEach(function(d,mIdx){
+    var baseTag=(matches.length>1)?(!sameCat&&meaningfulCat(d.category)?d.category:('Item '+(mIdx+1))):(meaningfulCat(d.category)?d.category:null);
+    if(d.reelItems && d.reelItems.length>1){
+      d.reelItems.forEach(function(ri,ri_idx){
+        if(filterSet && !filterSet[ri.status||'pending']) return;
+        var lbl='Reel '+(ri_idx+1)+(matches.length>1?' ('+baseTag+')':'');
+        lines.push(lbl+': '+_delivStatusInfo(ri.status).label);
+      });
+    } else {
+      var tag=baseTag?baseTag+': ':'';
+      lines.push(tag+_delivStatusInfo(d.status).label);
+    }
+  });
+  return lines;
+}
+// Back-compat single-string version (used anywhere a plain string is still needed).
+function wpDelivStatusText(p,vt,filterSet){
+  return wpDelivStatusLines(p,vt,filterSet).join(' | ');
+}
+function wpDelivNotesLines(p){
+  var delivs=p.customDelivs||[];
+  return delivs.filter(function(d){return d.note;}).map(function(d){ return (d.name||d.type||'Item')+' — '+d.note; });
 }
 function wpDelivNotesText(p){
-  var delivs=p.customDelivs||[];
-  return delivs.filter(function(d){return d.note;}).map(function(d){ return (d.name||d.type||'Item')+' — '+d.note; }).join(' | ');
+  return wpDelivNotesLines(p).join(' | ');
 }
 // ── Advanced status filter for export: lets the team pull just the
 // outstanding work (pending / in progress / delivered-not-approved /
@@ -11107,22 +11143,27 @@ function wpExportRows(){
     // groups[mk] is already in the on-screen priority (drag) order — renderWorkProgress
     // sorts it that way and stores it back — so just use it as-is, don't re-sort A–Z.
     var list=groups[mk].slice();
-    list.forEach(function(p,idx){
+    var seq=0; // only incremented for rows that actually make it into the export —
+               // incrementing off the raw list index left gaps (1,2,3,5,6...) in the
+               // "#" column wherever a fully-approved client got filtered out.
+    list.forEach(function(p){
       var row={
-        seq:idx+1,
         client:(p.bride||'')+' & '+(p.groom||''),
         city:p.city||'—',
         eventDate:p.date?fmtDate(p.date):'—',
         targetMonth:mk==='unplanned'?'Not Yet Assigned':wpMonthLabel(mk),
+        notesLines:wpDelivNotesLines(p),
         notes:wpDelivNotesText(p)
       };
       var hasMatch=false;
       videoTypes.forEach(function(vt){
-        var txt=wpDelivStatusText(p,vt,filterSet);
-        row[vt.type]=txt||'—';
-        if(txt) hasMatch=true;
+        var lines=wpDelivStatusLines(p,vt,filterSet);
+        row[vt.type+'__lines']=lines;
+        row[vt.type]=lines.join(' | ')||'—';
+        if(lines.length) hasMatch=true;
       });
       if(filterSet && !hasMatch) return; // nothing in the selected statuses — e.g. fully approved — skip this client
+      seq++; row.seq=seq;
       rows.push(row);
     });
   });
@@ -11139,13 +11180,19 @@ function wpExportExcel(){
   var aoa=[header];
   data.rows.forEach(function(r){
     var line=[r.seq,r.client,r.city,r.eventDate,r.targetMonth];
-    data.videoTypes.forEach(function(vt){ line.push(r[vt.type]); });
-    line.push(r.notes||'');
+    // Reel/multi-item breakdown: one line per item, semicolon-separated so
+    // "Reel 1: Pending; Reel 2: Changes Requested" reads as distinct items
+    // in a single cell rather than one blended "Wedding" status.
+    data.videoTypes.forEach(function(vt){ line.push((r[vt.type+'__lines']||[]).join('; ')||'—'); });
+    line.push((r.notesLines||[]).join('; ')||'');
     aoa.push(line);
   });
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:5},{wch:26},{wch:14},{wch:14},{wch:16}].concat(data.videoTypes.map(function(){return {wch:20};})).concat([{wch:36}]);
+  // Widened so full multi-item breakdowns and notes are visible without
+  // truncation — the person opening the sheet can still narrow columns,
+  // but nothing is cut off by default the way it was before.
+  ws['!cols']=[{wch:5},{wch:28},{wch:14},{wch:14},{wch:16}].concat(data.videoTypes.map(function(){return {wch:32};})).concat([{wch:48}]);
   XLSX.utils.book_append_sheet(wb,ws,'Work Progress');
   XLSX.writeFile(wb,'KB_Work_Progress_'+data.monthLabel.replace(/\s+/g,'_')+(data.filtered?'_Outstanding':'')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
   showToast('✅ Excel exported'+(data.filtered?' ('+data.rows.length+' with outstanding work)':'')+'!');
@@ -11169,54 +11216,66 @@ function wpExportPDF(){
   doc.setTextColor(154,52,18); doc.setFontSize(9); doc.setFont('helvetica','bold');
   doc.text(data.rows.length+' client'+(data.rows.length!==1?'s':'')+' — '+data.monthLabel+(data.filtered?' — deliverables outstanding, fully-approved clients excluded':''),18,29);
 
-  var baseCols=[{header:'#',width:10},{header:'Client',width:48},{header:'City',width:22},{header:'Event Date',width:22},{header:'Target Month',width:26}];
+  var baseCols=[{header:'#',width:9},{header:'Client',width:44},{header:'City',width:20},{header:'Event Date',width:20},{header:'Target Month',width:24}];
   var vtCols=data.videoTypes.map(function(vt){return {header:vt.type,width:34};});
   // Notes always needs real breathing room — with 4 deliverable columns at
-  // 34mm each, base+vt alone (128+136=264mm) leaves only ~5mm of a 269mm
-  // usable width for Notes, which forced jsPDF to wrap text one character
-  // per line (the "L o n g" corruption) and bleed across rows/pages.
-  // Guarantee a minimum Notes width and shrink the vt columns to fit if needed.
-  var usableW=pageW-28, minNotesW=30;
+  // 34mm each, base+vt alone (117+136=253mm) leaves only ~16mm of a 269mm
+  // usable width for Notes. Guarantee a minimum Notes width and shrink the
+  // vt columns to fit if needed.
+  var usableW=pageW-28, minNotesW=38;
   var fixedW=baseCols.reduce(function(s,c){return s+c.width;},0);
   var vtTotalW=vtCols.reduce(function(s,c){return s+c.width;},0);
   var available=usableW-fixedW-minNotesW;
   if(vtTotalW>available && vtTotalW>0){
     var shrink=available/vtTotalW;
-    vtCols.forEach(function(c){ c.width=Math.max(18,c.width*shrink); }); // never below 18mm
+    vtCols.forEach(function(c){ c.width=Math.max(20,c.width*shrink); }); // never below 20mm
     vtTotalW=vtCols.reduce(function(s,c){return s+c.width;},0);
   }
   var cols=baseCols.concat(vtCols).concat([{header:'Notes',width:usableW-fixedW-vtTotalW}]);
-  var startX=14, rowH=9, currentY=36;
+  var startX=14, headerH=9, lineH=3.4, cellPadV=5, currentY=36;
 
-  // Single-line cells only: truncate with an ellipsis instead of wrapping,
-  // so a long value can never grow a row taller than rowH and spill its
-  // remaining characters into the next row or across a page break.
-  function fitText(v,maxW){
+  // Full text, wrapped to the column's width — nothing is truncated or
+  // dropped. splitTextToSize wraps on word boundaries (falling back to a
+  // hard break only if a single word is wider than the column), which is
+  // what avoids the old one-character-per-line corruption while still
+  // never cutting content off. Each row's height grows to fit its tallest
+  // cell instead of clipping at a fixed 9mm.
+  function wrapCell(v,maxW,fontName,fontSize){
+    doc.setFont('helvetica',fontName); doc.setFontSize(fontSize);
     var s=String(v==null||v===''?'—':v);
-    if(doc.getTextWidth(s)<=maxW) return s;
-    while(s.length>1 && doc.getTextWidth(s+'…')>maxW){ s=s.slice(0,-1); }
-    return s+'…';
+    var out=[];
+    s.split('\n').forEach(function(part){
+      var wrapped=doc.splitTextToSize(part,maxW);
+      out=out.concat(wrapped.length?wrapped:['']);
+    });
+    return out.length?out:['—'];
   }
 
   function drawHeader(y){
-    doc.setFillColor(248,250,252); doc.rect(startX,y,pageW-28,rowH,'F');
-    doc.setDrawColor(229,231,235); doc.rect(startX,y,pageW-28,rowH,'D');
+    doc.setFillColor(248,250,252); doc.rect(startX,y,pageW-28,headerH,'F');
+    doc.setDrawColor(229,231,235); doc.rect(startX,y,pageW-28,headerH,'D');
     doc.setFont('helvetica','bold'); doc.setFontSize(7.5); doc.setTextColor(30,30,30);
     var cx=startX+3;
-    cols.forEach(function(c){ doc.text(fitText(c.header,c.width-4),cx,y+6); cx+=c.width; });
+    cols.forEach(function(c){ doc.text(c.header,cx,y+6); cx+=c.width; });
   }
-  drawHeader(currentY); currentY+=rowH;
+  drawHeader(currentY); currentY+=headerH;
 
   data.rows.forEach(function(r,i){
-    if(currentY+rowH>pageH-12){ doc.addPage(); currentY=14; drawHeader(currentY); currentY+=rowH; }
+    var vals=[r.seq,r.client,r.city,r.eventDate,r.targetMonth]
+      .concat(data.videoTypes.map(function(vt){ return (r[vt.type+'__lines']||[]).join('\n')||'—'; }))
+      .concat([(r.notesLines||[]).join('\n')||'—']);
+    var cellLines=vals.map(function(v,vi){ return wrapCell(v,cols[vi].width-4,vi===1?'bold':'normal',7); });
+    var maxLines=cellLines.reduce(function(m,l){return Math.max(m,l.length);},1);
+    var rowH=Math.max(9,maxLines*lineH+cellPadV);
+
+    if(currentY+rowH>pageH-12){ doc.addPage(); currentY=14; drawHeader(currentY); currentY+=headerH; }
     if(i%2===0){ doc.setFillColor(249,250,251); doc.rect(startX,currentY,pageW-28,rowH,'F'); }
     doc.setDrawColor(240,240,240); doc.line(startX,currentY+rowH,startX+(pageW-28),currentY+rowH);
-    var vals=[r.seq,r.client,r.city,r.eventDate,r.targetMonth].concat(data.videoTypes.map(function(vt){return r[vt.type];})).concat([r.notes||'—']);
     var cx=startX+3;
-    vals.forEach(function(v,vi){
+    cellLines.forEach(function(lines,vi){
       doc.setFont('helvetica',vi===1?'bold':'normal'); doc.setFontSize(7);
       doc.setTextColor(30,30,30);
-      doc.text(fitText(v,cols[vi].width-4),cx,currentY+6);
+      lines.forEach(function(line,li){ doc.text(line,cx,currentY+6+li*lineH); });
       cx+=cols[vi].width;
     });
     currentY+=rowH;
