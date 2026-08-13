@@ -4748,7 +4748,7 @@ function renderFieldsList(cfg) {
       // drag handle
       '<span class="fb-drag-handle" style="color:#ccc;cursor:grab;font-size:16px;user-select:none;flex-shrink:0" title="Drag to reorder">⠿</span>'+
       // toggle
-      '<input type="checkbox" class="fb-toggle" data-cfg="'+cfg+'" data-idx="'+i+'" '+(isEnabled?'checked':'')+' '+(isReq?'disabled title="Required — cannot hide"':'')+' style="width:15px;height:15px;cursor:'+(isReq?'not-allowed':'pointer')+'">'+
+      '<input type="checkbox" class="fb-toggle" data-cfg="'+cfg+'" data-idx="'+i+'" '+(isEnabled?'checked':'')+' style="width:15px;height:15px;cursor:pointer">'+
       // info
       '<div style="flex:1;min-width:0">'+
         '<div style="font-size:13px;font-weight:600;color:'+(isEnabled?'#1a1a1a':'#999')+'">'+(typeIcon[f.type]||'📝')+' '+f.label+(isReq?' <span style="color:#dc2626;font-size:10px;font-weight:700">REQ</span>':'')+'</div>'+
@@ -4759,7 +4759,7 @@ function renderFieldsList(cfg) {
         '<button class="btn btn-sm fb-move-up" data-cfg="'+cfg+'" data-idx="'+i+'" title="Move up" style="padding:4px 8px">↑</button>'+
         '<button class="btn btn-sm fb-move-down" data-cfg="'+cfg+'" data-idx="'+i+'" title="Move down" style="padding:4px 8px">↓</button>'+
         '<button class="btn btn-sm fb-edit" data-cfg="'+cfg+'" data-idx="'+i+'" style="padding:4px 10px;background:#eff6ff;color:#1d4ed8">✏️ Edit</button>'+
-        (!isReq ? '<button class="btn-danger fb-del" data-cfg="'+cfg+'" data-idx="'+i+'" style="padding:4px 8px">✕</button>' : '')+
+        '<button class="btn-danger fb-del" data-cfg="'+cfg+'" data-idx="'+i+'" style="padding:4px 8px">✕</button>'+
       '</div>'+
     '</div>';
   }).join('');
