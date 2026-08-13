@@ -10881,27 +10881,83 @@ function renderWorkProgress(){
 
   var html='';
   monthKeys.forEach(function(mk){
-    var list=groups[mk].slice().sort(function(a,b){ return (a.bride||'').localeCompare(b.bride||''); }); // A–Z, so a name is easy to spot in a long list
+    // Priority order within a month is a manually-set drag order (p.wpOrder).
+    // Clients without one yet fall to the bottom, A–Z among themselves, so
+    // the list stays predictable until someone drags/moves them.
+    var list=groups[mk].slice().sort(function(a,b){
+      var oa=(typeof a.wpOrder==='number')?a.wpOrder:Infinity;
+      var ob=(typeof b.wpOrder==='number')?b.wpOrder:Infinity;
+      if(oa!==ob) return oa-ob;
+      return (a.bride||'').localeCompare(b.bride||'');
+    });
+    _wpLastGroups[mk]=list; // keep export + drag/drop reorder in sync with what's actually on screen
     html+='<div style="margin-bottom:22px">';
     html+='<div style="font-size:14px;font-weight:800;color:#1a1a1a;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #eee">'+
       (mk==='unplanned'?'📌 Not Yet Assigned to a Month':'🎯 Finish in '+wpMonthLabel(mk))+
-      ' <span style="font-weight:500;color:#999;font-size:12px">('+list.length+' client'+(list.length!==1?'s':'')+')</span></div>';
+      ' <span style="font-weight:500;color:#999;font-size:12px">('+list.length+' client'+(list.length!==1?'s':'')+')</span>'+
+      ' <span style="font-weight:500;color:#bbb;font-size:11px">— drag ⠿ or use ▲▼ to set work priority</span></div>';
     if(quickMode){
       html+='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden">';
-      list.forEach(function(p,i){ html+=wpClientRowCompact(p,i<list.length-1); });
+      list.forEach(function(p,i){ html+=wpClientRowCompact(p,i<list.length-1,mk,i,list.length); });
       html+='</div>';
     } else {
       html+='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden"><table class="tbl" style="table-layout:fixed">';
-      html+='<colgroup><col style="width:24%"><col style="width:16%"><col style="width:15%"><col style="width:15%"><col style="width:15%"><col style="width:15%"></colgroup>';
-      html+='<thead><tr><th>Client</th><th>Target Month</th>';
+      html+='<colgroup><col style="width:6%"><col style="width:20%"><col style="width:15%"><col style="width:15%"><col style="width:15%"><col style="width:15%"><col style="width:14%"></colgroup>';
+      html+='<thead><tr><th></th><th>Client</th><th>Target Month</th>';
       videoTypes.forEach(function(vt){ html+='<th style="text-align:center">'+vt.icon+' '+vt.type+'</th>'; });
       html+='</tr></thead><tbody>';
-      list.forEach(function(p){ html+=wpClientRow(p,videoTypes); });
+      list.forEach(function(p,i){ html+=wpClientRow(p,videoTypes,mk,i,list.length); });
       html+='</tbody></table></div>';
     }
     html+='</div>';
   });
   el.innerHTML=html;
+}
+// ── Priority reordering within a month group ────────────────────────────
+// Drag handle (mouse/desktop) + ▲▼ buttons (always work, incl. touch/mobile)
+// both call through to the same persist step, so priority order is a real,
+// saved field (wpOrder) — not just a visual reshuffle that resets on refresh.
+var _wpDrag={pid:null,mk:null};
+function wpDragStart(ev,pid,mk){
+  _wpDrag={pid:pid,mk:mk};
+  ev.currentTarget.style.opacity='0.4';
+  try{ ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',String(pid)); }catch(e){}
+}
+function wpDragEnd(ev){ ev.currentTarget.style.opacity=''; _wpDrag={pid:null,mk:null}; }
+function wpDragOver(ev){ ev.preventDefault(); try{ ev.dataTransfer.dropEffect='move'; }catch(e){} }
+function wpDrop(ev,targetPid,mk){
+  ev.preventDefault();
+  if(_wpDrag.pid==null || _wpDrag.mk!==mk || _wpDrag.pid===targetPid) return;
+  var list=(_wpLastGroups[mk]||[]).slice();
+  var fromIdx=list.findIndex(function(p){return p.id===_wpDrag.pid;});
+  var toIdx=list.findIndex(function(p){return p.id===targetPid;});
+  if(fromIdx===-1||toIdx===-1) return;
+  var item=list.splice(fromIdx,1)[0];
+  list.splice(toIdx,0,item);
+  wpPersistOrder(mk,list);
+}
+function wpMove(pid,mk,dir){
+  var list=(_wpLastGroups[mk]||[]).slice();
+  var idx=list.findIndex(function(p){return p.id===pid;});
+  if(idx===-1) return;
+  var swapIdx=idx+dir;
+  if(swapIdx<0||swapIdx>=list.length) return;
+  var tmp=list[idx]; list[idx]=list[swapIdx]; list[swapIdx]=tmp;
+  wpPersistOrder(mk,list);
+}
+function wpPersistOrder(mk,list){
+  var updates={};
+  list.forEach(function(p,i){
+    p.wpOrder=i;
+    updates['crm_projects/'+p.id+'/wpOrder']=i;
+    updates['crm_projects/'+p.id+'/updatedAt']=Date.now();
+    if(projects[p.id]) projects[p.id].wpOrder=i;
+  });
+  _wpLastGroups[mk]=list;
+  renderWorkProgress(); // instant visual feedback, then confirm the save
+  db.ref().update(updates,function(err){
+    if(err) showToast('❌ Could not save priority order: '+err.message);
+  });
 }
 // ── Export (respects the current Filter: priority/search, and lets the
 // user pick one target month or all of them) ────────────────────────────
@@ -11043,14 +11099,30 @@ function wpMonthSelect(p){
 // One thin row per client — just name + target month, no deliverable pills —
 // so 100+ unassigned clients can be scanned and assigned in seconds instead
 // of scrolling past full status cards for each one.
-function wpClientRowCompact(p,border){
-  return '<div style="display:flex;align-items:center;gap:12px;padding:8px 14px;'+(border?'border-bottom:1px solid #f0f0f0':'')+'">' +
+function wpClientRowCompact(p,border,mk,idx,total){
+  mk=mk||''; idx=idx||0; total=total||1;
+  return '<div draggable="true" ondragstart="wpDragStart(event,'+p.id+',\''+mk+'\')" ondragend="wpDragEnd(event)" ondragover="wpDragOver(event)" ondrop="wpDrop(event,'+p.id+',\''+mk+'\')" '+
+    'style="display:flex;align-items:center;gap:10px;padding:8px 14px;'+(border?'border-bottom:1px solid #f0f0f0':'')+'">' +
+    wpOrderControls(p,mk,idx,total) +
     '<div style="flex:1;min-width:150px;cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')">' +
       '<span style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</span>' +
       wpAmbiguousFlag(p) +
       '<span style="font-size:11px;color:#999;margin-left:8px">'+(p.city||'—')+(p.date?(' · '+fmtDate(p.date)):'')+'</span>' +
     '</div>' + wpMonthSelect(p) +
   '</div>';
+}
+// Drag handle + ▲▼ move buttons, shared by both row styles. Buttons are
+// disabled (not hidden) at the top/bottom of a group so the row heights
+// stay aligned down the list.
+function wpOrderControls(p,mk,idx,total){
+  var atTop=idx<=0, atBottom=idx>=total-1;
+  return '<span style="display:flex;align-items:center;gap:2px;flex-shrink:0">' +
+    '<span title="Drag to reorder" style="cursor:grab;color:#ccc;font-size:14px;padding:2px 2px;user-select:none">⠿</span>' +
+    '<span style="display:flex;flex-direction:column">' +
+      '<button type="button" title="Move up (higher priority)" onclick="event.stopPropagation();wpMove('+p.id+',\''+mk+'\',-1)" '+(atTop?'disabled':'')+' style="border:none;background:none;cursor:'+(atTop?'default':'pointer')+';color:'+(atTop?'#e0e0e0':'#888')+';font-size:10px;line-height:10px;padding:1px 3px">▲</button>' +
+      '<button type="button" title="Move down (lower priority)" onclick="event.stopPropagation();wpMove('+p.id+',\''+mk+'\',1)" '+(atBottom?'disabled':'')+' style="border:none;background:none;cursor:'+(atBottom?'default':'pointer')+';color:'+(atBottom?'#e0e0e0':'#888')+';font-size:10px;line-height:10px;padding:1px 3px">▼</button>' +
+    '</span>' +
+  '</span>';
 }
 // A deliverable still on the retired generic 'Video' type is invisible to
 // every Teaser/Highlight/Long Video/Reel column above — it just silently
@@ -11067,9 +11139,11 @@ function wpAmbiguousFlag(p){
 // in a fixed second column, then one evenly-sized column per deliverable
 // type, so every card lines up instead of wrapping raggedly (was the
 // original messy flex-card layout).
-function wpClientRow(p,videoTypes){
+function wpClientRow(p,videoTypes,mk,idx,total){
+  mk=mk||''; idx=idx||0; total=total||1;
   var delivs=p.customDelivs||[];
-  var html='<tr>';
+  var html='<tr draggable="true" ondragstart="wpDragStart(event,'+p.id+',\''+mk+'\')" ondragend="wpDragEnd(event)" ondragover="wpDragOver(event)" ondrop="wpDrop(event,'+p.id+',\''+mk+'\')">';
+  html+='<td style="text-align:center;vertical-align:middle">'+wpOrderControls(p,mk,idx,total)+'</td>';
   html+='<td style="cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')"><div style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+wpAmbiguousFlag(p)+'</div>' +
     '<div style="font-size:10.5px;color:#999;margin-top:2px">'+(p.city||'—')+' · '+(p.date?('Event: '+fmtDate(p.date)):'No event date')+'</div></td>';
   html+='<td>'+wpMonthSelect(p)+'</td>';
