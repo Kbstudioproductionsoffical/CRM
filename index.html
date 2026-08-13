@@ -5402,6 +5402,25 @@ var DELIV_TYPE_REGISTRY = [
   { type:'Other',           icon:'📦', bucket:'other', reportKey:null,         nameRegex:null }
 ];
 function _delivTypeInfo(t){ for(var i=0;i<DELIV_TYPE_REGISTRY.length;i++){ if(DELIV_TYPE_REGISTRY[i].type===t) return DELIV_TYPE_REGISTRY[i]; } return null; }
+// ── Deliverable STATUS single source of truth ───────────────────────────
+// 'delivered' means sent to the client but not yet confirmed by them;
+// 'approved' means the client has signed off. Every place in the CRM that
+// used to treat status==='delivered' as "fully done" (Pending Report,
+// aging alerts, the confirm-client-delivery gate, editor performance
+// counts) now requires 'approved' specifically — see DELIV_STATUS_DONE.
+var DELIV_STATUS_REGISTRY = [
+  { v:'pending',    label:'Pending',                 icon:'⏳', color:'#94a3b8', bg:'#f9fafb', urgency:1 },
+  { v:'inprogress', label:'In Progress',              icon:'🔄', color:'#f59e0b', bg:'#fffbeb', urgency:2 },
+  { v:'delivered',  label:'Delivered (Not Approved)', icon:'📦', color:'#3b82f6', bg:'#eff6ff', urgency:1 },
+  { v:'changes',    label:'Changes Requested',        icon:'🔁', color:'#dc2626', bg:'#fef2f2', urgency:3 },
+  { v:'approved',   label:'Delivered & Approved',     icon:'✅', color:'#16a34a', bg:'#f0fdf4', urgency:0 }
+];
+var DELIV_STATUS_DONE='approved'; // the ONE status that counts as fully complete for gating/reports
+function _delivStatusInfo(s){ for(var i=0;i<DELIV_STATUS_REGISTRY.length;i++){ if(DELIV_STATUS_REGISTRY[i].v===s) return DELIV_STATUS_REGISTRY[i]; } return DELIV_STATUS_REGISTRY[0]; }
+function delivStatusOptionsHtml(current){
+  return DELIV_STATUS_REGISTRY.map(function(o){return '<option value="'+o.v+'"'+(current===o.v?' selected':'')+'>'+o.icon+' '+o.label+'</option>';}).join('');
+}
+function delivIsDone(status){ return status===DELIV_STATUS_DONE; }
 // Category/Event color — fixed colors for the known presets; any custom
 // event name (Tilak, Cocktail, Griha Shanti, regional rituals, etc.) gets
 // a deterministic color derived from its own text, so it's stable across
@@ -5426,6 +5445,12 @@ var NAME_FOR_TYPE = {
   'Reel':'Reels', 'Album':'Album', 'Frame':'Frame', 'Magazine':'Magazine',
   'Edited Pictures':'Edited Pictures', 'Raw Data':'Raw Data'
 };
+// Same choices offered in the Add Deliverable form's Type dropdown — reused
+// for the in-row Type editor on existing deliverables. 'Video' deliberately
+// excluded (it's the retired legacy bucket, not a real choice); it's only
+// ever shown when that's still an item's current value, so it can be picked
+// away from but never picked back into.
+var DLV_TYPE_OPTIONS = Object.keys(NAME_FOR_TYPE).concat(['Other']);
 function wireNdTypeAutofill(){
   var typeEl=document.getElementById('nd-type'), nameEl=document.getElementById('nd-name'), hint=document.getElementById('nd-type-hint');
   if(!typeEl||!nameEl) return;
@@ -6971,12 +6996,12 @@ function confirmAllPaymentsReceived(projId){
   autoAdvanceStage(projId,'complete','All payments confirmed by '+(CU.name||CU.username));
 }
 
-// Rule 5: All deliverables marked 'delivered' by Post-Prod team → moves to Delivery stage
+// Rule 5: All deliverables marked Approved by Post-Prod team → moves to Delivery stage
 // (Post-Prod Head must then confirm delivery via confirmDeliveryToClient() to move to Payment Pending)
 function runDeliverableAutomations(projId){
   var p=projects[projId];if(!p)return;
   var delivs=p.customDelivs||[];if(!delivs.length)return;
-  if(delivs.every(function(d){return d.status==='delivered';})){    autoAdvanceStage(projId,'delivery','All deliverables ready for delivery');
+  if(delivs.every(function(d){return delivIsDone(d.status);})){    autoAdvanceStage(projId,'delivery','All deliverables approved and ready for delivery');
   }
 }
 
@@ -6990,8 +7015,8 @@ function confirmDeliveryToClient(projId){
     showToast('\u26a0\ufe0f Project must be in Delivery stage first.');return;
   }
   var delivs=p.customDelivs||[];
-  if(delivs.length&&!delivs.every(function(d){return d.status==='delivered';})){
-    alert('Not all deliverables are marked as delivered yet. Please mark all deliverables as delivered before confirming.');return;
+  if(delivs.length&&!delivs.every(function(d){return delivIsDone(d.status);})){
+    alert('Not all deliverables are marked Delivered & Approved yet. Please get client approval on every deliverable before confirming.');return;
   }
   if(!confirm('Confirm that ALL deliverables have been handed over to '+p.bride+' & '+p.groom+'?\n\nThis will move the project to Payment Pending.'))return;
   var reason='Delivery confirmed by '+(CU.name||CU.username);
@@ -7828,9 +7853,10 @@ function renderArchiveDetails(a) {
   }).join('');
 
   var delivs = (a.customDelivs||[]).map(function(d) {
+    var _si=_delivStatusInfo(d.status);
     return '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #f5f5f5">' +
       '<span>' + escHtml(d.name||d.type||'—') + '</span>' +
-      '<span style="color:#16a34a;font-weight:700">' + (d.status==='delivered'?'✅ Delivered':'⏳ '+escHtml(d.status||'—')) + '</span>' +
+      '<span style="color:'+_si.color+';font-weight:700">' + _si.icon+' '+_si.label + '</span>' +
     '</div>';
   }).join('');
 
@@ -9305,19 +9331,21 @@ function renderDelivRows(){
     html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><div style="width:3px;height:16px;background:'+color+';border-radius:2px"></div><span style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:0.5px">'+cat+'</span></div>';
     groups[cat].forEach(function(item){
       var d=item.d,i=item.i;
-      var sc=d.status==='delivered'?'#10b981':d.status==='inprogress'?'#f59e0b':d.status==='changes'?'#dc2626':'#94a3b8';
+      var sc=_delivStatusInfo(d.status).color;
       var typeIco=delivTypeIcon(d.type);
-      var statusOpts=[
-        {v:'pending',    l:'⏳ Pending'},
-        {v:'inprogress', l:'🔄 In Progress'},
-        {v:'delivered',  l:'✅ Delivered'},
-        {v:'changes',    l:'🔁 Changes Requested'}
-      ].map(function(o){return '<option value="'+o.v+'"'+(d.status===o.v?' selected':'')+'>'+o.l+'</option>';}).join('');
+      var statusOpts=delivStatusOptionsHtml(d.status);
       html+='<div style="background:#fff;border:1px solid #e8edf2;border-radius:8px;padding:10px 12px;margin-bottom:6px">';
       // Row 1: name, type, status dropdown, delete
       html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">';
       html+='<span style="font-size:13px;font-weight:700;flex:1">'+typeIco+' '+(d.name||'Unnamed')+'</span>';
-      html+='<span style="font-size:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:2px 8px;color:#475569">'+(d.type||'')+'</span>';
+      // Type is editable here (not just at creation) so a legacy item stuck on
+      // the retired generic 'Video' type — flagged by the ⚠️ Type unclear badge
+      // in Work Progress / Healthcheck — can actually be corrected in place,
+      // instead of having to delete and re-add the deliverable from scratch.
+      var dlvTypeOpts=DLV_TYPE_OPTIONS.map(function(t){return '<option value="'+t+'"'+(d.type===t?' selected':'')+'>'+t+'</option>';}).join('');
+      if(d.type==='Video') dlvTypeOpts='<option value="Video" selected>⚠️ Video (legacy — pick a specific type)</option>'+dlvTypeOpts;
+      var typeIsLegacy=(d.type==='Video');
+      html+='<select class="dlv-type-sel" data-idx="'+i+'" title="'+(typeIsLegacy?'This item needs a specific Type — select one to clear the Type unclear warning':'Deliverable type')+'" style="font-size:10px;padding:3px 8px;border-radius:10px;border:1px solid '+(typeIsLegacy?'#fdba74':'#e2e8f0')+';background:'+(typeIsLegacy?'#fff7ed':'#f1f5f9')+';color:'+(typeIsLegacy?'#c2410c':'#475569')+';font-weight:'+(typeIsLegacy?'700':'500')+';cursor:pointer;font-family:inherit;outline:none">'+dlvTypeOpts+'</select>';
       if(d.category && d.category!=='Other') html+='<span style="font-size:10px;background:'+color+'18;border:1px solid '+color+'44;border-radius:10px;padding:2px 8px;color:'+color+';font-weight:700">'+d.category+'</span>';
       html+='<select class="dlv-status-sel" data-idx="'+i+'" style="font-size:11px;padding:3px 8px;border-radius:8px;border:1.5px solid '+sc+';background:'+sc+'18;color:'+sc+';font-weight:700;cursor:pointer;font-family:inherit;outline:none">'+statusOpts+'</select>';
       html+='<button class="dlv-del-btn" data-idx="'+i+'" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:18px;padding:0;line-height:1">×</button>';
@@ -9345,13 +9373,12 @@ function renderDelivRows(){
         if(!d.reelItems)d.reelItems=[];
         while(d.reelItems.length<qty)d.reelItems.push({status:'pending',date:'',link:''});
         if(d.reelItems.length>qty)d.reelItems=d.reelItems.slice(0,qty);
-        var deliveredCount=d.reelItems.filter(function(r){return r.status==='delivered';}).length;
+        var deliveredCount=d.reelItems.filter(function(r){return delivIsDone(r.status);}).length;
         html+='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:6px">';
-        html+='<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📱 Reel Breakdown — '+deliveredCount+'/'+qty+' Delivered</div>';
+        html+='<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">📱 Reel Breakdown — '+deliveredCount+'/'+qty+' Approved</div>';
         d.reelItems.forEach(function(ri,ri_idx){
-          var riSc=ri.status==='delivered'?'#10b981':ri.status==='inprogress'?'#f59e0b':ri.status==='changes'?'#dc2626':'#94a3b8';
-          var riOpts=[{v:'pending',l:'⏳ Pending'},{v:'inprogress',l:'🔄 In Progress'},{v:'delivered',l:'✅ Delivered'},{v:'changes',l:'🔁 Changes'}]
-            .map(function(o){return '<option value="'+o.v+'"'+(ri.status===o.v?' selected':'')+'>'+o.l+'</option>';}).join('');
+          var riSc=_delivStatusInfo(ri.status).color;
+          var riOpts=delivStatusOptionsHtml(ri.status);
           html+='<div style="display:grid;grid-template-columns:auto 110px 140px 1fr'+(ri.link?' auto':'')+';gap:6px;align-items:center;margin-bottom:4px;background:#fff;border:1px solid #e8edf2;border-radius:6px;padding:5px 8px">';
           html+='<span style="font-size:11px;font-weight:700;color:#475569;min-width:48px">Reel '+(ri_idx+1)+'</span>';
           html+='<select class="reel-item-status" data-idx="'+i+'" data-ri="'+ri_idx+'" style="font-size:10px;padding:3px 6px;border-radius:6px;border:1.5px solid '+riSc+';background:'+riSc+'18;color:'+riSc+';font-weight:700;cursor:pointer;font-family:inherit;outline:none">'+riOpts+'</select>';
@@ -9397,6 +9424,19 @@ function renderDelivRows(){
   container.innerHTML=html;
   container.querySelectorAll('.dlv-status-sel').forEach(function(el){el.addEventListener('change',function(){setDelivStatus(parseInt(el.dataset.idx),el.value);});});
   container.querySelectorAll('.dlv-del-btn').forEach(function(el){el.addEventListener('click',function(){removeCustomDeliv(parseInt(el.dataset.idx));});});
+  // Changing Type on an existing item — used to fix legacy items stuck on
+  // the retired generic 'Video' type. Also renames the item to the
+  // canonical name for that type (same rule the Add form uses), so a
+  // typo'd name like "Long Vidoes" gets corrected at the same time instead
+  // of leaving a specific Type paired with a stale/misspelled name.
+  container.querySelectorAll('.dlv-type-sel').forEach(function(el){el.addEventListener('change',function(){
+    var idx=parseInt(el.dataset.idx), newType=el.value;
+    if(!customDelivs[idx]) return;
+    customDelivs[idx].type=newType;
+    if(newType!=='Other' && NAME_FOR_TYPE[newType]) customDelivs[idx].name=NAME_FOR_TYPE[newType];
+    renderDelivRows();
+    showToast('✅ Type updated to '+newType);
+  });});
   container.querySelectorAll('.dlv-field').forEach(function(el){el.addEventListener('change',function(){
     var idx=parseInt(el.dataset.idx);
     updateDelivField(idx,el.dataset.field,el.value);
@@ -9556,13 +9596,16 @@ function updateReelItem(idx,ri,field,val){
   if(!customDelivs[idx].reelItems)customDelivs[idx].reelItems=[];
   if(!customDelivs[idx].reelItems[ri])customDelivs[idx].reelItems[ri]={status:'pending',date:'',link:''};
   customDelivs[idx].reelItems[ri][field]=val;
-  // Auto-set date on delivery
+  // Auto-set date on first delivery
   if(field==='status'&&val==='delivered'&&!customDelivs[idx].reelItems[ri].date)customDelivs[idx].reelItems[ri].date=tod();
-  // Sync overall deliverable status: if all delivered → delivered, else if any delivered/inprogress → inprogress, else pending
+  // Sync overall deliverable status from the reel breakdown: all approved → approved,
+  // all at least delivered → delivered, any changes requested → changes, any active → inprogress, else pending
   var items=customDelivs[idx].reelItems;
-  var allDel=items.every(function(r){return r.status==='delivered';});
-  var anyDel=items.some(function(r){return r.status==='delivered'||r.status==='inprogress';});
-  customDelivs[idx].status=allDel?'delivered':anyDel?'inprogress':'pending';
+  var allApproved=items.every(function(r){return r.status==='approved';});
+  var allAtLeastDelivered=items.every(function(r){return r.status==='delivered'||r.status==='approved';});
+  var anyChanges=items.some(function(r){return r.status==='changes';});
+  var anyActive=items.some(function(r){return r.status==='delivered'||r.status==='inprogress'||r.status==='approved';});
+  customDelivs[idx].status=allApproved?'approved':allAtLeastDelivered?'delivered':anyChanges?'changes':anyActive?'inprogress':'pending';
   renderDelivRows();
 }
 
@@ -10593,7 +10636,7 @@ function buildPostProdPendingLists(){
     if(p.stage!=='postprod') return; // only clients currently in the Post-Production stage
     if(!ppMatchesSearch(p)) return;
     (p.customDelivs||[]).forEach(function(d){
-      if(d.status==='delivered') return;
+      if(delivIsDone(d.status)) return;
       var n=(d.name||'').toLowerCase(), t=d.type||'';
       // An exact Type match always wins (e.g. explicitly set to 'Long Video'),
       // so one deliverable never lands in two tiles at once (Highlight vs
@@ -10880,11 +10923,10 @@ function wpDelivStatusText(p,vt){
     var exactOther=_wpLastVideoTypes.some(function(o){return o.type===d.type;});
     return !exactOther && vt.nameRegex && vt.nameRegex.test((d.name||'').toLowerCase());
   });
-  var LBL={delivered:'Delivered',pending:'Not Started',inprogress:'In Progress',changes:'Changes Req.'};
   if(!matches.length) return 'Not Added';
   return matches.map(function(d){
     var tag=(d.category && d.category!=='Other')?d.category+': ':'';
-    return tag+(LBL[d.status]||'Not Started');
+    return tag+_delivStatusInfo(d.status).label;
   }).join(' | ');
 }
 function wpDelivNotesText(p){
@@ -11052,8 +11094,9 @@ function wpDelivPill(vt,matches,pid){
   // progress — e.g. "1 of 2 done" reads the same whether the other item
   // is simply not started yet or has been rejected and needs rework.
   var STATUS_META={
-    delivered:  {icon:'✅', label:'Delivered',    color:'#16a34a', bg:'#f0fdf4', urgency:0},
+    approved:   {icon:'✅', label:'Approved',     color:'#16a34a', bg:'#f0fdf4', urgency:0},
     pending:    {icon:'⏳', label:'Not Started',  color:'#94a3b8', bg:'#f9fafb', urgency:1},
+    delivered:  {icon:'📦', label:'Awaiting Approval', color:'#3b82f6', bg:'#eff6ff', urgency:2},
     inprogress: {icon:'🔄', label:'In Progress',  color:'#f59e0b', bg:'#fffbeb', urgency:2},
     changes:    {icon:'🔁', label:'Changes Req.', color:'#dc2626', bg:'#fef2f2', urgency:3}
   };
@@ -11194,10 +11237,10 @@ function renderPostProd(){
     var myPending  = myDelivs.filter(function(x){return x.d.status==='pending';});
     var myEditing  = myDelivs.filter(function(x){return x.d.status==='inprogress';});
     var myReview   = myDelivs.filter(function(x){return x.d.status==='review';});
-    var myDone     = myDelivs.filter(function(x){return x.d.status==='delivered';});
+    var myDone     = myDelivs.filter(function(x){return delivIsDone(x.d.status);});
 
     function edStatusBadge(s){
-      var m={pending:['#fef9c3','#854d0e','⏳ Pending'],inprogress:['#dbeafe','#1d4ed8','🎬 Editing'],review:['#fdf2f8','#9d174d','👁️ In Review'],changes:['#fee2e2','#991b1b','🔁 Changes'],delivered:['#dcfce7','#166534','✅ Delivered']};
+      var m={pending:['#fef9c3','#854d0e','⏳ Pending'],inprogress:['#dbeafe','#1d4ed8','🎬 Editing'],review:['#fdf2f8','#9d174d','👁️ In Review'],changes:['#fee2e2','#991b1b','🔁 Changes'],delivered:['#eff6ff','#1d4ed8','📦 Awaiting Approval'],approved:['#dcfce7','#166534','✅ Approved']};
       var v=m[s]||['#f1f5f9','#475569',s];
       return '<span style="background:'+v[0]+';color:'+v[1]+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">'+v[2]+'</span>';
     }
@@ -11209,8 +11252,8 @@ function renderPostProd(){
     eHtml+='<div style="background:#f0fdf4;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #10b981;text-align:center"><div style="font-size:26px;font-weight:800;color:#166534">'+myDone.length+'</div><div style="font-size:11px;color:#888;margin-top:3px">Delivered</div></div>';
     eHtml+='</div>';
 
-    // Active work section (pending + editing + review)
-    var activeItems=myDelivs.filter(function(x){return x.d.status!=='delivered';});
+    // Active work section (pending + editing + review + delivered-not-approved)
+    var activeItems=myDelivs.filter(function(x){return !delivIsDone(x.d.status);});
     eHtml+='<div class="card" style="margin-bottom:14px"><div class="card-hdr"><span class="card-title">🎬 My Active Assignments</span></div>';
     if(!activeItems.length){
       eHtml+='<div class="empty">✅ No active assignments right now. Check back soon!</div>';
@@ -11403,12 +11446,12 @@ function renderPostProd(){
   // most likely getting impatient. No longer gated on a client brief.
   var cnt1=list.filter(function(p){
     var d=daysInPostProd(p);
-    return d!==null && d>PP_AGING_WARN_DAYS && (p.customDelivs||[]).some(function(x){return x.status!=='delivered';});
+    return d!==null && d>PP_AGING_WARN_DAYS && (p.customDelivs||[]).some(function(x){return !delivIsDone(x.status);});
   }).length;
   var cnt2=allItems.filter(function(i){return !i.d.editorId&&i.d.status==='pending';}).length;
   var cnt3=allItems.filter(function(i){return i.d.status==='inprogress';}).length;
   var cnt4=allItems.filter(function(i){return i.d.status==='review';}).length;
-  var cnt5=allItems.filter(function(i){return i.d.status==='delivered';}).length;
+  var cnt5=allItems.filter(function(i){return delivIsDone(i.d.status);}).length;
 
   if(tab==='overview'){
     html+='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">';
@@ -11435,7 +11478,7 @@ function renderPostProd(){
     list.forEach(function(p){
       var pd=p.customDelivs||[];if(!pd.length)return;
       _qNum++;
-      var del=pd.filter(function(d){return d.status==='delivered';}).length;
+      var del=pd.filter(function(d){return delivIsDone(d.status);}).length;
       var pct=pd.length?Math.round(del/pd.length*100):0;
       html+='<tr><td style="text-align:center;font-weight:800;color:#0369a1;font-size:13px">'+_qNum+'</td>';
       html+='<td><div style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</div></td>';
@@ -11453,7 +11496,7 @@ function renderPostProd(){
 
   } else if(tab==='step1'){
     html+='<div class="info info-amber" style="margin-bottom:14px">⏱️ Projects with unfinished deliverables, sorted by how long they\'ve been sitting in Post-Production — longest-waiting (most likely impatient) clients first.</div>';
-    var attn=list.filter(function(p){return (p.customDelivs||[]).some(function(x){return x.status!=='delivered';});});
+    var attn=list.filter(function(p){return (p.customDelivs||[]).some(function(x){return !delivIsDone(x.status);});});
     attn.sort(function(a,b){
       var da=daysInPostProd(a), db=daysInPostProd(b);
       if(da===null&&db===null) return 0;
@@ -11578,9 +11621,9 @@ function renderPostProd(){
     }
 
   } else if(tab==='step5'){
-    html+='<div class="info info-green" style="margin-bottom:14px">🎉 These deliverables have been delivered to the client.</div>';
-    var done=allItems.filter(function(i){return i.d.status==='delivered';});
-    if(!done.length){html+='<div class="empty">No deliverables delivered yet.</div>';}
+    html+='<div class="info info-green" style="margin-bottom:14px">🎉 These deliverables have been delivered AND approved by the client.</div>';
+    var done=allItems.filter(function(i){return delivIsDone(i.d.status);});
+    if(!done.length){html+='<div class="empty">No deliverables approved yet.</div>';}
     else{
       html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Revisions</th><th>Delivered On</th><th>Drive Link</th><th></th></tr></thead><tbody>';
       done.sort(function(a,b){return(b.d.date||'').localeCompare(a.d.date||'');}).forEach(function(item){
@@ -11650,11 +11693,11 @@ function buildEditorStats(){
     var d=item.d;var eid=d.editorId;if(!eid)return;
     if(!editorStats[eid])editorStats[eid]={queued:[],inprogress:[],review:[],delivered:[]};
     var inPeriod=true;
-    if((fromDate||toDate)&&d.status==='delivered'){var dd=d.date||'';inPeriod=(!fromDate||dd>=fromDate)&&(!toDate||dd<=toDate);}
+    if((fromDate||toDate)&&delivIsDone(d.status)){var dd=d.date||'';inPeriod=(!fromDate||dd>=fromDate)&&(!toDate||dd<=toDate);}
     var st=d.status||'pending';
-    if(st==='delivered'){if(inPeriod)editorStats[eid].delivered.push(item);}
+    if(delivIsDone(st)){if(inPeriod)editorStats[eid].delivered.push(item);}
     else if(st==='inprogress')editorStats[eid].inprogress.push(item);
-    else if(st==='review')editorStats[eid].review.push(item);
+    else if(st==='review'||st==='delivered')editorStats[eid].review.push(item); // 'delivered' = sent to client, awaiting their approval
     else editorStats[eid].queued.push(item); // assigned but not yet started
   });
 
@@ -11747,7 +11790,9 @@ function buildDeliverablesDash(filteredList) {
     pending:    {bg:'#fef9c3', fc:'#854d0e', label:'⏳ Pending'},
     inprogress: {bg:'#dbeafe', fc:'#1d4ed8', label:'🎬 Editing'},
     review:     {bg:'#fdf2f8', fc:'#9d174d', label:'👁️ In Review'},
-    delivered:  {bg:'#dcfce7', fc:'#166534', label:'✅ Delivered'}
+    delivered:  {bg:'#eff6ff', fc:'#1d4ed8', label:'📦 Delivered (Not Approved)'},
+    changes:    {bg:'#fee2e2', fc:'#991b1b', label:'🔁 Changes Requested'},
+    approved:   {bg:'#dcfce7', fc:'#166534', label:'✅ Delivered & Approved'}
   };
 
   // ── Status filter bar ──────────────────────────────────────────────────
@@ -11763,7 +11808,9 @@ function buildDeliverablesDash(filteredList) {
     {v:'pending',    l:'⏳ Pending'},
     {v:'inprogress', l:'🎬 Editing'},
     {v:'review',     l:'👁️ In Review'},
-    {v:'delivered',  l:'✅ Delivered'}
+    {v:'delivered',  l:'📦 Delivered (Not Approved)'},
+    {v:'changes',    l:'🔁 Changes Requested'},
+    {v:'approved',   l:'✅ Approved'}
   ];
   statuses.forEach(function(s) {
     var active = _ppDelivFilter === s.v;
@@ -11791,7 +11838,7 @@ function buildDeliverablesDash(filteredList) {
   // ── Stat cards (counts from full filtered month list) ──────────────────
   var allD = [];
   filteredList.forEach(function(p){ (p.customDelivs||[]).forEach(function(d){ allD.push(d); }); });
-  var counts = {pending:0,inprogress:0,review:0,delivered:0};
+  var counts = {pending:0,inprogress:0,review:0,delivered:0,changes:0,approved:0};
   allD.forEach(function(d){ var s=d.status||'pending'; if(counts[s]!==undefined) counts[s]++; });
 
   var statsGrid = document.createElement('div');
@@ -11854,7 +11901,7 @@ function buildDeliverablesDash(filteredList) {
   clients.forEach(function(c){
     var p = c.p;
     var totalD = (p.customDelivs||[]).length;
-    var doneD  = (p.customDelivs||[]).filter(function(d){ return d.status==='delivered'; }).length;
+    var doneD  = (p.customDelivs||[]).filter(function(d){ return delivIsDone(d.status); }).length;
     var pct    = totalD ? Math.round(doneD/totalD*100) : 0;
     var pctColor = pct===100?'#10b981':pct>50?'#3b82f6':'#f59e0b';
 
@@ -11900,12 +11947,12 @@ function buildDeliverablesDash(filteredList) {
 
       if (hasReelBreakdown) {
         // Parent summary row for the Reels group
-        var deliveredCount = d.reelItems.filter(function(x){return x.status==='delivered';}).length;
+        var deliveredCount = d.reelItems.filter(function(x){return delivIsDone(x.status);}).length;
         var parentTr = document.createElement('tr');
         parentTr.style.cssText = 'background:'+(ri%2===0?'#fff':'#fafafa')+';border-bottom:1px solid #f1f5f9';
         parentTr.innerHTML =
           '<td style="padding:6px 14px;font-weight:700;color:#1a1a1a">' + (d.name||d.type||'Reels') + ' <span style="font-weight:600;color:#94a3b8;font-size:10.5px">(' + qty + ' reels)</span></td>' +
-          '<td style="padding:6px 14px;text-align:center"><span style="background:#eef2ff;color:#4338ca;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap">📱 ' + deliveredCount + '/' + qty + ' Delivered</span></td>' +
+          '<td style="padding:6px 14px;text-align:center"><span style="background:#eef2ff;color:#4338ca;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap">📱 ' + deliveredCount + '/' + qty + ' Approved</span></td>' +
           '<td style="padding:6px 14px;text-align:center;color:#94a3b8;font-size:10.5px">—</td>';
         tbody.appendChild(parentTr);
 
@@ -11979,14 +12026,14 @@ function exportPPReport(fmt) {
 
   // Build rows: one row per pending deliverable per project
   var rows = [];
-  var statusLabel = { pending:'⏳ Pending', inprogress:'🔄 In Progress', review:'👁️ Review', delivered:'✅ Delivered' };
+  var statusLabel = { pending:'⏳ Pending', inprogress:'🔄 In Progress', review:'👁️ Review', delivered:'📦 Delivered (Not Approved)', changes:'🔁 Changes Requested', approved:'✅ Delivered & Approved' };
 
   Object.values(projects || {}).forEach(function(p) {
     if (!p || !p.customDelivs || !p.customDelivs.length) return;
     if (stageFilter && p.stage !== stageFilter) return;
 
     var delivs = p.customDelivs.filter(function(d) {
-      if (pendingOnly) return d.status !== 'delivered';
+      if (pendingOnly) return !delivIsDone(d.status);
       return true;
     });
     if (!delivs.length) return;
@@ -16904,16 +16951,16 @@ function renderPipelineActionBlock(){
   // DELIVERY stage: Post-Prod Head confirms delivery to client
   if(stage==='delivery'&&(isSA||role==='postprod'||role==='admin')){
     var delivs=p.customDelivs||[];
-    var allDelivered=delivs.length&&delivs.every(function(d){return d.status==='delivered';});
+    var allDelivered=delivs.length&&delivs.every(function(d){return delivIsDone(d.status);});
     if(allDelivered){
       html+='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;margin-bottom:8px">'+
-        '<div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:6px">\u2705 All deliverables are ready</div>'+
+        '<div style="font-size:12px;font-weight:700;color:#15803d;margin-bottom:6px">\u2705 All deliverables are approved</div>'+
         '<div style="font-size:12px;color:#166534;margin-bottom:10px">Confirm all deliverables have been handed over to the client to move to Payment Pending.</div>'+
         '<button class="btn btn-primary" style="background:#15803d;border-color:#15803d;font-size:12px" onclick="confirmDeliveryToClient('+p.id+')">\ud83d\udce6 Confirm Delivery to Client \u2192 Payment Pending</button>'+
         '</div>';
     } else {
       html+='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;margin-bottom:8px">'+
-        '<div style="font-size:12px;color:#92400e">\u23f3 Mark all deliverables as <b>Delivered</b> in the Deliverables tab before confirming client delivery.</div>'+
+        '<div style="font-size:12px;color:#92400e">\u23f3 Mark all deliverables as <b>Delivered &amp; Approved</b> in the Deliverables tab before confirming client delivery.</div>'+
         '</div>';
     }
   }
@@ -18245,7 +18292,9 @@ function renderEditorPortal(portal, editor, editorId, allProjects) {
   var pending = myDelivs.filter(function(x) { return x.d.status === 'pending'; });
   var inprog  = myDelivs.filter(function(x) { return x.d.status === 'inprogress'; });
   var review  = myDelivs.filter(function(x) { return x.d.status === 'review'; });
-  var done    = myDelivs.filter(function(x) { return x.d.status === 'delivered'; });
+  var changesReq = myDelivs.filter(function(x) { return x.d.status === 'changes'; });
+  var awaitingApproval = myDelivs.filter(function(x) { return x.d.status === 'delivered'; });
+  var done    = myDelivs.filter(function(x) { return delivIsDone(x.d.status); });
 
   var initials = (editor.name || 'E').split(' ').map(function(w) { return w[0] || ''; }).join('').toUpperCase().substring(0, 2);
 
@@ -18255,7 +18304,8 @@ function renderEditorPortal(portal, editor, editorId, allProjects) {
       inprogress:  ['#dbeafe','#1d4ed8','🎬 Editing'],
       review:      ['#fdf2f8','#9d174d','👁️ In Review'],
       changes:     ['#fee2e2','#991b1b','🔁 Changes'],
-      delivered:   ['#dcfce7','#166634','✅ Delivered']
+      delivered:   ['#eff6ff','#1d4ed8','📦 Awaiting Approval'],
+      approved:    ['#dcfce7','#166634','✅ Approved']
     };
     var v = m[s] || ['#f1f5f9','#475569',s];
     return '<span style="background:'+v[0]+';color:'+v[1]+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">'+v[2]+'</span>';
@@ -18325,10 +18375,26 @@ function renderEditorPortal(portal, editor, editorId, allProjects) {
           '<div style="background:#fdf2f8;border:1px solid #f9a8d4;border-radius:8px;padding:10px;font-size:13px;color:#9d174d;font-weight:600">👁️ This deliverable is under review by the team.</div>' +
           (d.link ? '<div style="margin-top:8px"><a href="' + d.link + '" target="_blank" style="color:#3b82f6;font-weight:600;font-size:13px">🔗 View Submitted File ↗</a></div>' : '') +
         '</div>';
+    } else if (d.status === 'changes') {
+      var lastNote = d.lastRevisionNote || ((d.revisions||[]).length ? d.revisions[d.revisions.length-1].note : '');
+      actionHTML =
+        '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f0">' +
+          '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;font-size:13px;color:#991b1b;font-weight:600">🔁 Changes requested' + (lastNote ? ': ' + lastNote : '') + '</div>' +
+          '<div style="margin-top:10px">' +
+            '<button onclick="editorUpdateStatus(\'' + p.id + '\',\'' + d.id + '\',\'inprogress\')" ' +
+              'style="padding:9px 18px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">🎬 Resume Editing</button>' +
+          '</div>' +
+        '</div>';
     } else if (d.status === 'delivered') {
       actionHTML =
         '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f0">' +
-          '<div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:13px;color:#166534;font-weight:600">✅ Delivered on ' + (d.date || '') + '</div>' +
+          '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;font-size:13px;color:#1d4ed8;font-weight:600">📦 Delivered on ' + (d.date || '') + ' — awaiting client approval.</div>' +
+          (d.link ? '<div style="margin-top:8px"><a href="' + d.link + '" target="_blank" style="color:#3b82f6;font-weight:600;font-size:13px">🔗 Final Delivery Link ↗</a></div>' : '') +
+        '</div>';
+    } else if (d.status === 'approved') {
+      actionHTML =
+        '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f0">' +
+          '<div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:13px;color:#166534;font-weight:600">✅ Delivered & approved by the client' + (d.date ? ' on ' + d.date : '') + '</div>' +
           (d.link ? '<div style="margin-top:8px"><a href="' + d.link + '" target="_blank" style="color:#3b82f6;font-weight:600;font-size:13px">🔗 Final Delivery Link ↗</a></div>' : '') +
         '</div>';
     }
@@ -18382,11 +18448,11 @@ function renderEditorPortal(portal, editor, editorId, allProjects) {
         '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #f59e0b;text-align:center"><div style="font-size:24px;font-weight:800;color:#854d0e">' + pending.length + '</div><div style="font-size:11px;color:#888;margin-top:3px">Pending</div></div>' +
         '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #3b82f6;text-align:center"><div style="font-size:24px;font-weight:800;color:#1d4ed8">' + inprog.length + '</div><div style="font-size:11px;color:#888;margin-top:3px">In Progress</div></div>' +
         '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #ec4899;text-align:center"><div style="font-size:24px;font-weight:800;color:#9d174d">' + review.length + '</div><div style="font-size:11px;color:#888;margin-top:3px">In Review</div></div>' +
-        '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #10b981;text-align:center"><div style="font-size:24px;font-weight:800;color:#166534">' + done.length + '</div><div style="font-size:11px;color:#888;margin-top:3px">Delivered</div></div>' +
+        '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e5e5e5;border-left:3px solid #10b981;text-align:center"><div style="font-size:24px;font-weight:800;color:#166534">' + done.length + '</div><div style="font-size:11px;color:#888;margin-top:3px">Approved</div></div>' +
       '</div>';
 
-  // Active work section
-  var active = inprog.concat(pending).concat(review);
+  // Active work section (includes items sent back with Changes Requested)
+  var active = inprog.concat(pending).concat(review).concat(changesReq);
   if (active.length) {
     html += '<div style="font-size:16px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px">🎬 Active Work <span style="background:#dbeafe;color:#1d4ed8;font-size:12px;padding:2px 8px;border-radius:20px">' + active.length + '</span></div>';
     active.sort(function(a, b) { return (a.d.date || '9999').localeCompare(b.d.date || '9999'); })
@@ -18395,9 +18461,16 @@ function renderEditorPortal(portal, editor, editorId, allProjects) {
     html += '<div style="background:#fff;border-radius:14px;border:1px solid #e5e5e5;padding:40px;text-align:center;color:#aaa;margin-bottom:14px">🎉 No active work assigned right now.</div>';
   }
 
-  // Delivered section
+  // Delivered — awaiting client approval
+  if (awaitingApproval.length) {
+    html += '<div style="font-size:16px;font-weight:800;margin:20px 0 12px;display:flex;align-items:center;gap:8px">📦 Delivered — Awaiting Approval <span style="background:#eff6ff;color:#1d4ed8;font-size:12px;padding:2px 8px;border-radius:20px">' + awaitingApproval.length + '</span></div>';
+    awaitingApproval.sort(function(a, b) { return (b.d.date || '').localeCompare(a.d.date || ''); })
+      .forEach(function(item) { html += buildDelivCard(item, editorId); });
+  }
+
+  // Approved section
   if (done.length) {
-    html += '<div style="font-size:16px;font-weight:800;margin:20px 0 12px;display:flex;align-items:center;gap:8px">✅ Delivered <span style="background:#dcfce7;color:#166534;font-size:12px;padding:2px 8px;border-radius:20px">' + done.length + '</span></div>';
+    html += '<div style="font-size:16px;font-weight:800;margin:20px 0 12px;display:flex;align-items:center;gap:8px">✅ Delivered &amp; Approved <span style="background:#dcfce7;color:#166534;font-size:12px;padding:2px 8px;border-radius:20px">' + done.length + '</span></div>';
     done.sort(function(a, b) { return (b.d.date || '').localeCompare(a.d.date || ''); })
       .forEach(function(item) { html += buildDelivCard(item, editorId); });
   }
@@ -19557,7 +19630,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canAssignAlbumTasks:true, canMarkSelection:true
   },
   intern: {
-    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'datavault', 'healthcheck', 'clienthub'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'datavault', 'healthcheck', 'clienthub'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:true,
@@ -21055,13 +21128,13 @@ function renderDashboard() {
         if (myTeamId && d.editorId === myTeamId) myDelivs.push({d:d, p:p});
       });
     });
-    var myActive = myDelivs.filter(function(x) { return x.d.status !== 'delivered'; });
-    var myDone = myDelivs.filter(function(x) { return x.d.status === 'delivered'; });
+    var myActive = myDelivs.filter(function(x) { return !delivIsDone(x.d.status); });
+    var myDone = myDelivs.filter(function(x) { return delivIsDone(x.d.status); });
     dc.innerHTML =
       '<div class="metrics">' +
         '<div class="metric blue"><div class="ml">Assigned</div><div class="mv">' + myDelivs.length + '</div></div>' +
         '<div class="metric amber"><div class="ml">Active</div><div class="mv">' + myActive.length + '</div></div>' +
-        '<div class="metric green"><div class="ml">Delivered</div><div class="mv">' + myDone.length + '</div></div>' +
+        '<div class="metric green"><div class="ml">Approved</div><div class="mv">' + myDone.length + '</div></div>' +
       '</div>' +
       '<div class="card"><div class="card-hdr"><span class="card-title">🎬 My Active Work</span></div>' +
       (myActive.length ?
@@ -21073,7 +21146,7 @@ function renderDashboard() {
           return '<tr><td><b>' + (d.name || d.type || 'Deliverable') + '</b><br><small style="color:#888">' + (d.category || '') + '</small></td>' +
             '<td>' + p.bride + ' & ' + p.groom + '</td>' +
             '<td style="color:' + col + ';font-weight:600">' + (d.date || '—') + (days !== null ? ' (' + (days <= 0 ? '⚠️ OVERDUE' : days + 'd') + ')' : '') + '</td>' +
-            '<td>' + (d.status === 'inprogress' ? '<span class="badge b-blue">🎬 Editing</span>' : d.status === 'review' ? '<span class="badge b-purple">👁️ Review</span>' : '<span class="badge b-amber">⏳ Pending</span>') + '</td>' +
+            '<td>' + (d.status === 'inprogress' ? '<span class="badge b-blue">🎬 Editing</span>' : d.status === 'review' ? '<span class="badge b-purple">👁️ Review</span>' : d.status === 'changes' ? '<span class="badge b-red">🔁 Changes</span>' : d.status === 'delivered' ? '<span class="badge b-blue">📦 Awaiting Approval</span>' : '<span class="badge b-amber">⏳ Pending</span>') + '</td>' +
             '<td></td></tr>';
         }).join('') + '</tbody></table>' :
         '<div class="empty">No active work right now.</div>') +
@@ -29713,8 +29786,8 @@ function calcHealthScore(p) {
   // Deliverables status (0–25 pts)
   var delivs = p.customDelivs || [];
   if (delivs.length > 0) {
-    var delivered = delivs.filter(function(d) { return d.status === 'delivered'; }).length;
-    var inprog = delivs.filter(function(d) { return d.status === 'inprogress'; }).length;
+    var delivered = delivs.filter(function(d) { return delivIsDone(d.status); }).length;
+    var inprog = delivs.filter(function(d) { return d.status === 'inprogress' || d.status === 'delivered'; }).length;
     score += Math.round((delivered / delivs.length) * 20 + Math.min(inprog / delivs.length, 0.5) * 10);
   } else {
     score += 10; // no deliverables yet, neutral
@@ -30726,8 +30799,8 @@ function renderClientPortal(container, p, projId) {
 
   // ── Deliverables ───────────────────────────────────────────────────────────
   var delivsHTML = delivs.length ? delivs.map(function(d) {
-    var statusColor = d.status === 'delivered' ? '#16a34a' : d.status === 'review' ? '#d97706' : '#94a3b8';
-    var statusLabel = d.status === 'delivered' ? '✅ Delivered' : d.status === 'client_review' ? '👁️ Awaiting Your Review' : d.status === 'revision' ? '🔄 In Revision' : d.status === 'inprogress' ? '🎬 In Progress' : '⏳ Queued';
+    var statusColor = (d.status === 'delivered' || d.status === 'approved') ? '#16a34a' : d.status === 'changes' ? '#d97706' : '#94a3b8';
+    var statusLabel = d.status === 'approved' ? '✅ Delivered & Approved' : d.status === 'delivered' ? '👁️ Ready for Your Review' : d.status === 'changes' ? '🔄 Revision Requested' : d.status === 'inprogress' ? '🎬 In Progress' : '⏳ Queued';
     var revCount = d.revisionCount || 0;
     return '<div style="background:#f8fafc;border-radius:10px;border:1px solid #e5e7eb;padding:13px;margin-bottom:8px">'
       + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">'
@@ -30738,7 +30811,7 @@ function renderClientPortal(container, p, projId) {
       + '</div>'
       + (d.link ? '<div style="margin-top:10px"><a href="'+(d.link.startsWith('http')?d.link:'#')+'" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:7px;padding:7px 13px;font-size:12px;font-weight:700;text-decoration:none">🔗 Open File ↗</a></div>' : '')
       + (revCount > 0 ? '<div style="font-size:11px;color:#d97706;margin-top:6px">🔄 '+revCount+' revision round'+(revCount>1?'s':'')+' completed</div>' : '')
-      + (d.status==='client_review' ? '<div style="margin-top:10px;display:flex;gap:8px">'
+      + (d.status==='delivered' ? '<div style="margin-top:10px;display:flex;gap:8px">'
           + '<button onclick="clientApproveDeliverable(\''+projId+'\',\''+d.id+'\')" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">✅ Approve</button>'
           + '<button onclick="clientRequestRevision(\''+projId+'\',\''+d.id+'\')" style="flex:1;background:#f8f8f8;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">🔄 Request Revision</button>'
           + '</div>' : '')
@@ -30813,7 +30886,7 @@ function clientApproveDeliverable(projId, delivId) {
     var delivs = JSON.parse(JSON.stringify(p.customDelivs || []));
     var d = delivs.find(function(x) { return x.id === delivId; });
     if (!d) return;
-    d.status = 'delivered';
+    d.status = 'approved';
     d.clientApproved = true;
     d.clientApprovedAt = Date.now();
     if (!d.date) d.date = tod();
@@ -30839,7 +30912,7 @@ function clientRequestRevision(projId, delivId) {
     var nextRound = (d.revisionCount || 0) + 1;
     d.revisionCount = nextRound;
     d.lastRevisionNote = note;
-    d.status = 'inprogress';
+    d.status = 'changes';
     if (!d.revisionLog) d.revisionLog = [];
     d.revisionLog.push({ round: nextRound, what: note, who: 'Client', at: Date.now() });
     db.ref('crm_projects/' + projId + '/customDelivs').set(delivs, function() {
