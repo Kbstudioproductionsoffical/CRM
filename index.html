@@ -5389,12 +5389,12 @@ var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight'
 // own report tile (reportKey:'longvideo') so it no longer gets folded into
 // the Highlight count.
 var DELIV_TYPE_REGISTRY = [
-  { type:'Teaser',          icon:'🎞️', bucket:'video', reportKey:'teaser',     nameRegex:/\bteaser\b/ },
-  { type:'Highlight',       icon:'🎬', bucket:'video', reportKey:'highlight',  nameRegex:/\b(highlight|wedding ?film)\b/ },
-  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'longvideo',  nameRegex:/\b(long ?video|full ?film|full[\s-]?length|feature ?film|main ?film|cinematic ?film)\b/ },
+  { type:'Teaser',          icon:'🎞️', bucket:'video', reportKey:'teaser',     nameRegex:/\bteasers?\b/ },
+  { type:'Highlight',       icon:'🎬', bucket:'video', reportKey:'highlight',  nameRegex:/\b(highlights?|wedding ?films?)\b/ },
+  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'longvideo',  nameRegex:/\b(long ?videos?|full ?films?|full[\s-]?lengths?|feature ?films?|main ?films?|cinematic ?films?)\b/ },
   { type:'Reel',            icon:'📱', bucket:'video', reportKey:'reel',       nameRegex:/\breels?\b/ },
   { type:'Video',           icon:'🎬', bucket:'video', reportKey:null,         nameRegex:null },
-  { type:'Album',           icon:'📔', bucket:'album', reportKey:null,         nameRegex:/\balbum\b/ },
+  { type:'Album',           icon:'📔', bucket:'album', reportKey:null,         nameRegex:/\balbums?\b/ },
   { type:'Frame',           icon:'🖼️', bucket:'photo', reportKey:null,         nameRegex:null },
   { type:'Magazine',        icon:'📰', bucket:'photo', reportKey:null,         nameRegex:null },
   { type:'Edited Pictures', icon:'🖼️', bucket:'photo', reportKey:'editedpics', nameRegex:null },
