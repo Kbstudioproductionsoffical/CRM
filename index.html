@@ -11176,40 +11176,62 @@ function wpDelivPill(vt,matches,pid){
   };
   function meta(s){ return STATUS_META[s]||STATUS_META.pending; }
 
+  // Flatten matches into one row per thing that actually has its own status.
+  // A Reel deliverable with qty > 1 is stored as ONE record with an internal
+  // reelItems[] breakdown (see updateReelItem) — its own .status is just an
+  // auto-rolled-up summary, not something to edit directly. So each reel
+  // becomes its own row here, each with its own dropdown, exactly like the
+  // in-project "Reel Breakdown" panel.
+  var sameCat = matches.every(function(d){ return (d.category||'Wedding')===(matches[0].category||'Wedding'); });
+  var rows=[];
+  matches.forEach(function(d,mIdx){
+    var baseTag=(matches.length>1)?((!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(mIdx+1))):null;
+    if(d.reelItems && d.reelItems.length>1){
+      d.reelItems.forEach(function(ri,ri_idx){
+        rows.push({
+          label:(baseTag?baseTag+' — ':'')+'Reel '+(ri_idx+1),
+          status:ri.status, note:null,
+          onchange:"wpSetReelItemStatus("+pid+",'"+d.id+"',"+ri_idx+",this.value)"
+        });
+      });
+    } else {
+      rows.push({
+        label:baseTag||((d.category && d.category!=='Other')?d.category:null),
+        status:d.status, note:d.note,
+        onchange:"wpSetDelivStatus("+pid+",'"+d.id+"',this.value)"
+      });
+    }
+  });
+
   // The status <select> changes status right here, saved straight to
-  // Firebase (wpSetDelivStatus) — no need to open the project. A small ↗
-  // button still opens the full deliverable (link, notes, etc.) for when
-  // that's actually needed.
-  if(matches.length===1){
-    var d=matches[0], m=meta(d.status);
-    var tag=(d.category && d.category!=='Other')?d.category+' — ':'';
-    var noteTip=d.note?(' — 📝 '+d.note.replace(/"/g,'&quot;')):'';
-    var noteFlag=d.note?'<span style="margin-left:1px" title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'';
+  // Firebase — no need to open the project. A small ↗ button still opens
+  // the full deliverable (link, notes, etc.) for when that's actually needed.
+  if(rows.length===1){
+    var r=rows[0], m=meta(r.status);
+    var tag=r.label?r.label+' — ':'';
+    var noteTip=r.note?(' — 📝 '+r.note.replace(/"/g,'&quot;')):'';
+    var noteFlag=r.note?'<span style="margin-left:1px" title="'+r.note.replace(/"/g,'&quot;')+'">📝</span>':'';
     return '<div style="display:inline-flex;align-items:center;gap:2px;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:3px 2px 3px 8px;min-width:96px" title="'+tag+m.label+noteTip+'">' +
-      '<select onchange="wpSetDelivStatus('+pid+',\''+d.id+'\',this.value)" style="border:none;background:transparent;font-size:10.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:2px 0;max-width:118px">'+delivStatusOptionsHtml(d.status)+'</select>' +
+      '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:10.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:2px 0;max-width:118px">'+delivStatusOptionsHtml(r.status)+'</select>' +
       noteFlag +
       '<button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:2px 4px;flex-shrink:0">↗</button>' +
     '</div>';
   }
 
-  // Multiple items in this bucket — almost always one per event (Haldi vs
-  // Wedding Long Video, etc). Show each one's own status instead of a
-  // collapsed fraction, so a Changes-Requested item is never buried. Each
-  // gets its own inline status <select> too.
-  var sameCat = matches.every(function(d){ return (d.category||'Wedding')===(matches[0].category||'Wedding'); });
-  var worstUrgency = matches.reduce(function(acc,d){ var u=meta(d.status).urgency; return u>acc?u:acc; },0);
+  // Multiple rows — separate events (Haldi vs Wedding), separate reels
+  // within one qty>1 Reel deliverable, or both at once (e.g. Haldi Reel x2
+  // + Wedding Reel x2 → 4 rows). Each gets its own inline status <select>.
+  var worstUrgency=rows.reduce(function(acc,r){ var u=meta(r.status).urgency; return u>acc?u:acc; },0);
   var worstColor='#94a3b8';
   Object.keys(STATUS_META).forEach(function(k){ if(STATUS_META[k].urgency===worstUrgency) worstColor=STATUS_META[k].color; });
-  var chips=matches.map(function(d,idx){
-    var m=meta(d.status);
-    var tag=(!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(idx+1));
-    var tagColor=(!sameCat && d.category && d.category!=='Other')?catColorFor(d.category):'#555';
-    var noteFlag=d.note?'<span title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'';
-    return '<div style="display:flex;align-items:center;gap:3px;font-size:9.5px;line-height:1.55;white-space:nowrap"><span>'+m.icon+'</span><span style="color:'+tagColor+';font-weight:700">'+tag+':</span>' +
-      '<select onchange="wpSetDelivStatus('+pid+',\''+d.id+'\',this.value)" style="border:none;background:transparent;font-size:9.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:0;max-width:104px">'+delivStatusOptionsHtml(d.status)+'</select>'+noteFlag+'</div>';
+  var chips=rows.map(function(r){
+    var m=meta(r.status);
+    var noteFlag=r.note?'<span title="'+r.note.replace(/"/g,'&quot;')+'">📝</span>':'';
+    return '<div style="display:flex;align-items:center;gap:3px;font-size:9.5px;line-height:1.55;white-space:nowrap"><span>'+m.icon+'</span><span style="color:#555;font-weight:700">'+(r.label||'Item')+':</span>' +
+      '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:9.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:0;max-width:104px">'+delivStatusOptionsHtml(r.status)+'</select>'+noteFlag+'</div>';
   }).join('');
-  var tooltip=matches.map(function(d,idx){ var m=meta(d.status); var tag=(!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(idx+1)); return tag+': '+m.label; }).join(' · ');
-  var hint=sameCat?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px;font-weight:600">⚠️ Tag by event for clarity</div>':'';
+  var tooltip=rows.map(function(r){ return (r.label||'Item')+': '+meta(r.status).label; }).join(' · ');
+  var hint=(sameCat && matches.length>1 && !matches.some(function(d){return d.reelItems&&d.reelItems.length>1;}))?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px;font-weight:600">⚠️ Tag by event for clarity</div>':'';
   return '<div style="display:inline-block;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:8px;padding:4px 4px 4px 8px;min-width:92px" title="'+tooltip+'">' +
     '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:0 0 2px 4px">↗</button></div>' +
     chips+hint+
@@ -11218,6 +11240,9 @@ function wpDelivPill(vt,matches,pid){
 // Change a deliverable's status directly from Work Progress, without
 // opening the project. Mirrors the same save pattern used by the in-project
 // revision tracker (read → deep copy → mutate → write the whole array back).
+// Only for deliverables WITHOUT a reelItems breakdown — see
+// wpSetReelItemStatus for qty>1 Reels, whose .status is auto-rolled-up and
+// must never be set directly (it would just get overwritten on next edit).
 function wpSetDelivStatus(pid,delivId,newStatus){
   var p=projects[pid]; if(!p){ showToast('⚠️ Project not found — try refreshing.'); return; }
   var delivs=JSON.parse(JSON.stringify(p.customDelivs||[]));
@@ -11231,6 +11256,36 @@ function wpSetDelivStatus(pid,delivId,newStatus){
     p.customDelivs=delivs;
     if(newStatus==='delivered' && prevStatus!=='delivered') showDeliveredWAPopup(d,p);
     showToast('✅ Status updated');
+    renderWorkProgress();
+  });
+}
+// Change ONE reel's status inside a qty>1 Reel deliverable's breakdown, then
+// re-derive the parent deliverable's rolled-up .status — same rule as
+// updateReelItem() uses inside the project: all approved → approved, all at
+// least delivered → delivered, any changes requested → changes, any active →
+// in progress, else pending.
+function wpSetReelItemStatus(pid,delivId,reelIdx,newStatus){
+  var p=projects[pid]; if(!p){ showToast('⚠️ Project not found — try refreshing.'); return; }
+  var delivs=JSON.parse(JSON.stringify(p.customDelivs||[]));
+  var d=delivs.find(function(x){ return x.id===delivId; });
+  if(!d || !d.reelItems || !d.reelItems[reelIdx]){ showToast('⚠️ Reel not found — try refreshing.'); return; }
+  var prevStatus=d.reelItems[reelIdx].status;
+  d.reelItems[reelIdx].status=newStatus;
+  if(newStatus==='delivered' && !d.reelItems[reelIdx].date) d.reelItems[reelIdx].date=tod();
+  var items=d.reelItems;
+  var allApproved=items.every(function(r){return r.status==='approved';});
+  var allAtLeastDelivered=items.every(function(r){return r.status==='delivered'||r.status==='approved';});
+  var anyChanges=items.some(function(r){return r.status==='changes';});
+  var anyActive=items.some(function(r){return r.status==='delivered'||r.status==='inprogress'||r.status==='approved';});
+  d.status=allApproved?'approved':allAtLeastDelivered?'delivered':anyChanges?'changes':anyActive?'inprogress':'pending';
+  db.ref('crm_projects/'+pid+'/customDelivs').set(delivs,function(err){
+    if(err){ showToast('❌ Could not save: '+err.message); return; }
+    p.customDelivs=delivs;
+    if(newStatus==='delivered' && prevStatus!=='delivered'){
+      var msgD=Object.assign({},d,{name:(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1),link:d.reelItems[reelIdx].link||d.link||''});
+      showDeliveredWAPopup(msgD,p);
+    }
+    showToast('✅ Reel '+(reelIdx+1)+' status updated');
     renderWorkProgress();
   });
 }
