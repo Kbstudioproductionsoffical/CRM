@@ -1791,6 +1791,12 @@ document.addEventListener('wheel', function(e) {
         <select id="wp-export-month" class="fi" style="width:190px;padding:7px 10px;font-size:13px"></select>
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="wpExportPDF()">📄 Export PDF</button>
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="wpExportExcel()">📊 Export Excel</button>
+        <span style="flex-basis:100%;height:0"></span>
+        <span style="font-size:13px;font-weight:600;color:#555">Include statuses:</span>
+        <span id="wp-status-filter" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+        <button class="btn" style="padding:5px 10px;font-size:11.5px" onclick="document.querySelectorAll('#wp-status-filter input').forEach(function(b){b.checked=true;})">All</button>
+        <button class="btn" style="padding:5px 10px;font-size:11.5px" onclick="document.querySelectorAll('#wp-status-filter input').forEach(function(b){b.checked=(b.value==='pending'||b.value==='changes');})">Pending + Changes only</button>
+        <span style="font-size:11.5px;color:#888">Uncheck "Delivered &amp; Approved" to export only outstanding work — clients whose deliverables are all approved are left out automatically.</span>
       </div>
 
       <div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 16px;margin-bottom:18px">
@@ -10920,6 +10926,7 @@ function renderWorkProgress(){
   if(groups.unplanned) monthKeys.push('unplanned');
   _wpLastGroups=groups; _wpLastVideoTypes=videoTypes; // kept for export, respects current filters
   wpFillExportMonthSelect(monthKeys);
+  wpFillExportStatusFilter();
   if(!monthKeys.length){ el.innerHTML='<div class="empty">No clients currently in Post-Production match this filter.</div>'; return; }
 
   var html='';
@@ -11041,14 +11048,15 @@ function wpFillExportMonthSelect(monthKeys){
   sel.innerHTML=opts;
   if(cur && monthKeys.concat('__all__').indexOf(cur)!==-1) sel.value=cur;
 }
-function wpDelivStatusText(p,vt){
+function wpDelivStatusText(p,vt,filterSet){
   var delivs=p.customDelivs||[];
   var matches=delivs.filter(function(d){
     if(d.type===vt.type) return true;
     var exactOther=_wpLastVideoTypes.some(function(o){return o.type===d.type;});
     return !exactOther && vt.nameRegex && vt.nameRegex.test((d.name||'').toLowerCase());
   });
-  if(!matches.length) return 'Not Added';
+  if(filterSet) matches=matches.filter(function(d){ return filterSet[d.status||'pending']; });
+  if(!matches.length) return filterSet?'':'Not Added'; // under a status filter, a non-match should just be blank, not flagged
   return matches.map(function(d){
     var tag=(d.category && d.category!=='Other')?d.category+': ':'';
     return tag+_delivStatusInfo(d.status).label;
@@ -11058,12 +11066,42 @@ function wpDelivNotesText(p){
   var delivs=p.customDelivs||[];
   return delivs.filter(function(d){return d.note;}).map(function(d){ return (d.name||d.type||'Item')+' — '+d.note; }).join(' | ');
 }
+// ── Advanced status filter for export: lets the team pull just the
+// outstanding work (pending / in progress / delivered-not-approved /
+// changes requested) and skip clients who are fully approved ─────────────
+var _wpStatusFilterBuilt=false;
+function wpFillExportStatusFilter(){
+  if(_wpStatusFilterBuilt) return;
+  var wrap=document.getElementById('wp-status-filter'); if(!wrap) return;
+  var html='';
+  DELIV_STATUS_REGISTRY.forEach(function(s){
+    var checked=s.v!=='approved'?' checked':''; // default: everything except "Delivered & Approved"
+    html+='<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#555;cursor:pointer;background:#fff;border:1px solid #ddd;border-radius:6px;padding:5px 9px">'+
+      '<input type="checkbox" value="'+s.v+'"'+checked+'> '+s.icon+' '+s.label+'</label>';
+  });
+  wrap.innerHTML=html;
+  _wpStatusFilterBuilt=true;
+}
+// Returns null when every status is checked (= no filtering, full export as before),
+// {} when nothing is checked, or a {status:true,...} map otherwise.
+function wpGetExportStatusFilter(){
+  var boxes=document.querySelectorAll('#wp-status-filter input[type=checkbox]');
+  if(!boxes.length) return null;
+  var checked={}, allChecked=true, anyChecked=false;
+  boxes.forEach(function(b){
+    if(b.checked){ checked[b.value]=true; anyChecked=true; } else { allChecked=false; }
+  });
+  if(allChecked) return null;
+  if(!anyChecked) return {};
+  return checked;
+}
 function wpExportRows(){
   var monthSel=(document.getElementById('wp-export-month')||{}).value||'__all__';
   var groups=_wpLastGroups, videoTypes=_wpLastVideoTypes;
   var monthKeys=monthSel==='__all__'?Object.keys(groups):[monthSel];
   monthKeys=monthKeys.filter(function(k){return groups[k];});
   monthKeys.sort(function(a,b){ if(a==='unplanned')return 1; if(b==='unplanned')return -1; return a.localeCompare(b); });
+  var filterSet=wpGetExportStatusFilter();
   var rows=[];
   monthKeys.forEach(function(mk){
     var list=groups[mk].slice().sort(function(a,b){ return (a.bride||'').localeCompare(b.bride||''); });
@@ -11075,15 +11113,25 @@ function wpExportRows(){
         targetMonth:mk==='unplanned'?'Not Yet Assigned':wpMonthLabel(mk),
         notes:wpDelivNotesText(p)
       };
-      videoTypes.forEach(function(vt){ row[vt.type]=wpDelivStatusText(p,vt); });
+      var hasMatch=false;
+      videoTypes.forEach(function(vt){
+        var txt=wpDelivStatusText(p,vt,filterSet);
+        row[vt.type]=txt||'—';
+        if(txt) hasMatch=true;
+      });
+      if(filterSet && !hasMatch) return; // nothing in the selected statuses — e.g. fully approved — skip this client
       rows.push(row);
     });
   });
-  return {rows:rows, videoTypes:videoTypes, monthLabel: monthSel==='__all__'?'All Months':(monthSel==='unplanned'?'Not Yet Assigned':wpMonthLabel(monthSel))};
+  return {
+    rows:rows, videoTypes:videoTypes,
+    monthLabel: monthSel==='__all__'?'All Months':(monthSel==='unplanned'?'Not Yet Assigned':wpMonthLabel(monthSel)),
+    filtered: !!filterSet
+  };
 }
 function wpExportExcel(){
   var data=wpExportRows();
-  if(!data.rows.length){ showToast('⚠️ No clients to export for this selection.'); return; }
+  if(!data.rows.length){ showToast(data.filtered?'⚠️ No clients match the selected statuses for this selection.':'⚠️ No clients to export for this selection.'); return; }
   var header=['Client','City','Event Date','Target Month'].concat(data.videoTypes.map(function(vt){return vt.type;})).concat(['Notes']);
   var aoa=[header];
   data.rows.forEach(function(r){
@@ -11096,12 +11144,12 @@ function wpExportExcel(){
   var ws=XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols']=[{wch:26},{wch:14},{wch:14},{wch:16}].concat(data.videoTypes.map(function(){return {wch:20};})).concat([{wch:36}]);
   XLSX.utils.book_append_sheet(wb,ws,'Work Progress');
-  XLSX.writeFile(wb,'KB_Work_Progress_'+data.monthLabel.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
-  showToast('✅ Excel exported!');
+  XLSX.writeFile(wb,'KB_Work_Progress_'+data.monthLabel.replace(/\s+/g,'_')+(data.filtered?'_Outstanding':'')+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showToast('✅ Excel exported'+(data.filtered?' ('+data.rows.length+' with outstanding work)':'')+'!');
 }
 function wpExportPDF(){
   var data=wpExportRows();
-  if(!data.rows.length){ showToast('⚠️ No clients to export for this selection.'); return; }
+  if(!data.rows.length){ showToast(data.filtered?'⚠️ No clients match the selected statuses for this selection.':'⚠️ No clients to export for this selection.'); return; }
   var jsPDFLib=window.jspdf && window.jspdf.jsPDF;
   if(!jsPDFLib){ showToast('PDF library not loaded'); return; }
   var doc=new jsPDFLib({orientation:'landscape',unit:'mm',format:'a4'});
@@ -11109,14 +11157,14 @@ function wpExportPDF(){
 
   doc.setFillColor(26,26,26); doc.rect(0,0,pageW,18,'F');
   doc.setTextColor(255,255,255); doc.setFontSize(12); doc.setFont('helvetica','bold');
-  doc.text('KB Studio Productions — Work Progress: '+data.monthLabel,14,12);
+  doc.text('KB Studio Productions — Work Progress: '+data.monthLabel+(data.filtered?' (Outstanding Only)':''),14,12);
   doc.setFontSize(8); doc.setFont('helvetica','normal');
   doc.text('Exported: '+new Date().toLocaleString('en-IN'),pageW-14,12,{align:'right'});
 
   doc.setFillColor(255,247,237); doc.setDrawColor(254,215,170);
   doc.roundedRect(14,22,pageW-28,10,2,2,'FD');
   doc.setTextColor(154,52,18); doc.setFontSize(9); doc.setFont('helvetica','bold');
-  doc.text(data.rows.length+' client'+(data.rows.length!==1?'s':'')+' — '+data.monthLabel,18,29);
+  doc.text(data.rows.length+' client'+(data.rows.length!==1?'s':'')+' — '+data.monthLabel+(data.filtered?' — deliverables outstanding, fully-approved clients excluded':''),18,29);
 
   var baseCols=[{header:'Client',width:52},{header:'City',width:24},{header:'Event Date',width:24},{header:'Target Month',width:26}];
   var vtCols=data.videoTypes.map(function(vt){return {header:vt.type,width:34};});
@@ -11151,8 +11199,8 @@ function wpExportPDF(){
   doc.text('KB Studio CRM — Confidential',14,pageH-5);
   doc.text('Total: '+data.rows.length+' records',pageW-14,pageH-5,{align:'right'});
 
-  doc.save('KB_Work_Progress_'+data.monthLabel.replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
-  showToast('✅ PDF exported!');
+  doc.save('KB_Work_Progress_'+data.monthLabel.replace(/\s+/g,'_')+(data.filtered?'_Outstanding':'')+'_'+new Date().toISOString().slice(0,10)+'.pdf');
+  showToast('✅ PDF exported'+(data.filtered?' ('+data.rows.length+' with outstanding work)':'')+'!');
 }
 // Shared month-picker markup, used by every row style
 function wpMonthSelect(p){
