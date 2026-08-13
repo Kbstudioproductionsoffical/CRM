@@ -11005,9 +11005,21 @@ function wpClientRowCompact(p,border){
   return '<div style="display:flex;align-items:center;gap:12px;padding:8px 14px;'+(border?'border-bottom:1px solid #f0f0f0':'')+'">' +
     '<div style="flex:1;min-width:150px;cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')">' +
       '<span style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</span>' +
+      wpAmbiguousFlag(p) +
       '<span style="font-size:11px;color:#999;margin-left:8px">'+(p.city||'—')+(p.date?(' · '+fmtDate(p.date)):'')+'</span>' +
     '</div>' + wpMonthSelect(p) +
   '</div>';
+}
+// A deliverable still on the retired generic 'Video' type is invisible to
+// every Teaser/Highlight/Long Video/Reel column above — it just silently
+// reads "not added" even when real work (with a real status) is sitting
+// behind it. Rather than hide that, flag it right on the row so it's
+// impossible to miss and one click away from being fixed.
+function wpAmbiguousFlag(p){
+  var hits=(p.customDelivs||[]).filter(function(d){ return d.type==='Video'; });
+  if(!hits.length) return '';
+  var names=hits.map(function(d){ return d.name||'(unnamed)'; }).join(', ');
+  return ' <span title="'+('Type not set for: '+names+' — click to fix in Deliverables tab').replace(/"/g,'&quot;')+'" style="cursor:pointer;font-size:10.5px;background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;font-weight:700;border-radius:8px;padding:1px 6px;margin-left:4px" onclick="event.stopPropagation();openProject('+p.id+',\'t-deliv\')">⚠️ Type unclear</span>';
 }
 // Aligned table row — name/date in a fixed-width first column, month picker
 // in a fixed second column, then one evenly-sized column per deliverable
@@ -11016,7 +11028,7 @@ function wpClientRowCompact(p,border){
 function wpClientRow(p,videoTypes){
   var delivs=p.customDelivs||[];
   var html='<tr>';
-  html+='<td style="cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')"><div style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</div>' +
+  html+='<td style="cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')"><div style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+wpAmbiguousFlag(p)+'</div>' +
     '<div style="font-size:10.5px;color:#999;margin-top:2px">'+(p.city||'—')+' · '+(p.date?('Event: '+fmtDate(p.date)):'No event date')+'</div></td>';
   html+='<td>'+wpMonthSelect(p)+'</td>';
   videoTypes.forEach(function(vt){
@@ -18722,11 +18734,21 @@ var HC_CHECKS = [
     // a deliverable left on the generic 'Video'/'Other' type even though its name clearly
     // matches a specific registered type (Highlight, Long Video, Teaser, Reel...). Runs
     // against DELIV_TYPE_REGISTRY so it auto-covers any new type added there later.
+    //
+    // 'Video' is legacy-only — it isn't even offered in the Add Deliverable form anymore,
+    // so anything still stuck on it predates that safeguard. We flag every 'Video'-typed
+    // item unconditionally (not just when the name happens to regex-match), because a
+    // typo'd or oddly-worded name ("Long Vidoes") won't match any pattern and would
+    // otherwise stay invisible here AND silently show as "not added" in Work Progress.
+    // 'Other' items are only flagged when the name clearly matches a known pattern, since
+    // plenty of genuine one-off Other items (Drone Coverage, Same-Day Edit) are correct
+    // exactly as they are and shouldn't be flagged.
     type: 'deliv_type', key: 'ambiguous_deliv_type',
     label: 'Deliverable type unclear — may be hidden from Pending Report', icon: '🎬', severity: 'medium',
     test: function(p){
       return (p.customDelivs||[]).some(function(d){
-        if(d.type!=='Video' && d.type!=='Other' && d.type) return false;
+        if(d.type==='Video') return true;
+        if(d.type!=='Other') return false;
         var n=(d.name||'').toLowerCase();
         return DELIV_TYPE_REGISTRY.some(function(r){ return r.nameRegex && r.nameRegex.test(n); });
       });
@@ -18734,12 +18756,13 @@ var HC_CHECKS = [
     field: null,
     inputHtml: function(p){
       var hits=(p.customDelivs||[]).filter(function(d){
-        if(d.type!=='Video' && d.type!=='Other' && d.type) return false;
+        if(d.type==='Video') return true;
+        if(d.type!=='Other') return false;
         var n=(d.name||'').toLowerCase();
         return DELIV_TYPE_REGISTRY.some(function(r){ return r.nameRegex && r.nameRegex.test(n); });
       });
       var names=hits.map(function(d){ return d.name||'(unnamed)'; }).join(', ');
-      return '<span style="font-size:11px;color:#92400e">'+hits.length+' item(s) look like they need a specific Type: '+escHtml(names)+'. </span><button class="btn btn-sm btn-primary" onclick="openProject('+p.id+',\'t-deliv\')" style="font-size:11px;margin-left:6px">Open → Fix Type</button>'
+      return '<span style="font-size:11px;color:#92400e">'+hits.length+' item(s) need a specific Type set: '+escHtml(names)+'. </span><button class="btn btn-sm btn-primary" onclick="openProject('+p.id+',\'t-deliv\')" style="font-size:11px;margin-left:6px">Open → Fix Type</button>'
     }
   },
 
