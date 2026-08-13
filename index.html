@@ -549,7 +549,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .cal-view-toggle{display:flex;gap:4px;margin-left:auto}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#e5e5e5;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;box-shadow:0 2px 12px rgba(0,0,0,.06)}
 .cal-dow{background:#f4f6f8;padding:10px 4px;text-align:center;font-size:10px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.1em}
-.cal-cell{background:#fff;min-height:110px;padding:7px;position:relative;cursor:pointer;transition:background .15s,box-shadow .15s;border-top:2px solid transparent}
+.cal-cell{background:#fff;min-height:110px;min-width:0;padding:7px;position:relative;cursor:pointer;transition:background .15s,box-shadow .15s;border-top:2px solid transparent}
 .cal-cell:hover{background:#f9fafb;box-shadow:inset 0 0 0 1px #dbeafe}
 .cal-cell.today{background:#eff6ff;border-top:2px solid #3b82f6}
 .cal-cell.other-month{background:#fafafa}
@@ -569,7 +569,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .cal-week-dow{background:#f4f6f8;padding:10px 4px;text-align:center;font-size:10px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:.1em}
 .cal-week-dow.today-col{background:#eff6ff;color:#3b82f6;font-weight:800}
 .cal-week-time{background:#f4f6f8;padding:8px 6px;font-size:10px;color:#9ca3af;text-align:right;border-right:1px solid #e5e5e5;min-height:56px;display:flex;align-items:flex-start;justify-content:flex-end;padding-top:4px;font-weight:600}
-.cal-week-cell{background:#fff;min-height:56px;padding:4px;border-top:1px solid #f0f0f0;position:relative}
+.cal-week-cell{background:#fff;min-height:56px;min-width:0;padding:4px;border-top:1px solid #f0f0f0;position:relative}
 .cal-week-cell.today-col{background:#eff6ff}
 /* Day view */
 .cal-day-view{background:#fff;border-radius:12px;border:1px solid #e5e5e5;box-shadow:0 2px 12px rgba(0,0,0,.06);overflow:hidden}
@@ -2012,6 +2012,7 @@ document.addEventListener('wheel', function(e) {
         <button class="tab-btn" id="hc-tab-dupes-btn" onclick="hcSwitchTab('dupes')">👯 Duplicates</button>
         <button class="tab-btn" id="hc-tab-tasks-btn" onclick="hcSwitchTab('tasks')">📋 My Tasks <span id="hc-tasks-badge" style="display:none;background:#dc2626;color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:10px;margin-left:4px">0</span></button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center;padding-bottom:2px">
+          <button class="btn btn-sm" id="hc-sync-dates-btn" onclick="syncEventDateScheduleMismatches()" style="background:#fef9c3;color:#854d0e;border-color:#fde68a;font-size:11px;display:none">🔧 Sync Date Mismatches</button>
           <button class="btn btn-sm" id="hc-assign-btn" onclick="hcOpenAssignModal()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;font-size:11px">👥 Assign Tasks</button>
           <button class="btn btn-sm" id="hc-export-btn" onclick="hcExportCSV()" style="background:#0369a1;color:#fff;border-color:#0369a1;font-size:11px">⬇️ Export CSV</button>
           <button class="btn btn-sm" onclick="renderHealthCheck()">🔄 Refresh</button>
@@ -18809,7 +18810,10 @@ var HC_CHECKS = [
     inputHtml: function(p){
       return '<div style="background:#fef9c3;border-radius:6px;padding:8px 10px;font-size:11px;color:#854d0e">'+
         'Wedding/Event Date field says <b>'+p.date+'</b> but the earliest event-day in the schedule says <b>'+firstEventDate(p)+'</b>.'+
-        '<div style="margin-top:6px"><button class="btn btn-sm btn-primary" onclick="openProject('+p.id+')" style="font-size:11px">Open → Fix Dates</button></div></div>';
+        '<div style="margin-top:6px;display:flex;gap:6px">'+
+          '<button class="btn btn-sm btn-primary" onclick="syncSingleEventDateMismatch('+p.id+')" style="font-size:11px">🔧 Sync Now (use '+firstEventDate(p)+')</button>'+
+          '<button class="btn btn-sm" onclick="openProject('+p.id+')" style="font-size:11px">Open → Fix Manually</button>'+
+        '</div></div>';
     }
   },
   {
@@ -19699,7 +19703,113 @@ function hcApplyStageFilter() {
 }
 
 // ── Main render ───────────────────────────────────────────────────
-var _hcTab = 'issues'; // 'issues' or 'dupes'
+// ── Find & fix: Wedding/Event Date field vs event-day schedule mismatches ──
+// Same underlying test as the Health Check 'eventdate_schedule_mismatch' rule.
+// The schedule (firstEventDate) is treated as the source of truth here because
+// it's what Shoot Calendar, Pipeline filters, and payment due-dates already
+// use elsewhere in the app — syncing p.date to match it, not the other way
+// round, keeps every part of the CRM reading the same date.
+function findEventDateScheduleMismatches() {
+  return pl().filter(function(p) {
+    if (!p.eventDays || !p.eventDays.length) return false;
+    var fed = firstEventDate(p);
+    return !!(fed && p.date && fed !== p.date);
+  });
+}
+
+var _hcDateSyncInProgress = false;
+
+function syncEventDateScheduleMismatches() {
+  if (_hcDateSyncInProgress) return; // guard against double-clicks
+  var mismatched = findEventDateScheduleMismatches();
+  if (!mismatched.length) {
+    showToast('✅ Nothing to sync — every project\'s Wedding/Event Date matches its schedule.');
+    return;
+  }
+  var preview = mismatched.slice(0, 8).map(function(p) {
+    return '• ' + p.bride + ' & ' + p.groom + ' — ' + p.date + ' → ' + firstEventDate(p);
+  }).join('\n') + (mismatched.length > 8 ? '\n…and ' + (mismatched.length - 8) + ' more' : '');
+
+  if (!confirm(
+    'Found ' + mismatched.length + ' project(s) where the Wedding/Event Date field disagrees with the event-day schedule:\n\n' +
+    preview +
+    '\n\nEach Wedding/Event Date will be updated to match the earliest date in its own schedule (the same date already used by Shoot Calendar, Pipeline and payment due-dates). Continue?'
+  )) return;
+
+  _hcDateSyncInProgress = true;
+  var btn = document.getElementById('hc-sync-dates-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+
+  // Re-fetch from Firebase right before writing, so this acts on current
+  // data rather than a possibly-stale local cache.
+  db.ref('crm_projects').once('value', function(snap) {
+    var fresh = snap.val() || {};
+    var updates = {};
+    var syncedCount = 0;
+
+    mismatched.forEach(function(p) {
+      var freshP = fresh[p.id] || p;
+      var fed = firstEventDate(freshP);
+      if (!fed || !freshP.eventDays || !freshP.eventDays.length || fed === freshP.date) return; // already fixed (e.g. by a prior click) — skip
+      updates['crm_projects/' + p.id + '/date'] = fed;
+      syncedCount++;
+    });
+
+    if (!syncedCount) {
+      _hcDateSyncInProgress = false;
+      if (btn) { btn.disabled = false; }
+      showToast('✅ Nothing to sync — already up to date.');
+      updateHcSyncButton();
+      return;
+    }
+
+    db.ref().update(updates, function(err) {
+      _hcDateSyncInProgress = false;
+      if (btn) btn.disabled = false;
+      if (err) { showToast('❌ Sync failed: ' + err.message); return; }
+      Object.keys(updates).forEach(function(path) {
+        var pid = path.split('/')[1];
+        if (projects[pid]) projects[pid].date = updates[path];
+      });
+      showToast('✅ Synced ' + syncedCount + ' project date(s) to match their schedule.');
+      renderHealthCheck();
+    });
+  });
+}
+
+// Quick single-row fix, used by the "🔧 Sync Now" button on an individual
+// Health Check card — same logic as the bulk tool, scoped to one project so
+// a user can fix a single client without triggering the confirm-all flow.
+function syncSingleEventDateMismatch(pid) {
+  var p = projects[pid];
+  if (!p) return;
+  var fed = firstEventDate(p);
+  if (!fed || fed === p.date) { renderHealthCheck(); return; }
+  db.ref('crm_projects/' + pid + '/date').set(fed, function(err) {
+    if (err) { showToast('❌ Sync failed: ' + err.message); return; }
+    if (projects[pid]) projects[pid].date = fed;
+    showToast('✅ Synced ' + p.bride + ' & ' + p.groom + '\'s Wedding/Event Date to ' + fed + '.');
+    renderHealthCheck();
+  });
+}
+
+function updateHcSyncButton() {
+  var btn = document.getElementById('hc-sync-dates-btn');
+  if (!btn) return;
+  var canSync = CU && (CU.role === 'superadmin' || CU.role === 'admin');
+  if (!canSync) { btn.style.display = 'none'; return; }
+  if (_hcDateSyncInProgress) return;
+  var count = findEventDateScheduleMismatches().length;
+  if (count > 0) {
+    btn.style.display = '';
+    btn.disabled = false;
+    btn.textContent = '🔧 Sync ' + count + ' Date Mismatch' + (count!==1?'es':'');
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+
 
 function renderHealthCheck() {
   hcApplyRBAC();
@@ -19734,6 +19844,7 @@ function renderHealthCheck() {
 
   _hcStageFilter = (document.getElementById('hc-stage-filter')||{value:''}).value;
 
+  updateHcSyncButton();
   var counts = hcCountByType();
 
   // ── Render summary tiles ─────────────────────────────────────────
