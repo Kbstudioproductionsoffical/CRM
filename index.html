@@ -11176,17 +11176,26 @@ function wpDelivPill(vt,matches,pid){
   };
   function meta(s){ return STATUS_META[s]||STATUS_META.pending; }
 
+  // The status <select> changes status right here, saved straight to
+  // Firebase (wpSetDelivStatus) — no need to open the project. A small ↗
+  // button still opens the full deliverable (link, notes, etc.) for when
+  // that's actually needed.
   if(matches.length===1){
     var d=matches[0], m=meta(d.status);
     var tag=(d.category && d.category!=='Other')?d.category+' — ':'';
     var noteTip=d.note?(' — 📝 '+d.note.replace(/"/g,'&quot;')):'';
-    var noteFlag=d.note?'<span style="margin-left:3px" title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'';
-    return '<span style="display:inline-block;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:5px 8px;font-size:10.5px;color:'+m.color+';font-weight:700;cursor:pointer;min-width:76px" onclick="openProject('+pid+',\'t-deliv\')" title="'+tag+m.label+noteTip+'">'+tag+m.icon+' '+m.label+noteFlag+'</span>';
+    var noteFlag=d.note?'<span style="margin-left:1px" title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'';
+    return '<div style="display:inline-flex;align-items:center;gap:2px;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:3px 2px 3px 8px;min-width:96px" title="'+tag+m.label+noteTip+'">' +
+      '<select onchange="wpSetDelivStatus('+pid+',\''+d.id+'\',this.value)" style="border:none;background:transparent;font-size:10.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:2px 0;max-width:118px">'+delivStatusOptionsHtml(d.status)+'</select>' +
+      noteFlag +
+      '<button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:2px 4px;flex-shrink:0">↗</button>' +
+    '</div>';
   }
 
   // Multiple items in this bucket — almost always one per event (Haldi vs
   // Wedding Long Video, etc). Show each one's own status instead of a
-  // collapsed fraction, so a Changes-Requested item is never buried.
+  // collapsed fraction, so a Changes-Requested item is never buried. Each
+  // gets its own inline status <select> too.
   var sameCat = matches.every(function(d){ return (d.category||'Wedding')===(matches[0].category||'Wedding'); });
   var worstUrgency = matches.reduce(function(acc,d){ var u=meta(d.status).urgency; return u>acc?u:acc; },0);
   var worstColor='#94a3b8';
@@ -11196,11 +11205,34 @@ function wpDelivPill(vt,matches,pid){
     var tag=(!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(idx+1));
     var tagColor=(!sameCat && d.category && d.category!=='Other')?catColorFor(d.category):'#555';
     var noteFlag=d.note?'<span title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'';
-    return '<div style="display:flex;align-items:center;gap:4px;font-size:9.5px;line-height:1.55;white-space:nowrap"><span>'+m.icon+'</span><span style="color:'+tagColor+';font-weight:700">'+tag+':</span><span style="color:'+m.color+';font-weight:700">'+m.label+'</span>'+noteFlag+'</div>';
+    return '<div style="display:flex;align-items:center;gap:3px;font-size:9.5px;line-height:1.55;white-space:nowrap"><span>'+m.icon+'</span><span style="color:'+tagColor+';font-weight:700">'+tag+':</span>' +
+      '<select onchange="wpSetDelivStatus('+pid+',\''+d.id+'\',this.value)" style="border:none;background:transparent;font-size:9.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:0;max-width:104px">'+delivStatusOptionsHtml(d.status)+'</select>'+noteFlag+'</div>';
   }).join('');
   var tooltip=matches.map(function(d,idx){ var m=meta(d.status); var tag=(!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(idx+1)); return tag+': '+m.label; }).join(' · ');
   var hint=sameCat?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px;font-weight:600">⚠️ Tag by event for clarity</div>':'';
-  return '<div style="display:inline-block;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:8px;padding:5px 8px;cursor:pointer;min-width:92px" onclick="openProject('+pid+',\'t-deliv\')" title="'+tooltip+'">'+chips+hint+'</div>';
+  return '<div style="display:inline-block;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:8px;padding:4px 4px 4px 8px;min-width:92px" title="'+tooltip+'">' +
+    '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:0 0 2px 4px">↗</button></div>' +
+    chips+hint+
+  '</div>';
+}
+// Change a deliverable's status directly from Work Progress, without
+// opening the project. Mirrors the same save pattern used by the in-project
+// revision tracker (read → deep copy → mutate → write the whole array back).
+function wpSetDelivStatus(pid,delivId,newStatus){
+  var p=projects[pid]; if(!p){ showToast('⚠️ Project not found — try refreshing.'); return; }
+  var delivs=JSON.parse(JSON.stringify(p.customDelivs||[]));
+  var d=delivs.find(function(x){ return x.id===delivId; });
+  if(!d){ showToast('⚠️ Deliverable not found — try refreshing.'); return; }
+  var prevStatus=d.status;
+  d.status=newStatus;
+  if(newStatus==='delivered' && !d.date) d.date=tod();
+  db.ref('crm_projects/'+pid+'/customDelivs').set(delivs,function(err){
+    if(err){ showToast('❌ Could not save: '+err.message); return; }
+    p.customDelivs=delivs;
+    if(newStatus==='delivered' && prevStatus!=='delivered') showDeliveredWAPopup(d,p);
+    showToast('✅ Status updated');
+    renderWorkProgress();
+  });
 }
 
 // ═══ POST PRODUCTION WORKFLOW (Step-by-Step) ═══════════════════════════════
