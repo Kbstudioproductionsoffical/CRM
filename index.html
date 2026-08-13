@@ -4150,6 +4150,47 @@ document.addEventListener('wheel', function(e) {
   </div>
 </div>
 
+<div class="modal-overlay" id="field-editor-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hdr"><div class="modal-title" id="field-editor-title">Edit Field</div><button class="modal-close" data-close="field-editor-modal">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="fe-form-type">
+      <input type="hidden" id="fe-field-idx">
+      <div style="margin-bottom:12px"><label class="fl">Field Label *</label><input class="fi" id="fe-label" placeholder="e.g. Bride Name"></div>
+      <div style="margin-bottom:12px"><label class="fl">Section</label><input class="fi" id="fe-section" placeholder="e.g. 👫 Couple Details"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label class="fl">Field Type</label>
+          <select class="fi" id="fe-type" onchange="onFETypeChange()">
+            <option value="text">Text</option>
+            <option value="textarea">Textarea</option>
+            <option value="tel">Phone</option>
+            <option value="email">Email</option>
+            <option value="number">Number</option>
+            <option value="date">Date</option>
+            <option value="select">Select (dropdown)</option>
+            <option value="radio">Radio</option>
+            <option value="checkbox">Checkbox</option>
+            <option value="url">URL</option>
+          </select>
+        </div>
+        <div><label class="fl">Placeholder</label><input class="fi" id="fe-placeholder" placeholder="Optional hint text"></div>
+      </div>
+      <div id="fe-options-row" style="display:none;margin-bottom:12px">
+        <label class="fl">Options (comma-separated)</label>
+        <input class="fi" id="fe-options" placeholder="e.g. Option A, Option B, Option C">
+      </div>
+      <div style="display:flex;gap:20px;margin-top:6px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="fe-required" style="width:15px;height:15px"> Required</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="fe-enabled" style="width:15px;height:15px"> Enabled</label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="field-editor-modal">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFieldFromModal()">💾 Save Field</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════
 // ONBOARDING FORM BUILDER — DEFAULT FIELD CONFIG
