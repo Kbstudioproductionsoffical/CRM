@@ -668,11 +668,15 @@ input[type='date'][value='']:before { content: 'DD MMM YYYY'; color: #aaa; }
    every one to a dark palette isn't practical or safe to do reliably. A
    global invert+hue-rotate filter, the same technique browser reader-mode
    / dark-mode extensions use, flips EVERY color in one place with zero risk
-   of missing an element, and needs only two exceptions:
-   - .topbar: counter-inverted (filter applied again = cancels out) so the
-     dark brand bar stays dark in both themes instead of flipping to white.
+   of missing an element, and needs a handful of counter-inverted exceptions
+   — elements whose color is intentionally fixed regardless of theme:
+   - .topbar: counter-inverted so the dark brand bar stays dark in both
+     themes instead of flipping to white.
    - img/video: counter-inverted so real photos (client photos, uploaded
      docs, quotation cover images) render normally instead of as negatives.
+   - .modal-overlay / #mob-drawer-backdrop / #pwa-ios-guide / .save-toast /
+     inline-style scrims: counter-inverted so black dimming overlays stay a
+     dark scrim instead of flipping into a translucent white wash.
    Being pure CSS on the whole document, this applies identically on the
    web app and the mobile-width layout — no separate mobile dark theme
    needed. ───────────────────────────────────────────────────────────── */
@@ -680,7 +684,10 @@ html.dark-mode {
   filter: invert(1) hue-rotate(180deg);
 }
 html.dark-mode body {
-  background: #fff !important; /* inverts to a near-black page background */
+  /* #ededed inverts to #121212 — a soft near-black instead of a harsh pure
+     #000, which is easier on the eyes and keeps card shadows (see below)
+     from reading as blown-out white halos against pitch black. */
+  background: #ededed !important;
 }
 html.dark-mode .topbar,
 html.dark-mode #pwa-install-banner,
@@ -697,6 +704,44 @@ html.dark-mode .topbar,
 html.dark-mode .tb-role {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+}
+
+/* Full-screen dark scrims (modal backdrops, the mobile drawer backdrop, the
+   PWA install guide, and every ad-hoc `position:fixed;inset:0` overlay the
+   JS builds via style.cssText) are already black-on-purpose — they're meant
+   to dim the page behind a modal. Left alone, the outer invert turns their
+   rgba(0,0,0,x) into a translucent WHITE wash, which is the single biggest
+   reason modals currently look broken/washed-out in dark mode. Counter-
+   inverting them (same cancel trick as .topbar above) keeps them a proper
+   dark scrim. The attribute selectors below catch every inline scrim by
+   matching the exact rgba() values used across the app for this purpose —
+   verified none of these values are reused for anything but full-screen
+   overlays, so this is safe. Add new values here if a new modal is built
+   with a different backdrop opacity. */
+html.dark-mode .modal-overlay,
+html.dark-mode #mob-drawer-backdrop,
+html.dark-mode #pwa-ios-guide,
+html.dark-mode .save-toast,
+html.dark-mode [style*="rgba(0,0,0,.45)"],
+html.dark-mode [style*="rgba(0,0,0,.5)"],
+html.dark-mode [style*="rgba(0,0,0,.55)"],
+html.dark-mode [style*="rgba(0,0,0,.6)"],
+html.dark-mode [style*="rgba(0,0,0,.65)"],
+html.dark-mode [style*="rgba(0,0,0,.8)"] {
+  filter: invert(1) hue-rotate(180deg);
+}
+html.dark-mode .modal-overlay,
+html.dark-mode #mob-drawer-backdrop {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Let native form controls (date/time pickers, checkboxes, select dropdowns)
+   and the browser scrollbar render in their dark variant instead of getting
+   caught by the page-wide invert, which can leave them looking inconsistent
+   across browsers. */
+html.dark-mode {
+  color-scheme: dark;
 }
 #dark-mode-toggle svg { transition: transform var(--transition); }
 #dark-mode-toggle:active svg { transform: scale(.85) rotate(-15deg); }
