@@ -683,9 +683,20 @@ html.dark-mode body {
   background: #fff !important; /* inverts to a near-black page background */
 }
 html.dark-mode .topbar,
+html.dark-mode #pwa-install-banner,
 html.dark-mode img,
 html.dark-mode video {
   filter: invert(1) hue-rotate(180deg);
+}
+/* backdrop-filter (glassy blur) doesn't compose reliably with the invert-
+   cancel trick above — combining them left the topbar washed-out/white
+   instead of staying its original dark near-black. Dropping the blur in
+   dark mode only (the plain background/box-shadow/text colors still cancel
+   out correctly via the filter above) fixes it with no visible loss. */
+html.dark-mode .topbar,
+html.dark-mode .tb-role {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 #dark-mode-toggle svg { transition: transform var(--transition); }
 #dark-mode-toggle:active svg { transform: scale(.85) rotate(-15deg); }
