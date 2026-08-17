@@ -1879,7 +1879,7 @@ document.addEventListener('wheel', function(e) {
           <option value="">All clients</option>
           <option value="1">⭐ Priority only</option>
         </select>
-        <input type="text" id="wp-search" class="fi" style="width:220px;padding:7px 10px;font-size:13px" placeholder="Search name / phone..." oninput="renderWorkProgress()">
+        <input type="text" id="wp-search" class="fi" style="width:220px;padding:7px 10px;font-size:13px" placeholder="Search name / phone..." oninput="kbSearchDebounce(renderWorkProgress)">
         <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#555;cursor:pointer;background:#fff;border:1px solid #ddd;border-radius:8px;padding:6px 10px">
           <input type="checkbox" id="wp-quick-mode" onchange="renderWorkProgress()"> ⚡ Quick Assign mode
         </label>
@@ -2735,6 +2735,7 @@ document.addEventListener('wheel', function(e) {
     '<div class="tabs" id="ql-page-tabs" style="margin-bottom:0;border-bottom:2px solid #e5e5e5">' +
       '<button class="tab-btn active" id="ql-tab-pipeline" onclick="switchQLTab(\'pipeline\')" style="font-size:13px">📊 Pipeline</button>' +
       '<button class="tab-btn" id="ql-tab-all" onclick="switchQLTab(\'all\')" style="font-size:13px">📋 All Quotations</button>' +
+      '<button class="tab-btn" id="ql-tab-booked" onclick="switchQLTab(\'booked\')" style="font-size:13px">🏆 Booked Clients</button>' +
       '<button class="tab-btn" id="ql-tab-analytics" onclick="switchQLTab(\'analytics\')" style="font-size:13px">📈 Lead Analytics</button>' +
     '</div>' +
     '<div id="ql-pane-pipeline" style="padding-top:12px">' +
@@ -2757,6 +2758,13 @@ document.addEventListener('wheel', function(e) {
         '<input type="text" class="fi" id="sales-search" placeholder="🔍 Search client, city, phone…" oninput="kbSearchDebounce(renderSalesDash)" style="min-width:220px">' +
       '</div>' +
       '<div class="card" style="padding:0"><div id="sales-table"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading quotations…</div></div></div>' +
+    '</div>' +
+    '<div id="ql-pane-booked" style="display:none;padding-top:12px">' +
+      '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">' +
+        '<input type="text" class="fi" id="booked-search" placeholder="🔍 Search client, city, phone…" oninput="kbSearchDebounce(renderSalesDash)" style="min-width:220px">' +
+        '<span style="font-size:11.5px;color:#888">Newest booking first — the client most recently moved to Won always sits at the top.</span>' +
+      '</div>' +
+      '<div class="card" style="padding:0"><div id="booked-list"><div class="empty" style="padding:30px;color:#aaa">⏳ Loading…</div></div></div>' +
     '</div>' +
     '<div id="ql-pane-analytics" style="display:none;padding-top:12px">' +
       '<div class="card" style="padding:14px 16px;margin-bottom:14px">' +
@@ -24602,13 +24610,19 @@ function quickChangeStatus(id, newStatus, event) {
   var who = (q.bride||'') + (q.groom ? ' & ' + q.groom : '') || 'This quotation';
   if (!confirm('Move ' + who + ' from ' + curLabel + ' to ' + label + '?')) return;
   var realId = q.id || id; // ensure we have the Firebase key
+  // Track exactly when a quotation moves to Won, so "Booked Clients" can be
+  // sorted by actual booking sequence rather than just the last-saved date.
+  var wonTs = (newStatus === 'won') ? Date.now() : null;
   // Optimistic local update — re-render instantly without waiting for Firebase
   q._prevStatus = q.status; // store for rollback
   q.status = newStatus;
+  if (wonTs) q.wonAt = wonTs;
   quotations[realId] = q;
   if (typeof renderSalesDash === 'function') renderSalesDash();
   // Then persist to Firebase
-  db.ref('crm_quotations/' + realId + '/status').set(newStatus, function(err) {
+  var _updates = { status: newStatus };
+  if (wonTs) _updates.wonAt = wonTs;
+  db.ref('crm_quotations/' + realId).update(_updates, function(err) {
     if (err) {
       // Roll back on failure — restore previous status and re-render
       showToast('❌ Save failed — ' + err.message);
@@ -24669,22 +24683,44 @@ function initQuotations(cb) {
     // Then attach child listeners so only changed quotation downloads
     if (!_quotListenersAttached) {
       _quotListenersAttached = true;
-      db.ref('crm_quotations').on('child_added', function(snap) {
+      // child_added would otherwise replay every existing quotation a second
+      // time the instant it's attached — re-downloading the whole tree again
+      // on top of the once('value') above. Quotation IDs are Firebase push()
+      // keys, which sort chronologically as strings, so scoping to keys after
+      // the newest one we already loaded skips that replay (same fix as the
+      // crm_projects listener).
+      var _qKeys = Object.keys(quotations);
+      var _qMaxKey = _qKeys.length ? _qKeys.sort()[_qKeys.length - 1] : null;
+      var _qAddedRef = _qMaxKey ? db.ref('crm_quotations').orderByKey().startAfter(String(_qMaxKey)) : db.ref('crm_quotations');
+      _qAddedRef.on('child_added', function(snap) {
         var q = snap.val(); if (q && !q.id) q.id = snap.key;
         quotations[snap.key] = q;
-        if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
+        _scheduleSalesDashRender();
       });
       db.ref('crm_quotations').on('child_changed', function(snap) {
         var q = snap.val(); if (q && !q.id) q.id = snap.key;
         quotations[snap.key] = q;
-        if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
+        _scheduleSalesDashRender();
       });
       db.ref('crm_quotations').on('child_removed', function(snap) {
         delete quotations[snap.key];
-        if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
+        _scheduleSalesDashRender();
       });
     }
   });
+}
+
+// Collapses a burst of child_added/child_changed/child_removed events (e.g.
+// the initial flood of one child_added per EXISTING quotation that Firebase
+// fires the instant the listener attaches) into a single trailing render,
+// instead of re-rendering the whole pipeline+table once per event.
+var _salesDashRenderPending = null;
+function _scheduleSalesDashRender() {
+  if (_salesDashRenderPending) clearTimeout(_salesDashRenderPending);
+  _salesDashRenderPending = setTimeout(function() {
+    _salesDashRenderPending = null;
+    if (typeof renderSalesDash === 'function' && document.getElementById('page-quotations') && document.getElementById('page-quotations').classList.contains('active')) renderSalesDash();
+  }, 60);
 }
 
 function ql() {
@@ -25139,17 +25175,80 @@ function deleteEscalation(key) {
 }
 
 
+// Live advance amount for a Won/converted quotation — reads straight from the
+// linked project's actual payment ledger (same stage-matching logic the
+// Payments tab uses) rather than any snapshot on the quotation itself, so it
+// can never drift out of sync with what accounts has actually recorded.
+function _quotLiveAdvance(qt) {
+  if (qt.convertedToProject && qt.projectId && projects[qt.projectId]) {
+    var linkedProj = projects[qt.projectId];
+    return (linkedProj.payLedger || []).filter(function(e) {
+      return stageMatches(e.stage, 'kb_advance');
+    }).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0);
+  }
+  return qt.advancePaid || 0;
+}
+// When a quotation was actually moved to Won. wonAt is recorded going forward
+// (quickChangeStatus / the Payment Gate popup); for older records saved
+// before that field existed, fall back to convertedAt (when it became a
+// project) then savedAt, so booking order is still sensible either way.
+function _quotBookedAt(qt) {
+  return qt.wonAt || qt.convertedAt || qt.savedAt || 0;
+}
+
+function renderBookedClients(list) {
+  var el = document.getElementById('booked-list');
+  if (!el) return;
+  var q = ((document.getElementById('booked-search') || {value:''}).value || '').toLowerCase();
+  var bookedList = list.filter(function(qt) {
+    if (qt.status !== 'won') return false;
+    if (q) {
+      var hay = ((qt.bride||'')+(qt.groom||'')+(qt.city||'')+(qt.phone||'')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort(function(a, b) { return _quotBookedAt(b) - _quotBookedAt(a); }); // most recently booked first, always
+
+  if (!bookedList.length) { el.innerHTML = '<div class="empty" style="padding:30px">No booked clients yet.</div>'; return; }
+
+  el.innerHTML = '<table class="tbl"><thead><tr><th>Client</th><th>City</th><th>Package Value</th><th>Advance</th><th>Salesperson</th><th>Booked On</th><th></th></tr></thead><tbody>' +
+    bookedList.map(function(qt) {
+      var net = (parseFloat(qt.value)||0) - (parseFloat(qt.discount)||0);
+      var advanceAmt = _quotLiveAdvance(qt);
+      var advBadge = advanceAmt > 0
+        ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ' + fmt(advanceAmt) + '</span>'
+        : '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>';
+      var bookedAt = _quotBookedAt(qt);
+      return '<tr>' +
+        '<td><div style="font-weight:700">' + (qt.bride||'Unknown') + (qt.groom ? ' & ' + qt.groom : '') + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div></td>' +
+        '<td>' + (qt.city||'—') + '</td>' +
+        '<td style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</td>' +
+        '<td>' + advBadge + '</td>' +
+        '<td style="font-size:12px">' + (qt.salesperson || '—') + '</td>' +
+        '<td style="font-size:11px;color:#888">' + (bookedAt ? fmtDate(bookedAt) : '—') + '</td>' +
+        '<td>' +
+          (qt.convertedToProject && qt.projectId
+            ? '<button class="btn btn-sm" onclick="navTo(\'projects\');setTimeout(function(){openProject(' + qt.projectId + ')},400)">📂 Open Project</button>'
+            : '<button class="btn btn-sm" style="background:#134e50;color:#fff;border-color:#134e50" onclick="convertQuotToProject(\'' + qt.id + '\')" title="Convert to Project">🚀 Convert</button>') +
+        '</td>' +
+      '</tr>';
+    }).join('') + '</tbody></table>';
+}
+
 function switchQLTab(tab) {
   var pipeline = document.getElementById('ql-pane-pipeline');
   var all = document.getElementById('ql-pane-all');
+  var booked = document.getElementById('ql-pane-booked');
   var analytics = document.getElementById('ql-pane-analytics');
   var btnP = document.getElementById('ql-tab-pipeline');
   var btnA = document.getElementById('ql-tab-all');
+  var btnB = document.getElementById('ql-tab-booked');
   var btnAn = document.getElementById('ql-tab-analytics');
   if (!pipeline || !all) return;
-  pipeline.style.display = 'none'; all.style.display = 'none'; if (analytics) analytics.style.display = 'none';
+  pipeline.style.display = 'none'; all.style.display = 'none'; if (booked) booked.style.display = 'none'; if (analytics) analytics.style.display = 'none';
   if (btnP) btnP.classList.remove('active');
   if (btnA) btnA.classList.remove('active');
+  if (btnB) btnB.classList.remove('active');
   if (btnAn) btnAn.classList.remove('active');
   if (tab === 'pipeline') {
     pipeline.style.display = '';
@@ -25158,6 +25257,10 @@ function switchQLTab(tab) {
     if (analytics) analytics.style.display = '';
     if (btnAn) btnAn.classList.add('active');
     renderLeadAnalytics();
+  } else if (tab === 'booked') {
+    if (booked) booked.style.display = '';
+    if (btnB) btnB.classList.add('active');
+    setTimeout(function(){ var s=document.getElementById('booked-search'); if(s) s.focus(); }, 100);
   } else {
     all.style.display = '';
     if (btnA) btnA.classList.add('active');
@@ -25295,16 +25398,9 @@ function renderSalesDash() {
               '<button class="btn btn-sm" onclick="openEditQuotation(\'' + qt.id + '\')">✏️</button>' +
               (!(CU && CU.role === 'salesperson') && qt.status === 'won' ? (function(){
                 var paidBadge = '';
-                if (qt.convertedToProject && qt.projectId && projects[qt.projectId]) {
-                  // BUG FIX #2: Show only the advance amount recorded on the quotation itself.
-                  // Using paidTotal(linkedProj) incorrectly showed ALL project payments
-                  // (e.g. ₹3,00,000 total instead of ₹30,000 advance), misleading the sales team.
-                  var advanceAmt = qt.advancePaid || 0;
-                  paidBadge = advanceAmt > 0
-                    ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ₹' + parseInt(advanceAmt).toLocaleString('en-IN') + ' advance</span>'
-                    : '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>';
-                } else if (qt.advancePaid) {
-                  paidBadge = '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ₹' + parseInt(qt.advancePaid).toLocaleString('en-IN') + ' paid</span>';
+                var advanceAmt = _quotLiveAdvance(qt);
+                if (advanceAmt > 0) {
+                  paidBadge = '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ₹' + parseInt(advanceAmt).toLocaleString('en-IN') + (qt.convertedToProject ? ' advance' : ' paid') + '</span>';
                 } else {
                   paidBadge = '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>';
                 }
@@ -25319,6 +25415,8 @@ function renderSalesDash() {
   // Keep Lead Analytics in sync if that tab is currently visible
   var analyticsPane = document.getElementById('ql-pane-analytics');
   if (analyticsPane && analyticsPane.style.display !== 'none') renderLeadAnalytics();
+
+  renderBookedClients(list);
 }
 
 // ── Lead Analytics (Quotations & Leads → 📈 Lead Analytics tab) ──────────
@@ -30256,11 +30354,12 @@ function confirmPaymentGate(quotId) {
 
   function doSave(proofMeta) {
     if (proofMeta) payRecord.proofDocId = proofMeta.id;
+    var wonTs = Date.now();
     db.ref('crm_quotations/' + quotId).update({
-      status: 'won', advancePaid: amt, advancePayment: payRecord
+      status: 'won', advancePaid: amt, advancePayment: payRecord, wonAt: wonTs
     }, function(err) {
       if (err) { showToast('❌ Error: ' + err.message); return; }
-      if (quotations[quotId]) { quotations[quotId].advancePaid = amt; quotations[quotId].advancePayment = payRecord; quotations[quotId].status = 'won'; }
+      if (quotations[quotId]) { quotations[quotId].advancePaid = amt; quotations[quotId].advancePayment = payRecord; quotations[quotId].status = 'won'; quotations[quotId].wonAt = wonTs; }
       var modal = document.getElementById('pay-gate-modal');
       if (modal) modal.remove();
       showToast(gstAmt > 0 ? ('🎉 ' + fmt(amt) + ' + GST ' + fmt(gstAmt) + ' = ' + fmt(amt+gstAmt) + ' recorded! Client marked as Won.') : ('🎉 Advance of ' + fmt(amt) + ' recorded! Client marked as Won.'));
