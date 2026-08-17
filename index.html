@@ -26112,7 +26112,28 @@ function removeQuotSession(dayIdx, sessIdx) {
 }
 
 function updateQuotDay(idx, field, val) {
-  if (quotDays[idx]) quotDays[idx][field] = val;
+  if (!quotDays[idx]) return;
+  quotDays[idx][field] = val;
+  // FIX: previously a new day always stayed wherever "+ Add Day" put it
+  // (the end of the list), even if its date came before existing days —
+  // e.g. adding 1 Sept after 2/3/4 Sept left it sitting last. That
+  // mattered beyond just the visual order: code elsewhere (project
+  // conversion) reads days[0] as "the" event date, so an out-of-order
+  // day could silently produce the wrong date on the resulting project.
+  // Re-sorting by date on every change means the array order is always
+  // the true chronological order, so nothing downstream can pick the
+  // wrong "first day" and the user never needs to delete/re-add days
+  // just to fix ordering.
+  if (field === 'date') {
+    quotDays.sort(function(a, b) {
+      if (a.dateTBD && !b.dateTBD) return 1;   // TBD days sink to the end
+      if (!a.dateTBD && b.dateTBD) return -1;
+      if (!a.date && b.date) return 1;
+      if (a.date && !b.date) return -1;
+      return (a.date || '').localeCompare(b.date || '');
+    });
+    renderQuotDays();
+  }
 }
 
 function updateQuotSession(dayIdx, sessIdx, field, val) {
