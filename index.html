@@ -25175,13 +25175,46 @@ function deleteEscalation(key) {
 }
 
 
+// FIX: find the project linked to a quotation even when the forward link
+// (qt.convertedToProject / qt.projectId) never got written — e.g. the
+// quotation-side update in convertQuotToProject() failed silently after the
+// project itself was already created. Every project created via Convert
+// stores quotationId pointing back at the source quotation, so we can
+// recover the link from that side as a fallback.
+var _quotRepairAttempted = {}; // avoid re-writing the same repair every render
+function _quotLinkedProject(qt) {
+  if (qt.projectId && projects[qt.projectId]) return projects[qt.projectId];
+  var found = null, foundId = null;
+  Object.keys(projects || {}).some(function(pid) {
+    if (projects[pid] && projects[pid].quotationId === qt.id) { found = projects[pid]; foundId = pid; return true; }
+    return false;
+  });
+  // Self-heal: the forward link (convertedToProject/projectId) never got
+  // written on the quotation, even though the project exists and points
+  // back at it. Repair it once so future loads don't need the fallback scan.
+  if (found && !qt.convertedToProject && !_quotRepairAttempted[qt.id]) {
+    _quotRepairAttempted[qt.id] = true;
+    db.ref('crm_quotations/' + qt.id).update({
+      convertedToProject: true,
+      projectId: found.id || parseInt(foundId),
+      convertedAt: qt.convertedAt || found.createdAt || Date.now()
+    }, function(err) {
+      if (!err) {
+        qt.convertedToProject = true;
+        qt.projectId = found.id || parseInt(foundId);
+      }
+    });
+  }
+  return found;
+}
+
 // Live advance amount for a Won/converted quotation — reads straight from the
 // linked project's actual payment ledger (same stage-matching logic the
 // Payments tab uses) rather than any snapshot on the quotation itself, so it
 // can never drift out of sync with what accounts has actually recorded.
 function _quotLiveAdvance(qt) {
-  if (qt.convertedToProject && qt.projectId && projects[qt.projectId]) {
-    var linkedProj = projects[qt.projectId];
+  var linkedProj = _quotLinkedProject(qt);
+  if (linkedProj) {
     // FIX: payments recorded manually (Record Payment / Add Payment Entry)
     // can be tagged with an older preset key instead of 'kb_advance' — same
     // legacy set kbErpGetGateStatus() already accounts for. Without this,
@@ -25220,11 +25253,13 @@ function renderBookedClients(list) {
   el.innerHTML = '<table class="tbl"><thead><tr><th>Client</th><th>City</th><th>Package Value</th><th>Advance</th><th>Salesperson</th><th>Booked On</th><th></th></tr></thead><tbody>' +
     bookedList.map(function(qt) {
       var net = (parseFloat(qt.value)||0) - (parseFloat(qt.discount)||0);
+      var linkedProj = _quotLinkedProject(qt); // also recovers/repairs broken links, do this before the badge
       var advanceAmt = _quotLiveAdvance(qt);
       var advBadge = advanceAmt > 0
         ? '<span style="font-size:10px;background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:10px;padding:2px 7px;font-weight:700">💳 ' + fmt(advanceAmt) + '</span>'
         : '<span style="font-size:10px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca;border-radius:10px;padding:2px 7px;font-weight:700">⚠️ No advance</span>';
       var bookedAt = _quotBookedAt(qt);
+      var linkedProjId = linkedProj ? (linkedProj.id || qt.projectId) : null;
       return '<tr>' +
         '<td><div style="font-weight:700">' + (qt.bride||'Unknown') + (qt.groom ? ' & ' + qt.groom : '') + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div></td>' +
         '<td>' + (qt.city||'—') + '</td>' +
@@ -25233,8 +25268,8 @@ function renderBookedClients(list) {
         '<td style="font-size:12px">' + (qt.salesperson || '—') + '</td>' +
         '<td style="font-size:11px;color:#888">' + (bookedAt ? fmtDate(bookedAt) : '—') + '</td>' +
         '<td>' +
-          (qt.convertedToProject && qt.projectId
-            ? '<button class="btn btn-sm" onclick="navTo(\'projects\');setTimeout(function(){openProject(' + qt.projectId + ')},400)">📂 Open Project</button>'
+          (linkedProjId
+            ? '<button class="btn btn-sm" onclick="navTo(\'projects\');setTimeout(function(){openProject(' + linkedProjId + ')},400)">📂 Open Project</button>'
             : '<button class="btn btn-sm" style="background:#134e50;color:#fff;border-color:#134e50" onclick="convertQuotToProject(\'' + qt.id + '\')" title="Convert to Project">🚀 Convert</button>') +
         '</td>' +
       '</tr>';
@@ -27911,9 +27946,26 @@ function convertQuotToProject(overrideId) {
   projData.id = newProjId;
   db.ref('crm_projects/' + newProjId).set(projData, function(err) {
     if (err) { showToast('❌ Error: ' + err.message); return; }
-    // Mark quotation as converted
-    db.ref('crm_quotations/' + id).update({ convertedToProject: true, projectId: newProjId, convertedAt: Date.now() });
     projects[newProjId] = projData;
+    // Mark quotation as converted.
+    // FIX: this write previously had no error handling at all — if it
+    // failed (dropped connection, permission issue, etc.) the project would
+    // still exist but the quotation would silently stay "unconverted"
+    // forever, and the "Project created!" toast fired regardless, so there
+    // was no way to know it happened. Now: retry once, then warn clearly
+    // if it still fails, since the project itself already exists safely and
+    // the display now also self-heals this link automatically on next load.
+    function _markConverted(attempt) {
+      db.ref('crm_quotations/' + id).update({ convertedToProject: true, projectId: newProjId, convertedAt: Date.now() }, function(linkErr) {
+        if (linkErr) {
+          if (attempt < 2) { setTimeout(function(){ _markConverted(attempt + 1); }, 800); return; }
+          showToast('⚠️ Project created, but linking it back to the quotation failed. It will self-repair next time this list loads — refresh to confirm.');
+          return;
+        }
+        if (quotations[id]) { quotations[id].convertedToProject = true; quotations[id].projectId = newProjId; quotations[id].convertedAt = Date.now(); }
+      });
+    }
+    _markConverted(0);
     // If advance payment had a proof doc in quot_docs, link it to the new project
     if (advPayment && advPayment.proofDocId) {
       db.ref('crm_quot_docs/' + id + '/' + advPayment.proofDocId).once('value', function(snap) {
