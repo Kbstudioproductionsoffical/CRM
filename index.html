@@ -25182,8 +25182,14 @@ function deleteEscalation(key) {
 function _quotLiveAdvance(qt) {
   if (qt.convertedToProject && qt.projectId && projects[qt.projectId]) {
     var linkedProj = projects[qt.projectId];
+    // FIX: payments recorded manually (Record Payment / Add Payment Entry)
+    // can be tagged with an older preset key instead of 'kb_advance' — same
+    // legacy set kbErpGetGateStatus() already accounts for. Without this,
+    // a real advance saved under e.g. 'p30' was invisible here and showed
+    // as "No advance" even though it's correctly counted everywhere else.
+    var _advLegacyKeys = ['p30', 'p20', 'p50a', 'cp0'];
     return (linkedProj.payLedger || []).filter(function(e) {
-      return stageMatches(e.stage, 'kb_advance');
+      return stageMatches(e.stage, 'kb_advance') || _advLegacyKeys.indexOf(normStage(e.stage)) !== -1;
     }).reduce(function(a, e) { return a + (parseInt(e.amount) || 0); }, 0);
   }
   return qt.advancePaid || 0;
