@@ -11925,8 +11925,20 @@ function renderWpBoard(){
       '<span style="background:#fff;border-radius:10px;padding:1px 8px;font-size:11px;color:#555">'+colCards.length+'</span>' +
     '</div>';
     if(groupMode==='client'){
-      colCards.sort(function(a,b){ return a.client.localeCompare(b.client); });
-      colCards.forEach(function(c){ html+=wpBoardCardHtml(c,true,true); });
+      // Group cards under a per-client header (like the Assignee grouping
+      // already does) instead of just sorting them flat — a client with 8
+      // reels was scattering 8 separate same-named cards through the column
+      // with no visual link between them, which read as "way more clients
+      // than I actually assigned" even though it was one client's workload.
+      var byClient={};
+      colCards.forEach(function(c){ (byClient[c.client]=byClient[c.client]||[]).push(c); });
+      var clientNames=Object.keys(byClient).sort(function(a,b){ return a.localeCompare(b); });
+      clientNames.forEach(function(name,ci){
+        var grp=byClient[name];
+        var isPriority=grp.some(function(c){ return c.priority; });
+        html+='<div style="font-size:10.5px;font-weight:700;color:#1a1a1a;margin:'+(ci===0?'0':'10px')+' 0 4px;padding-top:'+(ci===0?'0':'8px')+';border-top:'+(ci===0?'none':'1px solid #eee')+';cursor:pointer" onclick="openProject('+grp[0].pid+',\'t-deliv\')">'+(isPriority?'⭐ ':'')+name+' <span style="font-weight:500;color:#999">('+grp.length+')</span></div>';
+        grp.forEach(function(c){ html+=wpBoardCardHtml(c,false,true); });
+      });
     } else {
       var byAssignee={};
       colCards.forEach(function(c){ var k=wpAssigneeName(c.editorId); (byAssignee[k]=byAssignee[k]||[]).push(c); });
