@@ -1871,6 +1871,7 @@ document.addEventListener('wheel', function(e) {
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;background:#f9f9f9;padding:12px 16px;border-radius:10px;border:1px solid #eee">
         <span style="font-size:13px;font-weight:600;color:#555">Layout:</span>
         <select id="wp-layout" class="fi" style="width:120px;padding:7px 10px;font-size:13px" onchange="renderWorkProgress()">
+          <option value="summary">📊 Summary</option>
           <option value="table">📋 Table</option>
           <option value="board">🗂️ Board</option>
         </select>
@@ -1931,6 +1932,7 @@ document.addEventListener('wheel', function(e) {
         <div id="wp-bulk-results"></div>
       </div>
 
+      <div id="wp-summary-content"></div>
       <div id="wp-content"></div>
       <div id="wp-board-content"></div>
     </div>
@@ -11106,8 +11108,9 @@ function wpBulkAssignAll(){
 function renderWorkProgress(){
   var el=document.getElementById('wp-content'); if(!el) return;
   var boardEl=document.getElementById('wp-board-content');
+  var summaryEl=document.getElementById('wp-summary-content');
   var groupWrap=document.getElementById('wp-board-group-wrap');
-  var layout=(document.getElementById('wp-layout')||{}).value||'table';
+  var layout=(document.getElementById('wp-layout')||{}).value||'summary';
   if(groupWrap) groupWrap.style.display=(layout==='board')?'inline-flex':'none';
   wpFillBulkMonthSelect();
   var mode=wpGetMode();
@@ -11128,24 +11131,25 @@ function renderWorkProgress(){
     (groups[mk]=groups[mk]||[]).push(p);
   });
 
-  // monthKeys/groups are computed up front (before the board/table branch)
-  // so the "Period" selector is always populated and current, even if the
-  // Board is the very first layout rendered this session — the Board reads
-  // this same selector to decide its own scope (see wpFlattenCards).
+  // monthKeys/groups are computed up front (before the layout branch) so the
+  // "Period" selector is always populated and current, even if Summary or
+  // Board is the very first layout rendered this session — both of those
+  // read this same selector to decide their own scope (see wpFlattenCards).
   var monthKeys=Object.keys(groups).filter(function(k){return k!=='unplanned';}).sort();
   if(groups.unplanned) monthKeys.push('unplanned');
-  _wpLastGroups=groups; _wpLastVideoTypes=videoTypes; _wpLastMode=mode; // kept for export + board scope, respects current filters
+  _wpLastGroups=groups; _wpLastVideoTypes=videoTypes; _wpLastMode=mode; // kept for export + board/summary scope, respects current filters
   wpFillExportMonthSelect(monthKeys);
   wpFillExportStatusFilter();
 
+  if(el) el.style.display=(layout==='table')?'':'none';
+  if(boardEl) boardEl.style.display=(layout==='board')?'':'none';
+  if(summaryEl) summaryEl.style.display=(layout==='summary')?'':'none';
+
+  if(layout==='summary'){ renderWpSummary(); return; }
   if(layout==='board'){
-    if(el) el.style.display='none';
-    if(boardEl) boardEl.style.display='';
     renderWpBoard();
     return;
   }
-  if(el) el.style.display='';
-  if(boardEl) boardEl.style.display='none';
   if(!monthKeys.length){ el.innerHTML='<div class="empty">No clients currently in Post-Production match this filter.</div>'; return; }
 
   var html='';
@@ -11181,6 +11185,149 @@ function renderWorkProgress(){
     html+='</div>';
   });
   el.innerHTML=html;
+}
+// ═══════════════════════════════════════════════════════════════════════
+// SUMMARY — the actual "what's the state of this period" view. Built
+// because chasing the post-production team by phone to find out what's
+// done vs still untouched was the real gap Table/Board never closed on
+// their own — this answers "how much is left, who's behind, and where"
+// in one glance, plus a one-click way to push whatever's unfinished into
+// the next period instead of re-assigning each client's dropdown by hand.
+// ═══════════════════════════════════════════════════════════════════════
+function renderWpSummary(){
+  var el=document.getElementById('wp-summary-content'); if(!el) return;
+  var mode=_wpLastMode||'month';
+  var scope=(document.getElementById('wp-export-month')||{}).value||'__all__';
+  var cards=wpFlattenCards(); // already scoped to Period/priority/search, video-only
+  if(!cards.length){
+    el.innerHTML='<div class="empty">No video deliverables match this filter'+(scope!=='__all__'?' for '+wpLabelFor(scope,mode):'')+'.</div>';
+    return;
+  }
+  var clientSet={}; cards.forEach(function(c){ clientSet[c.pid]=true; });
+  var clientCount=Object.keys(clientSet).length;
+  var total=cards.length;
+  var approved=cards.filter(function(c){ return c.status==='approved'; }).length;
+  var pendingCt=cards.filter(function(c){ return c.status==='pending'; }).length;
+  var overdue=cards.filter(wpCardIsOverdue).length;
+  var open=total-approved;
+  var pct=total?Math.round(approved/total*100):0;
+
+  var html='';
+  html+='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:16px 18px;margin-bottom:16px">';
+  html+='<div style="font-size:13px;font-weight:800;color:#1a1a1a;margin-bottom:10px">'+
+    (scope==='__all__'?'All '+(mode==='week'?'weeks':'months')+' (current filter)':wpLabelFor(scope,mode))+
+    ' — '+clientCount+' client'+(clientCount!==1?'s':'')+', '+total+' deliverable'+(total!==1?'s':'')+'</div>';
+  html+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">';
+  html+=wpSummaryStat(pct+'%','Complete','#16a34a');
+  html+=wpSummaryStat(approved,'Delivered & Approved','#16a34a');
+  html+=wpSummaryStat(open,'Still Open','#c2410c');
+  html+=wpSummaryStat(pendingCt,'Untouched (Pending)','#6b7280');
+  html+=wpSummaryStat(overdue,'Overdue','#dc2626');
+  html+='</div>';
+  html+='<div style="background:#f3f4f6;border-radius:6px;height:10px;overflow:hidden;margin-bottom:4px"><div style="background:#16a34a;height:100%;width:'+pct+'%"></div></div>';
+  html+='<div style="font-size:11px;color:#999">'+approved+' of '+total+' deliverables Delivered & Approved</div>';
+  html+='</div>';
+
+  // ── Roll Forward ──────────────────────────────────────────────────
+  html+='<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin-bottom:18px">';
+  html+='<div style="font-size:13px;font-weight:700;color:#92400e;margin-bottom:4px">➡️ Roll Forward Unfinished Work</div>';
+  html+='<div style="font-size:11.5px;color:#92400e;opacity:0.85;margin-bottom:10px">Moves every client in '+
+    (scope==='__all__'?'the current filter':wpLabelFor(scope,mode))+
+    ' who still has ANYTHING not yet Delivered &amp; Approved to a new target '+(mode==='week'?'week':'month')+
+    '. Fully-approved clients are left alone — nothing left to chase.</div>';
+  if(scope==='__all__'){
+    html+='<div style="font-size:12px;color:#92400e;font-weight:600">Pick a specific '+(mode==='week'?'week':'month')+' in "Period" above to enable Roll Forward — it needs one period to move FROM.</div>';
+  } else {
+    html+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+    html+='<span style="font-size:12px;color:#92400e">Roll to:</span>';
+    html+='<select id="wp-roll-target" class="fi" style="width:200px;padding:6px 8px;font-size:12.5px"></select>';
+    html+='<button class="btn" style="background:#92400e;color:#fff;padding:7px 14px;font-size:12.5px;font-weight:700" onclick="wpRollForward()">➡️ Roll Forward</button>';
+    html+='</div>';
+  }
+  html+='</div>';
+
+  // ── Per-editor accountability ────────────────────────────────────
+  var byEditor={};
+  cards.forEach(function(c){
+    var k=wpAssigneeName(c.editorId);
+    var e=byEditor[k]=byEditor[k]||{assigned:0,overdue:0,pending:0,approved:0};
+    if(c.status==='approved') e.approved++; else e.assigned++;
+    if(c.status==='pending') e.pending++;
+    if(wpCardIsOverdue(c)) e.overdue++;
+  });
+  var names=Object.keys(byEditor).sort(function(a,b){
+    var ea=byEditor[a], eb=byEditor[b];
+    if(eb.overdue!==ea.overdue) return eb.overdue-ea.overdue;
+    if(eb.pending!==ea.pending) return eb.pending-ea.pending;
+    return a.localeCompare(b);
+  });
+  html+='<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 18px;margin-bottom:18px">';
+  html+='<div style="font-size:13px;font-weight:800;color:#1a1a1a;margin-bottom:2px">🧑\u200d💼 Accountability — who\'s carrying what</div>';
+  html+='<div style="font-size:11px;color:#999;margin-bottom:10px">Sorted worst-first (most overdue, then most untouched) so you know exactly who to call.</div>';
+  html+='<table class="tbl"><thead><tr><th>Editor</th><th style="text-align:center">Open (not yet Approved)</th><th style="text-align:center">Untouched (Pending)</th><th style="text-align:center;color:#dc2626">Overdue</th><th style="text-align:center;color:#16a34a">Approved</th></tr></thead><tbody>';
+  names.forEach(function(name){
+    var e=byEditor[name];
+    html+='<tr'+(e.overdue?' style="background:#fef2f2"':'')+'>'+
+      '<td style="font-weight:600">'+(name==='Unassigned'?'<span style="color:#dc2626">⚠️ Unassigned</span>':name)+'</td>'+
+      '<td style="text-align:center">'+e.assigned+'</td>'+
+      '<td style="text-align:center;color:'+(e.pending?'#c2410c':'#bbb')+'">'+e.pending+'</td>'+
+      '<td style="text-align:center;font-weight:700;color:'+(e.overdue?'#dc2626':'#bbb')+'">'+e.overdue+'</td>'+
+      '<td style="text-align:center;color:#16a34a">'+e.approved+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+
+  el.innerHTML=html;
+  if(scope!=='__all__') wpFillRollTargetSelect(mode,scope);
+}
+function wpSummaryStat(value,label,color){
+  return '<div style="flex:1;min-width:110px;background:#f9f9f9;border-radius:8px;padding:10px 12px;text-align:center">'+
+    '<div style="font-size:20px;font-weight:800;color:'+color+'">'+value+'</div>'+
+    '<div style="font-size:10.5px;color:#888;margin-top:2px">'+label+'</div>'+
+  '</div>';
+}
+function wpFillRollTargetSelect(mode,fromKey){
+  var sel=document.getElementById('wp-roll-target'); if(!sel) return;
+  var keys=wpUpcomingKeys(mode).filter(function(k){ return k!==fromKey; });
+  sel.innerHTML=keys.map(function(k){ return '<option value="'+k+'">'+wpLabelFor(k,mode)+'</option>'; }).join('');
+}
+// Rolls every client with ANY still-open (non-Approved) video deliverable
+// from the currently-selected Period to a new target month/week in one
+// batch write. Clients who are 100% Delivered & Approved for this period
+// are skipped on purpose — there's nothing left on them to chase, so
+// rolling them forward would just be noise on the next period's list.
+function wpRollForward(){
+  var mode=_wpLastMode||'month';
+  var fromKey=(document.getElementById('wp-export-month')||{}).value||'__all__';
+  if(fromKey==='__all__'){ showToast('❌ Pick a specific month/week in "Period" first — Roll Forward needs one period to move FROM.'); return; }
+  var toKey=(document.getElementById('wp-roll-target')||{}).value;
+  if(!toKey){ showToast('❌ Pick a target period to roll into.'); return; }
+  if(toKey===fromKey){ showToast('❌ Target period must be different from the current one.'); return; }
+  var field=mode==='week'?'wpTargetWeek':'wpTargetMonth';
+  var candidates=pl().filter(function(p){
+    if(p.stage!=='postprod') return false;
+    if(wpKeyFor(p,mode)!==fromKey) return false;
+    return (p.customDelivs||[]).some(function(d){
+      if(!wpIsVideoDeliv(d)) return false;
+      if(d.reelItems && d.reelItems.length>1) return d.reelItems.some(function(ri){ return (ri.status||'pending')!=='approved'; });
+      return (d.status||'pending')!=='approved';
+    });
+  });
+  if(!candidates.length){ showToast('✅ Nothing to roll — everyone in this period is fully Delivered & Approved.'); return; }
+  if(!confirm('Roll '+candidates.length+' client'+(candidates.length!==1?'s':'')+' with unfinished work from '+wpLabelFor(fromKey,mode)+' to '+wpLabelFor(toKey,mode)+'?\n\nOnly their Target '+(mode==='week'?'Week':'Month')+' changes — nothing else on the project is touched.')) return;
+  var updates={};
+  candidates.forEach(function(p){
+    p[field]=toKey; p.updatedAt=Date.now();
+    updates['crm_projects/'+p.id+'/'+field]=toKey;
+    updates['crm_projects/'+p.id+'/updatedAt']=Date.now();
+  });
+  db.ref().update(updates,function(err){
+    if(err){ showToast('❌ Could not roll forward: '+err.message); return; }
+    showToast('✅ Rolled '+candidates.length+' client'+(candidates.length!==1?'s':'')+' to '+wpLabelFor(toKey,mode));
+    var monthSel=document.getElementById('wp-export-month');
+    if(monthSel) monthSel.value=toKey;
+    renderWorkProgress();
+  });
 }
 // ── Priority reordering within a month group ────────────────────────────
 // A manual pointer-based drag (not native HTML5 draggable) — native drag on
@@ -11759,6 +11906,20 @@ function wpSetReelItemStatus(pid,delivId,reelIdx,newStatus){
 // ═══════════════════════════════════════════════════════════════════════
 function wpBoardGroupMode(){ return (document.getElementById('wp-board-group')||{}).value==='assignee'?'assignee':'client'; }
 
+// Work Progress (table AND board) is scoped to VIDEO deliverables only —
+// Teaser / Highlight / Long Video / Reels — per the page's own description.
+// Photo-side deliverables (Album, Box Frame, Edited Pictures, etc.) belong
+// to the separate Post Production photo/album pipeline and were leaking
+// onto this board simply because wpFlattenCards() looped over every
+// customDeliv with no type check. That's what made the board feel stuffed
+// with cards that "don't belong to this team."
+function wpIsVideoDeliv(d){
+  var vts=_wpLastVideoTypes||[];
+  if(!vts.length) return true; // safety fallback if called before types are known
+  if(vts.some(function(vt){ return vt.type===d.type; })) return true;
+  return vts.some(function(vt){ return vt.nameRegex && vt.nameRegex.test((d.name||'').toLowerCase()); });
+}
+
 // Flattens every matching client's deliverables (respecting the same
 // Priority-only / search filters as the table view) into one flat array of
 // board cards — the unit the board actually drags and drops.
@@ -11782,6 +11943,7 @@ function wpFlattenCards(){
       if(hay.indexOf(search)===-1) return;
     }
     (p.customDelivs||[]).forEach(function(d){
+      if(!wpIsVideoDeliv(d)) return; // skip Album/photo-side deliverables — not this board's job
       if(d.reelItems && d.reelItems.length>1){
         d.reelItems.forEach(function(ri,ri_idx){
           cards.push({
@@ -11806,12 +11968,13 @@ function wpFlattenCards(){
 // Unfiltered version of wpFlattenCards — deliberately ignores the on-screen
 // search/priority filter, since an accountability sweep must check
 // EVERYTHING, not just whatever a manager happens to have typed into the
-// search box at that moment.
+// search box at that moment. Still video-only, same reasoning as above.
 function wpFlattenAllCards(){
   var cards=[];
   pl().forEach(function(p){
     if(p.stage!=='postprod') return;
     (p.customDelivs||[]).forEach(function(d){
+      if(!wpIsVideoDeliv(d)) return;
       if(d.reelItems && d.reelItems.length>1){
         d.reelItems.forEach(function(ri,ri_idx){
           cards.push({pid:p.id, delivId:d.id, reelIdx:ri_idx, client:(p.bride||'')+' & '+(p.groom||''), refcode:p.refcode||'',
@@ -11890,14 +12053,20 @@ function wpBoardCardHtml(c,showClient,showAssignee){
   var deadlineHtml=c.deadline
     ? '<span style="color:'+(overdue?'#dc2626':'#888')+';font-weight:'+(overdue?'700':'400')+'">'+(overdue?'⚠️ OVERDUE ':'📅 ')+fmtDate(c.deadline)+(days!==null&&!overdue?' ('+days+'d left)':'')+'</span>'
     : '<span style="color:#ccc">No deadline set</span>';
+  // Once a deliverable is Delivered & Approved, who was assigned stops being
+  // useful information — it's finished, closed-out work, not something to
+  // chase. Showing "Unassigned" on it read as an open accountability gap
+  // when it wasn't one, so approved cards get a quiet ✓ instead of the
+  // assignee pill.
+  var assigneeHtml=(showAssignee && c.status!=='approved')
+    ? '<span style="display:flex;align-items:center;gap:4px"><span style="width:18px;height:18px;border-radius:50%;background:#6d28d9;color:#fff;font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+wpAssigneeInitials(c.editorId)+'</span>'+wpAssigneeName(c.editorId)+'</span>'
+    : (c.status==='approved' ? '<span style="color:#16a34a;font-weight:600">✓ Approved</span>' : '<span></span>');
   return '<div class="wp-board-card" data-card-key="'+wpCardKey(c)+'" onpointerdown="wpBoardDragStart(event,\''+wpCardKey(c)+'\')" '+
     'style="background:#fff;border:1px solid '+(overdue?'#fecaca':'#e5e5e5')+';border-left:3px solid '+(overdue?'#dc2626':catColorFor(c.category))+';border-radius:8px;padding:9px 10px;margin-bottom:8px;cursor:grab;touch-action:none">' +
     (showClient?'<div style="font-weight:700;font-size:12px;cursor:pointer" onclick="openProject('+c.pid+',\'t-deliv\')">'+(c.priority?'⭐ ':'')+c.client+'</div>':'') +
     '<div style="font-size:11.5px;color:#555;margin-top:2px">'+c.label+(c.category?' <span style="color:#aaa">· '+c.category+'</span>':'')+'</div>' +
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:10.5px">' +
-      (showAssignee
-        ? '<span style="display:flex;align-items:center;gap:4px"><span style="width:18px;height:18px;border-radius:50%;background:#6d28d9;color:#fff;font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+wpAssigneeInitials(c.editorId)+'</span>'+wpAssigneeName(c.editorId)+'</span>'
-        : '<span></span>') +
+      assigneeHtml +
       deadlineHtml +
     '</div>' +
     (c.note?'<div style="font-size:10px;color:#c2410c;margin-top:4px">📝 '+c.note+'</div>':'') +
