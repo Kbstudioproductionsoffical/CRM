@@ -1898,11 +1898,11 @@ document.addEventListener('wheel', function(e) {
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="$('wp-priority-only').value='';$('wp-search').value='';renderWorkProgress()">Clear</button>
         <span style="font-size:11.5px;color:#888;margin-left:4px">Set each client's month AND week with the dropdowns on their row. Switch "View by" to group the page (and export) by whichever deadline you're reporting on. Turn on Quick Assign mode to skip the deliverable cards and just search + assign fast, A–Z.</span>
         <span style="flex-basis:100%;height:0"></span>
-        <span style="font-size:13px;font-weight:600;color:#555">Export:</span>
-        <select id="wp-export-month" class="fi" style="width:210px;padding:7px 10px;font-size:13px"></select>
+        <span style="font-size:13px;font-weight:600;color:#555">Period:</span>
+        <select id="wp-export-month" class="fi" style="width:210px;padding:7px 10px;font-size:13px" onchange="renderWorkProgress()"></select>
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="wpExportPDF()">📄 Export PDF</button>
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="wpExportExcel()">📊 Export Excel</button>
-        <span style="font-size:11.5px;color:#888">Exports whichever group is selected, grouped by the current "View by" setting.</span>
+        <span style="font-size:11.5px;color:#888">Also scopes the 🗂️ Board (defaults to the current month/week) and the PDF/Excel export, grouped by the current "View by" setting.</span>
         <span style="flex-basis:100%;height:0"></span>
         <span style="font-size:13px;font-weight:600;color:#555">Include statuses:</span>
         <span id="wp-status-filter" style="display:flex;gap:6px;flex-wrap:wrap"></span>
@@ -11109,15 +11109,6 @@ function renderWorkProgress(){
   var groupWrap=document.getElementById('wp-board-group-wrap');
   var layout=(document.getElementById('wp-layout')||{}).value||'table';
   if(groupWrap) groupWrap.style.display=(layout==='board')?'inline-flex':'none';
-  if(layout==='board'){
-    if(el) el.style.display='none';
-    if(boardEl) boardEl.style.display='';
-    wpFillBulkMonthSelect();
-    renderWpBoard();
-    return;
-  }
-  if(el) el.style.display='';
-  if(boardEl) boardEl.style.display='none';
   wpFillBulkMonthSelect();
   var mode=wpGetMode();
   var priorityOnly=(document.getElementById('wp-priority-only')||{}).value||'';
@@ -11137,11 +11128,24 @@ function renderWorkProgress(){
     (groups[mk]=groups[mk]||[]).push(p);
   });
 
+  // monthKeys/groups are computed up front (before the board/table branch)
+  // so the "Period" selector is always populated and current, even if the
+  // Board is the very first layout rendered this session — the Board reads
+  // this same selector to decide its own scope (see wpFlattenCards).
   var monthKeys=Object.keys(groups).filter(function(k){return k!=='unplanned';}).sort();
   if(groups.unplanned) monthKeys.push('unplanned');
-  _wpLastGroups=groups; _wpLastVideoTypes=videoTypes; _wpLastMode=mode; // kept for export, respects current filters
+  _wpLastGroups=groups; _wpLastVideoTypes=videoTypes; _wpLastMode=mode; // kept for export + board scope, respects current filters
   wpFillExportMonthSelect(monthKeys);
   wpFillExportStatusFilter();
+
+  if(layout==='board'){
+    if(el) el.style.display='none';
+    if(boardEl) boardEl.style.display='';
+    renderWpBoard();
+    return;
+  }
+  if(el) el.style.display='';
+  if(boardEl) boardEl.style.display='none';
   if(!monthKeys.length){ el.innerHTML='<div class="empty">No clients currently in Post-Production match this filter.</div>'; return; }
 
   var html='';
@@ -11262,7 +11266,18 @@ function wpFillExportMonthSelect(monthKeys){
     opts+='<option value="'+mk+'">'+wpLabelFor(mk,mode)+'</option>';
   });
   sel.innerHTML=opts;
-  if(cur && monthKeys.concat('__all__').indexOf(cur)!==-1) sel.value=cur;
+  if(cur && monthKeys.concat('__all__').indexOf(cur)!==-1){
+    sel.value=cur;
+  } else {
+    // No valid selection carried over (first load this session, or the
+    // previously-picked period no longer has anyone in it). Default to the
+    // REAL current month/week if it has clients in it, so both the Board
+    // and the Export default to "what's due right now" instead of quietly
+    // falling back to "All" and dumping every period into one pile again.
+    var now=new Date();
+    var nowKey=mode==='week'?wpWeekKey(now):(now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0'));
+    sel.value=(monthKeys.indexOf(nowKey)!==-1)?nowKey:'__all__';
+  }
 }
 // Returns an ARRAY of lines (not a joined string) so the PDF can put each
 // item on its own line (wrapped, nothing cut) while Excel can join them
@@ -11750,10 +11765,18 @@ function wpBoardGroupMode(){ return (document.getElementById('wp-board-group')||
 function wpFlattenCards(){
   var priorityOnly=(document.getElementById('wp-priority-only')||{}).value||'';
   var search=((document.getElementById('wp-search')||{}).value||'').trim().toLowerCase();
+  // The Board auto-follows the same "Period" selector the table/export use
+  // (wp-export-month), defaulted to the real current month/week — so it
+  // shows only clients actually scheduled for that period instead of every
+  // Post-Production client at once. Pick "All months/weeks" in Period to
+  // deliberately see everyone again.
+  var scope=(document.getElementById('wp-export-month')||{}).value||'__all__';
+  var mode=_wpLastMode||'month';
   var cards=[];
   pl().forEach(function(p){
     if(p.stage!=='postprod') return;
     if(priorityOnly && !(parseInt(p.priority)||0)) return;
+    if(scope!=='__all__' && wpKeyFor(p,mode)!==scope) return;
     if(search){
       var hay=((p.bride||'')+' '+(p.groom||'')+' '+(p.phone||'')).toLowerCase();
       if(hay.indexOf(search)===-1) return;
