@@ -1307,8 +1307,11 @@ body {
 .ctr-sheet .ctr-footer{text-align:center;margin-top:26px;padding-top:10px;border-top:1px solid #ccc}
 .ctr-sheet .ctr-footer .ctr-hdr-rule{margin-bottom:4px}
 .ctr-sheet .ctr-footer div{font-variant:small-caps;letter-spacing:2px;font-size:10px;color:#555}
-.ctr-sheet .ctr-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:34px}
+.ctr-sheet .ctr-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:34px;page-break-inside:avoid;break-inside:avoid}
 .ctr-sheet .ctr-sig-line{border-top:1px solid #333;margin-top:34px;padding-top:4px;font-size:11px}
+.ctr-sheet h4{page-break-after:avoid;break-after:avoid;page-break-inside:avoid;break-inside:avoid}
+.ctr-sheet p,.ctr-sheet li{orphans:3;widows:3}
+.ctr-sheet ul{page-break-inside:avoid;break-inside:avoid}
 .ctr-list-item{background:#fff;border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .ctr-field-error{border-color:#dc2626 !important;box-shadow:0 0 0 2px rgba(220,38,38,.15) !important;animation:ctrShake .35s}
 @keyframes ctrShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
@@ -19046,16 +19049,18 @@ function buildContractHTML(data) {
   h += '<p>12.4 Save as expressly required under applicable law, the Employee shall not be entitled to any notice, notice pay, severance, or compensation of any kind upon termination by the Company beyond wages lawfully due up to the last day actually worked.</p>';
 
   h += '<h4>13. RETURN OF COMPANY PROPERTY</h4>';
-  h += '<p>13.1 Upon termination of employment, the Employee agrees to return all Company property in good working condition, failing which the Employee shall refund the Company an amount equal to 3x the value of the goods not returned or returned damaged.</p>';
+  h += '<p>13.1 Upon termination of employment, the Employee agrees to return all Company property in good working condition. If any item is not returned, or is returned damaged, the Employee shall reimburse the Company an amount equal to the fair replacement value of that item (i.e., the reasonable cost of replacing it with an equivalent new or like-for-like item, less normal wear and tear), as assessed by the Company acting reasonably and evidenced by invoice, receipt, or a comparable price quotation.</p>';
 
   h += '<h4>14. NON-DISPARAGEMENT</h4>';
   h += '<p>14.1 Both parties agree not to make any false, misleading, or malicious statement about the other, whether publicly, to clients, or on social media, that could harm the other\u2019s reputation, and to raise any grievance through the dispute resolution process set out in Clause 15.</p>';
 
   h += '<h4>15. DISPUTE RESOLUTION</h4>';
-  h += '<p>15.1 Any dispute arising out of or in connection with this Agreement shall first be addressed through good-faith discussion between the parties, and failing resolution within 30 days, shall be referred to and finally resolved by arbitration under the Arbitration and Conciliation Act, 1996, with a sole arbitrator appointed by the Company, seated at ' + office + ', ' + CTR_COMPANY.state + '.</p>';
+  h += '<p>15.1 Any dispute arising out of or in connection with this Agreement shall first be addressed through good-faith discussion between the parties, and failing resolution within 30 days, shall be referred to and finally resolved by arbitration under the Arbitration and Conciliation Act, 1996.</p>';
+  h += '<p>15.2 The dispute shall be resolved by a sole arbitrator mutually agreed upon and jointly appointed by both parties in writing. If the parties are unable to agree upon an arbitrator within 15 days of one party issuing a written notice of dispute to the other, the arbitrator shall instead be appointed in accordance with, and by the authority designated under, the Arbitration and Conciliation Act, 1996. The seat and venue of arbitration shall be ' + office + ', ' + CTR_COMPANY.state + ', and the proceedings shall be conducted in English.</p>';
 
   h += '<h4>16. GOVERNING LAW AND JURISDICTION</h4>';
-  h += '<p>16.1 This Agreement shall be governed by and construed in accordance with the laws of ' + CTR_COMPANY.state + ', India, and subject to Clause 15, the courts at ' + office + ' shall have exclusive jurisdiction.</p>';
+  h += '<p>16.1 This Agreement shall be governed by and construed in accordance with the laws of India and the State of ' + CTR_COMPANY.state + '.</p>';
+  h += '<p>16.2 Subject to Clause 15 (Dispute Resolution), the courts at ' + office + ', ' + CTR_COMPANY.state + ' alone shall have jurisdiction to entertain, try and adjudicate any dispute, claim, suit, or legal proceeding of any nature whatsoever arising out of, relating to, or in connection with this Agreement or the employment relationship between the parties, to the exclusion of all other courts and tribunals which may otherwise have jurisdiction. Both parties irrevocably submit to the exclusive jurisdiction of the courts at ' + office + ' for this purpose.</p>';
 
   h += '<h4>17. SEVERABILITY &amp; ENTIRE AGREEMENT</h4>';
   h += '<p>17.1 If any provision of this Agreement is held invalid or unenforceable, the remaining provisions shall continue in full force and effect. This Agreement constitutes the entire agreement between the parties and supersedes all prior agreements and understandings, whether written or oral, relating to the subject matter hereof.</p>';
@@ -19134,7 +19139,10 @@ function ctrPrintContract() {
     '.ctr-sheet h4{font-size:11.5px;font-weight:700;margin:16px 0 6px}' +
     '.ctr-sheet ul{margin:0 0 10px 22px;padding:0}.ctr-sheet li{font-size:11.5px;line-height:1.6;margin-bottom:4px;text-align:justify}' +
     '.ctr-sheet .ctr-footer{text-align:center;margin-top:26px;padding-top:10px;border-top:1px solid #ccc}.ctr-sheet .ctr-footer div{font-variant:small-caps;letter-spacing:2px;font-size:10px;color:#555}' +
-    '.ctr-sheet .ctr-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:34px}.ctr-sheet .ctr-sig-line{border-top:1px solid #333;margin-top:34px;padding-top:4px;font-size:11px}' +
+    '.ctr-sheet .ctr-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:34px;page-break-inside:avoid;break-inside:avoid}.ctr-sheet .ctr-sig-line{border-top:1px solid #333;margin-top:34px;padding-top:4px;font-size:11px}' +
+    '.ctr-sheet h4{page-break-after:avoid;break-after:avoid;page-break-inside:avoid;break-inside:avoid}' +
+    '.ctr-sheet p,.ctr-sheet li{orphans:3;widows:3}' +
+    '.ctr-sheet ul{page-break-inside:avoid;break-inside:avoid}' +
     '@page{margin:0;size:A4}@media print{.ctr-sheet{box-shadow:none}}</style>';
   win.document.write('<!DOCTYPE html><html><head><title>Employment Agreement \u2014 ' + ctrEsc(_ctrCurrentPreviewData.name) + '</title>' + styleTag + '</head><body><div class="ctr-sheet">' + _ctrCurrentPreviewHtml + '</div></body></html>');
   win.document.close();
@@ -21722,7 +21730,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault', 'contracts'],
+    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -21804,7 +21812,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   accounts: {
-    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck'],
+    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck', 'contracts'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true, canDeletePayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
