@@ -1295,10 +1295,10 @@ body {
 .ctr-sheet .ctr-hdr{text-align:center;margin-bottom:18px}
 .ctr-sheet .ctr-hdr-rule{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:6px}
 .ctr-sheet .ctr-hdr-rule .ln{height:1px;background:#999;width:90px}
-.ctr-sheet .ctr-badge{width:78px;height:78px;border-radius:50%;border:2px solid #bbb;display:flex;align-items:center;justify-content:center;flex-direction:column;margin:0 auto 8px;font-family:Arial,sans-serif}
-.ctr-sheet .ctr-badge b{font-size:20px;letter-spacing:1px;color:#1a1a1a}
-.ctr-sheet .ctr-badge span{font-size:6px;letter-spacing:2px;color:#666;text-transform:uppercase}
-.ctr-sheet .ctr-co-name{font-variant:small-caps;letter-spacing:3px;font-size:17px;font-weight:700;margin-top:2px}
+.ctr-sheet .ctr-badge{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#fff 0%,#f0f0ee 100%);box-shadow:0 2px 8px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.9);border:1px solid #ddd;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.ctr-sheet .ctr-badge-txt{font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:900;color:#1a1a1a;letter-spacing:-1px}
+.ctr-sheet .ctr-co-name{font-family:'Cormorant Garamond',Georgia,serif;font-size:20px;font-weight:600;letter-spacing:.04em;color:#1a1a1a}
+.ctr-sheet .ctr-co-sub{color:#a8873a;letter-spacing:.32em;font-size:10px;font-weight:700;margin-top:3px}
 .ctr-sheet .ctr-doc-title{text-align:center;font-weight:700;font-size:13px;letter-spacing:1px;margin:18px 0 14px}
 .ctr-sheet p{font-size:11.5px;line-height:1.65;margin:0 0 10px;text-align:justify}
 .ctr-sheet h4{font-size:11.5px;font-weight:700;margin:16px 0 6px;letter-spacing:.3px}
@@ -1310,6 +1310,8 @@ body {
 .ctr-sheet .ctr-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:34px}
 .ctr-sheet .ctr-sig-line{border-top:1px solid #333;margin-top:34px;padding-top:4px;font-size:11px}
 .ctr-list-item{background:#fff;border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.ctr-field-error{border-color:#dc2626 !important;box-shadow:0 0 0 2px rgba(220,38,38,.15) !important;animation:ctrShake .35s}
+@keyframes ctrShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
 @media print{
   body *{visibility:hidden}
   #ctr-print-area, #ctr-print-area *{visibility:visible}
@@ -1937,13 +1939,13 @@ document.addEventListener('wheel', function(e) {
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-              <div><label class="ctr-lbl">Monthly Salary (₹) *</label><input class="fi" type="number" id="ctr-salary" placeholder="20000"></div>
-              <div><label class="ctr-lbl">Salary Disbursal Day</label><input class="fi" type="number" id="ctr-paydays" placeholder="10" value="10"></div>
+              <div><label class="ctr-lbl">Monthly Salary (₹) *</label><input class="fi" type="number" id="ctr-salary" placeholder="20000" min="0" onwheel="this.blur();event.preventDefault()"></div>
+              <div><label class="ctr-lbl">Salary Disbursal Day</label><input class="fi" type="number" id="ctr-paydays" placeholder="10" value="10" min="1" max="31" onwheel="this.blur();event.preventDefault()"></div>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-              <div><label class="ctr-lbl">Payroll Hold (days)</label><input class="fi" type="number" id="ctr-holddays" placeholder="10" value="10"></div>
-              <div><label class="ctr-lbl">Working Days / Week</label><input class="fi" type="number" id="ctr-workdays" placeholder="6" value="6"></div>
+              <div><label class="ctr-lbl">Payroll Hold (days)</label><input class="fi" type="number" id="ctr-holddays" placeholder="10" value="10" min="0" max="30" onwheel="this.blur();event.preventDefault()"></div>
+              <div><label class="ctr-lbl">Working Days / Week</label><input class="fi" type="number" id="ctr-workdays" placeholder="6" value="6" min="1" max="7" onwheel="this.blur();event.preventDefault()"></div>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
@@ -1952,8 +1954,8 @@ document.addEventListener('wheel', function(e) {
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-              <div><label class="ctr-lbl">Company Notice Period (days)</label><input class="fi" type="number" id="ctr-noticeco" value="7"></div>
-              <div><label class="ctr-lbl">Employee Notice Period (days)</label><input class="fi" type="number" id="ctr-noticeemp" value="60"></div>
+              <div><label class="ctr-lbl">Company Notice Period (days) — 0 = immediate, no notice</label><input class="fi" type="number" id="ctr-noticeco" value="0" min="0" max="365" onwheel="this.blur();event.preventDefault()"></div>
+              <div><label class="ctr-lbl">Employee Notice Period (days)</label><input class="fi" type="number" id="ctr-noticeemp" value="60" min="1" max="365" onwheel="this.blur();event.preventDefault()"></div>
             </div>
 
             <div style="height:8px"></div>
@@ -18930,7 +18932,7 @@ function ctrCollectFormData() {
     agreeDate: gv('ctr-agreedate'), joinDate: gv('ctr-joindate'),
     salary: gv('ctr-salary'), payDay: gv('ctr-paydays') || '10', holdDays: gv('ctr-holddays') || '10',
     workDays: gv('ctr-workdays') || '6', hrStart: gv('ctr-hrstart') || '10:00', hrEnd: gv('ctr-hrend') || '20:00',
-    noticeCo: gv('ctr-noticeco') || '7', noticeEmp: gv('ctr-noticeemp') || '60',
+    noticeCo: gv('ctr-noticeco') !== '' ? gv('ctr-noticeco') : '0', noticeEmp: gv('ctr-noticeemp') || '60',
     extra: gv('ctr-extra')
   };
 }
@@ -18975,8 +18977,8 @@ function buildContractHTML(data) {
   if (mother) parentLine += (parentLine ? ', D/O-cum-mother\u2019s name ' : 'C/O ') + mother;
 
   var h = '';
-  h += '<div class="ctr-hdr"><div class="ctr-hdr-rule"><span class="ln"></span><div class="ctr-badge"><b>KB</b><span>Studio Productions</span></div><span class="ln"></span></div>';
-  h += '<div class="ctr-co-name">' + ctrEsc(CTR_COMPANY.name) + '</div></div>';
+  h += '<div class="ctr-hdr"><div class="ctr-hdr-rule"><span class="ln"></span><div class="ctr-badge"><span class="ctr-badge-txt">KB</span></div><span class="ln"></span></div>';
+  h += '<div class="ctr-co-name">KB Studio</div><div class="ctr-co-sub">PRODUCTIONS</div></div>';
   h += '<div class="ctr-doc-title">EMPLOYMENT AGREEMENT</div>';
 
   h += '<p>This Employment Agreement ("Agreement") is made and entered into on this ' + ctrFmtDateLong(data.agreeDate) + ', by and between <b>' + ctrEsc(CTR_COMPANY.name) + '</b>, having its principal place of business at ' + ctrEsc(CTR_COMPANY.addr1) + ' ("Company"), and <b>' + name + '</b>' + (parentLine ? ', ' + parentLine : '') + ', residing at ' + address + (idType && idNum !== '__________' ? ' (' + idType + ' No. ' + idNum + ')' : '') + ' ("Employee").</p>';
@@ -19033,9 +19035,15 @@ function buildContractHTML(data) {
   h += '<p>11.1 If the Employee damages, loses, or misuses anything owned by or entrusted by the Company, the Employee will be fully responsible for making good the loss or damage caused.</p>';
 
   h += '<h4>12. TERMINATION</h4>';
-  h += '<p>12.1 Termination by Company. The Company may terminate this Agreement at any time, with or without cause, upon ' + ctrEsc(data.noticeCo) + ' days\u2019 written notice to the Employee.</p>';
+  var noticeCoNum = parseInt(data.noticeCo, 10) || 0;
+  if (noticeCoNum <= 0) {
+    h += '<p>12.1 Termination by Company. The Company may terminate this Agreement at any time, for any reason or no reason, with immediate effect and without any requirement of prior notice, notice pay, or severance to the Employee, save to the extent expressly mandated by applicable law.</p>';
+  } else {
+    h += '<p>12.1 Termination by Company. The Company may terminate this Agreement at any time, with or without cause, upon ' + ctrEsc(data.noticeCo) + ' days\u2019 written notice to the Employee, or by payment in lieu of such notice at the Company\u2019s sole discretion.</p>';
+  }
   h += '<p>12.2 Termination by Employee. The Employee may terminate this Agreement upon ' + ctrEsc(data.noticeEmp) + ' days\u2019 written notice to the Company, and shall complete all pending assigned projects during the notice period.</p>';
   h += '<p>12.3 Termination without Notice. If the Employee terminates this Agreement without the notice required above, the Company may withhold any balance salary due to the Employee, to the extent permitted by applicable law, and may take further action available to it.</p>';
+  h += '<p>12.4 Save as expressly required under applicable law, the Employee shall not be entitled to any notice, notice pay, severance, or compensation of any kind upon termination by the Company beyond wages lawfully due up to the last day actually worked.</p>';
 
   h += '<h4>13. RETURN OF COMPANY PROPERTY</h4>';
   h += '<p>13.1 Upon termination of employment, the Employee agrees to return all Company property in good working condition, failing which the Employee shall refund the Company an amount equal to 3x the value of the goods not returned or returned damaged.</p>';
@@ -19063,14 +19071,30 @@ function buildContractHTML(data) {
 
 function ctrValidateForm(data) {
   var missing = [];
-  if (!data.name) missing.push('Employee Name');
-  if (!data.address) missing.push('Address');
-  if (!data.idNum) missing.push('Govt. ID Number');
-  if (!data.salary) missing.push('Monthly Salary');
-  if (!data.agreeDate) missing.push('Agreement Date');
-  if (!data.joinDate) missing.push('Joining Date');
-  if (data.roleKey === 'other' && !data.positionLine) missing.push('Custom Position Title');
+  if (!data.name) missing.push({ label: 'Employee Name', id: 'ctr-name' });
+  if (!data.address) missing.push({ label: 'Address', id: 'ctr-address' });
+  if (!data.idNum) missing.push({ label: 'Govt. ID Number', id: 'ctr-idnum' });
+  if (!data.salary) missing.push({ label: 'Monthly Salary', id: 'ctr-salary' });
+  if (!data.agreeDate) missing.push({ label: 'Agreement Date', id: 'ctr-agreedate' });
+  if (!data.joinDate) missing.push({ label: 'Joining Date', id: 'ctr-joindate' });
+  if (data.roleKey === 'other' && !data.positionLine) missing.push({ label: 'Custom Position Title', id: 'ctr-role-custom' });
   return missing;
+}
+
+// Highlights missing required fields in red (with a shake) so validation failures
+// are never silent, and clears highlighting on the next input in that field.
+function ctrHighlightMissing(missing) {
+  document.querySelectorAll('.ctr-field-error').forEach(function(el) { el.classList.remove('ctr-field-error'); });
+  missing.forEach(function(m) {
+    var el = $(m.id);
+    if (!el) return;
+    el.classList.add('ctr-field-error');
+    el.addEventListener('input', function clearErr() { el.classList.remove('ctr-field-error'); el.removeEventListener('input', clearErr); });
+  });
+  if (missing.length && $(missing[0].id)) {
+    $(missing[0].id).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $(missing[0].id).focus();
+  }
 }
 
 function ctrGeneratePreview() {
@@ -19078,10 +19102,13 @@ function ctrGeneratePreview() {
   var missing = ctrValidateForm(data);
   var statusEl = $('ctr-preview-status');
   if (missing.length) {
-    showToast('\u26a0\ufe0f Missing: ' + missing.join(', '));
-    if (statusEl) statusEl.textContent = 'Missing: ' + missing.join(', ');
+    var labels = missing.map(function(m){ return m.label; });
+    showToast('\u26a0\ufe0f Missing: ' + labels.join(', '));
+    if (statusEl) statusEl.textContent = 'Missing: ' + labels.join(', ');
+    ctrHighlightMissing(missing);
     return;
   }
+  ctrHighlightMissing([]);
   var html = buildContractHTML(data);
   $('ctr-preview-sheet').innerHTML = html;
   _ctrCurrentPreviewHtml = html;
@@ -19093,13 +19120,15 @@ function ctrPrintContract() {
   if (!_ctrCurrentPreviewHtml) { ctrGeneratePreview(); if (!_ctrCurrentPreviewHtml) return; }
   var win = window.open('', '_blank');
   if (!win) { showToast('\u26a0\ufe0f Please allow pop-ups to print/save the contract'); return; }
-  var styleTag = '<style>body{margin:0;background:#fff}' +
+  var styleTag = '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700;900&display=swap" rel="stylesheet">' +
+    '<style>body{margin:0;background:#fff}' +
     '.ctr-sheet{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:20mm 18mm;font-family:Georgia,\'Times New Roman\',serif;color:#1a1a1a;box-sizing:border-box}' +
     '.ctr-sheet .ctr-hdr{text-align:center;margin-bottom:18px}.ctr-sheet .ctr-hdr-rule{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:6px}' +
     '.ctr-sheet .ctr-hdr-rule .ln{height:1px;background:#999;width:90px}' +
-    '.ctr-sheet .ctr-badge{width:78px;height:78px;border-radius:50%;border:2px solid #bbb;display:flex;align-items:center;justify-content:center;flex-direction:column;margin:0 auto 8px;font-family:Arial,sans-serif}' +
-    '.ctr-sheet .ctr-badge b{font-size:20px;letter-spacing:1px}.ctr-sheet .ctr-badge span{font-size:6px;letter-spacing:2px;color:#666;text-transform:uppercase}' +
-    '.ctr-sheet .ctr-co-name{font-variant:small-caps;letter-spacing:3px;font-size:17px;font-weight:700;margin-top:2px}' +
+    '.ctr-sheet .ctr-badge{width:68px;height:68px;border-radius:50%;background:linear-gradient(135deg,#fff 0%,#f0f0ee 100%);box-shadow:0 2px 8px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.9);border:1px solid #ddd;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}' +
+    '.ctr-sheet .ctr-badge-txt{font-family:\'Cormorant Garamond\',Georgia,serif;font-size:24px;font-weight:900;color:#1a1a1a;letter-spacing:-1px}' +
+    '.ctr-sheet .ctr-co-name{font-family:\'Cormorant Garamond\',Georgia,serif;font-size:20px;font-weight:600;letter-spacing:.04em;color:#1a1a1a}' +
+    '.ctr-sheet .ctr-co-sub{color:#a8873a;letter-spacing:.32em;font-size:10px;font-weight:700;margin-top:3px}' +
     '.ctr-sheet .ctr-doc-title{text-align:center;font-weight:700;font-size:13px;letter-spacing:1px;margin:18px 0 14px}' +
     '.ctr-sheet p{font-size:11.5px;line-height:1.65;margin:0 0 10px;text-align:justify}' +
     '.ctr-sheet h4{font-size:11.5px;font-weight:700;margin:16px 0 6px}' +
@@ -19122,7 +19151,13 @@ function loadAllContracts(cb) {
 function ctrSaveContract() {
   var data = ctrCollectFormData();
   var missing = ctrValidateForm(data);
-  if (missing.length) { showToast('\u26a0\ufe0f Missing: ' + missing.join(', ')); return; }
+  if (missing.length) {
+    var labels = missing.map(function(m){ return m.label; });
+    showToast('\u26a0\ufe0f Missing: ' + labels.join(', '));
+    ctrHighlightMissing(missing);
+    return;
+  }
+  ctrHighlightMissing([]);
   var html = buildContractHTML(data);
   var id = _ctrEditingId || ('ctr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
   var record = {
