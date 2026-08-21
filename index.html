@@ -6844,6 +6844,12 @@ function closeModal(id){
   $(id).classList.remove('open');
   // Reset editProjId when project modal is closed without saving
   if (id === 'proj-modal') { editProjId = null; }
+  // If a background refresh was skipped while this (or another) modal was open,
+  // and no other modal is still open, run it now so the page catches up.
+  if (_refreshDeferred && !document.querySelector('.modal-overlay.open')) {
+    _refreshDeferred = false;
+    refresh();
+  }
 }
 function paidTotal(p){return(p.payLedger||[]).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);}
 function netVal(p){return(parseInt(p.value)||0)-(parseInt(p.discount)||0);}
@@ -7001,7 +7007,14 @@ function kbSearchDebounce(fn, delay){
 }
 
 var _refreshTimer = null;
+var _refreshDeferred = false;
 function refresh(){
+  // If the user currently has a modal open (editing a project, payment, user, etc.),
+  // a full background re-render of the page underneath is wasted work — it isn't even
+  // visible — and competing for the same main thread is what causes typing/clicking
+  // inside the modal to feel laggy whenever a teammate saves an update elsewhere.
+  // Skip it for now and catch up once every open modal has been closed.
+  if (document.querySelector('.modal-overlay.open')) { _refreshDeferred = true; return; }
   // Debounce: wait 80ms after last call before actually rendering
   // This prevents multiple Firebase listeners firing simultaneously and causing 3+ renders
   clearTimeout(_refreshTimer);
