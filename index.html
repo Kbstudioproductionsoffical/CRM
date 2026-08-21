@@ -9334,7 +9334,7 @@ function mountSidebarCustomizer() {
     {page:'dashboard',label:'Dashboard'},{page:'pipeline',label:'Project Pipeline'},
     {page:'projects',label:'All Projects'},{page:'quotations',label:'Quotations & Leads'},
     {page:'calendar',label:'Shoot Calendar'},{page:'onboarding',label:'Client Onboarding'},
-    {page:'postprod',label:'Post Production'},{page:'workprogress',label:'Work Progress'},{page:'datavault',label:'Data Vault'},
+    {page:'postprod',label:'Post Production'},{page:'datavault',label:'Data Vault'},
     {page:'payments',label:'Payments'},{page:'invoice',label:'Invoices'},
     {page:'reports',label:'Reports'},{page:'priority',label:'Priority Clients'},
     {page:'whatsapp',label:'WhatsApp'},{page:'referral',label:'Referrals'},
@@ -12244,7 +12244,9 @@ function ppvSetPeriodKey(key){ window._ppvPeriodKey=key; renderPostProd(); }
 
 // Quantity + overdue summary for whatever period is currently selected —
 // this is the "assess the pending deliverables and total quantities" view
-// the Video Production Admin needs before assigning anything.
+// the Video Production Admin needs before assigning anything. Every number
+// is clickable and takes you straight to the tab where you'd act on it —
+// nothing here is just for looking at.
 function ppvPeriodSummaryHtml(){
   var videoTypes=DELIV_TYPE_REGISTRY.filter(function(r){return r.bucket==='video' && r.reportKey;});
   var clients=pl().filter(function(p){
@@ -12252,27 +12254,40 @@ function ppvPeriodSummaryHtml(){
     if(_ppvPeriodKey==='all') return true;
     return wpKeyFor(p,_ppvPeriodMode)===_ppvPeriodKey;
   });
-  var totals={}, pending=0, overdue=0, inreview=0;
+  var totals={}, pending=0, unassigned=0, overdue=0, inreview=0;
   videoTypes.forEach(function(vt){ totals[vt.type]=0; });
   clients.forEach(function(p){
     (p.customDelivs||[]).forEach(function(d){
       if(delivBucket(d)!=='video') return;
       if(totals[d.type]!=null) totals[d.type]++;
       if(!delivIsDone(d.status)) pending++;
+      if(d.status==='pending'&&!d.editorId) unassigned++;
       if(d.status==='review') inreview++;
       var dl=delivDeadline(d); if(dl && daysUntil(dl)<0 && !delivIsDone(d.status)) overdue++;
     });
   });
   var chips=videoTypes.map(function(vt){
-    return '<div style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px"><div style="font-size:18px;font-weight:800">'+totals[vt.type]+'</div><div style="font-size:10px;color:#666">'+vt.icon+' '+vt.type+'</div></div>';
+    return '<div onclick="setPPTab(\'step2\')" title="Click to go assign these" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;transition:transform .1s" onmouseover="this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.transform=\'\'"><div style="font-size:18px;font-weight:800">'+totals[vt.type]+'</div><div style="font-size:10px;color:#666">'+vt.icon+' '+vt.type+'</div></div>';
   }).join('');
-  return '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+  var html='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +chips
-    +'<div style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;border:1px solid #fde68a"><div style="font-size:18px;font-weight:800;color:#854d0e">'+pending+'</div><div style="font-size:10px;color:#854d0e">⏳ Pending Total</div></div>'
-    +'<div style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;border:1px solid #f9a8d4"><div style="font-size:18px;font-weight:800;color:#9d174d">'+inreview+'</div><div style="font-size:10px;color:#9d174d">👁️ In Review</div></div>'
-    +'<div style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;border:1px solid '+(overdue?'#fecaca':'#e2e8f0')+'"><div style="font-size:18px;font-weight:800;color:'+(overdue?'#dc2626':'#16a34a')+'">'+overdue+'</div><div style="font-size:10px;color:'+(overdue?'#dc2626':'#16a34a')+'">⚠️ Overdue</div></div>'
+    +'<div onclick="setPPTab(\'step2\')" title="Click to go assign these" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;border:1px solid #fde68a"><div style="font-size:18px;font-weight:800;color:#854d0e">'+pending+'</div><div style="font-size:10px;color:#854d0e">⏳ Pending Total</div></div>'
+    +'<div onclick="setPPTab(\'step4\')" title="Click to go review these" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;border:1px solid #f9a8d4"><div style="font-size:18px;font-weight:800;color:#9d174d">'+inreview+'</div><div style="font-size:10px;color:#9d174d">👁️ In Review</div></div>'
+    +'<div onclick="setPPTab(\'step1\')" title="Click to see these" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;border:1px solid '+(overdue?'#fecaca':'#e2e8f0')+'"><div style="font-size:18px;font-weight:800;color:'+(overdue?'#dc2626':'#16a34a')+'">'+overdue+'</div><div style="font-size:10px;color:'+(overdue?'#dc2626':'#16a34a')+'">⚠️ Overdue</div></div>'
     +'<div style="font-size:11px;color:#4338ca;font-weight:600">'+clients.length+' client'+(clients.length!==1?'s':'')+' in this period</div>'
     +'</div>';
+  // Single obvious next step — no need to hunt across 8 tabs to figure out
+  // what to do first.
+  if(unassigned>0){
+    html+='<div style="margin-top:10px">'
+      +'<button onclick="setPPTab(\'step2\')" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">👤 Assign Editors — '+unassigned+' deliverable'+(unassigned!==1?'s':'')+' waiting →</button>'
+      +'</div>';
+  } else if(inreview>0){
+    html+='<div style="margin-top:10px"><button onclick="setPPTab(\'step4\')" style="background:#ec4899;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">👁️ Review '+inreview+' Submitted Item'+(inreview!==1?'s':'')+' →</button></div>';
+  } else {
+    html+='<div style="margin-top:10px;font-size:12px;color:#16a34a;font-weight:700">✅ Nothing waiting on you for this period right now.</div>';
+  }
+  return html;
 }
 
 // Lightweight period-assignment modal — pick a client, set their week/month.
@@ -12500,8 +12515,10 @@ function renderPostProd(){
   });
   html+='</div>';
 
-  // ── MONTH / DATE FILTER BAR ───────────────────────────────────────────────
-  // Build quick-pick buttons: last 3 months + next 3 months
+  // ── ADVANCED: filter by actual wedding EVENT date (separate from which
+  // work-period a client is dedicated to). Collapsed by default — the Work
+  // Period bar above is the everyday control; this stays out of the way
+  // unless someone deliberately needs it, instead of competing with it.
   var _now = new Date();
   var _quickMonths = [];
   for (var _mi = -3; _mi <= 3; _mi++) {
@@ -12510,7 +12527,9 @@ function renderPostProd(){
     var _ml = _md.toLocaleString('en-IN',{month:'short',year:'numeric'});
     _quickMonths.push({ym:_ym, label:_ml});
   }
-  html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+  html += '<div style="margin-bottom:14px">';
+  html += '<button onclick="var b=document.getElementById(\'pp-adv-evfilter\');b.style.display=b.style.display===\'none\'?\'\':\'none\';" style="background:none;border:none;color:#94a3b8;font-size:11px;font-weight:600;cursor:pointer;padding:2px 0">'+(_ppMonthFilter?'📅 Also filtering by event month: '+_ppMonthFilter+' — ':'')+'⚙️ Advanced: filter by wedding event date instead ▾</button>';
+  html += '<div id="pp-adv-evfilter" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:6px;align-items:center;gap:10px;flex-wrap:wrap">';
   html += '<span style="font-size:11px;font-weight:700;color:#64748b;white-space:nowrap">📅 EVENT MONTH</span>';
   // All button
   html += '<button onclick="setPPMonthFilter(\'\')" style="padding:5px 12px;border-radius:20px;border:1.5px solid '+(_ppMonthFilter===''?'#1a1a1a':'#e2e8f0')+';background:'+(_ppMonthFilter===''?'#1a1a1a':'#fff')+';color:'+(_ppMonthFilter===''?'#fff':'#64748b')+';font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">All</button>';
@@ -12542,19 +12561,7 @@ function renderPostProd(){
   }
   html += '</select>';
   html += '</div>';
-  // Show active filter label
-  if (_ppMonthFilter && /^\d{4}-\d{2}$/.test(_ppMonthFilter)) {
-    var _activeLabel = (function(){
-      var d = new Date(_ppMonthFilter+'-01T00:00:00');
-      if (isNaN(d.getTime())) return _ppMonthFilter;
-      return d.toLocaleString('en-IN',{month:'long',year:'numeric'});
-    })();
-    html += '<span style="font-size:11px;color:#3b82f6;font-weight:700;margin-left:6px;background:#eff6ff;padding:4px 10px;border-radius:20px">📍 '+_activeLabel+'</span>';
-  } else if (_ppMonthFilter) {
-    // Malformed value somehow got through (e.g. browser quirk) — reset it instead of showing "Invalid Date"
-    _ppMonthFilter = '';
-    html += '<span style="font-size:11px;color:#dc2626;font-weight:700;margin-left:6px">⚠️ Couldn\'t read that date — showing all</span>';
-  }
+  html += '</div>';
   html += '</div>';
 
   // ── APPLY FILTER to list & allItems ───────────────────────────────────────
@@ -12588,9 +12595,10 @@ function renderPostProd(){
   var cnt5=allItems.filter(function(i){return delivIsDone(i.d.status);}).length;
 
   if(tab==='overview'){
-    html+='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">';
-    [{n:'1',l:'Needs Attention',v:cnt1,c:'#dc2626',bg:'#fef2f2'},{n:'2',l:'Assign Editor',v:cnt2,c:'#8b5cf6',bg:'#f5f3ff'},{n:'3',l:'Editing',v:cnt3,c:'#3b82f6',bg:'#eff6ff'},{n:'4',l:'In Review',v:cnt4,c:'#ec4899',bg:'#fdf2f8'},{n:'5',l:'Delivered',v:cnt5,c:'#10b981',bg:'#f0fdf4'}].forEach(function(s){
-      html+='<div style="background:'+s.bg+';border-radius:12px;padding:14px;text-align:center;cursor:pointer;border:2px solid transparent" onclick="setPPTab(\'step'+s.n+'\')" onmouseover="this.style.borderColor=\''+s.c+'\'" onmouseout="this.style.borderColor=\'transparent\'">';
+    var cnt4b=allItems.filter(function(i){return i.d.status==='delivered';}).length; // sent to client, awaiting their approval — previously missing from this funnel entirely
+    html+='<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px">';
+    [{n:'1',l:'Needs Attention',v:cnt1,c:'#dc2626',bg:'#fef2f2'},{n:'2',l:'Assign Editor',v:cnt2,c:'#8b5cf6',bg:'#f5f3ff'},{n:'3',l:'Editing',v:cnt3,c:'#3b82f6',bg:'#eff6ff'},{n:'4',l:'In Review',v:cnt4,c:'#ec4899',bg:'#fdf2f8'},{n:'4b',l:'Sent to Client',v:cnt4b,c:'#0ea5e9',bg:'#f0f9ff',tab:'step5'},{n:'5',l:'Client Approved',v:cnt5,c:'#10b981',bg:'#f0fdf4',tab:'step5'}].forEach(function(s){
+      html+='<div style="background:'+s.bg+';border-radius:12px;padding:14px;text-align:center;cursor:pointer;border:2px solid transparent" onclick="setPPTab(\''+(s.tab||('step'+s.n))+'\')" onmouseover="this.style.borderColor=\''+s.c+'\'" onmouseout="this.style.borderColor=\'transparent\'">';
       html+='<div style="font-size:26px;font-weight:800;color:'+s.c+'">'+s.v+'</div>';
       html+='<div style="font-size:11px;color:'+s.c+';font-weight:600;margin-top:4px">'+(s.n==='1'?'⏱️':'Step '+s.n)+'</div>';
       html+='<div style="font-size:10px;color:#888;margin-top:2px">'+s.l+'</div></div>';
@@ -12772,26 +12780,31 @@ function renderPostProd(){
     }
 
   } else if(tab==='step5'){
-    html+='<div class="info info-green" style="margin-bottom:14px">🎉 These deliverables have been delivered AND approved by the client.</div>';
+    var awaitingApp=allItems.filter(function(i){return i.d.status==='delivered';});
     var done=allItems.filter(function(i){return delivIsDone(i.d.status);});
-    if(!done.length){html+='<div class="empty">No deliverables approved yet.</div>';}
-    else{
-      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Revisions</th><th>Delivered On</th><th>Drive Link</th><th></th></tr></thead><tbody>';
-      done.sort(function(a,b){return(b.d.date||'').localeCompare(a.d.date||'');}).forEach(function(item){
+    function ppDoneTable(items,label,cls){
+      var h='<div style="font-size:13px;font-weight:800;margin:'+(label==='📤 Sent to Client — Awaiting Approval'?'0':'20px')+' 0 10px">'+label+' <span style="color:#888;font-weight:600">('+items.length+')</span></div>';
+      if(!items.length) return h+'<div class="empty" style="margin-bottom:10px">Nothing here yet.</div>';
+      h+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Revisions</th><th>Date</th><th>Link</th><th></th></tr></thead><tbody>';
+      items.sort(function(a,b){return(b.d.date||'').localeCompare(a.d.date||'');}).forEach(function(item){
         var d=item.d;var edName=d.editorId&&teamData[d.editorId]?teamData[d.editorId].name:(d.editorId||'—');
         var revCount=d.revisionCount||0;
         var revCell=revCount>0
           ?'<span style="background:#fef3c7;color:#854d0e;border:1px solid #fde68a;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer" onclick="ppShowRevisionHistory('+item.projId+',\''+d.id+'\')">🔄 '+revCount+' round'+(revCount!==1?'s':'')+'</span>'
           :'<span style="color:#10b981;font-size:12px;font-weight:600">✅ Clean</span>';
-        html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div><span style="font-size:11px;color:#888">'+(d.category||'')+'</span></td>';
-        html+='<td style="font-weight:600">'+item.couple+'</td><td>'+edName+'</td>';
-        html+='<td>'+revCell+'</td>';
-        html+='<td style="font-size:12px">'+fmtDate(d.date)+'</td>';
-        html+='<td>'+(d.link?'<a href="'+d.link+'" target="_blank" style="color:#3b82f6;font-size:12px;font-weight:600">Open ↗</a>':'—')+'</td>';
-        html+='<td><button class="btn btn-sm pp-open-proj" data-id="'+item.projId+'">Open</button></td></tr>';
+        h+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div><span style="font-size:11px;color:#888">'+(d.category||'')+'</span></td>';
+        h+='<td style="font-weight:600">'+item.couple+'</td><td>'+edName+'</td>';
+        h+='<td>'+revCell+'</td>';
+        h+='<td style="font-size:12px">'+fmtDate(d.date)+'</td>';
+        h+='<td>'+(d.frameioLink||d.link?'<a href="'+(d.frameioLink||d.link)+'" target="_blank" style="color:#3b82f6;font-size:12px;font-weight:600">Open ↗</a>':'—')+'</td>';
+        h+='<td><button class="btn btn-sm pp-open-proj" data-id="'+item.projId+'">Open</button></td></tr>';
       });
-      html+='</tbody></table></div>';
+      h+='</tbody></table></div>';
+      return h;
     }
+    html+='<div class="info info-blue" style="margin-bottom:14px">📤 Sent = out to the client via Frame.io, waiting on their sign-off. 🎉 Approved = fully closed out.</div>';
+    html+=ppDoneTable(awaitingApp,'📤 Sent to Client — Awaiting Approval');
+    html+=ppDoneTable(done,'🎉 Delivered & Approved');
 
   } else if(tab==='editor'){
     // Date filter UI
@@ -21680,7 +21693,7 @@ function buildMobDrawer() {
       return;
     }
     var visible = (group.items || []).filter(function(page) {
-      return ac.pages.indexOf(page) !== -1;
+      return page !== 'workprogress' && ac.pages.indexOf(page) !== -1; // merged into Post Production
     });
     if (!visible.length) return;
     html += '<div style="padding:10px 18px 4px;font-size:9px;font-weight:700;color:#bbb;letter-spacing:.14em;text-transform:uppercase">' + group.label + '</div>';
@@ -21724,7 +21737,7 @@ var SIDEBAR_ICON_MAP = {
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Overview',          items:['dashboard','reports','reportbuilder','healthcheck','onboarding','quotations','followups'] },
-  { label:'Post Productions',  items:['projects','pipeline','postprod','workprogress'] },
+  { label:'Post Productions',  items:['projects','pipeline','postprod'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
@@ -21836,7 +21849,7 @@ function buildSidebar() {
       return;
     }
     var visibleItems = (group.items || []).filter(function(page) {
-      return ac.pages.indexOf(page) !== -1;
+      return page !== 'workprogress' && ac.pages.indexOf(page) !== -1; // merged into Post Production
     });
     if (!visibleItems.length) return;
     html += '<div class="sb-section"><div class="sb-label">' + group.label + '</div>';
