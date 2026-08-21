@@ -12208,7 +12208,101 @@ function renderPostProdPage(){
   else if(_ppDeptTab==='pending') renderPostProdPendingReport();
 }
 
-// NOTE (2026-08-10, per studio owner): Video Production no longer gates
+// ── Work Period bar (Work Progress merged into Post Production→Video) ────
+function ppvPeriodBarHtml(postClients){
+  var mode=_ppvPeriodMode, key=_ppvPeriodKey;
+  var keys=wpUpcomingKeys(mode); // upcoming week/month keys, in order
+  var counts={};
+  postClients.forEach(function(p){ var k=wpKeyFor(p,mode); counts[k]=(counts[k]||0)+1; });
+  var unplannedCount=counts['unplanned']||0;
+  var pills='';
+  keys.forEach(function(k){
+    var n=counts[k]||0;
+    var a=key===k;
+    pills+='<button onclick="ppvSetPeriodKey(\''+k+'\')" style="padding:6px 12px;border-radius:20px;border:1.5px solid '+(a?'#1a1a1a':'#e2e8f0')+';background:'+(a?'#1a1a1a':'#fff')+';color:'+(a?'#fff':'#64748b')+';font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">'+wpLabelFor(k,mode)+(n?' ('+n+')':'')+'</button>';
+  });
+  pills+='<button onclick="ppvSetPeriodKey(\'unplanned\')" style="padding:6px 12px;border-radius:20px;border:1.5px solid '+(key==='unplanned'?'#dc2626':'#fde68a')+';background:'+(key==='unplanned'?'#fef2f2':'#fffbeb')+';color:'+(key==='unplanned'?'#dc2626':'#92400e')+';font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">📌 Not Yet Assigned ('+unplannedCount+')</button>';
+  pills+='<button onclick="ppvSetPeriodKey(\'all\')" style="padding:6px 12px;border-radius:20px;border:1.5px solid '+(key==='all'?'#1a1a1a':'#e2e8f0')+';background:'+(key==='all'?'#1a1a1a':'#fff')+';color:'+(key==='all'?'#fff':'#64748b')+';font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">All Periods</button>';
+
+  var modeToggle='<div style="display:flex;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;flex-shrink:0">'
+    +'<button onclick="ppvSetPeriodMode(\'week\')" style="padding:6px 12px;border:none;font-size:11.5px;font-weight:700;cursor:pointer;background:'+(mode==='week'?'#1a1a1a':'#fff')+';color:'+(mode==='week'?'#fff':'#64748b')+'">Week</button>'
+    +'<button onclick="ppvSetPeriodMode(\'month\')" style="padding:6px 12px;border:none;font-size:11.5px;font-weight:700;cursor:pointer;background:'+(mode==='month'?'#1a1a1a':'#fff')+';color:'+(mode==='month'?'#fff':'#64748b')+'">Month</button>'
+    +'</div>';
+
+  return '<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:12px 14px;margin-bottom:16px">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    +'<span style="font-size:11px;font-weight:800;color:#3730a3;white-space:nowrap">🎬 WORK PERIOD</span>'
+    +modeToggle
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+pills+'</div>'
+    +'<button onclick="ppvOpenPeriodManager()" style="margin-left:auto;padding:6px 12px;border-radius:8px;border:1px solid #6366f1;background:#fff;color:#4338ca;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">📋 Assign Clients to a Period</button>'
+    +'</div>'
+    +ppvPeriodSummaryHtml()
+    +'</div>';
+}
+function ppvSetPeriodMode(mode){ window._ppvPeriodMode=mode; window._ppvPeriodKey=null; renderPostProd(); }
+function ppvSetPeriodKey(key){ window._ppvPeriodKey=key; renderPostProd(); }
+
+// Quantity + overdue summary for whatever period is currently selected —
+// this is the "assess the pending deliverables and total quantities" view
+// the Video Production Admin needs before assigning anything.
+function ppvPeriodSummaryHtml(){
+  var videoTypes=DELIV_TYPE_REGISTRY.filter(function(r){return r.bucket==='video' && r.reportKey;});
+  var clients=pl().filter(function(p){
+    if(p.stage!=='postprod') return false;
+    if(_ppvPeriodKey==='all') return true;
+    return wpKeyFor(p,_ppvPeriodMode)===_ppvPeriodKey;
+  });
+  var totals={}, pending=0, overdue=0, inreview=0;
+  videoTypes.forEach(function(vt){ totals[vt.type]=0; });
+  clients.forEach(function(p){
+    (p.customDelivs||[]).forEach(function(d){
+      if(delivBucket(d)!=='video') return;
+      if(totals[d.type]!=null) totals[d.type]++;
+      if(!delivIsDone(d.status)) pending++;
+      if(d.status==='review') inreview++;
+      var dl=delivDeadline(d); if(dl && daysUntil(dl)<0 && !delivIsDone(d.status)) overdue++;
+    });
+  });
+  var chips=videoTypes.map(function(vt){
+    return '<div style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px"><div style="font-size:18px;font-weight:800">'+totals[vt.type]+'</div><div style="font-size:10px;color:#666">'+vt.icon+' '+vt.type+'</div></div>';
+  }).join('');
+  return '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    +chips
+    +'<div style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;border:1px solid #fde68a"><div style="font-size:18px;font-weight:800;color:#854d0e">'+pending+'</div><div style="font-size:10px;color:#854d0e">⏳ Pending Total</div></div>'
+    +'<div style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;border:1px solid #f9a8d4"><div style="font-size:18px;font-weight:800;color:#9d174d">'+inreview+'</div><div style="font-size:10px;color:#9d174d">👁️ In Review</div></div>'
+    +'<div style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;border:1px solid '+(overdue?'#fecaca':'#e2e8f0')+'"><div style="font-size:18px;font-weight:800;color:'+(overdue?'#dc2626':'#16a34a')+'">'+overdue+'</div><div style="font-size:10px;color:'+(overdue?'#dc2626':'#16a34a')+'">⚠️ Overdue</div></div>'
+    +'<div style="font-size:11px;color:#4338ca;font-weight:600">'+clients.length+' client'+(clients.length!==1?'s':'')+' in this period</div>'
+    +'</div>';
+}
+
+// Lightweight period-assignment modal — pick a client, set their week/month.
+// (The full drag-priority table still lives in wpClientRow if ever needed;
+// this covers the everyday "put this client in next week's list" action.)
+function ppvOpenPeriodManager(){
+  var ex=document.getElementById('ppv-period-modal'); if(ex) ex.remove();
+  var mode=_ppvPeriodMode;
+  var keys=wpUpcomingKeys(mode);
+  var clients=pl().filter(function(p){return p.stage==='postprod';}).sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');});
+  var rows=clients.map(function(p){
+    var cur=wpKeyFor(p,mode);
+    var opts='<option value="unplanned"'+(cur==='unplanned'?' selected':'')+'>— Not Yet Assigned —</option>'
+      +keys.map(function(k){return '<option value="'+k+'"'+(cur===k?' selected':'')+'>'+wpLabelFor(k,mode)+'</option>';}).join('');
+    return '<tr><td style="font-weight:600;padding:6px 8px">'+p.bride+' & '+p.groom+'</td>'
+      +'<td style="padding:6px 8px"><select class="fi" style="font-size:12px;padding:4px 6px" onchange="wpSetTarget('+p.id+',\''+mode+'\',this.value)">'+opts+'</select></td></tr>';
+  }).join('');
+  var modal=document.createElement('div');
+  modal.id='ppv-period-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div style="font-size:15px;font-weight:800">📋 Assign Clients to a '+(mode==='week'?'Week':'Month')+'</div>'
+    +'<button onclick="document.getElementById(\'ppv-period-modal\').remove();renderPostProd();" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">Close</button></div>'
+    +'<table class="tbl"><thead><tr><th>Client</th><th>'+(mode==='week'?'Week':'Month')+'</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'</div>';
+  document.body.appendChild(modal);
+}
+
+
 // editor assignment on a client brief — assignment is Type/deadline driven
 // only. "Step 1" now surfaces AGING instead ("Needs Attention" — projects
 // sitting longest in Post-Production, i.e. most likely to have an impatient
@@ -12339,20 +12433,46 @@ function renderPostProd(){
   }
   // ── END EDITOR ROLE VIEW ──────────────────────────────────────────────────
 
-  // ── VIDEO HEAD: only video-bucket deliverables are visible to this role ──
+  // ── VIDEO PRODUCTION tab: this whole pipeline (steps 1-5) is video-only,
+  // full stop — Album/Photo/Frame/Magazine live in the separate "Album &
+  // Photo Production" tab. This used to only filter for the videohead role,
+  // which meant admin/postprod/superadmin saw every bucket mixed together
+  // while viewing this tab. Filter applies to everyone now.
   var _isVideoHead = CU && CU.role === 'videohead';
 
+  // ── Period scope (Work Progress merged in here) ───────────────────────
+  // This used to be a separate page: Work Progress let you dedicate clients
+  // to a week/month, but the actual assign/edit/review/deliver pipeline
+  // lived here and ignored that grouping entirely — showing every
+  // postprod client at once. Now this tab reads the same wpTargetWeek /
+  // wpTargetMonth fields and scopes the whole pipeline to one period at a
+  // time, defaulting to the nearest upcoming period that actually has
+  // clients assigned to it.
+  if(typeof window._ppvPeriodMode==='undefined') window._ppvPeriodMode='month';
+  if(typeof window._ppvPeriodKey==='undefined') window._ppvPeriodKey=null;
+  var _ppvAllPost = pl().filter(function(p){return p.stage==='postprod';});
+  if(_ppvPeriodKey===null){
+    var _seenKeys={};
+    _ppvAllPost.forEach(function(p){ var k=wpKeyFor(p,_ppvPeriodMode); if(k!=='unplanned') _seenKeys[k]=1; });
+    var _sortedKeys=Object.keys(_seenKeys).sort();
+    window._ppvPeriodKey = _sortedKeys.length ? _sortedKeys[0] : 'unplanned';
+  }
+
   // FIFO: sort projects by event date ascending (earliest event = first served)
-  var list=pl().filter(ppMatchesSearch).sort(function(a,b){
+  var list=pl().filter(ppMatchesSearch).filter(function(p){
+    if(p.stage!=='postprod') return false;
+    if(_ppvPeriodKey==='all') return true;
+    return wpKeyFor(p,_ppvPeriodMode)===_ppvPeriodKey;
+  }).sort(function(a,b){
     var da=a.date||'9999-99-99', db=b.date||'9999-99-99';
     return da.localeCompare(db);
   });
   var allItems=[];
   list.forEach(function(p){
     (p.customDelivs||[]).forEach(function(d){
-      // Video Production Head only sees video-bucket deliverables (Teaser/Highlight/Reel/Long Video).
-      // Album & Photo work is tracked in the Album & Photo Production tab.
-      if (_isVideoHead && delivBucket(d) !== 'video') return;
+      // This tab is video-only, for every role viewing it — Album & Photo
+      // work is tracked separately in the Album & Photo Production tab.
+      if (delivBucket(d) !== 'video') return;
       allItems.push({projId:p.id,couple:p.bride+' & '+p.groom,city:p.city||'',
         eventDate:p.date,d:d,p:p});
     });
@@ -12368,7 +12488,12 @@ function renderPostProd(){
     {id:'editor',icon:'👤',label:'Editor Stats'},
     {id:'deliverables',icon:'📦',label:'All Deliverables'}
   ];
-  var html='<div style="display:flex;gap:4px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px">';
+  var html='';
+  // ── WORK PERIOD BAR (merged in from the old Work Progress page) ──────────
+  // This is the single control for "which week/month am I working on right
+  // now" — everything below (every tab, every count) is scoped to it.
+  html+=ppvPeriodBarHtml(_ppvAllPost);
+  html+='<div style="display:flex;gap:4px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px">';
   tabDefs.forEach(function(t){
     var a=tab===t.id;
     html+='<button class="pp-tab-btn" data-tab="'+t.id+'" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:8px;font-size:12px;font-weight:'+(a?700:500)+';cursor:pointer;background:'+(a?'#1a1a1a':'#f1f5f9')+';color:'+(a?'#fff':'#64748b')+';transition:all .15s">'+t.icon+' '+t.label+'</button>';
@@ -21478,6 +21603,10 @@ function navTo(name) {
   // Redirect legacy pages to unified Client Relations Hub
   if (name === 'priority') { name = 'clienthub'; _hubTab = 'vip'; }
   if (name === 'clientissues') { name = 'clienthub'; _hubTab = 'issues'; }
+  // Work Progress is merged into Post Production → Video Production (the
+  // period bar there now does what this page used to do, plus the actual
+  // assign/edit/review/deliver pipeline in one place).
+  if (name === 'workprogress') { name = 'postprod'; _ppDeptTab = 'video'; }
   // RBAC guard — block navigation to pages the current role isn't allowed to see,
   // even if triggered directly (not just via a hidden sidebar item). Report Builder
   // in particular is restricted to Super Admin and Accounts only.
