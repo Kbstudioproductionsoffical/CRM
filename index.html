@@ -1873,15 +1873,7 @@ document.addEventListener('wheel', function(e) {
         <select id="wp-layout" class="fi" style="width:120px;padding:7px 10px;font-size:13px" onchange="renderWorkProgress()">
           <option value="summary">📊 Summary</option>
           <option value="table">📋 Table</option>
-          <option value="board">🗂️ Board</option>
         </select>
-        <span id="wp-board-group-wrap" style="display:none;align-items:center;gap:10px">
-          <span style="font-size:13px;font-weight:600;color:#555;margin-left:6px">Group by:</span>
-          <select id="wp-board-group" class="fi" style="width:130px;padding:7px 10px;font-size:13px" onchange="renderWorkProgress()">
-            <option value="client">👫 Client</option>
-            <option value="assignee">🧑‍💼 Assignee</option>
-          </select>
-        </span>
         <span style="font-size:13px;font-weight:600;color:#555">View by:</span>
         <select id="wp-view-mode" class="fi" style="width:110px;padding:7px 10px;font-size:13px" onchange="renderWorkProgress()">
           <option value="month">📅 Month</option>
@@ -1903,7 +1895,7 @@ document.addEventListener('wheel', function(e) {
         <select id="wp-export-month" class="fi" style="width:210px;padding:7px 10px;font-size:13px" onchange="renderWorkProgress()"></select>
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="wpExportPDF()">📄 Export PDF</button>
         <button class="btn" style="padding:7px 14px;font-size:13px" onclick="wpExportExcel()">📊 Export Excel</button>
-        <span style="font-size:11.5px;color:#888">Also scopes the 🗂️ Board (defaults to the current month/week) and the PDF/Excel export, grouped by the current "View by" setting.</span>
+        <span style="font-size:11.5px;color:#888">Also scopes the 📊 Summary tab (defaults to the current month/week) and the PDF/Excel export, grouped by the current "View by" setting.</span>
         <span style="flex-basis:100%;height:0"></span>
         <span style="font-size:13px;font-weight:600;color:#555">Include statuses:</span>
         <span id="wp-status-filter" style="display:flex;gap:6px;flex-wrap:wrap"></span>
@@ -1934,7 +1926,6 @@ document.addEventListener('wheel', function(e) {
 
       <div id="wp-summary-content"></div>
       <div id="wp-content"></div>
-      <div id="wp-board-content"></div>
     </div>
 
     <div id="page-reports" class="page">
@@ -4170,7 +4161,7 @@ document.addEventListener('wheel', function(e) {
             <option value="relmgr">💬 Relationship Manager — Client comms across all projects</option>
             <option value="accounts">💰 Accounts — Payments &amp; finance only</option>
             <option value="postprod">🎬 Post Production Head — Full pipeline access, no financials</option>
-            <option value="videohead">🎥 Video Production Head — Video pipeline only</option>
+            <option value="videohead">🎥 Video Production Admin — Video pipeline only, assigns editors, logs review decisions</option>
             <option value="albumhead">📔 Album Production Head — Album pipeline only</option>
             <option value="albumselector">🔍 Album Selection &amp; Sorting — Album pipeline only</option>
             <option value="albumretoucher">🎨 Album Retoucher — Album pipeline only</option>
@@ -5587,11 +5578,84 @@ function _delivTypeInfo(t){ for(var i=0;i<DELIV_TYPE_REGISTRY.length;i++){ if(DE
 var DELIV_STATUS_REGISTRY = [
   { v:'pending',    label:'Pending',                 icon:'⏳', color:'#94a3b8', bg:'#f9fafb', urgency:1 },
   { v:'inprogress', label:'In Progress',              icon:'🔄', color:'#f59e0b', bg:'#fffbeb', urgency:2 },
+  { v:'review',     label:'Submitted for Review',     icon:'👁️', color:'#ec4899', bg:'#fdf2f8', urgency:3 },
   { v:'delivered',  label:'Delivered (Not Approved)', icon:'📦', color:'#3b82f6', bg:'#eff6ff', urgency:1 },
   { v:'changes',    label:'Changes Requested',        icon:'🔁', color:'#dc2626', bg:'#fef2f2', urgency:3 },
   { v:'approved',   label:'Delivered & Approved',     icon:'✅', color:'#16a34a', bg:'#f0fdf4', urgency:0 }
 ];
 var DELIV_STATUS_DONE='approved'; // the ONE status that counts as fully complete for gating/reports
+
+// ── Turnaround rules: default working-day allowance per deliverable type ──
+// Editable by admins (persisted under crmSettings.turnaroundRules); falls
+// back to these defaults when a type has no override.
+var TURNAROUND_RULES_DEFAULT = { 'Teaser':2, 'Highlight':3, 'Reel':1, 'Long Video':7, 'Video':3, 'Edited Pictures':4, 'Album':7, 'Frame':4, 'Magazine':5, 'Raw Data':1, 'Other':3 };
+function turnaroundDaysFor(type){
+  var overrides=(crmSettings&&crmSettings.turnaroundRules)||{};
+  if(overrides[type]!=null) return overrides[type];
+  return TURNAROUND_RULES_DEFAULT[type]!=null ? TURNAROUND_RULES_DEFAULT[type] : 3;
+}
+// Adds N working days (skips Sundays only, matching the studio's weekly off)
+// to "from" (defaults to today) and returns YYYY-MM-DD.
+function addWorkingDays(days, from){
+  var d = from ? new Date(from) : new Date();
+  var added=0;
+  while(added<days){
+    d.setDate(d.getDate()+1);
+    if(d.getDay()!==0) added++;
+  }
+  return d.toISOString().slice(0,10);
+}
+function calcAutoDeadline(type, from){
+  return addWorkingDays(turnaroundDaysFor(type), from);
+}
+
+// ── Deliverable timeline / audit log ───────────────────────────────────────
+// Every meaningful transition (assign, start, submit, internal approval,
+// revision, send-to-client, client approval, delay reason) gets appended
+// here with who/role/when, so nobody has to be called to find out what
+// happened to a deliverable and when.
+function logDelivEvent(projId, delivId, action, note, extra){
+  var p=projects[projId]; if(!p) return;
+  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});
+  if(!d) return;
+  var history=(d.history||[]).slice();
+  var entry=Object.assign({
+    action:action, note:note||'',
+    by: CU?(CU.name||CU.username):'System',
+    role: CU?(CU.role||''):'',
+    at: new Date().toISOString()
+  }, extra||{});
+  history.push(entry);
+  ppSaveDeliv(projId, delivId, {history:history});
+}
+function delivHistoryHtml(d){
+  var h=(d&&d.history)||[];
+  if(!h.length) return '<div style="color:#aaa;font-size:12px;padding:10px 0">No activity logged yet.</div>';
+  return '<div style="display:flex;flex-direction:column;gap:8px">'+
+    h.slice().reverse().map(function(e){
+      return '<div style="border-left:2px solid #e5e7eb;padding:4px 0 4px 10px">'+
+        '<div style="font-size:12.5px;font-weight:700">'+escHtml(e.action)+'</div>'+
+        (e.note?'<div style="font-size:12px;color:#555;margin-top:2px">'+escHtml(e.note)+'</div>':'')+
+        '<div style="font-size:11px;color:#999;margin-top:2px">'+escHtml(e.by||'')+(e.role?' · '+escHtml(e.role):'')+' · '+fmtDate(e.at)+'</div>'+
+        '</div>';
+    }).join('')+'</div>';
+}
+// Gate: if a deliverable's deadline has already passed and it isn't done
+// yet, force whoever is about to change its status to log why before the
+// change goes through. Returns true (blocked) if it stopped the caller.
+function blockedByDelayReason(d, actionLabel){
+  if(!d) return false;
+  if(delivIsDone(d.status)) return false;
+  var dl=delivDeadline(d);
+  if(!dl) return false;
+  if(daysUntil(dl)>=0) return false; // not overdue
+  var reason=prompt('This deliverable is overdue (was due '+dl+').\nPlease state the reason for the delay before you can '+(actionLabel||'continue')+':');
+  if(!reason||!reason.trim()){ showToast('⚠️ A delay reason is required — this stays logged against the deliverable.'); return true; }
+  var delays=(d.delayReasons||[]).slice();
+  delays.push({reason:reason.trim(), deadline:dl, at:new Date().toISOString(), by:CU?(CU.name||CU.username):'Unknown'});
+  d.delayReasons=delays; // local mirror so ppSaveDeliv below persists it together with the caller's own update
+  return false;
+}
 function _delivStatusInfo(s){ for(var i=0;i<DELIV_STATUS_REGISTRY.length;i++){ if(DELIV_STATUS_REGISTRY[i].v===s) return DELIV_STATUS_REGISTRY[i]; } return DELIV_STATUS_REGISTRY[0]; }
 function delivStatusOptionsHtml(current){
   return DELIV_STATUS_REGISTRY.map(function(o){return '<option value="'+o.v+'"'+(current===o.v?' selected':'')+'>'+o.icon+' '+o.label+'</option>';}).join('');
@@ -6562,7 +6626,7 @@ function daysUntil(d){
 }
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
-function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',relmgr:'💬 Relationship Manager',postprod:'🎬 Post Prod Head',videohead:'🎥 Video Prod Head',albumhead:'📔 Album Prod Head',albumselector:'🔍 Album Selection & Sorting',albumretoucher:'🎨 Album Retoucher',albummaker:'📔 Album Maker',photoeditor:'🖼️ Photo Retoucher',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
+function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',relmgr:'💬 Relationship Manager',postprod:'🎬 Post Prod Head',videohead:'🎥 Video Production Admin',albumhead:'📔 Album Prod Head',albumselector:'🔍 Album Selection & Sorting',albumretoucher:'🎨 Album Retoucher',albummaker:'📔 Album Maker',photoeditor:'🖼️ Photo Retoucher',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
 function avatarColor(name){var c=['#1d4ed8','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46'];var h=0;for(var i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length];}
 function stageBadge(s){var m={preprod:['b-preprod','Pre-Prod'],production:['b-prod','Production'],postprod:['b-postprod','Post-Prod'],delivery:['b-delivery','Delivery'],payment:['b-payment','Pay Pending'],complete:['b-complete','Complete']};var v=m[s]||['b-gray',s];return '<span class="badge '+v[0]+'">'+v[1]+'</span>';}
 function regionBadge(r){return r==='north'?'<span class="badge b-north">🔵 North</span>':r==='south'?'<span class="badge b-south">🟠 South</span>':'';}
@@ -11107,11 +11171,8 @@ function wpBulkAssignAll(){
 }
 function renderWorkProgress(){
   var el=document.getElementById('wp-content'); if(!el) return;
-  var boardEl=document.getElementById('wp-board-content');
   var summaryEl=document.getElementById('wp-summary-content');
-  var groupWrap=document.getElementById('wp-board-group-wrap');
   var layout=(document.getElementById('wp-layout')||{}).value||'summary';
-  if(groupWrap) groupWrap.style.display=(layout==='board')?'inline-flex':'none';
   wpFillBulkMonthSelect();
   var mode=wpGetMode();
   var priorityOnly=(document.getElementById('wp-priority-only')||{}).value||'';
@@ -11132,24 +11193,20 @@ function renderWorkProgress(){
   });
 
   // monthKeys/groups are computed up front (before the layout branch) so the
-  // "Period" selector is always populated and current, even if Summary or
-  // Board is the very first layout rendered this session — both of those
-  // read this same selector to decide their own scope (see wpFlattenCards).
+  // "Period" selector is always populated and current, even if Summary is
+  // the very first layout rendered this session — it reads this same
+  // selector to decide its own scope (see wpFlattenCards).
   var monthKeys=Object.keys(groups).filter(function(k){return k!=='unplanned';}).sort();
   if(groups.unplanned) monthKeys.push('unplanned');
-  _wpLastGroups=groups; _wpLastVideoTypes=videoTypes; _wpLastMode=mode; // kept for export + board/summary scope, respects current filters
+  _wpLastGroups=groups; _wpLastVideoTypes=videoTypes; _wpLastMode=mode; // kept for export + summary scope, respects current filters
   wpFillExportMonthSelect(monthKeys);
   wpFillExportStatusFilter();
+  wpCheckOverdueAndNotify(); // scans ALL clients, ignores the on-screen search/priority filter on purpose — runs regardless of layout
 
   if(el) el.style.display=(layout==='table')?'':'none';
-  if(boardEl) boardEl.style.display=(layout==='board')?'':'none';
   if(summaryEl) summaryEl.style.display=(layout==='summary')?'':'none';
 
   if(layout==='summary'){ renderWpSummary(); return; }
-  if(layout==='board'){
-    renderWpBoard();
-    return;
-  }
   if(!monthKeys.length){ el.innerHTML='<div class="empty">No clients currently in Post-Production match this filter.</div>'; return; }
 
   var html='';
@@ -11418,7 +11475,7 @@ function wpFillExportMonthSelect(monthKeys){
   } else {
     // No valid selection carried over (first load this session, or the
     // previously-picked period no longer has anyone in it). Default to the
-    // REAL current month/week if it has clients in it, so both the Board
+    // REAL current month/week if it has clients in it, so the Summary
     // and the Export default to "what's due right now" instead of quietly
     // falling back to "All" and dumping every period into one pile again.
     var now=new Date();
@@ -11759,6 +11816,13 @@ function wpClientRow(p,videoTypes,mk,idx,total){
   html+='</tr>';
   return html;
 }
+// One line for a status pill's tooltip: who last touched this deliverable's
+// status and when — the whole point of the audit trail is that this is
+// visible right here on hover, not just buried in Activity Log.
+function wpLastUpdatedTip(updatedAt,updatedBy){
+  if(!updatedAt||!updatedBy) return '';
+  return ' — last updated by '+updatedBy+' on '+fmtDate(updatedAt)+' ('+fmtTime(updatedAt)+')';
+}
 function wpDelivPill(vt,matches,pid){
   var icon=vt.icon,label=vt.type;
   if(!matches.length){
@@ -11792,6 +11856,7 @@ function wpDelivPill(vt,matches,pid){
         rows.push({
           label:(baseTag?baseTag+' — ':'')+'Reel '+(ri_idx+1),
           status:ri.status, note:null,
+          updatedAt:ri.statusUpdatedAt, updatedBy:ri.statusUpdatedBy,
           onchange:"wpSetReelItemStatus("+pid+",'"+d.id+"',"+ri_idx+",this.value)"
         });
       });
@@ -11799,6 +11864,7 @@ function wpDelivPill(vt,matches,pid){
       rows.push({
         label:baseTag||((d.category && d.category!=='Other')?d.category:null),
         status:d.status, note:d.note,
+        updatedAt:d.statusUpdatedAt, updatedBy:d.statusUpdatedBy,
         onchange:"wpSetDelivStatus("+pid+",'"+d.id+"',this.value)"
       });
     }
@@ -11812,7 +11878,8 @@ function wpDelivPill(vt,matches,pid){
     var tag=r.label?r.label+' — ':'';
     var noteTip=r.note?(' — 📝 '+r.note.replace(/"/g,'&quot;')):'';
     var noteFlag=r.note?'<span style="margin-left:1px" title="'+r.note.replace(/"/g,'&quot;')+'">📝</span>':'';
-    return '<div style="display:inline-flex;align-items:center;gap:2px;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:3px 2px 3px 8px;min-width:96px" title="'+tag+m.label+noteTip+'">' +
+    var stampTip=wpLastUpdatedTip(r.updatedAt,r.updatedBy);
+    return '<div style="display:inline-flex;align-items:center;gap:2px;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:3px 2px 3px 8px;min-width:96px" title="'+tag+m.label+noteTip+stampTip+'">' +
       '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:10.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:2px 0;max-width:118px">'+delivStatusOptionsHtml(r.status)+'</select>' +
       noteFlag +
       '<button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:2px 4px;flex-shrink:0">↗</button>' +
@@ -11828,7 +11895,8 @@ function wpDelivPill(vt,matches,pid){
   var chips=rows.map(function(r){
     var m=meta(r.status);
     var noteFlag=r.note?'<span title="'+r.note.replace(/"/g,'&quot;')+'" style="flex-shrink:0">📝</span>':'';
-    return '<div style="display:flex;align-items:center;gap:3px;font-size:9.5px;line-height:1.55;min-width:0"><span style="flex-shrink:0">'+m.icon+'</span><span style="color:#555;font-weight:700;flex-shrink:0">'+(r.label||'Item')+':</span>' +
+    var rowTip=(r.label||'Item')+': '+m.label+wpLastUpdatedTip(r.updatedAt,r.updatedBy);
+    return '<div title="'+rowTip.replace(/"/g,'&quot;')+'" style="display:flex;align-items:center;gap:3px;font-size:9.5px;line-height:1.55;min-width:0"><span style="flex-shrink:0">'+m.icon+'</span><span style="color:#555;font-weight:700;flex-shrink:0">'+(r.label||'Item')+':</span>' +
       '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:9.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:0;min-width:0;flex:1 1 auto;text-overflow:ellipsis">'+delivStatusOptionsHtml(r.status)+'</select>'+noteFlag+'</div>';
   }).join('');
   var tooltip=rows.map(function(r){ return (r.label||'Item')+': '+meta(r.status).label; }).join(' · ');
@@ -11845,6 +11913,11 @@ function wpDelivPill(vt,matches,pid){
 // Change a deliverable's status directly from Work Progress, without
 // opening the project. Mirrors the same save pattern used by the in-project
 // revision tracker (read → deep copy → mutate → write the whole array back).
+// Every change is logged to the Activity Log (who + when + old → new) and
+// also stamped straight onto the deliverable itself (statusUpdatedAt/By) so
+// "who touched this and when" is visible right on the row, not just buried
+// in a separate log page — that's the actual accountability trail Ketan
+// asked for, not just a dashboard reading whatever the data happens to say.
 // Only for deliverables WITHOUT a reelItems breakdown — see
 // wpSetReelItemStatus for qty>1 Reels, whose .status is auto-rolled-up and
 // must never be set directly (it would just get overwritten on next edit).
@@ -11854,11 +11927,19 @@ function wpSetDelivStatus(pid,delivId,newStatus){
   var d=delivs.find(function(x){ return x.id===delivId; });
   if(!d){ showToast('⚠️ Deliverable not found — try refreshing.'); return; }
   var prevStatus=d.status;
+  if(prevStatus===newStatus) return;
+  var who=(CU&&(CU.name||CU.username))||'System';
   d.status=newStatus;
+  d.statusUpdatedAt=Date.now();
+  d.statusUpdatedBy=who;
+  d.statusUpdatedByRole=CU?CU.role:'';
   if(newStatus==='delivered' && !d.date) d.date=tod();
   db.ref('crm_projects/'+pid+'/customDelivs').set(delivs,function(err){
     if(err){ showToast('❌ Could not save: '+err.message); return; }
     p.customDelivs=delivs;
+    logActivity('deliverable','Work Progress Status Changed',
+      (p.bride||'')+' & '+(p.groom||'')+' — '+(d.name||d.type||'Deliverable')+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
+      {projId:pid});
     if(newStatus==='delivered' && prevStatus!=='delivered') showDeliveredWAPopup(d,p);
     showToast('✅ Status updated');
     renderWorkProgress();
@@ -11868,14 +11949,20 @@ function wpSetDelivStatus(pid,delivId,newStatus){
 // re-derive the parent deliverable's rolled-up .status — same rule as
 // updateReelItem() uses inside the project: all approved → approved, all at
 // least delivered → delivered, any changes requested → changes, any active →
-// in progress, else pending.
+// in progress, else pending. Logged the same way as a single deliverable —
+// see wpSetDelivStatus above for why.
 function wpSetReelItemStatus(pid,delivId,reelIdx,newStatus){
   var p=projects[pid]; if(!p){ showToast('⚠️ Project not found — try refreshing.'); return; }
   var delivs=JSON.parse(JSON.stringify(p.customDelivs||[]));
   var d=delivs.find(function(x){ return x.id===delivId; });
   if(!d || !d.reelItems || !d.reelItems[reelIdx]){ showToast('⚠️ Reel not found — try refreshing.'); return; }
   var prevStatus=d.reelItems[reelIdx].status;
+  if(prevStatus===newStatus) return;
+  var who=(CU&&(CU.name||CU.username))||'System';
   d.reelItems[reelIdx].status=newStatus;
+  d.reelItems[reelIdx].statusUpdatedAt=Date.now();
+  d.reelItems[reelIdx].statusUpdatedBy=who;
+  d.reelItems[reelIdx].statusUpdatedByRole=CU?CU.role:'';
   if(newStatus==='delivered' && !d.reelItems[reelIdx].date) d.reelItems[reelIdx].date=tod();
   var items=d.reelItems;
   var allApproved=items.every(function(r){return r.status==='approved';});
@@ -11883,9 +11970,13 @@ function wpSetReelItemStatus(pid,delivId,reelIdx,newStatus){
   var anyChanges=items.some(function(r){return r.status==='changes';});
   var anyActive=items.some(function(r){return r.status==='delivered'||r.status==='inprogress'||r.status==='approved';});
   d.status=allApproved?'approved':allAtLeastDelivered?'delivered':anyChanges?'changes':anyActive?'inprogress':'pending';
+  d.statusUpdatedAt=Date.now(); d.statusUpdatedBy=who; d.statusUpdatedByRole=CU?CU.role:'';
   db.ref('crm_projects/'+pid+'/customDelivs').set(delivs,function(err){
     if(err){ showToast('❌ Could not save: '+err.message); return; }
     p.customDelivs=delivs;
+    logActivity('deliverable','Work Progress Status Changed',
+      (p.bride||'')+' & '+(p.groom||'')+' — '+(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1)+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
+      {projId:pid});
     if(newStatus==='delivered' && prevStatus!=='delivered'){
       var msgD=Object.assign({},d,{name:(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1),link:d.reelItems[reelIdx].link||d.link||''});
       showDeliveredWAPopup(msgD,p);
@@ -11893,6 +11984,9 @@ function wpSetReelItemStatus(pid,delivId,reelIdx,newStatus){
     showToast('✅ Reel '+(reelIdx+1)+' status updated');
     renderWorkProgress();
   });
+}
+function wpStatusLabelForLog(s){
+  return {pending:'Not Started',inprogress:'In Progress',delivered:'Delivered (Not Approved)',changes:'Changes Requested',approved:'Delivered & Approved'}[s]||s||'—';
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -11904,9 +11998,7 @@ function wpSetReelItemStatus(pid,delivId,reelIdx,newStatus){
 // individually. Cards can be grouped by Client (default) or by Assignee,
 // and dragged between columns to change status.
 // ═══════════════════════════════════════════════════════════════════════
-function wpBoardGroupMode(){ return (document.getElementById('wp-board-group')||{}).value==='assignee'?'assignee':'client'; }
-
-// Work Progress (table AND board) is scoped to VIDEO deliverables only —
+// Work Progress (table AND summary) is scoped to VIDEO deliverables only —
 // Teaser / Highlight / Long Video / Reels — per the page's own description.
 // Photo-side deliverables (Album, Box Frame, Edited Pictures, etc.) belong
 // to the separate Post Production photo/album pipeline and were leaking
@@ -12030,7 +12122,6 @@ function wpCheckOverdueAndNotify(){
     });
   });
 }
-function wpCardKey(c){ return c.pid+'::'+c.delivId+'::'+(c.reelIdx==null?'x':c.reelIdx); }
 function wpAssigneeName(editorId){
   if(!editorId) return 'Unassigned';
   var t=(teamData||{})[editorId];
@@ -12047,121 +12138,6 @@ function wpCardIsOverdue(c){
   var days=daysUntil(c.deadline);
   return days!==null && days<0;
 }
-function wpBoardCardHtml(c,showClient,showAssignee){
-  var overdue=wpCardIsOverdue(c);
-  var days=c.deadline?daysUntil(c.deadline):null;
-  var deadlineHtml=c.deadline
-    ? '<span style="color:'+(overdue?'#dc2626':'#888')+';font-weight:'+(overdue?'700':'400')+'">'+(overdue?'⚠️ OVERDUE ':'📅 ')+fmtDate(c.deadline)+(days!==null&&!overdue?' ('+days+'d left)':'')+'</span>'
-    : '<span style="color:#ccc">No deadline set</span>';
-  // Once a deliverable is Delivered & Approved, who was assigned stops being
-  // useful information — it's finished, closed-out work, not something to
-  // chase. Showing "Unassigned" on it read as an open accountability gap
-  // when it wasn't one, so approved cards get a quiet ✓ instead of the
-  // assignee pill.
-  var assigneeHtml=(showAssignee && c.status!=='approved')
-    ? '<span style="display:flex;align-items:center;gap:4px"><span style="width:18px;height:18px;border-radius:50%;background:#6d28d9;color:#fff;font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+wpAssigneeInitials(c.editorId)+'</span>'+wpAssigneeName(c.editorId)+'</span>'
-    : (c.status==='approved' ? '<span style="color:#16a34a;font-weight:600">✓ Approved</span>' : '<span></span>');
-  return '<div class="wp-board-card" data-card-key="'+wpCardKey(c)+'" onpointerdown="wpBoardDragStart(event,\''+wpCardKey(c)+'\')" '+
-    'style="background:#fff;border:1px solid '+(overdue?'#fecaca':'#e5e5e5')+';border-left:3px solid '+(overdue?'#dc2626':catColorFor(c.category))+';border-radius:8px;padding:9px 10px;margin-bottom:8px;cursor:grab;touch-action:none">' +
-    (showClient?'<div style="font-weight:700;font-size:12px;cursor:pointer" onclick="openProject('+c.pid+',\'t-deliv\')">'+(c.priority?'⭐ ':'')+c.client+'</div>':'') +
-    '<div style="font-size:11.5px;color:#555;margin-top:2px">'+c.label+(c.category?' <span style="color:#aaa">· '+c.category+'</span>':'')+'</div>' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:10.5px">' +
-      assigneeHtml +
-      deadlineHtml +
-    '</div>' +
-    (c.note?'<div style="font-size:10px;color:#c2410c;margin-top:4px">📝 '+c.note+'</div>':'') +
-  '</div>';
-}
-function renderWpBoard(){
-  var el=document.getElementById('wp-board-content'); if(!el) return;
-  var groupMode=wpBoardGroupMode();
-  var cards=wpFlattenCards();
-  wpCheckOverdueAndNotify(); // scans ALL clients, ignores the on-screen search/priority filter on purpose
-  if(!cards.length){ el.innerHTML='<div class="empty">No clients currently in Post-Production match this filter.</div>'; return; }
-
-  var overdueCount=cards.filter(wpCardIsOverdue).length;
-  var html='';
-  if(overdueCount){
-    html+='<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:8px 14px;margin-bottom:14px;font-size:12.5px;color:#991b1b;font-weight:600">⚠️ '+overdueCount+' deliverable'+(overdueCount!==1?'s are':' is')+' past its deadline and not yet approved.</div>';
-  }
-
-  html+='<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px" id="wp-board-cols">';
-  DELIV_STATUS_REGISTRY.forEach(function(statusInfo){
-    var colCards=cards.filter(function(c){ return c.status===statusInfo.v; });
-    html+='<div class="wp-board-col" data-status="'+statusInfo.v+'" style="flex:0 0 260px;background:'+statusInfo.bg+';border-radius:10px;padding:10px;min-height:120px">';
-    html+='<div style="font-size:12.5px;font-weight:800;color:'+statusInfo.color+';margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">' +
-      '<span>'+statusInfo.icon+' '+statusInfo.label+'</span>' +
-      '<span style="background:#fff;border-radius:10px;padding:1px 8px;font-size:11px;color:#555">'+colCards.length+'</span>' +
-    '</div>';
-    if(groupMode==='client'){
-      // Group cards under a per-client header (like the Assignee grouping
-      // already does) instead of just sorting them flat — a client with 8
-      // reels was scattering 8 separate same-named cards through the column
-      // with no visual link between them, which read as "way more clients
-      // than I actually assigned" even though it was one client's workload.
-      var byClient={};
-      colCards.forEach(function(c){ (byClient[c.client]=byClient[c.client]||[]).push(c); });
-      var clientNames=Object.keys(byClient).sort(function(a,b){ return a.localeCompare(b); });
-      clientNames.forEach(function(name,ci){
-        var grp=byClient[name];
-        var isPriority=grp.some(function(c){ return c.priority; });
-        html+='<div style="font-size:10.5px;font-weight:700;color:#1a1a1a;margin:'+(ci===0?'0':'10px')+' 0 4px;padding-top:'+(ci===0?'0':'8px')+';border-top:'+(ci===0?'none':'1px solid #eee')+';cursor:pointer" onclick="openProject('+grp[0].pid+',\'t-deliv\')">'+(isPriority?'⭐ ':'')+name+' <span style="font-weight:500;color:#999">('+grp.length+')</span></div>';
-        grp.forEach(function(c){ html+=wpBoardCardHtml(c,false,true); });
-      });
-    } else {
-      var byAssignee={};
-      colCards.forEach(function(c){ var k=wpAssigneeName(c.editorId); (byAssignee[k]=byAssignee[k]||[]).push(c); });
-      var names=Object.keys(byAssignee).sort(function(a,b){ if(a==='Unassigned')return 1; if(b==='Unassigned')return -1; return a.localeCompare(b); });
-      names.forEach(function(name){
-        html+='<div style="font-size:10.5px;font-weight:700;color:#888;margin:8px 0 4px;text-transform:uppercase">'+name+' ('+byAssignee[name].length+')</div>';
-        byAssignee[name].forEach(function(c){ html+=wpBoardCardHtml(c,true,false); });
-      });
-    }
-    if(!colCards.length) html+='<div style="font-size:11px;color:#bbb;text-align:center;padding:16px 0">Nothing here</div>';
-    html+='</div>';
-  });
-  html+='</div>';
-  el.innerHTML=html;
-}
-// ── Drag a card between columns to change its status ───────────────────
-// Same pointer-based approach as the table view's priority drag (native
-// HTML5 drag is unreliable here — the card itself isn't a form element,
-// but consistency with the rest of the page matters more than the small
-// chance native drag would work fine).
-var _wpBoardDrag={active:false,card:null,targetStatus:null};
-function wpBoardDragStart(ev,cardKey){
-  ev.preventDefault();
-  var parts=cardKey.split('::');
-  var card={pid:parseInt(parts[0],10), delivId:parts[1], reelIdx:parts[2]==='x'?null:parseInt(parts[2],10)};
-  _wpBoardDrag={active:true,card:card,targetStatus:null};
-  document.addEventListener('pointermove',wpBoardDragMove);
-  document.addEventListener('pointerup',wpBoardDragEnd);
-  document.addEventListener('pointercancel',wpBoardDragEnd);
-  var src=document.querySelector('[data-card-key="'+cardKey+'"]');
-  if(src) src.style.opacity='0.35';
-}
-function wpBoardDragMove(ev){
-  if(!_wpBoardDrag.active) return;
-  ev.preventDefault();
-  var el=document.elementFromPoint(ev.clientX,ev.clientY);
-  var col=el&&el.closest?el.closest('.wp-board-col'):null;
-  document.querySelectorAll('.wp-board-col').forEach(function(c){ c.style.outline=''; });
-  if(col){ col.style.outline='2px dashed #999'; _wpBoardDrag.targetStatus=col.dataset.status; }
-  else { _wpBoardDrag.targetStatus=null; }
-}
-function wpBoardDragEnd(){
-  if(!_wpBoardDrag.active) return;
-  document.removeEventListener('pointermove',wpBoardDragMove);
-  document.removeEventListener('pointerup',wpBoardDragEnd);
-  document.removeEventListener('pointercancel',wpBoardDragEnd);
-  document.querySelectorAll('.wp-board-col').forEach(function(c){ c.style.outline=''; });
-  var card=_wpBoardDrag.card, targetStatus=_wpBoardDrag.targetStatus;
-  _wpBoardDrag={active:false,card:null,targetStatus:null};
-  if(!card||!targetStatus) { renderWpBoard(); return; }
-  if(card.reelIdx==null) wpSetDelivStatus(card.pid,card.delivId,targetStatus);
-  else wpSetReelItemStatus(card.pid,card.delivId,card.reelIdx,targetStatus);
-}
-
 // ═══ POST PRODUCTION WORKFLOW (Step-by-Step) ═══════════════════════════════
 var _ppTab='overview';
 var _ppMonthFilter=''; // 'YYYY-MM' for specific month, '' for all
@@ -12567,19 +12543,33 @@ function renderPostProd(){
         var r=(t.role||'').toLowerCase();
         return r==='editor'||r==='videographer'||r.includes('edit')||r.includes('post');
       }).sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+      // Current workload per editor — active (not-done) deliverables + overdue count —
+      // so the Admin can see load right in the assignment dropdown instead of
+      // guessing or checking a separate screen.
+      var edLoad={};
+      allItems.forEach(function(i){
+        if(!i.d.editorId||delivIsDone(i.d.status))return;
+        if(!edLoad[i.d.editorId])edLoad[i.d.editorId]={active:0,overdue:0};
+        edLoad[i.d.editorId].active++;
+        var dl=delivDeadline(i.d); if(dl&&daysUntil(dl)<0)edLoad[i.d.editorId].overdue++;
+      });
       if(!editors.length){
         html+='<div class="info info-amber">⚠️ No editors found in your Team section. Add team members with role <b>Editor</b> or <b>Videographer</b> first.</div>';
       } else {
       html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Days Waiting</th><th>Specs</th><th>Assign Editor</th><th>Deadline</th><th></th></tr></thead><tbody>';
       ready.forEach(function(item){
         var d=item.d;var p=item.p;
-        var edOpts='<option value="">— Select Editor —</option>'+editors.map(function(e){return '<option value="'+e.id+'" '+(d.editorId===e.id?'selected':'')+'>'+e.name+' ('+(e.city||e.region||'—')+')</option>';}).join('');
+        var edOpts='<option value="">— Select Editor —</option>'+editors.map(function(e){
+          var load=edLoad[e.id]||{active:0,overdue:0};
+          var loadTxt=' — '+load.active+' active'+(load.overdue?', '+load.overdue+' overdue⚠️':'');
+          return '<option value="'+e.id+'" '+(d.editorId===e.id?'selected':'')+'>'+e.name+' ('+(e.city||e.region||'—')+')'+loadTxt+'</option>';
+        }).join('');
         html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+(d.note?' <span title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'')+'</div><span style="font-size:11px;color:#888">'+(d.category||d.type||'')+'</span></td>';
         html+='<td style="font-weight:600">'+item.couple+'</td>';
         html+='<td style="text-align:center">'+ppAgingBadge(daysInPostProd(p))+'</td>';
         html+='<td style="font-size:12px;color:#888">'+(d.specs||'—')+'</td>';
-        html+='<td><select id="ed-'+p.id+'-'+d.id+'" class="fi" style="padding:6px 8px;font-size:12px;min-width:140px">'+edOpts+'</select></td>';
-        html+='<td><input id="dl-'+p.id+'-'+d.id+'" type="date" class="fi" style="padding:6px 8px;font-size:12px;width:130px" value="'+(d.date||'')+'" min="'+tod()+'"></td>';
+        html+='<td><select id="ed-'+p.id+'-'+d.id+'" class="fi" style="padding:6px 8px;font-size:12px;min-width:220px" onchange="ppSuggestDeadline('+p.id+',\''+d.id+'\')">'+edOpts+'</select></td>';
+        html+='<td><input id="dl-'+p.id+'-'+d.id+'" type="date" class="fi" style="padding:6px 8px;font-size:12px;width:130px" value="'+(d.date||'')+'" min="'+tod()+'" placeholder="'+calcAutoDeadline(d.type)+'"></td>';
         html+='<td style="display:flex;gap:5px;flex-wrap:wrap"><button class="btn btn-sm" style="background:#16a34a;color:#fff;font-size:11px" onclick="ppConfirmAssign('+p.id+',\''+d.id+'\')">✅ Confirm & Start</button><button class="btn btn-sm pp-open-proj" data-id="'+p.id+'" data-tab="t-deliv" style="font-size:11px">📂 Deliverables</button></td></tr>';
       });
       html+='</tbody></table></div>';
@@ -12645,8 +12635,11 @@ function renderPostProd(){
         html+='<button id="dlinkbtn-'+item.projId+'-'+d.id+'" onclick="ppSaveDriveLink('+item.projId+',\''+d.id+'\')" style="background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">Save</button>';
         html+='</div></td>';
         html+='<td style="display:flex;gap:4px;flex-wrap:wrap">'+
-          '<button class="btn btn-sm" style="background:#10b981;color:#fff;font-size:11px" onclick="ppUpdateStatus('+item.projId+',\''+d.id+'\',\'delivered\')">✅ Approve & Deliver</button>'+
+          (d.internalApproved
+            ? '<button class="btn btn-sm" style="background:#0ea5e9;color:#fff;font-size:11px" onclick="ppSendToClient('+item.projId+',\''+d.id+'\')">📤 Send to Client</button>'
+            : '<button class="btn btn-sm" style="background:#10b981;color:#fff;font-size:11px" onclick="ppApproveInternal('+item.projId+',\''+d.id+'\')">✅ Approved by Head</button>')+
           '<button class="btn btn-sm" style="background:#f59e0b;color:#fff;font-size:11px" onclick="ppRequestRevision('+item.projId+',\''+d.id+'\')">🔄 Request Revision</button>'+
+          '<button class="btn btn-sm" style="background:#f1f5f9;color:#475569;font-size:11px" onclick="ppShowDelivTimeline('+item.projId+',\''+d.id+'\')">🕒 History</button>'+
           '<button class="btn btn-sm pp-open-proj" data-id="'+item.projId+'" style="font-size:11px">Open</button>'+
         '</td></tr>';
       });
@@ -13272,26 +13265,42 @@ function wpNotifyAssignment(projId,delivId,editorId,deadline){
   });
 }
 function ppAssignEditor(projId,delivId,editorId){
+  var p=projects[projId];if(!p)return;
+  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});
   ppSaveDeliv(projId, delivId, {editorId:editorId, status:editorId?'inprogress':'pending'}, function(){
     showToast('✅ Editor assigned!'); renderPostProd();
     wpNotifyAssignment(projId,delivId,editorId,null);
+    if(editorId){var nm=teamData[editorId]?teamData[editorId].name:editorId; logDelivEvent(projId,delivId,'Assigned to '+nm);}
   });
 }
 
 function ppAssignDeadline(projId,delivId,date){
-  ppSaveDeliv(projId, delivId, {deadline:date}, function(){ renderPostProd(); });
+  ppSaveDeliv(projId, delivId, {deadline:date}, function(){ renderPostProd(); logDelivEvent(projId,delivId,'Deadline set to '+date); });
+}
+
+// Prefill the deadline input using the turnaround rule for this deliverable
+// type, so the admin sees a sensible default instead of a blank date field.
+function ppSuggestDeadline(projId,delivId){
+  var p=projects[projId];if(!p)return;
+  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});if(!d)return;
+  var dlInput=document.getElementById('dl-'+projId+'-'+delivId);
+  if(dlInput&&!dlInput.value) dlInput.value=calcAutoDeadline(d.type);
 }
 
 function ppConfirmAssign(projId,delivId){
   var edSel=document.getElementById('ed-'+projId+'-'+delivId);
   var dlInput=document.getElementById('dl-'+projId+'-'+delivId);
+  var p=projects[projId];if(!p)return;
+  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});if(!d)return;
   var editorId=edSel?edSel.value:'';
   var date=dlInput?dlInput.value:'';
   if(!editorId){showToast('⚠️ Please select an editor first.');return;}
-  if(!date){showToast('⚠️ Please set a deadline first.');return;}
+  if(!date){ date=calcAutoDeadline(d.type); } // fall back to the turnaround-rule deadline instead of blocking
   ppSaveDeliv(projId, delivId, {editorId:editorId, deadline:date, status:'inprogress'}, function(){
     showToast('✅ Editor assigned & started!'); renderPostProd();
     wpNotifyAssignment(projId,delivId,editorId,date);
+    var nm=teamData[editorId]?teamData[editorId].name:editorId;
+    logDelivEvent(projId,delivId,'Assigned to '+nm,'Deadline: '+date+(dlInput&&dlInput.value?'':' (auto, '+turnaroundDaysFor(d.type)+' working days)'));
   });
 }
 
@@ -13304,6 +13313,43 @@ function ppUpdateStatus(projId,delivId,status){
   ppSaveDeliv(projId, delivId, updates, function(updated){
     if(status==='delivered') showDeliveredWAPopup(updated, p);
     showToast('✅ Status updated!'); renderPostProd();
+    logDelivEvent(projId,delivId,'Status changed to '+(_delivStatusInfo(status).label||status));
+    setTimeout(function(){runDeliverableAutomations(projId);},400);
+  });
+}
+
+// ── Split "review" handling: internal approval (Jitendra's verdict, logged
+// by the Video Production Admin) is now a separate, explicit step from
+// actually sending the file to the client via Frame.io. This keeps a clean
+// answer to "has this actually gone out yet?" at all times. ──
+function ppApproveInternal(projId,delivId){
+  if(!CU||(CU.role!=='videohead'&&CU.role!=='postprod'&&CU.role!=='superadmin'&&CU.role!=='admin')){
+    showToast('🔒 Only the Video Production Admin can log this decision.');return;
+  }
+  var p=projects[projId];if(!p)return;
+  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});if(!d)return;
+  if(!confirm('Confirm the Video Production Head has approved "'+(d.name||d.type)+'" and it is ready to send to the client?'))return;
+  ppSaveDeliv(projId, delivId, {internalApproved:true, internalApprovedBy:CU?(CU.name||CU.username):'', internalApprovedAt:new Date().toISOString()}, function(){
+    showToast('✅ Approved internally — ready to send to client.'); renderPostProd();
+    logDelivEvent(projId,delivId,'Approved by Video Production Head','Recorded by '+(CU?(CU.name||CU.username):'Admin')+' on behalf of the reviewer.');
+  });
+}
+function ppSendToClient(projId,delivId){
+  if(!CU||(CU.role!=='videohead'&&CU.role!=='postprod'&&CU.role!=='superadmin'&&CU.role!=='admin')){
+    showToast('🔒 Only the Video Production Admin can mark this as sent.');return;
+  }
+  var p=projects[projId];if(!p)return;
+  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});if(!d)return;
+  if(!d.internalApproved){showToast('⚠️ Get internal approval before sending to the client.');return;}
+  var link=prompt('Paste the Frame.io (or delivery) link sent to the client:', d.frameioLink||d.link||'');
+  if(link===null) return;
+  link=link.trim();
+  if(!link){showToast('⚠️ A link is required to mark this as sent.');return;}
+  var updates={status:'delivered', date:tod(), frameioLink:link, sentToClientAt:new Date().toISOString(), sentToClientBy:CU?(CU.name||CU.username):''};
+  ppSaveDeliv(projId, delivId, updates, function(updated){
+    showDeliveredWAPopup(updated, p);
+    showToast('📤 Marked as sent to client.'); renderPostProd();
+    logDelivEvent(projId,delivId,'Sent to client via Frame.io', link);
     setTimeout(function(){runDeliverableAutomations(projId);},400);
   });
 }
@@ -13342,10 +13388,11 @@ function ppSubmitRevision(projId,delivId){
   var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});if(!d)return;
   var revisions=JSON.parse(JSON.stringify(d.revisions||[]));
   revisions.push({round:revisions.length+1,note:note,requestedAt:new Date().toISOString(),requestedBy:CU?CU.name:'Admin'});
-  ppSaveDeliv(projId, delivId, {status:'inprogress',revisions:revisions,revisionCount:revisions.length,lastRevisionNote:note,lastRevisionAt:new Date().toISOString()}, function(){
+  ppSaveDeliv(projId, delivId, {status:'inprogress',revisions:revisions,revisionCount:revisions.length,lastRevisionNote:note,lastRevisionAt:new Date().toISOString(),internalApproved:false}, function(){
     document.getElementById('rev-modal').remove();
     showToast('🔄 Sent back for revision. Editor notified.');
     renderPostProd();
+    logDelivEvent(projId,delivId,'Changes Requested (Round '+revisions.length+')',note);
     setTimeout(function(){runDeliverableAutomations(projId);},400);
   });
 }
@@ -13375,6 +13422,31 @@ function ppShowRevisionHistory(projId,delivId){
     +'<div style="font-size:12px;color:#888">'+(d.name||d.type||'Deliverable')+' · '+revs.length+' round'+(revs.length!==1?'s':'')+'</div></div>'
     +'<button onclick="document.getElementById(\'rev-hist-modal\').remove()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">Close</button></div>'
     +rows+'</div>';
+  document.body.appendChild(modal);
+}
+
+function ppShowDelivTimeline(projId,delivId){
+  var ex=document.getElementById('deliv-timeline-modal');if(ex)ex.remove();
+  var p=projects[projId];if(!p)return;
+  var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});if(!d)return;
+  var modal=document.createElement('div');
+  modal.id='deliv-timeline-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  var delaysHtml=(d.delayReasons&&d.delayReasons.length)
+    ? '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin-bottom:14px">'
+      +'<div style="font-size:11px;font-weight:800;color:#991b1b;margin-bottom:6px">⚠️ Delay Reasons Logged</div>'
+      +d.delayReasons.map(function(r){return '<div style="font-size:12px;color:#7f1d1d;margin-bottom:4px">• '+escHtml(r.reason)+' <span style="color:#aaa">('+escHtml(r.by||'')+', '+fmtDate(r.at)+')</span></div>';}).join('')
+      +'</div>'
+    : '';
+  modal.innerHTML=
+    '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
+    +'<div><div style="font-size:15px;font-weight:800">🕒 Deliverable Timeline</div>'
+    +'<div style="font-size:12px;color:#888">'+(d.name||d.type||'Deliverable')+'</div></div>'
+    +'<button onclick="document.getElementById(\'deliv-timeline-modal\').remove()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">Close</button></div>'
+    +delaysHtml
+    +delivHistoryHtml(d)
+    +'</div>';
   document.body.appendChild(modal);
 }
 
@@ -19556,17 +19628,27 @@ function editorSaveLink(projId, delivId) {
 }
 
 function editorUpdateStatus(projId, delivId, status) {
+  var p=projects[projId]; var d=p&&(p.customDelivs||[]).find(function(x){return x.id===delivId;});
+  if(d && status==='inprogress' && blockedByDelayReason(d,'resume this deliverable')) return;
   var updates = { status: status };
   if (status === 'delivered') updates.date = tod();
-  ppSaveDeliv(projId, delivId, updates);
+  if(d && d.delayReasons) updates.delayReasons = d.delayReasons; // persist any reason captured above
+  ppSaveDeliv(projId, delivId, updates, function(){
+    logDelivEvent(projId, delivId, 'Status changed to '+(_delivStatusInfo(status).label||status)+' (by editor)');
+  });
 }
 
 function editorMarkReview(projId, delivId) {
+  var p=projects[projId]; var d=p&&(p.customDelivs||[]).find(function(x){return x.id===delivId;});
+  if(d && blockedByDelayReason(d,'submit this for review')) return;
   var linkEl = document.getElementById('link-' + delivId);
   var link = linkEl ? linkEl.value.trim() : '';
   var updates = { status: 'review' };
   if (link) updates.link = link;
-  ppSaveDeliv(projId, delivId, updates);
+  if(d && d.delayReasons) updates.delayReasons = d.delayReasons;
+  ppSaveDeliv(projId, delivId, updates, function(){
+    logDelivEvent(projId, delivId, 'Submitted for Review', link?('Link: '+link):'');
+  });
 }
 
 
@@ -21088,7 +21170,7 @@ function renderFieldVisibilityPanel() {
     { key:'accounts',       label:'💰 Accounts ERP' },
     { key:'preprodmanager', label:'📋 Pre-Prod Mgr' },
     { key:'postprod',       label:'🎬 Post Production' },
-    { key:'videohead',      label:'🎥 Video Prod Head' },
+    { key:'videohead',      label:'🎥 Video Production Admin' },
     { key:'albumhead',      label:'📔 Album Prod Head' },
     { key:'albumselector',  label:'🔍 Album Selection' },
     { key:'albumretoucher', label:'🎨 Album Retoucher' },
