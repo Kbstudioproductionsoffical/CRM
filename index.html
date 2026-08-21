@@ -1287,6 +1287,36 @@ body {
 ════════════════════════════════════ */
 .sb-section { border-bottom: 1px solid #efefef !important; }
 
+/* ════════════════════════════════════
+   CONTRACT GENERATOR
+════════════════════════════════════ */
+.ctr-lbl{display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:3px;margin-top:2px}
+.ctr-sheet{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:20mm 18mm;box-shadow:0 2px 10px rgba(0,0,0,.15);font-family:Georgia,'Times New Roman',serif;color:#1a1a1a;box-sizing:border-box}
+.ctr-sheet .ctr-hdr{text-align:center;margin-bottom:18px}
+.ctr-sheet .ctr-hdr-rule{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:6px}
+.ctr-sheet .ctr-hdr-rule .ln{height:1px;background:#999;width:90px}
+.ctr-sheet .ctr-badge{width:78px;height:78px;border-radius:50%;border:2px solid #bbb;display:flex;align-items:center;justify-content:center;flex-direction:column;margin:0 auto 8px;font-family:Arial,sans-serif}
+.ctr-sheet .ctr-badge b{font-size:20px;letter-spacing:1px;color:#1a1a1a}
+.ctr-sheet .ctr-badge span{font-size:6px;letter-spacing:2px;color:#666;text-transform:uppercase}
+.ctr-sheet .ctr-co-name{font-variant:small-caps;letter-spacing:3px;font-size:17px;font-weight:700;margin-top:2px}
+.ctr-sheet .ctr-doc-title{text-align:center;font-weight:700;font-size:13px;letter-spacing:1px;margin:18px 0 14px}
+.ctr-sheet p{font-size:11.5px;line-height:1.65;margin:0 0 10px;text-align:justify}
+.ctr-sheet h4{font-size:11.5px;font-weight:700;margin:16px 0 6px;letter-spacing:.3px}
+.ctr-sheet ul{margin:0 0 10px 22px;padding:0}
+.ctr-sheet li{font-size:11.5px;line-height:1.6;margin-bottom:4px;text-align:justify}
+.ctr-sheet .ctr-footer{text-align:center;margin-top:26px;padding-top:10px;border-top:1px solid #ccc}
+.ctr-sheet .ctr-footer .ctr-hdr-rule{margin-bottom:4px}
+.ctr-sheet .ctr-footer div{font-variant:small-caps;letter-spacing:2px;font-size:10px;color:#555}
+.ctr-sheet .ctr-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:34px}
+.ctr-sheet .ctr-sig-line{border-top:1px solid #333;margin-top:34px;padding-top:4px;font-size:11px}
+.ctr-list-item{background:#fff;border:1px solid #eee;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+@media print{
+  body *{visibility:hidden}
+  #ctr-print-area, #ctr-print-area *{visibility:visible}
+  #ctr-print-area{position:absolute;left:0;top:0;width:100%}
+  .ctr-sheet{box-shadow:none;margin:0}
+}
+
 </style>
 <script>
 // Prevent pinch-to-zoom on iOS (touchstart with 2+ touches)
@@ -1842,6 +1872,123 @@ document.addEventListener('wheel', function(e) {
           <span id="freelancer-count" style="font-size:12px;color:#888;margin-left:4px"></span>
         </div>
         <div id="freelancer-grid"></div>
+      </div>
+    </div>
+
+    <div id="page-contracts" class="page">
+      <div class="page-title">Employee Contracts</div>
+      <div class="page-sub">Auto-generate legally-worded employment agreements for new hires, role by role.</div>
+
+      <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;width:fit-content">
+        <button id="ctr-tab-gen-btn" onclick="switchContractsTab('generate')" style="padding:9px 22px;font-size:13px;font-weight:700;background:#1a1a1a;color:#fff;border:none;cursor:pointer">🧾 Generate Contract</button>
+        <button id="ctr-tab-saved-btn" onclick="switchContractsTab('saved')" style="padding:9px 22px;font-size:13px;font-weight:700;background:#fff;color:#64748b;border:none;cursor:pointer">📂 Saved Contracts</button>
+      </div>
+
+      <!-- ── GENERATE SECTION ── -->
+      <div id="ctr-generate-section">
+        <div style="display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start" id="ctr-generate-grid">
+          <div class="card" style="padding:16px">
+            <div class="card-title" style="margin-bottom:10px">Employee & Role Details</div>
+
+            <label class="ctr-lbl">Position / Role *</label>
+            <select class="fi" id="ctr-role" onchange="onCtrRoleChange()"></select>
+            <div id="ctr-role-custom-wrap" style="display:none;margin-top:6px">
+              <label class="ctr-lbl">Custom Position Title *</label>
+              <input class="fi" id="ctr-role-custom" placeholder="e.g. Drone Operator">
+            </div>
+
+            <div style="height:10px"></div>
+            <label class="ctr-lbl">Employee Full Name *</label>
+            <input class="fi" id="ctr-name" placeholder="Full name as per ID">
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+              <div><label class="ctr-lbl">Father's Name</label><input class="fi" id="ctr-father" placeholder="S/O"></div>
+              <div><label class="ctr-lbl">Mother's Name</label><input class="fi" id="ctr-mother" placeholder="Optional"></div>
+            </div>
+
+            <div style="height:8px"></div>
+            <label class="ctr-lbl">Residential Address *</label>
+            <textarea class="fi" id="ctr-address" rows="2" placeholder="Full address as per ID"></textarea>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+              <div><label class="ctr-lbl">Govt. ID Type</label>
+                <select class="fi" id="ctr-idtype"><option>Aadhar</option><option>PAN</option><option>Passport</option><option>Voter ID</option><option>Driving License</option></select>
+              </div>
+              <div><label class="ctr-lbl">ID Number *</label><input class="fi" id="ctr-idnum" placeholder="ID number"></div>
+            </div>
+
+            <div style="height:8px"></div>
+            <label class="ctr-lbl">Contact Number</label>
+            <input class="fi" id="ctr-phone" placeholder="Mobile number">
+
+            <div style="height:10px;border-top:1px solid #eee"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+              <div><label class="ctr-lbl">Company Office *</label>
+                <select class="fi" id="ctr-office"><option>Faridabad</option><option>Delhi</option><option>Mumbai</option></select>
+              </div>
+              <div><label class="ctr-lbl">Region</label>
+                <select class="fi" id="ctr-region"><option value="north">🔵 North</option><option value="south">🟠 South</option></select>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+              <div><label class="ctr-lbl">Agreement Date *</label><input class="fi" type="date" id="ctr-agreedate"></div>
+              <div><label class="ctr-lbl">Joining / Commencement Date *</label><input class="fi" type="date" id="ctr-joindate"></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+              <div><label class="ctr-lbl">Monthly Salary (₹) *</label><input class="fi" type="number" id="ctr-salary" placeholder="20000"></div>
+              <div><label class="ctr-lbl">Salary Disbursal Day</label><input class="fi" type="number" id="ctr-paydays" placeholder="10" value="10"></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+              <div><label class="ctr-lbl">Payroll Hold (days)</label><input class="fi" type="number" id="ctr-holddays" placeholder="10" value="10"></div>
+              <div><label class="ctr-lbl">Working Days / Week</label><input class="fi" type="number" id="ctr-workdays" placeholder="6" value="6"></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+              <div><label class="ctr-lbl">Working Hours Start</label><input class="fi" type="time" id="ctr-hrstart" value="10:00"></div>
+              <div><label class="ctr-lbl">Working Hours End</label><input class="fi" type="time" id="ctr-hrend" value="20:00"></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+              <div><label class="ctr-lbl">Company Notice Period (days)</label><input class="fi" type="number" id="ctr-noticeco" value="7"></div>
+              <div><label class="ctr-lbl">Employee Notice Period (days)</label><input class="fi" type="number" id="ctr-noticeemp" value="60"></div>
+            </div>
+
+            <div style="height:8px"></div>
+            <label class="ctr-lbl">Additional Custom Clause (optional)</label>
+            <textarea class="fi" id="ctr-extra" rows="2" placeholder="Any extra point specific to this hire"></textarea>
+
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <button class="btn btn-primary" style="flex:1" onclick="ctrGeneratePreview()">👁️ Build Preview</button>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn" style="flex:1" onclick="ctrSaveContract()">💾 Save Record</button>
+              <button class="btn" style="flex:1" onclick="ctrPrintContract()">🖨️ Print / Save PDF</button>
+            </div>
+            <div style="font-size:10.5px;color:#94a3b8;margin-top:10px;line-height:1.5">⚠️ This tool drafts a standard-form agreement from templates you control. It is not legal advice — have a lawyer review your master templates, especially the notice, non-solicitation and arbitration clauses, before relying on them.</div>
+          </div>
+
+          <div class="card" style="padding:0;overflow:hidden">
+            <div style="padding:10px 16px;border-bottom:1px solid #eee;font-size:12px;font-weight:700;color:#64748b;display:flex;justify-content:space-between;align-items:center">
+              <span>LIVE PREVIEW</span>
+              <span id="ctr-preview-status" style="font-weight:500;color:#94a3b8">Fill the form and click "Build Preview"</span>
+            </div>
+            <div id="ctr-preview-scroll" style="max-height:78vh;overflow:auto;background:#e5e7eb;padding:18px">
+              <div id="ctr-preview-sheet" class="ctr-sheet"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SAVED CONTRACTS SECTION ── -->
+      <div id="ctr-saved-section" style="display:none">
+        <div style="margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" class="fi" id="ctr-saved-search" placeholder="Search employee, role…" style="max-width:240px" oninput="renderSavedContracts()">
+          <span id="ctr-saved-count" style="font-size:12px;color:#888"></span>
+        </div>
+        <div id="ctr-saved-list"></div>
       </div>
     </div>
 
@@ -18563,6 +18710,492 @@ function switchTeamTab(tab) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// EMPLOYEE CONTRACT GENERATOR
+// ═══════════════════════════════════════════════════════════════════
+var CTR_COMPANY = {
+  name: 'KB Studio Productions',
+  addr1: 'BH 1007, Puri Business Hub, Sector 81, Greater Faridabad, 121002',
+  footer1: 'BH - 1007, Puri 81 High Street,',
+  footer2: 'Sector 81, Greater Faridabad',
+  state: 'Haryana'
+};
+
+// Role clause library — edit dutyBullets / restrictionBullets to tune wording per role.
+var CTR_ROLES = {
+  photographer: {
+    label: 'Photographer',
+    positionLine: 'Photographer',
+    dutyBullets: [
+      'Attend and cover all assigned weddings, pre-wedding shoots and events strictly as per the shoot schedule, shot list and briefing provided by the Company.',
+      'Carry, operate and safely handle all camera and allied equipment (Company-owned or personal, when used for Company assignments) with due care and diligence.',
+      'Hand over all raw data (photographs) to the Company / post-production team, complete and unedited, within the timeline specified by the Company after each shoot.',
+      'Coordinate professionally with videographers, coordinators and clients on-site and maintain the Company\'s standard of conduct at all times.'
+    ],
+    restrictionBullets: [
+      'Shall not accept, solicit or execute any personal or freelance photography assignment — for a client introduced through the Company, or for any other client — during the term of this Agreement without the Company\'s prior written consent.',
+      'Shall not release, upload, share or post any raw or unedited client photograph on personal social media, messaging groups or any third-party platform prior to the Company\'s official delivery to the client.',
+      'Shall be personally liable to reimburse the Company for any loss of or damage to Company equipment arising from the Employee\'s negligence or misuse.',
+      'Shall immediately report any missing, corrupted or damaged data/memory card to the Company on the same day of the shoot.'
+    ]
+  },
+  videographer: {
+    label: 'Videographer',
+    positionLine: 'Videographer',
+    dutyBullets: [
+      'Attend and cover all assigned weddings, pre-wedding shoots and events strictly as per the shoot schedule and briefing provided by the Company.',
+      'Carry, operate and safely handle all camera, drone, gimbal, audio and allied equipment (Company-owned or personal, when used for Company assignments) with due care.',
+      'Hand over all raw footage to the Company / post-production team, complete and unedited, within the timeline specified by the Company after each shoot.',
+      'Coordinate professionally with photographers, coordinators and clients on-site and maintain the Company\'s standard of conduct at all times.'
+    ],
+    restrictionBullets: [
+      'Shall not accept, solicit or execute any personal or freelance videography assignment — for a client introduced through the Company, or for any other client — during the term of this Agreement without the Company\'s prior written consent.',
+      'Shall not release, upload, share or post any raw or unedited client footage on personal social media, messaging groups or any third-party platform prior to the Company\'s official delivery to the client.',
+      'Shall be personally liable to reimburse the Company for any loss of or damage to Company equipment arising from the Employee\'s negligence or misuse.',
+      'Shall immediately report any missing, corrupted or damaged footage/storage media to the Company on the same day of the shoot.'
+    ]
+  },
+  videoeditor: {
+    label: 'Video Editor',
+    positionLine: 'Video Editor',
+    dutyBullets: [
+      'Edit, colour-grade and finalise wedding films, teasers, reels and other deliverables strictly per the Company\'s specified formats, style guide and delivery timelines.',
+      'Maintain proper project/version management and back up project files and footage as instructed by the Company.',
+      'Flag any footage quality, continuity or missing-shot issues to the production team promptly so they can be resolved before final delivery.',
+      'Incorporate client-requested revisions within the number of revision rounds specified by the Company\'s policy.'
+    ],
+    restrictionBullets: [
+      'Shall not retain personal copies of, copy, distribute, or upload any client raw footage or edited film to personal storage, social media, or any third-party platform without the Company\'s and client\'s prior written consent.',
+      'Shall be responsible for the secure handling and confidentiality of all client footage placed in the Employee\'s custody, including during work-from-home or remote editing.',
+      'Any unauthorized leak, loss, or use of client footage caused by the Employee\'s act or negligence shall make the Employee liable for the resulting loss and damages to the Company.',
+      'Shall not use the Company\'s licensed software, presets, LUTs or templates for any personal or third-party project.'
+    ]
+  },
+  photoeditor: {
+    label: 'Photo Editor',
+    positionLine: 'Photo Editor / Retoucher',
+    dutyBullets: [
+      'Perform culling, retouching, colour-grading and editing of client photographs in accordance with the Company\'s quality standards, style guides and turnaround timelines.',
+      'Maintain proper version control and take regular backups of raw and edited files as per the Company\'s data-handling protocol.',
+      'Incorporate client-requested revisions within the number of revision rounds specified by the Company\'s policy.',
+      'Flag any image quality or missing-shot issues to the production team promptly.'
+    ],
+    restrictionBullets: [
+      'Shall not use, copy, download, retain personal copies of, or share any client\'s raw or edited photographs with any third party for personal or commercial use.',
+      'Shall not upload client work to personal portfolios, social media, or third-party platforms without the Company\'s and client\'s prior written consent.',
+      'Shall be responsible for the confidentiality of unreleased or unpublished client content placed in the Employee\'s custody.',
+      'Shall not use the Company\'s licensed software, presets, or templates for any personal or third-party project.'
+    ]
+  },
+  salesexec: {
+    label: 'Sales Executive',
+    positionLine: 'Sales Executive',
+    dutyBullets: [
+      'Follow up on and convert leads/enquiries assigned by the Company, strictly per the Company\'s CRM workflow and defined response-time SLA.',
+      'Maintain accurate, real-time and complete records of every lead, quotation and client interaction in the Company\'s CRM.',
+      'Meet the monthly sales targets and quotation-to-booking conversion benchmarks set by management.',
+      'Represent the Company professionally and accurately in all client-facing communication, quoting only Company-approved packages and pricing.'
+    ],
+    restrictionBullets: [
+      'Shall not divert, transfer, share, sell, or hand over any Company lead, enquiry, or client contact to any third party, competing business, or personal venture, whether during or after employment — all leads and client relationships generated through the Company remain the Company\'s exclusive property.',
+      'Shall not quote prices, packages, discounts or terms outside the Company\'s approved rate card without prior written authorization from management.',
+      'Shall not accept any payment, gift, commission, or other consideration directly from a client outside the Company\'s official payment channels.',
+      'Shall not contact, solicit, or continue to service any Company client for personal or third-party benefit after cessation of employment.'
+    ]
+  },
+  adminstaff: {
+    label: 'Admin Staff',
+    positionLine: 'Admin Staff',
+    dutyBullets: [
+      'Manage day-to-day administrative operations, documentation, vendor coordination, and office record-keeping as assigned by the Company.',
+      'Ensure timely and accurate filing, organization, and safekeeping of Company records, contracts and employee documents.',
+      'Support onboarding and offboarding formalities for team members and freelancers as directed.',
+      'Coordinate office logistics, purchases and vendor communication in line with Company budget and approval processes.'
+    ],
+    restrictionBullets: [
+      'Shall not disclose employee records, salary details, vendor rates, or other internal documents to any unauthorized person, whether an employee, client, or outsider.',
+      'Shall not alter, backdate, delete or falsify any Company record, contract, or document under any circumstance.',
+      'Shall maintain strict confidentiality of all administrative, HR and personnel matters that come to the Employee\'s knowledge in the course of duty.',
+      'Shall promptly report any irregularity, discrepancy or suspected fraud in Company records or vendor dealings to management.'
+    ]
+  },
+  clientrelationship: {
+    label: 'Client Relationship Staff',
+    positionLine: 'Data, Client & Productions Manager',
+    dutyBullets: [
+      'Serve as the primary point of contact for assigned clients, from onboarding through final delivery, ensuring a consistently professional client experience.',
+      'Coordinate between clients, the production team and management to ensure project timelines, briefs and deliverables are met.',
+      'Maintain accurate and up-to-date client data, briefs, preferences and communication logs in the Company\'s CRM at all times.',
+      'Proactively identify and escalate client dissatisfaction or at-risk projects to management per the Company\'s escalation protocol.'
+    ],
+    restrictionBullets: [
+      'Shall not make any commitment, promise, or change to a client\'s package, pricing, timeline or deliverables without prior written approval from management.',
+      'Shall not communicate with clients through personal phone numbers, personal social media, or personal email for Company business — all client communication must be through Company-designated channels.',
+      'Shall not disclose a client\'s personal, financial, or event details to any unauthorized third party, including on personal social media.',
+      'All client relationships and data handled in this role remain the Company\'s exclusive property and shall not be used for any purpose outside the Company\'s business.'
+    ]
+  },
+  accountsstaff: {
+    label: 'Accounts Staff',
+    positionLine: 'Accounts Staff',
+    dutyBullets: [
+      'Maintain accurate books of payment records, invoices, GST filings and financial reconciliations as assigned by the Company.',
+      'Process vendor, freelancer and team payments strictly as authorized by management, following the Company\'s approval workflow.',
+      'Safeguard all financial data, banking access, and payment-gateway credentials provided for the performance of duties.',
+      'Prepare periodic financial summaries/reports as required by management.'
+    ],
+    restrictionBullets: [
+      'Shall not process, authorize, or disburse any payment without proper prior approval from management.',
+      'Shall not share banking credentials, financial statements, salary data, or payment records of the Company or its employees with any unauthorized person.',
+      'Shall report any discrepancy, error, or suspected irregularity in Company accounts to management immediately upon discovery.',
+      'Shall be personally liable for any loss caused to the Company by unauthorized, negligent, or fraudulent handling of Company funds or financial data.'
+    ]
+  },
+  socialmedia: {
+    label: 'Social Media Staff',
+    positionLine: 'Social Media Manager',
+    dutyBullets: [
+      'Manage, post to, and maintain the Company\'s official social media accounts (Instagram, Facebook, YouTube, and others) as per the content calendar and brand guidelines.',
+      'Monitor and respond to enquiries, comments and messages professionally and in the Company\'s tone of voice, escalating leads to the sales team promptly.',
+      'Plan, schedule and coordinate content (reels, posts, stories) with the editing team to meet posting timelines.',
+      'Report engagement performance and content insights to management as required.'
+    ],
+    restrictionBullets: [
+      'Shall not post, delete, alter, or respond to content on the Company\'s social media accounts other than through the Company\'s approved process and guidelines.',
+      'Shall not share login credentials or admin/owner access to the Company\'s social media, website, or ad accounts with any unauthorized person.',
+      'Shall not use the Company\'s social media accounts, content, photographs, or videos for personal promotion, any other business, or after resignation/termination of employment.',
+      'Upon separation from the Company for any reason, shall immediately and fully hand over all account access, passwords, and admin rights to the Company before the last working day.'
+    ]
+  },
+  other: {
+    label: 'Other / Custom Role',
+    positionLine: '',
+    dutyBullets: [],
+    restrictionBullets: []
+  }
+};
+
+var _ctrCurrentPreviewHtml = '';
+var _ctrCurrentPreviewData = null;
+var _ctrEditingId = null;
+var _ctrAllContracts = {};
+
+function switchContractsTab(tab) {
+  var genBtn = $('ctr-tab-gen-btn'), savedBtn = $('ctr-tab-saved-btn');
+  var genSec = $('ctr-generate-section'), savedSec = $('ctr-saved-section');
+  if (!genSec || !savedSec) return;
+  if (tab === 'saved') {
+    genSec.style.display = 'none'; savedSec.style.display = '';
+    if (savedBtn) { savedBtn.style.background = '#1a1a1a'; savedBtn.style.color = '#fff'; }
+    if (genBtn) { genBtn.style.background = '#fff'; genBtn.style.color = '#64748b'; }
+    renderSavedContracts();
+  } else {
+    genSec.style.display = ''; savedSec.style.display = 'none';
+    if (genBtn) { genBtn.style.background = '#1a1a1a'; genBtn.style.color = '#fff'; }
+    if (savedBtn) { savedBtn.style.background = '#fff'; savedBtn.style.color = '#64748b'; }
+  }
+}
+
+function renderContractsPage() {
+  var sel = $('ctr-role');
+  if (sel && !sel.options.length) {
+    var html = '';
+    Object.keys(CTR_ROLES).forEach(function(k) {
+      html += '<option value="' + k + '">' + CTR_ROLES[k].label + '</option>';
+    });
+    sel.innerHTML = html;
+    onCtrRoleChange();
+  }
+  switchContractsTab('generate');
+  loadAllContracts(function(){ if($('ctr-saved-section').style.display !== 'none') renderSavedContracts(); });
+}
+
+function onCtrRoleChange() {
+  var wrap = $('ctr-role-custom-wrap');
+  if (!wrap) return;
+  wrap.style.display = gv('ctr-role') === 'other' ? '' : 'none';
+}
+
+function ctrCollectFormData() {
+  var roleKey = gv('ctr-role');
+  var roleDef = CTR_ROLES[roleKey] || CTR_ROLES.other;
+  var customPos = gv('ctr-role-custom');
+  return {
+    roleKey: roleKey,
+    positionLine: roleKey === 'other' ? (customPos || 'Team Member') : roleDef.positionLine,
+    roleLabel: roleKey === 'other' ? (customPos || 'Team Member') : roleDef.label,
+    name: gv('ctr-name'), father: gv('ctr-father'), mother: gv('ctr-mother'),
+    address: gv('ctr-address'), idType: gv('ctr-idtype'), idNum: gv('ctr-idnum'),
+    phone: gv('ctr-phone'), office: gv('ctr-office'), region: gv('ctr-region'),
+    agreeDate: gv('ctr-agreedate'), joinDate: gv('ctr-joindate'),
+    salary: gv('ctr-salary'), payDay: gv('ctr-paydays') || '10', holdDays: gv('ctr-holddays') || '10',
+    workDays: gv('ctr-workdays') || '6', hrStart: gv('ctr-hrstart') || '10:00', hrEnd: gv('ctr-hrend') || '20:00',
+    noticeCo: gv('ctr-noticeco') || '7', noticeEmp: gv('ctr-noticeemp') || '60',
+    extra: gv('ctr-extra')
+  };
+}
+
+function ctrFmtDateLong(iso) {
+  if (!iso) return '__________';
+  var d = new Date(iso + 'T00:00:00');
+  if (isNaN(d.getTime())) return iso;
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var day = d.getDate(), suf = 'th';
+  if (day % 10 === 1 && day !== 11) suf = 'st'; else if (day % 10 === 2 && day !== 12) suf = 'nd'; else if (day % 10 === 3 && day !== 13) suf = 'rd';
+  return day + suf + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+function ctrFmtTime12(t) {
+  if (!t) return '';
+  var parts = t.split(':'); var h = parseInt(parts[0], 10), m = parts[1];
+  var ap = h >= 12 ? 'PM' : 'AM'; var h12 = h % 12; if (h12 === 0) h12 = 12;
+  return h12 + ':' + m + ' ' + ap;
+}
+
+function ctrEsc(s) { return (s || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Builds the full contract HTML (used for both on-screen preview and print/PDF) ──
+function buildContractHTML(data) {
+  var role = CTR_ROLES[data.roleKey] || CTR_ROLES.other;
+  var dutyBullets = role.dutyBullets && role.dutyBullets.length ? role.dutyBullets : [];
+  var restrictionBullets = role.restrictionBullets && role.restrictionBullets.length ? role.restrictionBullets : [];
+  var salaryFmt = data.salary ? Number(data.salary).toLocaleString('en-IN') : '__________';
+  var name = ctrEsc(data.name) || '__________';
+  var father = ctrEsc(data.father);
+  var mother = ctrEsc(data.mother);
+  var address = ctrEsc(data.address) || '__________';
+  var idType = ctrEsc(data.idType);
+  var idNum = ctrEsc(data.idNum) || '__________';
+  var phone = ctrEsc(data.phone);
+  var office = ctrEsc(data.office) || 'Faridabad';
+  var position = ctrEsc(data.positionLine) || 'Team Member';
+
+  var parentLine = '';
+  if (father) parentLine += 'S/O ' + father;
+  if (mother) parentLine += (parentLine ? ', D/O-cum-mother\u2019s name ' : 'C/O ') + mother;
+
+  var h = '';
+  h += '<div class="ctr-hdr"><div class="ctr-hdr-rule"><span class="ln"></span><div class="ctr-badge"><b>KB</b><span>Studio Productions</span></div><span class="ln"></span></div>';
+  h += '<div class="ctr-co-name">' + ctrEsc(CTR_COMPANY.name) + '</div></div>';
+  h += '<div class="ctr-doc-title">EMPLOYMENT AGREEMENT</div>';
+
+  h += '<p>This Employment Agreement ("Agreement") is made and entered into on this ' + ctrFmtDateLong(data.agreeDate) + ', by and between <b>' + ctrEsc(CTR_COMPANY.name) + '</b>, having its principal place of business at ' + ctrEsc(CTR_COMPANY.addr1) + ' ("Company"), and <b>' + name + '</b>' + (parentLine ? ', ' + parentLine : '') + ', residing at ' + address + (idType && idNum !== '__________' ? ' (' + idType + ' No. ' + idNum + ')' : '') + ' ("Employee").</p>';
+
+  h += '<h4>RECITALS</h4>';
+  h += '<p>WHEREAS, the Company is engaged in the business of wedding photography and filming;<br>WHEREAS, the Company desires to employ the Employee, and the Employee desires to be employed by the Company, on the terms and conditions set forth herein;<br>NOW, THEREFORE, in consideration of the mutual covenants and promises herein contained, the parties hereto agree as follows:</p>';
+
+  h += '<h4>1. POSITION AND DUTIES</h4>';
+  h += '<p>1.1 Position. The Company hereby employs the Employee in the position of <b>' + position + '</b> at the Company\u2019s ' + office + ' Office.</p>';
+  h += '<p>1.2 Duties. The Employee agrees to perform the duties and responsibilities associated with the position, including but not limited to the role-specific responsibilities set out in Clause 5, and other duties as may reasonably be assigned from time to time by the Company.</p>';
+
+  h += '<h4>2. TERM</h4>';
+  h += '<p>2.1 This Agreement shall commence on ' + ctrFmtDateLong(data.joinDate) + ' and shall continue until terminated in accordance with the provisions of this Agreement.</p>';
+
+  h += '<h4>3. COMPENSATION AND BENEFITS</h4>';
+  h += '<p>3.1 Salary. The Employee shall receive a salary of \u20b9' + salaryFmt + '/- per month, payable in accordance with the Company\u2019s standard payroll practices.</p>';
+  h += '<p>3.2 The salary shall be disbursed on or around the ' + ctrEsc(data.payDay) + 'th of every month, subject to a processing hold of ' + ctrEsc(data.holdDays) + ' days.</p>';
+  h += '<p>3.3 Benefits and Incentives. The Employee shall be entitled to participate in the Company\u2019s benefits programs and any applicable incentive schemes. Additional benefits and performance-based incentives will be offered upon meeting or exceeding targets, subject to Company policy and periodic evaluation. The Employee is also eligible for overtime compensation in accordance with Company guidelines.</p>';
+
+  h += '<h4>4. WORK SCHEDULE</h4>';
+  h += '<p>4.1 Hours of Work. The Employee\u2019s normal working hours shall be from ' + ctrFmtTime12(data.hrStart) + ' to ' + ctrFmtTime12(data.hrEnd) + ', ' + ctrEsc(data.workDays) + ' days per week.</p>';
+  h += '<p>4.2 Overtime. Any work performed beyond the normal working hours must be authorised in advance by the Company and will be compensated in accordance with the Company\u2019s overtime policies.</p>';
+
+  h += '<h4>5. ROLE-SPECIFIC RESPONSIBILITIES &amp; RESTRICTIONS \u2014 ' + ctrEsc(role.label) + '</h4>';
+  if (dutyBullets.length) {
+    h += '<p>5.1 In addition to Clause 1, and specific to this position, the Employee shall:</p><ul>' + dutyBullets.map(function(b){return '<li>'+ctrEsc(b)+'</li>';}).join('') + '</ul>';
+  }
+  if (restrictionBullets.length) {
+    h += '<p>5.2 The Employee expressly agrees that, in this position, the Employee:</p><ul>' + restrictionBullets.map(function(b){return '<li>'+ctrEsc(b)+'</li>';}).join('') + '</ul>';
+  }
+  if (data.extra) {
+    h += '<p>5.3 Additional term specific to this Agreement: ' + ctrEsc(data.extra) + '</p>';
+  }
+
+  h += '<h4>6. LEAVES AND TIME OFF</h4>';
+  h += '<p>6.1 Uninformed Leaves. Any leave taken without prior notification and approval will be considered an uninformed leave. The Employee is expected to notify the Company of any absence as soon as possible. Failure to do so may result in disciplinary action, up to and including termination.</p>';
+  h += '<p>6.2 Unauthorized Absence. If the Employee is absent for 3 consecutive days without notification or reasonable cause, it will be considered job abandonment and may result in termination.</p>';
+  h += '<p>6.3 Late Entry. If the Employee is late by more than 15 minutes on 3 consecutive working days, one day\u2019s salary will be deducted from the monthly salary.</p>';
+
+  h += '<h4>7. CODE OF CONDUCT &amp; USE OF COMPANY PROPERTY</h4>';
+  h += '<p>7.1 The Employee shall use all Company property, equipment, accounts, credentials and premises solely for Company business, with due care, and shall not use them for any personal, third-party, or commercial purpose without prior written consent.</p>';
+  h += '<p>7.2 The Employee shall conduct themselves professionally with clients, vendors and colleagues at all times and shall not engage in any conduct that damages the Company\u2019s reputation, brand, or client relationships.</p>';
+
+  h += '<h4>8. CONFIDENTIALITY</h4>';
+  h += '<p>8.1 The Employee agrees not to disclose or use, either during or after the term of employment, any proprietary or confidential information of the Company \u2014 including client data, pricing, vendor rates, business processes, and trade practices \u2014 without the Company\u2019s prior written consent. This obligation survives termination of this Agreement.</p>';
+
+  h += '<h4>9. INTELLECTUAL PROPERTY</h4>';
+  h += '<p>9.1 Any and all work product (including photographs, footage, edits, designs and documents) developed by the Employee in the course of employment shall be the exclusive property of the Company.</p>';
+
+  h += '<h4>10. NON-SOLICITATION</h4>';
+  h += '<p>10.1 During the term of employment and for a reasonable period thereafter, the Employee shall not solicit, divert, or service, for personal benefit or on behalf of any third party, any client, lead, or business opportunity that the Employee became aware of or engaged with through the Company. This restriction is limited to protecting the Company\u2019s confidential business relationships and information, and does not restrict the Employee\u2019s right to seek lawful employment elsewhere.</p>';
+
+  h += '<h4>11. INDEMNITY AND LIABILITY FOR LOSS OR DAMAGE</h4>';
+  h += '<p>11.1 If the Employee damages, loses, or misuses anything owned by or entrusted by the Company, the Employee will be fully responsible for making good the loss or damage caused.</p>';
+
+  h += '<h4>12. TERMINATION</h4>';
+  h += '<p>12.1 Termination by Company. The Company may terminate this Agreement at any time, with or without cause, upon ' + ctrEsc(data.noticeCo) + ' days\u2019 written notice to the Employee.</p>';
+  h += '<p>12.2 Termination by Employee. The Employee may terminate this Agreement upon ' + ctrEsc(data.noticeEmp) + ' days\u2019 written notice to the Company, and shall complete all pending assigned projects during the notice period.</p>';
+  h += '<p>12.3 Termination without Notice. If the Employee terminates this Agreement without the notice required above, the Company may withhold any balance salary due to the Employee, to the extent permitted by applicable law, and may take further action available to it.</p>';
+
+  h += '<h4>13. RETURN OF COMPANY PROPERTY</h4>';
+  h += '<p>13.1 Upon termination of employment, the Employee agrees to return all Company property in good working condition, failing which the Employee shall refund the Company an amount equal to 3x the value of the goods not returned or returned damaged.</p>';
+
+  h += '<h4>14. NON-DISPARAGEMENT</h4>';
+  h += '<p>14.1 Both parties agree not to make any false, misleading, or malicious statement about the other, whether publicly, to clients, or on social media, that could harm the other\u2019s reputation, and to raise any grievance through the dispute resolution process set out in Clause 15.</p>';
+
+  h += '<h4>15. DISPUTE RESOLUTION</h4>';
+  h += '<p>15.1 Any dispute arising out of or in connection with this Agreement shall first be addressed through good-faith discussion between the parties, and failing resolution within 30 days, shall be referred to and finally resolved by arbitration under the Arbitration and Conciliation Act, 1996, with a sole arbitrator appointed by the Company, seated at ' + office + ', ' + CTR_COMPANY.state + '.</p>';
+
+  h += '<h4>16. GOVERNING LAW AND JURISDICTION</h4>';
+  h += '<p>16.1 This Agreement shall be governed by and construed in accordance with the laws of ' + CTR_COMPANY.state + ', India, and subject to Clause 15, the courts at ' + office + ' shall have exclusive jurisdiction.</p>';
+
+  h += '<h4>17. SEVERABILITY &amp; ENTIRE AGREEMENT</h4>';
+  h += '<p>17.1 If any provision of this Agreement is held invalid or unenforceable, the remaining provisions shall continue in full force and effect. This Agreement constitutes the entire agreement between the parties and supersedes all prior agreements and understandings, whether written or oral, relating to the subject matter hereof.</p>';
+
+  h += '<div class="ctr-sig-grid">';
+  h += '<div><div>For ' + ctrEsc(CTR_COMPANY.name) + '</div><div class="ctr-sig-line">Authorised Signatory</div></div>';
+  h += '<div><div>Employee Acceptance</div><div class="ctr-sig-line">Signature \u2014 Name: ' + name + (idType && idNum !== '__________' ? '<br>Govt. ID: ' + idType + ' \u2014 ' + idNum : '') + (phone ? '<br>Contact: ' + phone : '') + '</div></div>';
+  h += '</div>';
+
+  h += '<div class="ctr-footer"><div class="ctr-hdr-rule"><span class="ln"></span><span class="ln"></span></div><div>' + ctrEsc(CTR_COMPANY.footer1) + ' ' + ctrEsc(CTR_COMPANY.footer2) + '</div></div>';
+  return h;
+}
+
+function ctrValidateForm(data) {
+  var missing = [];
+  if (!data.name) missing.push('Employee Name');
+  if (!data.address) missing.push('Address');
+  if (!data.idNum) missing.push('Govt. ID Number');
+  if (!data.salary) missing.push('Monthly Salary');
+  if (!data.agreeDate) missing.push('Agreement Date');
+  if (!data.joinDate) missing.push('Joining Date');
+  if (data.roleKey === 'other' && !data.positionLine) missing.push('Custom Position Title');
+  return missing;
+}
+
+function ctrGeneratePreview() {
+  var data = ctrCollectFormData();
+  var missing = ctrValidateForm(data);
+  var statusEl = $('ctr-preview-status');
+  if (missing.length) {
+    showToast('\u26a0\ufe0f Missing: ' + missing.join(', '));
+    if (statusEl) statusEl.textContent = 'Missing: ' + missing.join(', ');
+    return;
+  }
+  var html = buildContractHTML(data);
+  $('ctr-preview-sheet').innerHTML = html;
+  _ctrCurrentPreviewHtml = html;
+  _ctrCurrentPreviewData = data;
+  if (statusEl) statusEl.textContent = 'Preview ready \u00b7 ' + data.name + ' \u00b7 ' + data.roleLabel;
+}
+
+function ctrPrintContract() {
+  if (!_ctrCurrentPreviewHtml) { ctrGeneratePreview(); if (!_ctrCurrentPreviewHtml) return; }
+  var win = window.open('', '_blank');
+  if (!win) { showToast('\u26a0\ufe0f Please allow pop-ups to print/save the contract'); return; }
+  var styleTag = '<style>body{margin:0;background:#fff}' +
+    '.ctr-sheet{background:#fff;width:210mm;min-height:297mm;margin:0 auto;padding:20mm 18mm;font-family:Georgia,\'Times New Roman\',serif;color:#1a1a1a;box-sizing:border-box}' +
+    '.ctr-sheet .ctr-hdr{text-align:center;margin-bottom:18px}.ctr-sheet .ctr-hdr-rule{display:flex;align-items:center;gap:14px;justify-content:center;margin-bottom:6px}' +
+    '.ctr-sheet .ctr-hdr-rule .ln{height:1px;background:#999;width:90px}' +
+    '.ctr-sheet .ctr-badge{width:78px;height:78px;border-radius:50%;border:2px solid #bbb;display:flex;align-items:center;justify-content:center;flex-direction:column;margin:0 auto 8px;font-family:Arial,sans-serif}' +
+    '.ctr-sheet .ctr-badge b{font-size:20px;letter-spacing:1px}.ctr-sheet .ctr-badge span{font-size:6px;letter-spacing:2px;color:#666;text-transform:uppercase}' +
+    '.ctr-sheet .ctr-co-name{font-variant:small-caps;letter-spacing:3px;font-size:17px;font-weight:700;margin-top:2px}' +
+    '.ctr-sheet .ctr-doc-title{text-align:center;font-weight:700;font-size:13px;letter-spacing:1px;margin:18px 0 14px}' +
+    '.ctr-sheet p{font-size:11.5px;line-height:1.65;margin:0 0 10px;text-align:justify}' +
+    '.ctr-sheet h4{font-size:11.5px;font-weight:700;margin:16px 0 6px}' +
+    '.ctr-sheet ul{margin:0 0 10px 22px;padding:0}.ctr-sheet li{font-size:11.5px;line-height:1.6;margin-bottom:4px;text-align:justify}' +
+    '.ctr-sheet .ctr-footer{text-align:center;margin-top:26px;padding-top:10px;border-top:1px solid #ccc}.ctr-sheet .ctr-footer div{font-variant:small-caps;letter-spacing:2px;font-size:10px;color:#555}' +
+    '.ctr-sheet .ctr-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:34px}.ctr-sheet .ctr-sig-line{border-top:1px solid #333;margin-top:34px;padding-top:4px;font-size:11px}' +
+    '@page{margin:0;size:A4}@media print{.ctr-sheet{box-shadow:none}}</style>';
+  win.document.write('<!DOCTYPE html><html><head><title>Employment Agreement \u2014 ' + ctrEsc(_ctrCurrentPreviewData.name) + '</title>' + styleTag + '</head><body><div class="ctr-sheet">' + _ctrCurrentPreviewHtml + '</div></body></html>');
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 400);
+}
+
+function loadAllContracts(cb) {
+  db.ref('contracts').once('value', function(snap) {
+    _ctrAllContracts = snap.val() || {};
+    if (cb) cb();
+  }, function(){ _ctrAllContracts = {}; if (cb) cb(); });
+}
+
+function ctrSaveContract() {
+  var data = ctrCollectFormData();
+  var missing = ctrValidateForm(data);
+  if (missing.length) { showToast('\u26a0\ufe0f Missing: ' + missing.join(', ')); return; }
+  var html = buildContractHTML(data);
+  var id = _ctrEditingId || ('ctr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7));
+  var record = {
+    id: id, data: data, html: html,
+    createdBy: (CU && CU.name) || 'Unknown', createdAt: _ctrEditingId ? (_ctrAllContracts[id] && _ctrAllContracts[id].createdAt) || new Date().toISOString() : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  db.ref('contracts/' + id).set(record, function(err) {
+    if (err) { showToast('\u274c Failed to save contract'); return; }
+    _ctrEditingId = null;
+    showToast('\u2705 Contract saved for ' + data.name);
+    if (typeof logActivity === 'function') logActivity('contracts', 'Contract Generated', data.name + ' \u2014 ' + data.roleLabel);
+    loadAllContracts(function(){ });
+  });
+}
+
+function renderSavedContracts() {
+  var q = (gv('ctr-saved-search') || '').toLowerCase();
+  var list = Object.values(_ctrAllContracts || {}).sort(function(a, b) {
+    return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+  }).filter(function(r) {
+    if (!q) return true;
+    var d = r.data || {};
+    return (d.name || '').toLowerCase().indexOf(q) !== -1 || (d.roleLabel || '').toLowerCase().indexOf(q) !== -1;
+  });
+  var countEl = $('ctr-saved-count'); if (countEl) countEl.textContent = list.length + ' contract' + (list.length === 1 ? '' : 's');
+  var wrap = $('ctr-saved-list'); if (!wrap) return;
+  if (!list.length) { wrap.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:20px;text-align:center">No saved contracts yet.</div>'; return; }
+  wrap.innerHTML = list.map(function(r) {
+    var d = r.data || {};
+    return '<div class="ctr-list-item">' +
+      '<div><b>' + ctrEsc(d.name) + '</b> \u00b7 ' + ctrEsc(d.roleLabel) + '<br><span style="font-size:11px;color:#94a3b8">Joined ' + ctrFmtDateLong(d.joinDate) + ' \u00b7 Saved ' + fmtDate(new Date(r.updatedAt || r.createdAt)) + ' by ' + ctrEsc(r.createdBy) + '</span></div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn" onclick="ctrReprint(\'' + r.id + '\')">\ud83d\uddb6\ufe0f Print</button>' +
+        '<button class="btn" onclick="ctrLoadForEdit(\'' + r.id + '\')">\u270f\ufe0f Edit</button>' +
+        '<button class="btn" style="color:#dc2626" onclick="ctrDeleteContract(\'' + r.id + '\')">\ud83d\uddd1\ufe0f Delete</button>' +
+      '</div></div>';
+  }).join('');
+}
+
+function ctrReprint(id) {
+  var r = _ctrAllContracts[id]; if (!r) return;
+  _ctrCurrentPreviewHtml = r.html; _ctrCurrentPreviewData = r.data;
+  ctrPrintContract();
+}
+
+function ctrLoadForEdit(id) {
+  var r = _ctrAllContracts[id]; if (!r) return;
+  var d = r.data;
+  _ctrEditingId = id;
+  sv('ctr-role', d.roleKey); onCtrRoleChange();
+  if (d.roleKey === 'other') sv('ctr-role-custom', d.positionLine);
+  sv('ctr-name', d.name); sv('ctr-father', d.father); sv('ctr-mother', d.mother);
+  sv('ctr-address', d.address); sv('ctr-idtype', d.idType); sv('ctr-idnum', d.idNum);
+  sv('ctr-phone', d.phone); sv('ctr-office', d.office); sv('ctr-region', d.region);
+  sv('ctr-agreedate', d.agreeDate); sv('ctr-joindate', d.joinDate);
+  sv('ctr-salary', d.salary); sv('ctr-paydays', d.payDay); sv('ctr-holddays', d.holdDays);
+  sv('ctr-workdays', d.workDays); sv('ctr-hrstart', d.hrStart); sv('ctr-hrend', d.hrEnd);
+  sv('ctr-noticeco', d.noticeCo); sv('ctr-noticeemp', d.noticeEmp); sv('ctr-extra', d.extra);
+  switchContractsTab('generate');
+  ctrGeneratePreview();
+  showToast('\u270f\ufe0f Loaded for editing \u2014 click "Save Record" to update');
+}
+
+function ctrDeleteContract(id) {
+  if (!confirm('Delete this saved contract? This cannot be undone.')) return;
+  db.ref('contracts/' + id).remove(function(err) {
+    if (err) { showToast('\u274c Failed to delete'); return; }
+    showToast('\ud83d\uddd1\ufe0f Contract deleted');
+    loadAllContracts(function(){ renderSavedContracts(); });
+  });
+}
+
 function renderFreelancers() {
   var grid = document.getElementById('freelancer-grid'); if (!grid) return;
   var q    = ((document.getElementById('freelancer-search')||{}).value||'').toLowerCase();
@@ -21038,7 +21671,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog'],
+    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog', 'contracts'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -21054,7 +21687,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
+    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault', 'contracts'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -21577,6 +22210,7 @@ function renderPage(name) {
   else if (name === 'priority') renderPriorityPage();
   else if (name === 'payments') renderPayments();
   else if (name === 'team') { if (_currentTeamTab === 'freelancer') { switchTeamTab('freelancer'); } else { switchTeamTab('team'); } }
+  else if (name === 'contracts') { renderContractsPage(); }
   else if (name === 'referral') renderReferral();
   else if (name === 'whatsapp') { populateWASel(); renderWA(); }
   else if (name === 'reports') renderReports();
@@ -21727,7 +22361,8 @@ var SIDEBAR_ICON_MAP = {
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
   healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
-  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑', workprogress:'📶'
+  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑', workprogress:'📶',
+  contracts:'📝'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
@@ -21737,7 +22372,7 @@ var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
-  { label:'Team & Assets',     items:['team','inventory'] },
+  { label:'Team & Assets',     items:['team','inventory','contracts'] },
   { sep: true },
   { label:'Administration',    items:['settings','users','activitylog','securitylog'] }
 ];
@@ -21808,7 +22443,8 @@ function sidebarPageLabel(page) {
     users: 'Users & Logins',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
     clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings',
-    followups:'Follow-Ups', reportbuilder:'Report Builder', workprogress:'Work Progress'
+    followups:'Follow-Ups', reportbuilder:'Report Builder', workprogress:'Work Progress',
+    contracts:'Contracts'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
 }
