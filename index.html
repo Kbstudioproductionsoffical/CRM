@@ -12425,34 +12425,33 @@ function ppvPeriodSummaryHtml(){
   clients.forEach(function(p){
     (p.customDelivs||[]).forEach(function(d){
       if(delivBucket(d)!=='video') return;
-      if(totals[d.type]!=null) totals[d.type]++;
-      if(!delivIsDone(d.status)) pending++;
+      // Count only UNFINISHED items per type here, so these numbers always
+      // add up to Pending Total below — a chip that included already-
+      // delivered work made the total look wrong even though it wasn't.
+      if(!delivIsDone(d.status)){
+        if(totals[d.type]!=null) totals[d.type]++;
+        pending++;
+      }
       if(d.status==='pending'&&!d.editorId) unassigned++;
       if(d.status==='review') inreview++;
       var dl=delivDeadline(d); if(dl && daysUntil(dl)<0 && !delivIsDone(d.status)) overdue++;
     });
   });
   var chips=videoTypes.map(function(vt){
-    return '<div onclick="setPPTab(\'queue\')" title="Click to go assign these" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;transition:transform .1s" onmouseover="this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.transform=\'\'"><div style="font-size:18px;font-weight:800">'+totals[vt.type]+'</div><div style="font-size:10px;color:#666">'+vt.icon+' '+vt.type+'</div></div>';
+    return '<div onclick="setPPTab(\'queue\')" title="Pending '+vt.type.toLowerCase()+'s — click to work on them" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;transition:transform .1s" onmouseover="this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.transform=\'\'"><div style="font-size:18px;font-weight:800">'+totals[vt.type]+'</div><div style="font-size:10px;color:#666">'+vt.icon+' '+vt.type+'</div></div>';
   }).join('');
-  var html='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+  var html='<div style="font-size:11px;color:#4338ca;font-weight:700;margin-bottom:6px">'+clients.length+' client'+(clients.length!==1?'s':'')+' in this period · numbers below are PENDING work only</div>';
+  html+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
     +chips
-    +'<div onclick="setPPTab(\'queue\')" title="Click to go assign these" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;border:1px solid #fde68a"><div style="font-size:18px;font-weight:800;color:#854d0e">'+pending+'</div><div style="font-size:10px;color:#854d0e">⏳ Pending Total</div></div>'
+    +'<div style="width:1px;align-self:stretch;background:#e2e8f0;margin:0 2px"></div>'
+    +'<div onclick="setPPTab(\'queue\')" title="Click to go assign these" style="background:#fff7ed;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;border:1px solid #fde68a"><div style="font-size:18px;font-weight:800;color:#854d0e">'+pending+'</div><div style="font-size:10px;color:#854d0e">⏳ Pending Total</div></div>'
     +'<div onclick="setPPTab(\'queue\')" title="Click to go review these" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;border:1px solid #f9a8d4"><div style="font-size:18px;font-weight:800;color:#9d174d">'+inreview+'</div><div style="font-size:10px;color:#9d174d">👁️ In Review</div></div>'
     +'<div onclick="setPPTab(\'queue\')" title="Click to see these" style="background:#fff;border-radius:8px;padding:8px 12px;text-align:center;min-width:74px;cursor:pointer;border:1px solid '+(overdue?'#fecaca':'#e2e8f0')+'"><div style="font-size:18px;font-weight:800;color:'+(overdue?'#dc2626':'#16a34a')+'">'+overdue+'</div><div style="font-size:10px;color:'+(overdue?'#dc2626':'#16a34a')+'">⚠️ Overdue</div></div>'
-    +'<div style="font-size:11px;color:#4338ca;font-weight:600">'+clients.length+' client'+(clients.length!==1?'s':'')+' in this period</div>'
     +'</div>';
-  // Single obvious next step — no need to hunt across 8 tabs to figure out
-  // what to do first.
-  if(unassigned>0){
-    html+='<div style="margin-top:10px">'
-      +'<button onclick="setPPTab(\'queue\')" style="background:#1a1a1a;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">👤 Assign Editors — '+unassigned+' deliverable'+(unassigned!==1?'s':'')+' waiting →</button>'
-      +'</div>';
-  } else if(inreview>0){
-    html+='<div style="margin-top:10px"><button onclick="setPPTab(\'queue\')" style="background:#ec4899;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer">👁️ Review '+inreview+' Submitted Item'+(inreview!==1?'s':'')+' →</button></div>';
-  } else {
-    html+='<div style="margin-top:10px;font-size:12px;color:#16a34a;font-weight:700">✅ Nothing waiting on you for this period right now.</div>';
-  }
+  // No separate CTA button here anymore — the Action Queue tab right below
+  // already IS this call to action (it shows the same count and opens to
+  // exactly this work), so a second button pointing at the same place was
+  // just noise.
   return html;
 }
 
