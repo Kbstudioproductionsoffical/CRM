@@ -12468,6 +12468,138 @@ function ppvPeriodSummaryHtml(){
 // Same underlying field as Work Progress (p.wpOrder) since it's the same
 // real-world concept — but its own move/persist/render functions, so
 // clicking ▲▼ here never touches Work Progress's page or state.
+// ── Inline deliverable-type status editing, scoped to Video Production ────
+// Parallel to Work Progress's own wpSetDelivStatus/wpSetReelItemStatus/
+// wpDelivPill — same save logic and same accountability logging, but its
+// own functions ending in renderPostProd() so this page never depends on
+// or re-renders Work Progress.
+function ppvSetDelivStatus(pid,delivId,newStatus){
+  var p=projects[pid]; if(!p){ showToast('⚠️ Project not found — try refreshing.'); return; }
+  var delivs=JSON.parse(JSON.stringify(p.customDelivs||[]));
+  var d=delivs.find(function(x){ return x.id===delivId; });
+  if(!d){ showToast('⚠️ Deliverable not found — try refreshing.'); return; }
+  var prevStatus=d.status;
+  if(prevStatus===newStatus) return;
+  var who=(CU&&(CU.name||CU.username))||'System';
+  d.status=newStatus;
+  d.statusUpdatedAt=Date.now();
+  d.statusUpdatedBy=who;
+  d.statusUpdatedByRole=CU?CU.role:'';
+  if(newStatus==='delivered' && !d.date) d.date=tod();
+  db.ref('crm_projects/'+pid+'/customDelivs').set(delivs,function(err){
+    if(err){ showToast('❌ Could not save: '+err.message); return; }
+    p.customDelivs=delivs;
+    logActivity('deliverable','Video Production Status Changed',
+      (p.bride||'')+' & '+(p.groom||'')+' — '+(d.name||d.type||'Deliverable')+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
+      {projId:pid});
+    logDelivEvent(pid,delivId,'Status changed to '+wpStatusLabelForLog(newStatus)+' (inline)');
+    if(newStatus==='delivered' && prevStatus!=='delivered') showDeliveredWAPopup(d,p);
+    showToast('✅ Status updated');
+    renderPostProd();
+  });
+}
+function ppvSetReelItemStatus(pid,delivId,reelIdx,newStatus){
+  var p=projects[pid]; if(!p){ showToast('⚠️ Project not found — try refreshing.'); return; }
+  var delivs=JSON.parse(JSON.stringify(p.customDelivs||[]));
+  var d=delivs.find(function(x){ return x.id===delivId; });
+  if(!d || !d.reelItems || !d.reelItems[reelIdx]){ showToast('⚠️ Reel not found — try refreshing.'); return; }
+  var prevStatus=d.reelItems[reelIdx].status;
+  if(prevStatus===newStatus) return;
+  var who=(CU&&(CU.name||CU.username))||'System';
+  d.reelItems[reelIdx].status=newStatus;
+  d.reelItems[reelIdx].statusUpdatedAt=Date.now();
+  d.reelItems[reelIdx].statusUpdatedBy=who;
+  d.reelItems[reelIdx].statusUpdatedByRole=CU?CU.role:'';
+  if(newStatus==='delivered' && !d.reelItems[reelIdx].date) d.reelItems[reelIdx].date=tod();
+  var items=d.reelItems;
+  var allApproved=items.every(function(r){return r.status==='approved';});
+  var allAtLeastDelivered=items.every(function(r){return r.status==='delivered'||r.status==='approved';});
+  var anyChanges=items.some(function(r){return r.status==='changes';});
+  var anyActive=items.some(function(r){return r.status==='delivered'||r.status==='inprogress'||r.status==='approved';});
+  d.status=allApproved?'approved':allAtLeastDelivered?'delivered':anyChanges?'changes':anyActive?'inprogress':'pending';
+  d.statusUpdatedAt=Date.now(); d.statusUpdatedBy=who; d.statusUpdatedByRole=CU?CU.role:'';
+  db.ref('crm_projects/'+pid+'/customDelivs').set(delivs,function(err){
+    if(err){ showToast('❌ Could not save: '+err.message); return; }
+    p.customDelivs=delivs;
+    logActivity('deliverable','Video Production Status Changed',
+      (p.bride||'')+' & '+(p.groom||'')+' — '+(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1)+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
+      {projId:pid});
+    logDelivEvent(pid,delivId,'Reel '+(reelIdx+1)+' status changed to '+wpStatusLabelForLog(newStatus)+' (inline)');
+    if(newStatus==='delivered' && prevStatus!=='delivered'){
+      var msgD=Object.assign({},d,{name:(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1),link:d.reelItems[reelIdx].link||d.link||''});
+      showDeliveredWAPopup(msgD,p);
+    }
+    showToast('✅ Reel '+(reelIdx+1)+' status updated');
+    renderPostProd();
+  });
+}
+// Same rendering logic as wpDelivPill, just wired to the two functions
+// above instead — so the exact same inline-editing experience Work
+// Progress has is available here too, without sharing any DOM/state.
+function ppvDelivPill(vt,matches,pid){
+  var STATUS_META={
+    approved:   {icon:'✅', label:'Approved',     color:'#16a34a', bg:'#f0fdf4', urgency:0},
+    pending:    {icon:'⏳', label:'Not Started',  color:'#94a3b8', bg:'#f9fafb', urgency:1},
+    delivered:  {icon:'📦', label:'Awaiting Approval', color:'#3b82f6', bg:'#eff6ff', urgency:2},
+    inprogress: {icon:'🔄', label:'In Progress',  color:'#f59e0b', bg:'#fffbeb', urgency:2},
+    changes:    {icon:'🔁', label:'Changes Req.', color:'#dc2626', bg:'#fef2f2', urgency:3}
+  };
+  function meta(s){ return STATUS_META[s]||STATUS_META.pending; }
+  if(!matches.length){
+    return '<span style="display:inline-block;background:#f9fafb;border:1px dashed #ddd;border-radius:8px;padding:5px 8px;font-size:10.5px;color:#bbb;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')">not added</span>';
+  }
+  var sameCat = matches.every(function(d){ return (d.category||'Wedding')===(matches[0].category||'Wedding'); });
+  var rows=[];
+  matches.forEach(function(d,mIdx){
+    var baseTag=(matches.length>1)?((!sameCat && d.category && d.category!=='Other')?d.category:('Item '+(mIdx+1))):null;
+    if(d.reelItems && d.reelItems.length>1){
+      d.reelItems.forEach(function(ri,ri_idx){
+        rows.push({
+          label:(baseTag?baseTag+' — ':'')+'Reel '+(ri_idx+1),
+          status:ri.status, note:null,
+          updatedAt:ri.statusUpdatedAt, updatedBy:ri.statusUpdatedBy,
+          onchange:"ppvSetReelItemStatus("+pid+",'"+d.id+"',"+ri_idx+",this.value)"
+        });
+      });
+    } else {
+      rows.push({
+        label:baseTag||((d.category && d.category!=='Other')?d.category:null),
+        status:d.status, note:d.note,
+        updatedAt:d.statusUpdatedAt, updatedBy:d.statusUpdatedBy,
+        onchange:"ppvSetDelivStatus("+pid+",'"+d.id+"',this.value)"
+      });
+    }
+  });
+  if(rows.length===1){
+    var r=rows[0], m=meta(r.status);
+    var tag=r.label?r.label+' — ':'';
+    var noteTip=r.note?(' — 📝 '+r.note.replace(/"/g,'&quot;')):'';
+    var noteFlag=r.note?'<span style="margin-left:1px" title="'+r.note.replace(/"/g,'&quot;')+'">📝</span>':'';
+    var stampTip=wpLastUpdatedTip(r.updatedAt,r.updatedBy);
+    return '<div style="display:inline-flex;align-items:center;gap:2px;background:'+m.bg+';border:1px solid '+m.color+'33;border-left:3px solid '+m.color+';border-radius:8px;padding:3px 2px 3px 8px;min-width:96px" title="'+tag+m.label+noteTip+stampTip+'">' +
+      '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:10.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:2px 0;max-width:118px">'+delivStatusOptionsHtml(r.status)+'</select>' +
+      noteFlag +
+      '<button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:2px 4px;flex-shrink:0">↗</button>' +
+    '</div>';
+  }
+  var worstUrgency=rows.reduce(function(acc,r){ var u=meta(r.status).urgency; return u>acc?u:acc; },0);
+  var worstColor='#94a3b8';
+  Object.keys(STATUS_META).forEach(function(k){ if(STATUS_META[k].urgency===worstUrgency) worstColor=STATUS_META[k].color; });
+  var chips=rows.map(function(r){
+    var m=meta(r.status);
+    var noteFlag=r.note?'<span title="'+r.note.replace(/"/g,'&quot;')+'" style="flex-shrink:0">📝</span>':'';
+    var rowTip=(r.label||'Item')+': '+m.label+wpLastUpdatedTip(r.updatedAt,r.updatedBy);
+    return '<div title="'+rowTip.replace(/"/g,'&quot;')+'" style="display:flex;align-items:center;gap:3px;font-size:9.5px;line-height:1.55;min-width:0"><span style="flex-shrink:0">'+m.icon+'</span><span style="color:#555;font-weight:700;flex-shrink:0">'+(r.label||'Item')+':</span>' +
+      '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:9.5px;font-weight:700;color:'+m.color+';cursor:pointer;font-family:inherit;padding:0;min-width:0;flex:1 1 auto;text-overflow:ellipsis">'+delivStatusOptionsHtml(r.status)+'</select>'+noteFlag+'</div>';
+  }).join('');
+  var tooltip=rows.map(function(r){ return (r.label||'Item')+': '+meta(r.status).label; }).join(' · ');
+  var hint=(sameCat && matches.length>1 && !matches.some(function(d){return d.reelItems&&d.reelItems.length>1;}))?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px;font-weight:600">⚠️ Tag by event for clarity</div>':'';
+  return '<div style="display:block;max-width:100%;box-sizing:border-box;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:8px;padding:4px 4px 4px 8px;min-width:92px" title="'+tooltip+'">' +
+    '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:0 0 2px 4px">↗</button></div>' +
+    '<div style="max-height:130px;overflow-y:auto;overflow-x:hidden;padding-right:2px">'+chips+'</div>'+hint+
+  '</div>';
+}
+
 function ppvOrderControls(p,orderedList,idx,total){
   var atTop=idx<=0, atBottom=idx>=total-1;
   return '<span style="display:inline-flex;flex-direction:column;align-items:center">'
@@ -13240,9 +13372,12 @@ function renderPostProd(){
     html+='</div>';
 
     if(rsub==='fullqueue'){
+      var videoTypes4=DELIV_TYPE_REGISTRY.filter(function(r){return r.bucket==='video' && r.reportKey;});
       html+='<div class="card"><div class="card-hdr"><span class="card-title">📋 Post-Production Queue</span><span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-weight:700">🎯 Priority, then Event Date</span></div>';
-      html+='<div class="info info-blue" style="margin-bottom:12px">📌 Use ▲▼ to bump a client up or down — that order is what "Assign Editor" and everywhere else in this period follow. Anything you haven\'t prioritized falls back to earliest event date first.</div>';
-      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th style="width:70px">Priority</th><th>Couple</th><th>Event Date</th><th>City</th><th>Days in PP</th><th>Items</th><th>Pending</th><th>Editing</th><th>Review</th><th>Done</th><th></th></tr></thead><tbody>';
+      html+='<div class="info info-blue" style="margin-bottom:12px">📌 Use ▲▼ to bump a client up or down — that order is what "Assign Editor" and everywhere else in this period follow. Change any status right here with the dropdowns — no need to open the project.</div>';
+      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th style="width:70px">Priority</th><th>Couple</th><th>Event Date</th><th>City</th><th>Days in PP</th>'
+        +videoTypes4.map(function(vt){return '<th>'+vt.icon+' '+vt.type+'</th>';}).join('')
+        +'<th>Done</th><th></th></tr></thead><tbody>';
       var _qNum=0;
       var _queueList=list.filter(function(p){return (p.customDelivs||[]).length;});
       _queueList.forEach(function(p){
@@ -13255,10 +13390,14 @@ function renderPostProd(){
         html+='<td style="font-size:12px;font-weight:700;color:#0369a1">'+fmtDate(p.date)+'</td>';
         html+='<td style="font-size:12px">'+(p.city||'—')+'</td>';
         html+='<td style="text-align:center">'+ppAgingBadge(daysInPostProd(p))+'</td>';
-        html+='<td style="text-align:center;font-weight:700">'+pd.length+'</td>';
-        html+='<td style="text-align:center;color:#854d0e;font-weight:600">'+(pd.filter(function(d){return d.status==='pending';}).length||'—')+'</td>';
-        html+='<td style="text-align:center;color:#1d4ed8;font-weight:600">'+(pd.filter(function(d){return d.status==='inprogress';}).length||'—')+'</td>';
-        html+='<td style="text-align:center;color:#9d174d;font-weight:600">'+(pd.filter(function(d){return d.status==='review';}).length||'—')+'</td>';
+        videoTypes4.forEach(function(vt){
+          var matches=pd.filter(function(d){
+            if(d.type===vt.type) return true;
+            var exactOther=videoTypes4.some(function(o){return o.type===d.type;});
+            return !exactOther && vt.nameRegex && vt.nameRegex.test((d.name||'').toLowerCase());
+          });
+          html+='<td style="text-align:center;vertical-align:top;padding:6px 4px">'+ppvDelivPill(vt,matches,p.id)+'</td>';
+        });
         html+='<td><div style="display:flex;align-items:center;gap:6px;justify-content:center"><span style="color:#10b981;font-weight:700">'+del+'</span><div style="background:#e5e7eb;border-radius:4px;height:6px;width:50px;overflow:hidden"><div style="background:#10b981;height:100%;width:'+pct+'%"></div></div></div></td>';
         html+='<td><button class="btn btn-sm pp-open-proj" data-id="'+p.id+'" data-tab="t-deliv">Open</button></td></tr>';
       });
