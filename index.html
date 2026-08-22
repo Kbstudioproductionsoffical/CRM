@@ -5748,12 +5748,17 @@ function turnaroundDaysFor(type){
 }
 // Adds N working days (skips Sundays only, matching the studio's weekly off)
 // to "from" (defaults to today) and returns YYYY-MM-DD.
+// Studio holidays (crmSettings.videoHolidays, array of 'YYYY-MM-DD'),
+// managed via the 🗓️ Holidays button on the Work Period bar — so an
+// auto-deadline never lands on a day the studio is actually closed.
 function addWorkingDays(days, from){
   var d = from ? new Date(from) : new Date();
+  var holidays=(crmSettings&&crmSettings.videoHolidays)||[];
   var added=0;
   while(added<days){
     d.setDate(d.getDate()+1);
-    if(d.getDay()!==0) added++;
+    var ymd=d.toISOString().slice(0,10);
+    if(d.getDay()!==0 && holidays.indexOf(ymd)===-1) added++;
   }
   return d.toISOString().slice(0,10);
 }
@@ -12400,7 +12405,8 @@ function ppvPeriodBarHtml(postClients){
     +'<span style="font-size:11px;font-weight:800;color:#3730a3;white-space:nowrap">🎬 WORK PERIOD</span>'
     +modeToggle
     +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+pills+'</div>'
-    +'<button onclick="ppvOpenPeriodManager()" style="margin-left:auto;padding:6px 12px;border-radius:8px;border:1px solid #6366f1;background:#fff;color:#4338ca;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">📋 Assign Clients to a Period</button>'
+    +'<button onclick="ppvOpenPeriodManager()" style="padding:6px 12px;border-radius:8px;border:1px solid #6366f1;background:#fff;color:#4338ca;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">📋 Assign Clients to a Period</button>'
+    +'<button onclick="ppvOpenHolidayManager()" style="margin-left:auto;padding:6px 12px;border-radius:8px;border:1px solid #c7d2fe;background:#fff;color:#4338ca;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">🗓️ Holidays</button>'
     +'</div>'
     +ppvPeriodSummaryHtml()
     +'</div>';
@@ -12458,6 +12464,102 @@ function ppvPeriodSummaryHtml(){
 // Lightweight period-assignment modal — pick a client, set their week/month.
 // (The full drag-priority table still lives in wpClientRow if ever needed;
 // this covers the everyday "put this client in next week's list" action.)
+// ── Priority ordering, scoped to the Video Production panel ───────────────
+// Same underlying field as Work Progress (p.wpOrder) since it's the same
+// real-world concept — but its own move/persist/render functions, so
+// clicking ▲▼ here never touches Work Progress's page or state.
+function ppvOrderControls(p,orderedList,idx,total){
+  var atTop=idx<=0, atBottom=idx>=total-1;
+  return '<span style="display:inline-flex;flex-direction:column;align-items:center">'
+    +'<button type="button" title="Move up (higher priority)" onclick="event.stopPropagation();ppvMoveOrder('+p.id+',-1)" '+(atTop?'disabled':'')+' style="border:none;background:none;cursor:'+(atTop?'default':'pointer')+';color:'+(atTop?'#e0e0e0':'#888')+';font-size:11px;line-height:11px;padding:1px 3px">▲</button>'
+    +'<span style="font-size:10px;color:#aaa;font-weight:700">'+(idx+1)+'</span>'
+    +'<button type="button" title="Move down (lower priority)" onclick="event.stopPropagation();ppvMoveOrder('+p.id+',1)" '+(atBottom?'disabled':'')+' style="border:none;background:none;cursor:'+(atBottom?'default':'pointer')+';color:'+(atBottom?'#e0e0e0':'#888')+';font-size:11px;line-height:11px;padding:1px 3px">▼</button>'
+    +'</span>';
+}
+function ppvMoveOrder(pid,dir){
+  // Rebuild the same ordered list renderPostProd used, so indices line up
+  var mode=_ppvPeriodMode;
+  var list=pl().filter(function(p){
+    if(p.stage!=='postprod') return false;
+    if(_ppvPeriodKey==='all') return true;
+    return wpKeyFor(p,mode)===_ppvPeriodKey;
+  }).filter(function(p){return (p.customDelivs||[]).length;}).sort(function(a,b){
+    var oa=(typeof a.wpOrder==='number')?a.wpOrder:Infinity;
+    var ob=(typeof b.wpOrder==='number')?b.wpOrder:Infinity;
+    if(oa!==ob) return oa-ob;
+    var da=a.date||'9999-99-99', db=b.date||'9999-99-99';
+    return da.localeCompare(db);
+  });
+  var idx=list.findIndex(function(p){return p.id===pid;});
+  if(idx===-1) return;
+  var swapIdx=idx+dir;
+  if(swapIdx<0||swapIdx>=list.length) return;
+  var tmp=list[idx]; list[idx]=list[swapIdx]; list[swapIdx]=tmp;
+  var updates={};
+  list.forEach(function(p,i){
+    p.wpOrder=i;
+    updates['crm_projects/'+p.id+'/wpOrder']=i;
+    updates['crm_projects/'+p.id+'/updatedAt']=Date.now();
+    if(projects[p.id]) projects[p.id].wpOrder=i;
+  });
+  renderPostProd(); // instant feedback, then confirm the save
+  db.ref().update(updates,function(err){
+    if(err) showToast('❌ Could not save priority order: '+err.message);
+  });
+}
+
+// ── Studio holiday calendar (crm_settings/videoHolidays) ──────────────────
+// Simple add/remove list — used only by addWorkingDays() above, so auto-
+// deadlines skip real off-days, not just Sundays.
+function ppvOpenHolidayManager(){
+  var ex=document.getElementById('ppv-holiday-modal'); if(ex) ex.remove();
+  var modal=document.createElement('div');
+  modal.id='ppv-holiday-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:420px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)" id="ppv-holiday-inner"></div>';
+  document.body.appendChild(modal);
+  ppvRenderHolidayManager();
+}
+function ppvRenderHolidayManager(){
+  var inner=document.getElementById('ppv-holiday-inner'); if(!inner) return;
+  var holidays=((crmSettings&&crmSettings.videoHolidays)||[]).slice().sort();
+  var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+    +'<div style="font-size:15px;font-weight:800">🗓️ Studio Holidays</div>'
+    +'<button onclick="document.getElementById(\'ppv-holiday-modal\').remove()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">Close</button></div>';
+  html+='<div style="font-size:11.5px;color:#888;margin-bottom:12px">Dates here are skipped when auto-calculating deadlines (Sundays are already skipped automatically).</div>';
+  html+='<div style="display:flex;gap:8px;margin-bottom:14px"><input type="date" id="ppv-holiday-add" class="fi" style="flex:1;padding:8px 10px;font-size:13px"><button onclick="ppvAddHoliday()" class="btn" style="background:#1a1a1a;color:#fff;padding:8px 14px;font-size:12.5px;font-weight:700">Add</button></div>';
+  if(!holidays.length){ html+='<div class="empty">No holidays added yet.</div>'; }
+  else{
+    html+='<div style="display:flex;flex-direction:column;gap:6px">'+holidays.map(function(h){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px">'
+        +'<span style="font-size:13px;font-weight:600">'+fmtDate(h)+'</span>'
+        +'<button onclick="ppvRemoveHoliday(\''+h+'\')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:12px;font-weight:700">Remove</button></div>';
+    }).join('')+'</div>';
+  }
+  inner.innerHTML=html;
+}
+function ppvAddHoliday(){
+  var inp=document.getElementById('ppv-holiday-add');
+  var v=inp?inp.value:'';
+  if(!v){ showToast('⚠️ Pick a date first.'); return; }
+  var list=((crmSettings.videoHolidays)||[]).slice();
+  if(list.indexOf(v)===-1) list.push(v);
+  db.ref('crm_settings/videoHolidays').set(list, function(err){
+    if(err){ showToast('❌ '+err.message); return; }
+    crmSettings.videoHolidays=list;
+    showToast('✅ Holiday added.');
+    ppvRenderHolidayManager();
+  });
+}
+function ppvRemoveHoliday(h){
+  var list=((crmSettings.videoHolidays)||[]).filter(function(x){return x!==h;});
+  db.ref('crm_settings/videoHolidays').set(list, function(err){
+    if(err){ showToast('❌ '+err.message); return; }
+    crmSettings.videoHolidays=list;
+    ppvRenderHolidayManager();
+  });
+}
+
 function ppvOpenPeriodManager(){
   var ex=document.getElementById('ppv-period-modal'); if(ex) ex.remove();
   window._ppvPMTab = 'search';
@@ -12602,7 +12704,74 @@ function ppvBulkAssignAll(){
 // client), via daysInPostProd()/ppAgingBadge() above. The Client Brief
 // tab/data itself (t-brief, p.clientBrief) is untouched elsewhere in the
 // app — only the Video Production flow stopped depending on it.
+// ── Daily sweep: overdue video deliverables + stale reviews ───────────────
+// Work Progress had its own version of the overdue check, but it only ran
+// when someone actually opened that page — since this department is now
+// where the daily work happens instead, that check would otherwise never
+// fire again. This is a parallel, video-scoped version (own dedup key, own
+// notification dedup) so it can't double up with or depend on the old one.
+var PPV_SWEEP_CHECK_KEY='kb_ppv_sweep_check_date';
+var PPV_REVIEW_ESCALATION_DAYS=2;
+function ppvDailySweep(){
+  try{
+    var today=tod();
+    if(localStorage.getItem(PPV_SWEEP_CHECK_KEY)===today) return;
+    localStorage.setItem(PPV_SWEEP_CHECK_KEY,today);
+  }catch(e){ /* if localStorage is unavailable, just skip the once-a-day gate silently */ }
+
+  var overdueItems=[], staleReviews=[];
+  pl().forEach(function(p){
+    if(p.stage!=='postprod') return;
+    (p.customDelivs||[]).forEach(function(d){
+      if(delivBucket(d)!=='video') return;
+      var dl=delivDeadline(d);
+      if(dl && daysUntil(dl)<0 && !delivIsDone(d.status)){
+        overdueItems.push({p:p,d:d});
+      }
+      if(d.status==='review' && d.reviewSubmittedAt){
+        var waitDays=Math.floor((Date.now()-new Date(d.reviewSubmittedAt).getTime())/86400000);
+        if(waitDays>=PPV_REVIEW_ESCALATION_DAYS) staleReviews.push({p:p,d:d,waitDays:waitDays});
+      }
+    });
+  });
+  if(!overdueItems.length && !staleReviews.length) return;
+
+  db.ref('crm_notifications').orderByChild('type').equalTo('deliv_overdue').once('value',function(snap){
+    var existing={};
+    snap.forEach(function(c){var n=c.val();if(!n.dismissed) existing[n.pid+'::'+n.delivId+'::'+n.deadline]=true;});
+    overdueItems.forEach(function(item){
+      var p=item.p,d=item.d,dl=delivDeadline(d);
+      var key=p.id+'::'+d.id+'::'+dl;
+      if(existing[key]) return;
+      var days=daysUntil(dl);
+      var body=(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — '+(d.name||d.type)+' was due '+dl+' ('+Math.abs(days)+' day'+(Math.abs(days)!==1?'s':'')+' overdue).';
+      if(d.editorId){
+        pushSystemNotification({type:'deliv_overdue', icon:'⚠️', title:'Deliverable Overdue', body:body,
+          pid:p.id, delivId:d.id, deadline:dl, forRoles:[], forUserId:d.editorId, at:new Date().toISOString(), requiresAction:true, actionLabel:'Open'});
+      }
+      pushSystemNotification({type:'deliv_overdue', icon:'⚠️', title:d.editorId?'Deliverable Overdue (Team)':'Overdue & Unassigned', body:body,
+        pid:p.id, delivId:d.id, deadline:dl, forRoles:['superadmin','videohead','postprod'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Open'});
+    });
+  });
+
+  db.ref('crm_notifications').orderByChild('type').equalTo('review_stale').once('value',function(snap){
+    var existing={};
+    snap.forEach(function(c){var n=c.val();if(!n.dismissed) existing[n.pid+'::'+n.delivId+'::'+n.reviewSubmittedAt]=true;});
+    staleReviews.forEach(function(item){
+      var p=item.p,d=item.d;
+      var key=p.id+'::'+d.id+'::'+d.reviewSubmittedAt;
+      if(existing[key]) return;
+      var body=(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — '+(d.name||d.type)+' has been waiting on your review for '+item.waitDays+' day'+(item.waitDays!==1?'s':'')+'.';
+      pushSystemNotification({type:'review_stale', icon:'👁️', title:'Review Sitting Too Long', body:body,
+        pid:p.id, delivId:d.id, reviewSubmittedAt:d.reviewSubmittedAt, forRoles:['superadmin','videohead','postprod'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Review Now'});
+    });
+  });
+}
+
 function renderPostProd(){
+  // Once-a-day check for overdue video deliverables + reviews sitting too
+  // long — only from an admin-ish view (editors don't need to trigger this).
+  if(CU && CU.role!=='editor'){ try{ ppvDailySweep(); }catch(e){} }
   // Hide export controls for editor role
   var _ppExportStage = document.getElementById('pp-export-stage');
   var _ppExportDeliv = document.getElementById('pp-export-deliv-status');
@@ -12757,6 +12926,13 @@ function renderPostProd(){
     if(_ppvPeriodKey==='all') return true;
     return wpKeyFor(p,_ppvPeriodMode)===_ppvPeriodKey;
   }).sort(function(a,b){
+    // Manual priority (p.wpOrder, set via the ▲▼ controls below) wins when
+    // set — that's the whole point of being able to prioritize a client.
+    // Anything not yet prioritized falls back to event date (earliest
+    // first), same FIFO default as before.
+    var oa=(typeof a.wpOrder==='number')?a.wpOrder:Infinity;
+    var ob=(typeof b.wpOrder==='number')?b.wpOrder:Infinity;
+    if(oa!==ob) return oa-ob;
     var da=a.date||'9999-99-99', db=b.date||'9999-99-99';
     return da.localeCompare(db);
   });
@@ -12900,7 +13076,12 @@ function renderPostProd(){
         html+='<td style="font-weight:600">'+item.couple+'</td>';
         html+='<td>'+(_delivStatusInfo(d.status).icon||'')+' '+(_delivStatusInfo(d.status).label||d.status)+'</td>';
         html+='<td style="font-weight:700;color:#dc2626">'+fmtDate(delivDeadline(d))+'</td>';
-        html+='<td><button class="btn btn-sm pp-open-proj" data-id="'+item.projId+'" data-tab="t-deliv">Open</button></td></tr>';
+        html+='<td>'+(!d.editorId
+          ? '<button class="btn btn-sm" style="background:#7c3aed;color:#fff" onclick="setPPTab(\'queue\')">👤 Assign →</button>'
+          : (d.status==='review'
+            ? '<button class="btn btn-sm" style="background:#ec4899;color:#fff" onclick="setPPTab(\'queue\')">👁️ Review →</button>'
+            : '<button class="btn btn-sm pp-open-proj" data-id="'+item.projId+'" data-tab="t-deliv">Open</button>'))
+          +'</td></tr>';
       });
       html+='</tbody></table></div></div>';
     }
@@ -12950,16 +13131,23 @@ function renderPostProd(){
     if(!review.length){
       html+='<div class="empty">No deliverables under review right now.</div>';
     } else {
-      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Revisions</th><th>Drive Link</th><th>Action</th></tr></thead><tbody>';
+      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Waiting</th><th>Revisions</th><th>Drive Link</th><th>Action</th></tr></thead><tbody>';
+      // Oldest submission first — this is exactly what stops a review from
+      // silently sitting for days: it always surfaces at the top.
+      review.sort(function(a,b){return(a.d.reviewSubmittedAt||'').localeCompare(b.d.reviewSubmittedAt||'');});
       review.forEach(function(item){
         var d=item.d;var edName=d.editorId&&teamData[d.editorId]?teamData[d.editorId].name:(d.editorId||'—');
         var revCount=d.revisionCount||0;
+        var waitDays=d.reviewSubmittedAt?Math.floor((Date.now()-new Date(d.reviewSubmittedAt).getTime())/86400000):null;
+        var waitCell=waitDays===null?'<span style="color:#aaa;font-size:12px">—</span>'
+          :'<span style="font-weight:700;color:'+(waitDays>=2?'#dc2626':(waitDays>=1?'#d97706':'#16a34a'))+'">'+(waitDays===0?'Today':waitDays+'d')+(waitDays>=2?' ⚠️':'')+'</span>';
         var revBadge=revCount>0
           ?'<span style="background:#fef3c7;color:#854d0e;border:1px solid #fde68a;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer" onclick="ppShowRevisionHistory('+item.projId+',\''+d.id+'\')">🔄 '+revCount+' round'+(revCount!==1?'s':'')+'</span>'
           :'<span style="color:#aaa;font-size:12px">None yet</span>';
-        html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div>'+(d.lastRevisionNote?'<div style="font-size:10px;color:#9d174d;margin-top:2px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.lastRevisionNote+'">Last note: '+d.lastRevisionNote+'</div>':'')+'</td>';
+        html+='<tr style="background:'+(waitDays!==null&&waitDays>=2?'#fef2f2':'')+'"><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div>'+(d.lastRevisionNote?'<div style="font-size:10px;color:#9d174d;margin-top:2px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+d.lastRevisionNote+'">Last note: '+d.lastRevisionNote+'</div>':'')+'</td>';
         html+='<td style="font-weight:600">'+item.couple+'</td>';
         html+='<td>'+edName+'</td>';
+        html+='<td>'+waitCell+'</td>';
         html+='<td>'+revBadge+'</td>';
         html+='<td><div style="display:flex;gap:5px;align-items:center;min-width:200px">';
         html+='<input id="dlink-'+item.projId+'-'+d.id+'" type="text" value="'+(d.link||'')+'" placeholder="Paste Drive link…" style="flex:1;border:1px solid '+(d.link?'#86efac':'#ddd')+';border-radius:6px;padding:4px 8px;font-size:11px;min-width:0" onkeydown="if(event.key===\'Enter\')ppSaveDriveLink('+item.projId+',\''+d.id+'\')">';
@@ -13052,16 +13240,17 @@ function renderPostProd(){
     html+='</div>';
 
     if(rsub==='fullqueue'){
-      html+='<div class="card"><div class="card-hdr"><span class="card-title">📋 Post-Production Queue — First Come, First Out</span><span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-weight:700">📅 Sorted by Event Date</span></div>';
-      html+='<div class="info info-blue" style="margin-bottom:12px">📌 Queue order is based on <b>event date</b> — earliest event is served first. Reflects the period selected above.</div>';
-      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th style="width:36px">#</th><th>Couple</th><th>Event Date</th><th>City</th><th>Days in PP</th><th>Items</th><th>Pending</th><th>Editing</th><th>Review</th><th>Done</th><th></th></tr></thead><tbody>';
+      html+='<div class="card"><div class="card-hdr"><span class="card-title">📋 Post-Production Queue</span><span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:3px 10px;border-radius:20px;font-weight:700">🎯 Priority, then Event Date</span></div>';
+      html+='<div class="info info-blue" style="margin-bottom:12px">📌 Use ▲▼ to bump a client up or down — that order is what "Assign Editor" and everywhere else in this period follow. Anything you haven\'t prioritized falls back to earliest event date first.</div>';
+      html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th style="width:70px">Priority</th><th>Couple</th><th>Event Date</th><th>City</th><th>Days in PP</th><th>Items</th><th>Pending</th><th>Editing</th><th>Review</th><th>Done</th><th></th></tr></thead><tbody>';
       var _qNum=0;
-      list.forEach(function(p){
-        var pd=p.customDelivs||[];if(!pd.length)return;
+      var _queueList=list.filter(function(p){return (p.customDelivs||[]).length;});
+      _queueList.forEach(function(p){
+        var pd=p.customDelivs||[];
         _qNum++;
         var del=pd.filter(function(d){return delivIsDone(d.status);}).length;
         var pct=pd.length?Math.round(del/pd.length*100):0;
-        html+='<tr><td style="text-align:center;font-weight:800;color:#0369a1;font-size:13px">'+_qNum+'</td>';
+        html+='<tr><td style="text-align:center">'+ppvOrderControls(p,_queueList,_qNum-1,_queueList.length)+'</td>';
         html+='<td><div style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</div></td>';
         html+='<td style="font-size:12px;font-weight:700;color:#0369a1">'+fmtDate(p.date)+'</td>';
         html+='<td style="font-size:12px">'+(p.city||'—')+'</td>';
@@ -20573,7 +20762,7 @@ function editorMarkReview(projId, delivId) {
   if(d && blockedByDelayReason(d,'submit this for review')) return;
   var linkEl = document.getElementById('link-' + delivId);
   var link = linkEl ? linkEl.value.trim() : '';
-  var updates = { status: 'review' };
+  var updates = { status: 'review', reviewSubmittedAt: new Date().toISOString() };
   if (link) updates.link = link;
   if(d && d.delayReasons) updates.delayReasons = d.delayReasons;
   ppSaveDeliv(projId, delivId, updates, function(){
