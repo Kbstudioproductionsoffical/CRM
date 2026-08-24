@@ -162,6 +162,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .tbl th{background:#f8f8f8;padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#888;text-transform:uppercase;border-bottom:1px solid #eee}
 .tbl td{padding:10px 12px;border-bottom:1px solid #f5f5f5;font-size:13px;vertical-align:middle}
 .tbl tr:hover td{background:#fafafa}.tbl tr:last-child td{border-bottom:none}
+/* Video Production tables run dense — many clients, many columns, so this
+   scope-limited override tightens padding/font only inside the Video
+   Production panel (.ppv-dense), leaving every other table in the app at
+   its normal, larger size. */
+.ppv-dense .tbl th{padding:6px 8px;font-size:10px;white-space:nowrap}
+.ppv-dense .tbl td{padding:4px 8px;font-size:11.5px}
+.ppv-dense .card{padding:14px}
 .pipeline{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px}
 .pipe-col{min-width:185px;background:#f8f8f8;border-radius:10px;padding:12px;flex-shrink:0}
 .pipe-col-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between}
@@ -10765,12 +10772,134 @@ function taskStatusBadge(t){
 // ALBUM & PHOTO PRODUCTION — dedicated department page
 // ═══════════════════════════════════════════════════════════════════════
 var _apTab='album';
+var _apPeriodMode='month';
+var _apPeriodKey=null;
+
+// ── Album & Photo period bar — same underlying concept as Video
+// Production's Work Period bar, but its own state/functions so the two
+// departments stay fully independent.
+function apPeriodBarHtml(){
+  var mode=_apPeriodMode, key=_apPeriodKey;
+  var postClients=pl().filter(function(p){return p.stage==='postprod';});
+  var counts={};
+  postClients.forEach(function(p){ var k=wpKeyFor(p,mode); counts[k]=(counts[k]||0)+1; });
+  var keys=wpUpcomingKeys(mode);
+  var pills=keys.map(function(k){
+    var n=counts[k]||0, a=key===k;
+    return '<button onclick="apSetPeriodKey(\''+k+'\')" style="padding:6px 12px;border-radius:20px;border:1.5px solid '+(a?'#1a1a1a':'#e2e8f0')+';background:'+(a?'#1a1a1a':'#fff')+';color:'+(a?'#fff':'#64748b')+';font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">'+wpLabelFor(k,mode)+(n?' ('+n+')':'')+'</button>';
+  }).join('');
+  pills+='<button onclick="apSetPeriodKey(\'unplanned\')" style="padding:6px 12px;border-radius:20px;border:1.5px solid '+(key==='unplanned'?'#dc2626':'#fde68a')+';background:'+(key==='unplanned'?'#fef2f2':'#fffbeb')+';color:'+(key==='unplanned'?'#dc2626':'#92400e')+';font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">📌 Not Yet Assigned ('+(counts['unplanned']||0)+')</button>';
+  pills+='<button onclick="apSetPeriodKey(\'all\')" style="padding:6px 12px;border-radius:20px;border:1.5px solid '+(key==='all'?'#1a1a1a':'#e2e8f0')+';background:'+(key==='all'?'#1a1a1a':'#fff')+';color:'+(key==='all'?'#fff':'#64748b')+';font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">All Periods</button>';
+  var modeToggle='<div style="display:flex;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;flex-shrink:0">'
+    +'<button onclick="apSetPeriodMode(\'week\')" style="padding:6px 12px;border:none;font-size:11.5px;font-weight:700;cursor:pointer;background:'+(mode==='week'?'#1a1a1a':'#fff')+';color:'+(mode==='week'?'#fff':'#64748b')+'">Week</button>'
+    +'<button onclick="apSetPeriodMode(\'month\')" style="padding:6px 12px;border:none;font-size:11.5px;font-weight:700;cursor:pointer;background:'+(mode==='month'?'#1a1a1a':'#fff')+';color:'+(mode==='month'?'#fff':'#64748b')+'">Month</button>'
+    +'</div>';
+  return '<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:12px;padding:12px 14px;margin-bottom:16px">'
+    +'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">'
+    +'<span style="font-size:11px;font-weight:800;color:#7e22ce;white-space:nowrap">📔 WORK PERIOD</span>'
+    +modeToggle
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+pills+'</div>'
+    +'<button onclick="apOpenPeriodManager()" style="margin-left:auto;padding:6px 12px;border-radius:8px;border:1px solid #a855f7;background:#fff;color:#7e22ce;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">📋 Assign Clients to a Period</button>'
+    +'</div></div>';
+}
+function apSetPeriodMode(mode){ _apPeriodMode=mode; _apPeriodKey=null; renderAlbumProd(); }
+function apSetPeriodKey(key){ _apPeriodKey=key; renderAlbumProd(); }
+function apPeriodFilter(p){
+  if(!_apPeriodKey || _apPeriodKey==='all') return true;
+  return wpKeyFor(p,_apPeriodMode)===_apPeriodKey;
+}
+
+function apOpenPeriodManager(){
+  var ex=document.getElementById('ap-period-modal'); if(ex) ex.remove();
+  var mode=_apPeriodMode;
+  var keys=wpUpcomingKeys(mode);
+  var clients=pl().filter(function(p){return p.stage==='postprod';}).sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');});
+  var rows=clients.map(function(p){
+    var cur=wpKeyFor(p,mode);
+    var opts='<option value="unplanned"'+(cur==='unplanned'?' selected':'')+'>— Not Yet Assigned —</option>'
+      +keys.map(function(k){return '<option value="'+k+'"'+(cur===k?' selected':'')+'>'+wpLabelFor(k,mode)+'</option>';}).join('');
+    return '<tr><td style="font-weight:600;padding:8px">'+p.bride+' & '+p.groom+'</td>'
+      +'<td style="padding:8px"><select class="fi" style="font-size:12px;padding:5px 8px" onchange="apSetTarget('+p.id+',\''+mode+'\',this.value)">'+opts+'</select></td></tr>';
+  }).join('');
+  var modal=document.createElement('div');
+  modal.id='ap-period-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'
+    +'<div style="font-size:15px;font-weight:800">📋 Assign Clients to a '+(mode==='week'?'Week':'Month')+'</div>'
+    +'<button onclick="document.getElementById(\'ap-period-modal\').remove();renderAlbumProd();" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">Close</button></div>'
+    +'<table class="tbl"><thead><tr><th>Client</th><th>'+(mode==='week'?'Week':'Month')+'</th></tr></thead><tbody>'+rows+'</tbody></table>'
+    +'</div>';
+  document.body.appendChild(modal);
+}
+function apSetTarget(pid,mode,val){
+  var p=projects[pid]; if(!p) return;
+  var field=mode==='week'?'wpTargetWeek':'wpTargetMonth';
+  p[field]=val; p.updatedAt=Date.now();
+  var upd={}; upd['crm_projects/'+pid+'/'+field]=val; upd['crm_projects/'+pid+'/updatedAt']=Date.now();
+  db.ref().update(upd);
+  apOpenPeriodManager();
+}
+
+// ── Priority ordering, scoped to Album & Photo — same p.wpOrder field as
+// Video Production (it's the same real-world "who's first" concept), but
+// its own move/render functions so neither department's UI depends on the
+// other's.
+function apOrderControls(pid,idx,total){
+  var atTop=idx<=0, atBottom=idx>=total-1;
+  return '<span style="display:inline-flex;flex-direction:column;align-items:center">'
+    +'<button type="button" title="Move up" onclick="event.stopPropagation();apMoveOrder('+pid+',-1)" '+(atTop?'disabled':'')+' style="border:none;background:none;cursor:'+(atTop?'default':'pointer')+';color:'+(atTop?'#e0e0e0':'#888')+';font-size:11px;line-height:11px;padding:1px 3px">▲</button>'
+    +'<span style="font-size:10px;color:#aaa;font-weight:700">'+(idx+1)+'</span>'
+    +'<button type="button" title="Move down" onclick="event.stopPropagation();apMoveOrder('+pid+',1)" '+(atBottom?'disabled':'')+' style="border:none;background:none;cursor:'+(atBottom?'default':'pointer')+';color:'+(atBottom?'#e0e0e0':'#888')+';font-size:11px;line-height:11px;padding:1px 3px">▼</button>'
+    +'</span>';
+}
+// Priority is one shared value per client across all of post-production
+// (same p.wpOrder Video Production uses) — but the arrows are only shown
+// among clients with active work in whichever sub-panel is open, so the
+// index/total shown here must be computed the same way apMoveOrder ranks
+// them, not just the local filtered array's position.
+function apSharedOrderList(){
+  return pl().filter(function(p){return p.stage==='postprod' && apPeriodFilter(p);}).sort(function(a,b){
+    var oa=(typeof a.wpOrder==='number')?a.wpOrder:Infinity;
+    var ob=(typeof b.wpOrder==='number')?b.wpOrder:Infinity;
+    if(oa!==ob) return oa-ob;
+    var da=a.date||'9999-99-99', db=b.date||'9999-99-99';
+    return da.localeCompare(db);
+  });
+}
+function apOrderControlsFor(pid){
+  var list=apSharedOrderList();
+  var idx=list.findIndex(function(p){return p.id===pid;});
+  if(idx===-1) return '';
+  return apOrderControls(pid,idx,list.length);
+}
+function apMoveOrder(pid,dir){
+  var list=apSharedOrderList();
+  var idx=list.findIndex(function(p){return p.id===pid;});
+  if(idx===-1) return;
+  var swapIdx=idx+dir;
+  if(swapIdx<0||swapIdx>=list.length) return;
+  var tmp=list[idx]; list[idx]=list[swapIdx]; list[swapIdx]=tmp;
+  var updates={};
+  list.forEach(function(p,i){
+    p.wpOrder=i;
+    updates['crm_projects/'+p.id+'/wpOrder']=i;
+    updates['crm_projects/'+p.id+'/updatedAt']=Date.now();
+    if(projects[p.id]) projects[p.id].wpOrder=i;
+  });
+  renderAlbumProd();
+  db.ref().update(updates,function(err){
+    if(err) showToast('❌ Could not save priority order: '+err.message);
+  });
+}
+
 function rerenderAlbumViews(){ if(document.getElementById('ap-content')) renderAlbumProd(); }
 
 function renderAlbumProd(){
   var tab=_apTab||'album';
   var tabDefs=[{id:'album',icon:'📔',label:'Album Production'},{id:'photo',icon:'🖼️',label:'Photo Retouching'}];
-  var html='<div style="display:flex;gap:4px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px">';
+  var html=apPeriodBarHtml();
+  html+='<div style="display:flex;gap:4px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px">';
   tabDefs.forEach(function(t){
     var a=tab===t.id;
     html+='<button class="ap-tab-btn" data-tab="'+t.id+'" style="flex-shrink:0;padding:8px 14px;border:none;border-radius:8px;font-size:12px;font-weight:'+(a?700:500)+';cursor:pointer;background:'+(a?'#1a1a1a':'#f1f5f9')+';color:'+(a?'#fff':'#64748b')+'">'+t.icon+' '+t.label+'</button>';
@@ -10797,6 +10926,7 @@ function renderAlbumBoard(){
   pl().forEach(function(p){
     if(p.stage!=='postprod') return; // only clients currently in the Post-Production stage
     if(!ppMatchesSearch(p)) return;
+    if(!apPeriodFilter(p)) return;
     projectAlbumUnits(p).forEach(function(item){
       item.p=p;
       var received=item.u.selection && item.u.selection.status==='received';
@@ -10804,7 +10934,14 @@ function renderAlbumBoard(){
       if(unitIsSentToPrint(item.u)) archived.push(item); else active.push(item);
     });
   });
-  active.sort(function(a,b){var da=unitDaysLeft(a.u),db_=unitDaysLeft(b.u);return (da===null?999:da)-(db_===null?999:db_);});
+  active.sort(function(a,b){
+    // Priority (a.p.wpOrder) wins when manually set, same as Video
+    // Production — falls back to most-urgent (least days left) otherwise.
+    var oa=(typeof a.p.wpOrder==='number')?a.p.wpOrder:Infinity;
+    var ob=(typeof b.p.wpOrder==='number')?b.p.wpOrder:Infinity;
+    if(oa!==ob) return oa-ob;
+    var da=unitDaysLeft(a.u),db_=unitDaysLeft(b.u);return (da===null?999:da)-(db_===null?999:db_);
+  });
 
   var html='';
 
@@ -10870,13 +11007,13 @@ function renderAlbumBoard(){
       html+='<div class="empty">✅ No albums currently in production.</div>';
     } else {
       html+='<div style="display:flex;flex-direction:column;gap:14px;padding-top:4px">';
-      active.forEach(function(item){
+      active.forEach(function(item,activeIdx){
         var p=item.p, u=item.u;
         var dLeft=unitDaysLeft(u);
         var overdue=unitIsOverdue(u);
         html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:'+(overdue?'#fff5f5':'#fff')+'">';
         html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
-        html+='<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+' <span style="font-weight:600;color:#3b82f6">· '+albumUnitDisplayName(item)+'</span>'+(u.photoCount?' <span style="font-weight:400;color:#aaa;font-size:12px">('+u.photoCount+' photos)</span>':'')+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+(u.revisionCount?' · 🔁 '+u.revisionCount+' revision(s)':'')+'</div></div>';
+        html+='<div style="display:flex;gap:10px;align-items:flex-start">'+apOrderControlsFor(p.id)+'<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+' <span style="font-weight:600;color:#3b82f6">· '+albumUnitDisplayName(item)+'</span>'+(u.photoCount?' <span style="font-weight:400;color:#aaa;font-size:12px">('+u.photoCount+' photos)</span>':'')+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+(u.revisionCount?' · 🔁 '+u.revisionCount+' revision(s)':'')+'</div></div></div>';
         html+='<div style="text-align:right"><div style="font-size:11px;font-weight:700;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left (of '+ALBUM_SLA_DAYS+')')+'</div>';
         html+='<button class="btn btn-sm" style="font-size:11px;margin-top:4px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></div>';
         html+='</div>';
@@ -10960,12 +11097,18 @@ function renderPhotoRetouchPanel(){
   pl().forEach(function(p){
     if(p.stage!=='postprod') return; // only clients currently in the Post-Production stage
     if(!ppMatchesSearch(p)) return;
+    if(!apPeriodFilter(p)) return;
     var hasPhoto=(p.customDelivs||[]).some(function(d){return delivBucket(d)==='photo';});
     if(!hasPhoto) return;
     var sel=p.photoSelection||{};
     if(sel.status!=='received'){ awaiting.push(p); return; }
     var t=p.photoRetouchTask||{};
     if(t.status==='done') done.push(p); else active.push(p);
+  });
+  active.sort(function(a,b){
+    var oa=(typeof a.wpOrder==='number')?a.wpOrder:Infinity;
+    var ob=(typeof b.wpOrder==='number')?b.wpOrder:Infinity;
+    return oa-ob;
   });
 
   var html='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">';
@@ -11011,9 +11154,10 @@ function renderPhotoRetouchPanel(){
       html+='<div class="empty">✅ No photo retouching tasks in progress.</div>';
     } else {
       html+='<div style="display:flex;flex-direction:column;gap:10px;padding-top:4px">';
-      active.forEach(function(p){
+      active.forEach(function(p,pIdx){
         var t=p.photoRetouchTask||{};
         html+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px">';
+        html+=apOrderControlsFor(p.id);
         html+='<div style="flex:1;min-width:160px"><div style="font-size:14px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+'</div></div>';
         html+=taskStatusBadge(t);
         if(canAssign && (!t.status||t.status==='open')) html+=albumRetouchAssignControl(p);
@@ -12594,9 +12738,9 @@ function ppvDelivPill(vt,matches,pid){
   }).join('');
   var tooltip=rows.map(function(r){ return (r.label||'Item')+': '+meta(r.status).label; }).join(' · ');
   var hint=(sameCat && matches.length>1 && !matches.some(function(d){return d.reelItems&&d.reelItems.length>1;}))?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px;font-weight:600">⚠️ Tag by event for clarity</div>':'';
-  return '<div style="display:block;max-width:100%;box-sizing:border-box;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:8px;padding:4px 4px 4px 8px;min-width:92px" title="'+tooltip+'">' +
-    '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;padding:0 0 2px 4px">↗</button></div>' +
-    '<div style="max-height:130px;overflow-y:auto;overflow-x:hidden;padding-right:2px">'+chips+'</div>'+hint+
+  return '<div style="display:block;max-width:100%;box-sizing:border-box;text-align:left;background:#fff;border:1px solid '+worstColor+'33;border-left:3px solid '+worstColor+';border-radius:6px;padding:2px 3px 2px 6px;min-width:84px" title="'+tooltip+'">' +
+    '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#aaa;font-size:9px;padding:0 0 1px 4px">↗</button></div>' +
+    '<div style="max-height:74px;overflow-y:auto;overflow-x:hidden;padding-right:2px">'+chips+'</div>'+hint+
   '</div>';
 }
 
@@ -13414,7 +13558,7 @@ function renderPostProd(){
     }
   }
 
-  $('pp-content').innerHTML=html;
+  $('pp-content').innerHTML='<div class="ppv-dense">'+html+'</div>';
 
   // Wire tab buttons
   document.querySelectorAll('.pp-tab-btn').forEach(function(btn){btn.addEventListener('click',function(){_ppTab=btn.dataset.tab;renderPostProd();});});
