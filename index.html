@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v74.10</title>
+<title>KB Studio CRM v74.12</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12587,12 +12587,13 @@ function _ppDeptTabsForRole(){
 // elsewhere; this role only executes against what's already been set.
 // ═══════════════════════════════════════════════════════════════════════
 var _vaPage='queue';
-var _vaPeriodMode='month';
+var _vaPeriodMode='week'; // Video Production Admin plans and executes by WEEK only —
+                          // the Month toggle was removed; CRM/Intern still do the
+                          // actual week assignment elsewhere, this console just views it.
 var _vaPeriodKey=null;
 var _vaSearch='';
 
 function vaSetPage(p){ _vaPage=p; renderVideoAdminDashboard(); }
-function vaSetPeriodMode(m){ _vaPeriodMode=m; _vaPeriodKey=null; renderVideoAdminDashboard(); }
 function vaSetPeriodKey(k){ _vaPeriodKey=k; renderVideoAdminDashboard(); }
 function vaSetSearch(v){ _vaSearch=(v||'').trim().toLowerCase(); renderVideoAdminDashboard(); }
 
@@ -12607,6 +12608,17 @@ function vaClientList(){
     }
     return true;
   }).sort(function(a,b){
+    // Group by the week/month each client is actually assigned to (in
+    // chronological order) BEFORE comparing wpOrder. wpOrder is only ever
+    // renumbered 0,1,2... within a single week/month at a time (see
+    // wpPersistOrder/ppvMoveOrder) — so two clients in different weeks can
+    // easily share the same wpOrder value. Comparing it directly across
+    // weeks (as this used to do) scrambled the sequence whenever this view
+    // wasn't filtered down to exactly one week — e.g. the default "no tab
+    // picked yet" state, or "All periods". Sorting by week first keeps each
+    // week's CRM/Intern-set priority order intact everywhere it's shown.
+    var ka=wpKeyFor(a,_vaPeriodMode), kb=wpKeyFor(b,_vaPeriodMode);
+    if(ka!==kb) return ka.localeCompare(kb);
     var oa=(typeof a.wpOrder==='number')?a.wpOrder:Infinity;
     var ob=(typeof b.wpOrder==='number')?b.wpOrder:Infinity;
     if(oa!==ob) return oa-ob;
@@ -12628,6 +12640,13 @@ function vaAllItems(){
 function renderVideoAdminDashboard(){
   try{ ppvDailySweep(); }catch(e){}
   var root=$('pp-content'); if(!root) return;
+  // Default to the current (first upcoming) week instead of leaving
+  // _vaPeriodKey unset — the period pills below already highlight this key
+  // as "active" on first load, but until now vaClientList() left the
+  // unfiltered case showing EVERY week's clients mixed together, which is
+  // what broke the priority sequence by default. Setting it here means the
+  // tab you see highlighted is always the tab you're actually looking at.
+  if(_vaPeriodKey===null) _vaPeriodKey=wpUpcomingKeys(_vaPeriodMode)[0];
   var clients=vaClientList();
   var items=vaAllItems();
   var unassigned=items.filter(function(i){return !i.d.editorId && i.d.status==='pending';});
@@ -12646,13 +12665,9 @@ function renderVideoAdminDashboard(){
   var periodPills=keys.map(function(k){return periodTab(wpLabelFor(k,_vaPeriodMode),k,counts[k]||0,(!_vaPeriodKey&&k===keys[0])||_vaPeriodKey===k);}).join('');
   periodPills+=periodTab('Not yet assigned','unplanned',counts['unplanned']||0,_vaPeriodKey==='unplanned');
   periodPills+=periodTab('All periods','all',0,_vaPeriodKey==='all');
-  var modeToggle='<div style="display:flex;border:1px solid #e5e5e5;border-radius:7px;overflow:hidden;flex-shrink:0">'
-    +'<button onclick="vaSetPeriodMode(\'week\')" style="padding:5px 11px;border:none;font-size:11.5px;font-weight:600;cursor:pointer;background:'+(_vaPeriodMode==='week'?'#f3f3f3':'#fff')+';color:'+(_vaPeriodMode==='week'?'#1a1a1a':'#999')+'">Week</button>'
-    +'<button onclick="vaSetPeriodMode(\'month\')" style="padding:5px 11px;border:none;font-size:11.5px;font-weight:600;cursor:pointer;background:'+(_vaPeriodMode==='month'?'#f3f3f3':'#fff')+';color:'+(_vaPeriodMode==='month'?'#1a1a1a':'#999')+'">Month</button>'
-    +'</div>';
 
   html+='<div style="border-bottom:1px solid #eee;padding-bottom:12px;margin-bottom:16px">';
-  html+='<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px">'+modeToggle+'<div style="display:flex;gap:16px;flex-wrap:wrap">'+periodPills+'</div></div>';
+  html+='<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px"><div style="display:flex;gap:16px;flex-wrap:wrap">'+periodPills+'</div></div>';
   html+='<input type="text" value="'+escHtml(_vaSearch)+'" oninput="vaSetSearch(this.value)" placeholder="Search by client name or city…" style="width:100%;max-width:340px;padding:8px 12px;border:1px solid #e5e5e5;border-radius:8px;font-size:13px">';
   html+='</div>';
 
@@ -12685,11 +12700,6 @@ function renderVideoAdminDashboard(){
   }
 
   root.innerHTML='<div class="ppv-dense">'+html+'</div>';
-  if(_vaPage==='status'){
-    document.querySelectorAll('.pp-open-proj').forEach(function(btn){
-      btn.addEventListener('click',function(){ openProject(parseInt(btn.dataset.id), btn.dataset.tab||null); });
-    });
-  }
 }
 
 // ── Page 1: My Queue — read-only priority order set by CRM/Intern ──────
@@ -12701,17 +12711,54 @@ function vaRenderQueuePage(clients){
     var pending=pd.filter(function(d){return !delivIsDone(d.status);}).length;
     var overdueCt=pd.filter(function(d){var dl=delivDeadline(d);return dl&&daysUntil(dl)<0&&!delivIsDone(d.status);}).length;
     html+='<tr><td style="text-align:center;color:#bbb;font-weight:700">'+(idx+1)+'</td>';
-    html+='<td style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+p.bride+' & '+p.groom+'</td>';
+    html+='<td style="font-weight:700;cursor:pointer" onclick="vaShowOverview('+p.id+')">'+p.bride+' & '+p.groom+'</td>';
     html+='<td style="font-size:12px">'+fmtDate(p.date)+'</td>';
     html+='<td style="font-size:12px;color:#999">'+(p.city||'—')+'</td>';
     html+='<td style="text-align:center">'+pd.length+'</td>';
     html+='<td style="text-align:center;color:#999">'+(pending||'—')+'</td>';
     html+='<td style="text-align:center;color:'+(overdueCt?'#dc2626':'#ccc')+';font-weight:700">'+(overdueCt||'—')+'</td>';
-    html+='<td><button class="btn btn-sm" onclick="openProject('+p.id+',\'t-deliv\')">Open</button></td></tr>';
+    html+='<td><button class="btn btn-sm" onclick="vaShowOverview('+p.id+')">Overview</button></td></tr>';
   });
   html+='</tbody></table></div>';
   html+='<div style="font-size:11px;color:#bbb;margin-top:10px">Order and period assignment are set by CRM/Intern — this list is read-only here.</div>';
   return html;
+}
+
+// ── Read-only deliverable overview for a client, scoped to Video Production ─
+// Deliberately NOT openProject() — the Video Production Admin's queue should
+// show what's needed to plan/check on the work (status, editor, deadline)
+// without opening the full project (production plan, client brief, raw
+// data). Nothing here writes anything; it's a plain summary modal.
+function vaShowOverview(pid){
+  var p=projects[pid]; if(!p){ showToast('⚠️ Project not found — try refreshing.'); return; }
+  var ex=document.getElementById('va-overview-modal'); if(ex) ex.remove();
+  var vids=(p.customDelivs||[]).filter(function(d){return delivBucket(d)==='video';});
+  var rows=vids.map(function(d){
+    var si=_delivStatusInfo(d.status);
+    var edName=(d.editorId && teamData[d.editorId]) ? teamData[d.editorId].name : '— Unassigned —';
+    var dl=delivDeadline(d);
+    var overdue=dl && daysUntil(dl)<0 && !delivIsDone(d.status);
+    return '<tr>'
+      +'<td style="font-weight:700">'+(d.name||d.type||'Deliverable')+(d.category?'<div style="font-size:10.5px;color:#999;font-weight:400">'+d.category+'</div>':'')+'</td>'
+      +'<td><span style="background:'+si.bg+';color:'+si.color+';padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap">'+si.icon+' '+si.label+'</span></td>'
+      +'<td style="font-size:12px">'+edName+'</td>'
+      +'<td style="font-size:12px;'+(overdue?'color:#dc2626;font-weight:700':'')+'">'+(dl?(fmtDate(dl)+(overdue?' ⚠️':'')):'—')+'</td>'
+      +'</tr>';
+  }).join('');
+  var modal=document.createElement('div');
+  modal.id='va-overview-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:560px;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:4px">'
+    +'<div><div style="font-size:16px;font-weight:800">'+p.bride+' & '+p.groom+'</div>'
+    +'<div style="font-size:12px;color:#888;margin-top:2px">'+(p.city||'—')+' · Event '+fmtDate(p.date)+'</div></div>'
+    +'<button onclick="document.getElementById(\'va-overview-modal\').remove()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;flex-shrink:0">Close</button>'
+    +'</div>'
+    +(vids.length
+      ? '<div style="margin-top:14px" class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Status</th><th>Editor</th><th>Deadline</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+      : '<div class="empty" style="margin-top:14px">No video deliverables added yet.</div>')
+    +'</div>';
+  document.body.appendChild(modal);
 }
 
 // ── Page 2: Assign Editors ──────────────────────────────────────────────
@@ -12778,12 +12825,12 @@ function vaRenderStatusPage(items,inReview){
   clients.forEach(function(p){
     var pd=p.customDelivs||[];
     if(!pd.length) return;
-    html+='<tr><td style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+p.bride+' & '+p.groom+'</td>';
+    html+='<tr><td style="font-weight:700;cursor:pointer" onclick="vaShowOverview('+p.id+')">'+p.bride+' & '+p.groom+'</td>';
     videoTypes.forEach(function(vt){
       var matches=pd.filter(function(d){return d.type===vt.type;});
-      html+='<td style="vertical-align:top;padding:6px 4px">'+ppvDelivPill(vt,matches,p.id)+'</td>';
+      html+='<td style="vertical-align:top;padding:6px 4px">'+ppvDelivPill(vt,matches,p.id,true)+'</td>';
     });
-    html+='<td><button class="btn btn-sm" onclick="openProject('+p.id+',\'t-deliv\')">Open</button></td></tr>';
+    html+='<td><button class="btn btn-sm" onclick="vaShowOverview('+p.id+')">Overview</button></td></tr>';
   });
   html+='</tbody></table></div>';
   html+='<div style="font-size:11px;color:#bbb;margin-top:8px">Each status dropdown saves instantly and is timestamped — open a deliverable\'s history from the review section above, or from the project\'s Deliverables tab.</div>';
@@ -13001,7 +13048,7 @@ function ppvSetReelItemStatus(pid,delivId,reelIdx,newStatus){
 // Same rendering logic as wpDelivPill, just wired to the two functions
 // above instead — so the exact same inline-editing experience Work
 // Progress has is available here too, without sharing any DOM/state.
-function ppvDelivPill(vt,matches,pid){
+function ppvDelivPill(vt,matches,pid,hideOpenLink){
   // Status color is now the ONLY signal carried by these — no background
   // tint, no border box, no icon doubling up on what the text already
   // says. A plain dropdown in the right color reads calmer at a glance,
@@ -13016,7 +13063,9 @@ function ppvDelivPill(vt,matches,pid){
   };
   function meta(s){ return STATUS_META[s]||STATUS_META.pending; }
   if(!matches.length){
-    return '<span style="font-size:11px;color:#ccc;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')">not added</span>';
+    return hideOpenLink
+      ? '<span style="font-size:11px;color:#ccc">not added</span>'
+      : '<span style="font-size:11px;color:#ccc;cursor:pointer" onclick="openProject('+pid+',\'t-deliv\')">not added</span>';
   }
   var sameCat = matches.every(function(d){ return (d.category||'Wedding')===(matches[0].category||'Wedding'); });
   var rows=[];
@@ -13049,7 +13098,7 @@ function ppvDelivPill(vt,matches,pid){
     return '<div style="display:inline-flex;align-items:center;gap:3px;min-width:90px" title="'+tag+m.label+noteTip+stampTip+'">' +
       '<select onchange="'+r.onchange+'" style="border:none;background:transparent;font-size:11px;font-weight:600;color:'+m.color+';cursor:pointer;font-family:inherit;padding:2px 0;max-width:118px">'+delivStatusOptionsHtml(r.status)+'</select>' +
       noteFlag +
-      '<button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#ccc;font-size:10px;padding:2px 4px;flex-shrink:0">↗</button>' +
+      (hideOpenLink?'':'<button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#ccc;font-size:10px;padding:2px 4px;flex-shrink:0">↗</button>') +
     '</div>';
   }
   var chips=rows.map(function(r){
@@ -13062,7 +13111,7 @@ function ppvDelivPill(vt,matches,pid){
   var tooltip=rows.map(function(r){ return (r.label||'Item')+': '+meta(r.status).label; }).join(' · ');
   var hint=(sameCat && matches.length>1 && !matches.some(function(d){return d.reelItems&&d.reelItems.length>1;}))?'<div style="font-size:8.5px;color:#c2410c;margin-top:2px">tag by event for clarity</div>':'';
   return '<div style="display:block;max-width:100%;box-sizing:border-box;text-align:left;padding:2px 3px" title="'+tooltip+'">' +
-    '<div style="display:flex;justify-content:flex-end"><button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#ccc;font-size:9px;padding:0 0 1px 4px">↗</button></div>' +
+    (hideOpenLink?'':'<div style="display:flex;justify-content:flex-end"><button type="button" onclick="openProject('+pid+',\'t-deliv\')" title="Open full deliverable" style="border:none;background:none;cursor:pointer;color:#ccc;font-size:9px;padding:0 0 1px 4px">↗</button></div>') +
     '<div style="max-height:74px;overflow-y:auto;overflow-x:hidden;padding-right:2px">'+chips+'</div>'+hint+
   '</div>';
 }
@@ -19597,7 +19646,7 @@ function openEditTeam(id){var t=teamData[id];if(!t)return;editTeamId=id;$('team-
   var bs=$('tm-bank-section');if(bs)bs.style.display=showBank?'':'none';
   openModal('team-modal');}
 $('btn-save-team').addEventListener('click',function(){var name=gv('tm-name').trim();if(!name){alert('Enter full name.');return;}var id=editTeamId||('tm_'+Date.now());var data={id:id,name:name,nickname:gv('tm-nickname'),phone:gv('tm-phone'),phone2:gv('tm-phone2'),whatsapp:gv('tm-whatsapp'),email:gv('tm-email'),emergency:gv('tm-emergency'),address:gv('tm-address'),role:gv('tm-role'),region:gv('tm-region'),city:gv('tm-city'),emptype:gv('tm-emptype'),exp:gv('tm-exp'),joining:gv('tm-joining'),salary:gv('tm-salary'),perday:gv('tm-perday'),skills:gv('tm-skills'),equipment:gv('tm-equipment'),bankname:gv('tm-bankname'),bankbranch:gv('tm-bankbranch'),bankaccount:gv('tm-bankaccount'),ifsc:gv('tm-ifsc'),upi:gv('tm-upi'),notes:gv('tm-notes'),idproof:gv('tm-idproof')};db.ref('crm_team/'+id).set(data,function(err){if(err){alert('Error: '+err.message);return;}closeModal('team-modal');showToast('✅ Team member saved!');});});
-function deleteTeam(id){if(!confirm('Remove this team member?'))return;db.ref('crm_team/'+id).remove(function(){showToast('Removed.');});}
+function deleteTeam(id){if(!confirm('Remove this team member?'))return;var t=(typeof teamData!=='undefined'&&teamData[id])||{};db.ref('crm_team/'+id).remove(function(){showToast('Removed.');if(typeof logActivity==='function'){logActivity('team','Team Member Removed',(t.name||id)+' — '+(t.role||'')+(t.region?' · '+t.region:''),{id:id,role:t.role});}});}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // FREELANCER MODULE
@@ -20297,7 +20346,7 @@ $('team-search').addEventListener('input',renderTeam);$('team-role-f').addEventL
 $('btn-add-user').addEventListener('click',function(){editUserId=null;$('user-modal-title').textContent='Add User';['u-name','u-displayname','u-username','u-pass','u-phone','u-email','u-notes'].forEach(function(i){sv(i,'');});sv('u-role','admin');sv('u-department','');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=false;document.querySelectorAll('.u-secrole-cb').forEach(function(cb){cb.checked=false;});populateUserTeamDropdown('');onUserRoleChange();openModal('user-modal');});
 function openEditUser(id){var u=users[id];if(!u)return;editUserId=id;$('user-modal-title').textContent='Edit — '+u.name;sv('u-name',u.name);sv('u-displayname',u.displayname||'');sv('u-username',u.username);sv('u-pass',u.password);sv('u-role',u.role);sv('u-department',u.department||'');sv('u-phone',u.phone||'');sv('u-email',u.email||'');sv('u-notes',u.notes||'');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=!!u.mustChangePassword;var secRoles=u.secondaryRoles||[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){cb.checked=secRoles.indexOf(cb.value)!==-1;});populateUserTeamDropdown(u.teamId||'');onUserRoleChange();openModal('user-modal');}
 $('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass');if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;var secRoles=[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){if(cb.checked&&cb.value!==gv('u-role'))secRoles.push(cb.value);});db.ref('crm_users/'+id).set({id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),secondaryRoles:secRoles,department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:gv('u-email'),notes:gv('u-notes'),mustChangePassword:mustChange},function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
-function deleteUser(id){if(id===CU.id){alert("Can't delete your own account.");return;}if(!confirm('Remove this user?'))return;db.ref('crm_users/'+id).remove(function(){showToast('User removed.');});}
+function deleteUser(id){if(id===CU.id){alert("Can't delete your own account.");return;}if(!confirm('Remove this user?'))return;var u=(typeof users!=='undefined'&&users[id])||{};db.ref('crm_users/'+id).remove(function(){showToast('User removed.');if(typeof logActivity==='function'){logActivity('user','User Deleted',(u.name||id)+' (@'+(u.username||id)+') — Role: '+(u.role||''),{id:id,role:u.role});}});}
 function openAddAccount(){editAccId=null;var t=$('account-modal-title');if(t)t.textContent='Add Account';['acc-name','acc-number','acc-notes'].forEach(function(i){sv(i,'');});sv('acc-type','savings');openModal('account-modal');}
 function switchUsersTab(tabId, btn){
   ['t-users-tab','t-accounts-tab'].forEach(function(id){
@@ -29993,6 +30042,11 @@ function deleteQuotation(id) {
     // Also clean up any proof docs stored under this quotation
     db.ref('crm_quot_docs/' + id).remove();
     showToast('🗑️ Quotation deleted.');
+    if (typeof logActivity === 'function') {
+      logActivity('quotation', 'Quotation Deleted',
+        (q.bride || '') + (q.groom ? ' & ' + q.groom : '') + ' — ₹' + (q.value || 0) + ' · ' + (q.status || ''),
+        { id: id, value: q.value });
+    }
   });
 }
 
@@ -30294,6 +30348,11 @@ function convertQuotToProject(overrideId) {
       });
     }
     showToast('🚀 Project created! Ref: ' + projData.refcode);
+    if (typeof logActivity === 'function') {
+      logActivity('quotation', 'Quotation Converted to Project',
+        (q.bride || '') + (q.groom ? ' & ' + q.groom : '') + ' — ₹' + (q.value || 0),
+        { quotId: id, value: q.value, projectId: newProjId });
+    }
     closeModal('quot-modal');
     setTimeout(function() {
       navTo('projects');
@@ -34504,6 +34563,7 @@ document.addEventListener('click', function(e) {
 var AL_PAGE_SIZE = 50;
 var alOffset = 0;
 var alAllLogs = [];
+var alLoadedAt = null;   // when the current snapshot was fetched (this is a once-off load, not a live feed)
 var _alLiveRef = null;    // Firebase callback reference
 var _alLiveQuery = null;  // Firebase query reference (needed to call .off() correctly)
 var _alRenderPending = null; // pending setTimeout handle
@@ -34557,6 +34617,7 @@ function renderActivityLog() {
     snap.forEach(function(c) { logs.push(Object.assign({ _key: c.key }, c.val())); });
     logs.reverse(); // newest first
     alAllLogs = logs;
+    alLoadedAt = Date.now();
     _applyAlFiltersAndRender(logs);
   }, function(err) {
     var listEl = document.getElementById('al-list');
@@ -34614,9 +34675,17 @@ function _applyAlFiltersAndRender(logs) {
     var typeCounts = {};
     filtered.forEach(function(l) { typeCounts[l.type] = (typeCounts[l.type] || 0) + 1; });
     var typeIcons = { project:'📁', payment:'💳', quotation:'📄', user:'🔐', login:'🔑', deliverable:'📦', settings:'⚙️', other:'•', auth:'🔑', stage:'🔄', team:'👥', referral:'🎁', datalog:'🗂️' };
+    // This page loads once per open/refresh (not a live stream — see renderActivityLog
+    // comment), so show when the snapshot was actually pulled instead of a permanent
+    // "Live" badge that used to falsely imply new entries appear automatically.
+    var loadedLabel = alLoadedAt ? (function(d){
+      var h=d.getHours(),m=d.getMinutes(),ampm=h>=12?'PM':'AM';
+      h=h%12||12;
+      return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+' '+ampm;
+    })(new Date(alLoadedAt)) : '';
     statEl.innerHTML =
       '<span style="font-size:12px;color:#888;line-height:28px">Showing <b>' + filtered.length + '</b> of <b>' + logs.length + '</b> entries</span>' +
-      '<span style="background:#dcfce7;color:#166534;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px">🟢 Live</span>' +
+      '<span title="Click 🔄 Refresh to pull the latest entries" style="background:#f1f5f9;color:#475569;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px">📸 As of ' + (loadedLabel || '—') + '</span>' +
       Object.keys(typeCounts).map(function(t) {
         return '<span style="background:#f5f5f5;border:1px solid #e5e5e5;border-radius:20px;padding:3px 10px;font-size:12px;color:#555">' +
           (typeIcons[t]||'•') + ' ' + t + ' <b>' + typeCounts[t] + '</b></span>';
@@ -34849,21 +34918,11 @@ function clearActivityLog() {
 })();
 
 // ── 5. PAYMENT DELETED ───────────────────────────────────────────
-(function() {
-  var _orig = window.deletePayEntry;
-  if (typeof _orig !== 'function') return;
-  window.deletePayEntry = function(idx) {
-    var p = editProjId ? projects[editProjId] : null;
-    var entry = p ? (p.payLedger || [])[idx] : null;
-    _orig(idx);
-    if (p && entry) {
-      logActivity('payment', 'Payment Deleted',
-        '₹' + (entry.amount || 0) + ' removed from ' + p.bride + (p.groom ? ' & ' + p.groom : '') +
-          ' [' + (p.refcode || '') + '] — Stage: ' + (entry.stage || '') + (entry.date ? ' · ' + entry.date : ''),
-        { refcode:p.refcode, amount:entry.amount, stage:entry.stage });
-    }
-  };
-})();
+// Removed: this wrapper used to log the activity unconditionally
+// regardless of whether the user actually confirmed the deletion.
+// Payment-deletion logging now happens inside the FINAL deletePayEntry
+// handler further down, inside its Firebase success callback, so it
+// only fires when the entry is actually removed.
 
 // ── 6. STAGE CHANGE (manual + auto) ──────────────────────────────
 (function() {
@@ -34902,31 +34961,16 @@ function clearActivityLog() {
 })();
 
 // ── 8. QUOTATION DELETED ─────────────────────────────────────────
-(function() {
-  var _origDelQuot = window.deleteQuotation;
-  if (typeof _origDelQuot !== 'function') return;
-  window.deleteQuotation = function(id) {
-    var q = quotations[id] || {};
-    logActivity('quotation', 'Quotation Deleted',
-      (q.bride || '') + (q.groom ? ' & ' + q.groom : '') + ' — ₹' + (q.value || 0) + ' · ' + (q.status || ''),
-      { id:id, value:q.value });
-    _origDelQuot(id);
-  };
-})();
+// Removed: this wrapper used to log the activity before/regardless of
+// whether deleteQuotation's own permission check or confirm() dialog
+// actually let the deletion through. Logging now happens inside
+// deleteQuotation itself, inside its Firebase success callback.
 
 // ── 9. QUOTATION CONVERTED TO PROJECT ────────────────────────────
-(function() {
-  var _origConvert = window.convertQuotToProject;
-  if (typeof _origConvert !== 'function') return;
-  window.convertQuotToProject = function(overrideId) {
-    var id = overrideId || editQuotId;
-    var q  = quotations[id] || {};
-    logActivity('quotation', 'Quotation Converted to Project',
-      (q.bride || '') + (q.groom ? ' & ' + q.groom : '') + ' — ₹' + (q.value || 0),
-      { quotId:id, value:q.value });
-    _origConvert(overrideId);
-  };
-})();
+// Removed: this wrapper used to log the conversion before either of
+// convertQuotToProject's confirm() dialogs had actually been accepted.
+// Logging now happens inside convertQuotToProject itself, inside its
+// Firebase success callback.
 
 // ── 10. USER CREATED / UPDATED ───────────────────────────────────
 (function() {
@@ -34997,30 +35041,14 @@ function clearActivityLog() {
 })();
 
 // ── 15. TEAM MEMBER DELETED ──────────────────────────────────────
-(function() {
-  var _origDeleteTeam = window.deleteTeam;
-  if (typeof _origDeleteTeam !== 'function') return;
-  window.deleteTeam = function(id) {
-    var t = teamData[id] || {};
-    logActivity('team', 'Team Member Removed',
-      (t.name || id) + ' — ' + (t.role || '') + (t.region ? ' · ' + t.region : ''),
-      { id:id, role:t.role });
-    _origDeleteTeam(id);
-  };
-})();
+// Removed: this wrapper used to log the removal before confirm() had
+// actually been accepted. Logging now happens inside deleteTeam itself,
+// inside its Firebase success callback.
 
 // ── 16. USER DELETED ─────────────────────────────────────────────
-(function() {
-  var _origDeleteUser = window.deleteUser;
-  if (typeof _origDeleteUser !== 'function') return;
-  window.deleteUser = function(id) {
-    var u = users[id] || {};
-    logActivity('user', 'User Deleted',
-      (u.name || id) + ' (@' + (u.username || id) + ') — Role: ' + (u.role || ''),
-      { id:id, role:u.role });
-    _origDeleteUser(id);
-  };
-})();
+// Removed: this wrapper used to log the deletion before confirm() had
+// actually been accepted. Logging now happens inside deleteUser itself,
+// inside its Firebase success callback.
 
 // ── 17. REFERRAL CLIENT ADDED ────────────────────────────────────
 (function() {
@@ -35157,6 +35185,7 @@ function clearActivityLog() {
   var _heartbeatTmr  = null;
   var _myUid         = null;
   var _mySessionKey  = null;   // unique per browser tab
+  var _myJoinedAt    = null;   // set once per tab session, never overwritten by heartbeats
 
   // ── Called once after CU is set and db is ready ───────────────
   function initPresence() {
@@ -35167,6 +35196,7 @@ function clearActivityLog() {
     _myUid        = CU.id || CU.username || ('anon_' + Date.now());
     _mySessionKey = _myUid + '_' + Date.now(); // unique per tab session
     _myRef        = db.ref('crm_presence/' + _mySessionKey);
+    _myJoinedAt   = Date.now(); // captured once — heartbeats must not reset this
 
     // ── Step 1: React to Firebase connection state ──────────────
     _connRef = db.ref('.info/connected');
@@ -35191,7 +35221,8 @@ function clearActivityLog() {
       _renderIndicator(online);
     });
 
-    // ── Step 3: Heartbeat every 90s — keeps joinedAt fresh ──────
+    // ── Step 3: Heartbeat every 90s — keeps the node from expiring
+    //    and refreshes lastSeen, WITHOUT resetting joinedAt ────────
     _heartbeatTmr = setInterval(function () {
       if (_myRef && window.CU) _writePresence();
     }, 90000);
@@ -35211,7 +35242,8 @@ function clearActivityLog() {
       uid:      _myUid,
       name:     CU.name || CU.username || 'Unknown',
       role:     CU.role || 'user',
-      joinedAt: Date.now()
+      joinedAt: _myJoinedAt,   // fixed at session start — was Date.now() on every call, so "since" never accumulated
+      lastSeen: Date.now()
     });
   }
 
@@ -35228,6 +35260,18 @@ function clearActivityLog() {
       indicator.style.display = 'none';
       return;
     }
+
+    // Drop stale/ghost sessions: onDisconnect().remove() doesn't always fire
+    // (tab force-killed, app backgrounded and terminated, phone locked, etc.),
+    // so a node can be left behind showing someone "online" indefinitely.
+    // Heartbeat writes every 90s, so anything older than 3 missed heartbeats
+    // is treated as dead rather than trusted at face value.
+    var STALE_MS = 270000; // 3 × 90s heartbeat
+    var now = Date.now();
+    online = online.filter(function (u) {
+      var seen = u.lastSeen || u.joinedAt || 0;
+      return (now - seen) < STALE_MS;
+    });
 
     // Deduplicate by uid — keep the freshest entry per user
     var byUid = {};
