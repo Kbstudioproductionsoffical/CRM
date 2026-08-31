@@ -7209,6 +7209,14 @@ function loadAll(){
         // here so there's only one listener on crm_settings instead of two.
         _fieldVisibility = crmSettings.fieldVisibility || {};
         ensureWhatsAppInSources();
+        // Without this, publishing/unpublishing a week (or any other
+        // settings change) updated crmSettings in memory but never told
+        // whatever page is currently open to redraw — a Video Production
+        // Admin already sitting on their dashboard wouldn't see a newly
+        // published week appear until they navigated away and back.
+        // refresh() re-renders only the currently active page, same as
+        // every other live listener in the app already does.
+        refresh();
       });
       db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
       db.ref('crm_checklist_templates').on('value',function(snap){checklistTemplates=snap.val()||{};if(editProjId&&projects[editProjId]&&document.getElementById('t-checklist')&&document.getElementById('t-checklist').classList.contains('active'))renderChecklistTab(projects[editProjId],editProjId);if(document.getElementById('checklist-tpl-modal')&&document.getElementById('checklist-tpl-modal').classList.contains('open'))renderChecklistTplList();});
@@ -7232,7 +7240,7 @@ function loadAll(){
     console.error('Load error:',err);
     // Fallback — still uses child listeners, not full .on('value')
     attachProjectListeners();
-    db.ref('crm_settings').on('value',function(snap){crmSettings=snap.val()||{};syncPayPresets();});
+    db.ref('crm_settings').on('value',function(snap){crmSettings=snap.val()||{};syncPayPresets();refresh();});
     db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};});
     db.ref('crm_referral').on('value',function(snap){referral=snap.val()||{};});
     db.ref('crm_accounts').on('value',function(snap){accounts=snap.val()||{};});
@@ -12653,8 +12661,11 @@ function vaEnsureDefaultPeriod(){
   var counts={};
   pl().filter(function(p){return p.stage==='postprod';}).forEach(function(p){var k=wpKeyFor(p,'week');counts[k]=(counts[k]||0)+1;});
   var keys=wpUpcomingKeys('week');
-  var withClients=keys.filter(function(k){return counts[k];});
-  _vaPeriodKey = withClients.length ? withClients[0] : 'unplanned';
+  // Only ever default into a week that's both populated AND published —
+  // a draft week with clients already assigned doesn't count until
+  // CRM/Intern explicitly publishes it.
+  var withClients=keys.filter(function(k){return counts[k] && isWeekPublished(k);});
+  _vaPeriodKey = withClients.length ? withClients[0] : 'none-published';
 }
 
 function vaClientList(){
@@ -12662,7 +12673,10 @@ function vaClientList(){
   var q=_vaSearch;
   return pl().filter(function(p){
     if(p.stage!=='postprod') return false;
-    if(_vaPeriodKey!=='all' && wpKeyFor(p,'week')!==_vaPeriodKey) return false;
+    if(_vaPeriodKey==='none-published') return false;
+    var wk=wpKeyFor(p,'week');
+    if(wk!==_vaPeriodKey) return false;
+    if(!isWeekPublished(wk)) return false; // the actual gate — unpublished work is invisible here, full stop
     if(q){
       var hay=((p.bride||'')+' '+(p.groom||'')+' '+(p.refcode||'')+' '+(p.city||'')).toLowerCase();
       if(hay.indexOf(q)===-1) return false;
@@ -12700,21 +12714,33 @@ function renderVideoAdminDashboard(){
 
   // ── Top: period (view-only — set by CRM/Intern) + search ─────────────
   // Video Production always plans week-to-week — no month option here.
+  // Only PUBLISHED weeks ever appear as options: no "Not yet assigned"
+  // and no "All periods" here, since either would leak draft/unpublished
+  // work into this view.
   vaEnsureDefaultPeriod();
-  var keys=wpUpcomingKeys('week');
+  var allWeeks=wpUpcomingKeys('week');
   var counts={};
   pl().filter(function(p){return p.stage==='postprod';}).forEach(function(p){var k=wpKeyFor(p,'week');counts[k]=(counts[k]||0)+1;});
+  var publishedWeeks=allWeeks.filter(function(k){return isWeekPublished(k);});
   function periodTab(label,k,count,active){
     return '<button onclick="vaSetPeriodKey(\''+k+'\')" style="padding:6px 4px;border:none;border-bottom:2px solid '+(active?'#1a1a1a':'transparent')+';background:none;color:'+(active?'#1a1a1a':'#888')+';font-size:13px;font-weight:'+(active?'700':'500')+';cursor:pointer;white-space:nowrap">'+label+(count?' <span style="color:#bbb">'+count+'</span>':'')+'</button>';
   }
-  var periodPills=keys.map(function(k){return periodTab(wpLabelFor(k,'week'),k,counts[k]||0,_vaPeriodKey===k);}).join('');
-  periodPills+=periodTab('Not yet assigned','unplanned',counts['unplanned']||0,_vaPeriodKey==='unplanned');
-  periodPills+=periodTab('All periods','all',0,_vaPeriodKey==='all');
+  var periodPills=publishedWeeks.map(function(k){return periodTab(wpLabelFor(k,'week'),k,counts[k]||0,_vaPeriodKey===k);}).join('');
 
   html+='<div style="border-bottom:1px solid #eee;padding-bottom:12px;margin-bottom:16px">';
-  html+='<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px">'+periodPills+'</div>';
-  html+='<input type="text" value="'+escHtml(_vaSearch)+'" oninput="vaSetSearch(this.value)" placeholder="Search by client name or city…" style="width:100%;max-width:340px;padding:8px 12px;border:1px solid #e5e5e5;border-radius:8px;font-size:13px">';
+  if(publishedWeeks.length){
+    html+='<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px">'+periodPills+'</div>';
+    html+='<input type="text" value="'+escHtml(_vaSearch)+'" oninput="vaSetSearch(this.value)" placeholder="Search by client name or city…" style="width:100%;max-width:340px;padding:8px 12px;border:1px solid #e5e5e5;border-radius:8px;font-size:13px">';
+  } else {
+    html+='<div style="color:#999;font-size:13px">No published list yet — check back once CRM/Intern publishes this week\'s assignments.</div>';
+  }
   html+='</div>';
+
+  if(!publishedWeeks.length){
+    var rootEmpty=$('pp-content');
+    if(rootEmpty) rootEmpty.innerHTML='<div class="ppv-dense">'+html+'</div>';
+    return;
+  }
 
   // ── Big 3-page nav — this IS the whole job, three steps, in order ────
   var pages=[
@@ -12941,6 +12967,43 @@ function renderPostProdPage(){
 }
 
 // ── Work Period bar (Work Progress merged into Post Production→Video) ────
+// ── Video Production "Publish" gate ────────────────────────────────────
+// A week can have clients assigned to it (draft) without being visible to
+// the Video Production Admin at all — CRM/Intern build and adjust the list
+// first, then explicitly publish it. Until that happens, nothing in that
+// week exists as far as the Video Production Admin dashboard is concerned.
+// Stored under crm_settings/videoPublishedWeeks (same synced object used
+// for turnaroundRules/videoHolidays elsewhere).
+function isWeekPublished(weekKey){
+  return !!(crmSettings && crmSettings.videoPublishedWeeks && crmSettings.videoPublishedWeeks[weekKey]);
+}
+function ppvPublishWeek(weekKey){
+  // Writes directly to this week's own path rather than reading the whole
+  // videoPublishedWeeks object and writing it back — if two people publish
+  // or unpublish different weeks within the same few seconds, a
+  // read-modify-write on the shared parent object could silently lose one
+  // of the two changes. A scoped write can't collide like that.
+  var entry={publishedAt:new Date().toISOString(), publishedBy:CU?(CU.name||CU.username):''};
+  db.ref('crm_settings/videoPublishedWeeks/'+weekKey).set(entry, function(err){
+    if(err){ showToast('❌ '+err.message); return; }
+    if(!crmSettings.videoPublishedWeeks) crmSettings.videoPublishedWeeks={};
+    crmSettings.videoPublishedWeeks[weekKey]=entry;
+    showToast('📢 Published — visible to Video Production Admin now.');
+    logActivity('video_production','Published weekly list', wpLabelFor(weekKey,'week'));
+    renderPostProd();
+  });
+}
+function ppvUnpublishWeek(weekKey){
+  if(!confirm('Unpublish '+wpLabelFor(weekKey,'week')+'? Video Production Admin will stop seeing this week until you publish it again.')) return;
+  db.ref('crm_settings/videoPublishedWeeks/'+weekKey).remove(function(err){
+    if(err){ showToast('❌ '+err.message); return; }
+    if(crmSettings.videoPublishedWeeks) delete crmSettings.videoPublishedWeeks[weekKey];
+    showToast('Unpublished.');
+    logActivity('video_production','Unpublished weekly list', wpLabelFor(weekKey,'week'));
+    renderPostProd();
+  });
+}
+
 function ppvPeriodBarHtml(postClients){
   var mode=_ppvPeriodMode, key=_ppvPeriodKey;
   var keys=wpUpcomingKeys(mode); // upcoming week/month keys, in order
@@ -12949,11 +13012,14 @@ function ppvPeriodBarHtml(postClients){
   var unplannedCount=counts['unplanned']||0;
   // Plain text tabs, not bordered pills — the selected one is the only
   // thing that stands out (dark underline), everything else stays quiet
-  // instead of competing for attention.
-  function periodTab(label,k,count,active){
-    return '<button onclick="ppvSetPeriodKey(\''+k+'\')" style="padding:6px 4px;border:none;border-bottom:2px solid '+(active?'#1a1a1a':'transparent')+';background:none;color:'+(active?'#1a1a1a':'#888')+';font-size:12.5px;font-weight:'+(active?'700':'500')+';cursor:pointer;white-space:nowrap">'+label+(count?' <span style="color:#bbb">'+count+'</span>':'')+'</button>';
+  // instead of competing for attention. In week mode, a small dot shows
+  // whether that week's list has been published to Video Production
+  // Admin yet — draft (gray) vs published (green).
+  function periodTab(label,k,count,active,publishDot){
+    return '<button onclick="ppvSetPeriodKey(\''+k+'\')" style="padding:6px 4px;border:none;border-bottom:2px solid '+(active?'#1a1a1a':'transparent')+';background:none;color:'+(active?'#1a1a1a':'#888')+';font-size:12.5px;font-weight:'+(active?'700':'500')+';cursor:pointer;white-space:nowrap">'+(publishDot||'')+label+(count?' <span style="color:#bbb">'+count+'</span>':'')+'</button>';
   }
-  var pills=keys.map(function(k){ return periodTab(wpLabelFor(k,mode),k,counts[k]||0,key===k); }).join('');
+  var dotHtml=function(published){ return '<span title="'+(published?'Published':'Draft — not visible to Video Production Admin yet')+'" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+(published?'#16a34a':'#ddd')+';margin-right:5px"></span>'; };
+  var pills=keys.map(function(k){ return periodTab(wpLabelFor(k,mode),k,counts[k]||0,key===k, mode==='week'?dotHtml(isWeekPublished(k)):null); }).join('');
   pills+=periodTab('Not Yet Assigned','unplanned',unplannedCount,key==='unplanned');
   pills+=periodTab('All Periods','all',0,key==='all');
 
@@ -12962,11 +13028,23 @@ function ppvPeriodBarHtml(postClients){
     +'<button onclick="ppvSetPeriodMode(\'month\')" style="padding:5px 11px;border:none;font-size:11.5px;font-weight:600;cursor:pointer;background:'+(mode==='month'?'#f3f3f3':'#fff')+';color:'+(mode==='month'?'#1a1a1a':'#999')+'">Month</button>'
     +'</div>';
 
+  // Publish control — only meaningful in Week mode (Video Production
+  // Admin's dashboard is week-only), and only for a specific real week,
+  // not "Not Yet Assigned" or "All Periods".
+  var publishBtn='';
+  if(mode==='week' && key && key!=='unplanned' && key!=='all'){
+    var pub=isWeekPublished(key);
+    publishBtn = pub
+      ? '<button onclick="ppvUnpublishWeek(\''+key+'\')" style="padding:5px 10px;border-radius:7px;border:1px solid #bbf7d0;background:#f0fdf4;color:#16a34a;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">✓ Published — unpublish</button>'
+      : '<button onclick="ppvPublishWeek(\''+key+'\')" style="padding:5px 10px;border-radius:7px;border:1px solid #1a1a1a;background:#1a1a1a;color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap">Publish this week</button>';
+  }
+
   return '<div style="border-bottom:1px solid #eee;padding-bottom:12px;margin-bottom:16px">'
     +'<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:2px">'
     +modeToggle
     +'<div style="display:flex;gap:16px;flex-wrap:wrap">'+pills+'</div>'
     +'<div style="margin-left:auto;display:flex;gap:6px">'
+    +publishBtn
     +'<button onclick="ppvOpenPeriodManager()" style="padding:5px 10px;border-radius:7px;border:1px solid #e5e5e5;background:#fff;color:#555;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap">Assign clients</button>'
     +'<button onclick="ppvOpenHolidayManager()" style="padding:5px 10px;border-radius:7px;border:1px solid #e5e5e5;background:#fff;color:#555;font-size:11.5px;font-weight:600;cursor:pointer;white-space:nowrap">Holidays</button>'
     +'</div>'
