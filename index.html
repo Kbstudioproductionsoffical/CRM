@@ -1435,7 +1435,7 @@ document.addEventListener('wheel', function(e) {
       Checking your session…
     </div>
     <div id="login-form-area" style="display:none">
-    <form id="login-form" autocomplete="on" onsubmit="doLogin();return false;" style="margin:0;display:none">
+    <form id="login-form" autocomplete="on" onsubmit="doLogin();return false;" style="margin:0">
     <input class="login-input" type="text" id="login-user" name="username" placeholder="Username" autocomplete="username" >
     <input class="login-input" type="password" id="login-pass" name="password" placeholder="Password" autocomplete="current-password" >
     <button class="login-btn" id="login-btn" type="submit">Login →</button>
@@ -20475,7 +20475,7 @@ $('team-search').addEventListener('input',renderTeam);$('team-role-f').addEventL
 // ═══ USER / ACCOUNT MODALS ════════════════════════════
 $('btn-add-user').addEventListener('click',function(){editUserId=null;$('user-modal-title').textContent='Add User';['u-name','u-displayname','u-username','u-pass','u-phone','u-email','u-notes'].forEach(function(i){sv(i,'');});sv('u-role','admin');sv('u-department','');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=false;document.querySelectorAll('.u-secrole-cb').forEach(function(cb){cb.checked=false;});populateUserTeamDropdown('');onUserRoleChange();openModal('user-modal');});
 function openEditUser(id){var u=users[id];if(!u)return;editUserId=id;$('user-modal-title').textContent='Edit — '+u.name;sv('u-name',u.name);sv('u-displayname',u.displayname||'');sv('u-username',u.username);sv('u-pass',u.password);sv('u-role',u.role);sv('u-department',u.department||'');sv('u-phone',u.phone||'');sv('u-email',u.email||'');sv('u-notes',u.notes||'');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=!!u.mustChangePassword;var secRoles=u.secondaryRoles||[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){cb.checked=secRoles.indexOf(cb.value)!==-1;});populateUserTeamDropdown(u.teamId||'');onUserRoleChange();openModal('user-modal');}
-$('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass');if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;var secRoles=[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){if(cb.checked&&cb.value!==gv('u-role'))secRoles.push(cb.value);});db.ref('crm_users/'+id).set({id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),secondaryRoles:secRoles,department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:gv('u-email'),notes:gv('u-notes'),mustChangePassword:mustChange},function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
+$('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass'),em=gv('u-email').trim().toLowerCase();if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;var secRoles=[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){if(cb.checked&&cb.value!==gv('u-role'))secRoles.push(cb.value);});db.ref('crm_users/'+id).set({id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),secondaryRoles:secRoles,department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:em,notes:gv('u-notes'),mustChangePassword:mustChange},function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
 function deleteUser(id){if(id===CU.id){alert("Can't delete your own account.");return;}if(!confirm('Remove this user?'))return;db.ref('crm_users/'+id).remove(function(){showToast('User removed.');});}
 function openAddAccount(){editAccId=null;var t=$('account-modal-title');if(t)t.textContent='Add Account';['acc-name','acc-number','acc-notes'].forEach(function(i){sv(i,'');});sv('acc-type','savings');openModal('account-modal');}
 function switchUsersTab(tabId, btn){
@@ -25493,7 +25493,7 @@ function loginWithFirebaseUser(fbUser, silent) {
   function findAndLogin() {
     var match = null;
     Object.values(users).forEach(function(u) {
-      if ((u.email || '').toLowerCase() === (email || '').toLowerCase()) match = u;
+      if ((u.email || '').trim().toLowerCase() === (email || '').trim().toLowerCase()) match = u;
     });
     if (match) {
       CU = match;
