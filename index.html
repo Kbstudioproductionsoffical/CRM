@@ -1508,7 +1508,7 @@ document.addEventListener('wheel', function(e) {
           <span style="font-size:13px;font-weight:800;color:#1a1a1a">🟢 Currently Online</span>
           <button onclick="togglePresencePanel()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888;line-height:1">✕</button>
         </div>
-        <div id="presence-list" style="padding:8px 0;max-height:220px;overflow-y:auto"></div>
+        <div id="presence-list" style="padding:8px 0;max-height:320px;overflow-y:auto"></div>
       </div>
       <!-- Dark Mode Toggle -->
       <button id="dark-mode-toggle" onclick="toggleDarkMode()" aria-label="Toggle dark mode" title="Toggle dark mode" style="background:none;border:none;cursor:pointer;padding:6px;color:#fff;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent">
@@ -35562,6 +35562,12 @@ function clearActivityLog() {
   var _heartbeatTmr  = null;
   var _myUid         = null;
   var _mySessionKey  = null;   // unique per browser tab
+  var _myJoinedAt    = 0;      // when this session started
+  var _tickTmr       = null;   // re-renders list so stale users drop off
+  var _lastOnline    = [];     // last snapshot of presence nodes
+  var STALE_MS       = 5 * 60 * 1000;      // no heartbeat for 5 min = offline
+  var PURGE_MS       = 30 * 60 * 1000;     // delete dead nodes older than 30 min
+  var HEARTBEAT_MS   = 60 * 1000;
 
   // ── Called once after CU is set and db is ready ───────────────
   function initPresence() {
@@ -35570,7 +35576,8 @@ function clearActivityLog() {
     _started = true;
 
     _myUid        = CU.id || CU.username || ('anon_' + Date.now());
-    _mySessionKey = _myUid + '_' + Date.now(); // unique per tab session
+    _myJoinedAt   = Date.now();
+    _mySessionKey = _myUid + '_' + _myJoinedAt; // unique per tab session
     _myRef        = db.ref('crm_presence/' + _mySessionKey);
 
     // ── Step 1: React to Firebase connection state ──────────────
@@ -35588,24 +35595,53 @@ function clearActivityLog() {
     // ── Step 2: Listen to the full presence list ────────────────
     _listenerRef = db.ref('crm_presence');
     _listenerRef.on('value', function (snap) {
-      var online = [];
+      var all = [];
       snap.forEach(function (child) {
         var v = child.val();
-        if (v && v.uid) online.push(v);
+        if (v && v.uid) { v._key = child.key; all.push(v); }
       });
-      _renderIndicator(online);
+      _lastOnline = all;
+      _purgeDead(all);
+      _renderIndicator(_fresh(all));
     });
 
     // ── Step 3: Heartbeat every 90s — keeps joinedAt fresh ──────
     _heartbeatTmr = setInterval(function () {
       if (_myRef && window.CU) _writePresence();
-    }, 90000);
+    }, HEARTBEAT_MS);
+
+    // Re-evaluate staleness locally every 30s (no network needed)
+    _tickTmr = setInterval(function () {
+      _renderIndicator(_fresh(_lastOnline));
+    }, 30000);
 
     // ── Step 4: Page visibility — refresh on tab focus ──────────
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible' && _myRef && window.CU) {
         _myRef.onDisconnect().remove();
         _writePresence();
+      }
+    });
+
+    // Best-effort cleanup when the tab/app is closed
+    window.addEventListener('pagehide', function () {
+      try { if (_myRef) _myRef.remove(); } catch (e) {}
+    });
+  }
+
+  // Entries whose heartbeat is recent enough to count as online
+  function _lastActive(u) { return u.lastSeen || u.joinedAt || 0; }
+  function _fresh(list) {
+    var now = Date.now();
+    return (list || []).filter(function (u) { return now - _lastActive(u) < STALE_MS; });
+  }
+
+  // Remove long-dead nodes left by crashed/killed sessions (best-effort)
+  function _purgeDead(list) {
+    var now = Date.now();
+    list.forEach(function (u) {
+      if (u._key && u._key !== _mySessionKey && now - _lastActive(u) > PURGE_MS) {
+        try { db.ref('crm_presence/' + u._key).remove(); } catch (e) {}
       }
     });
   }
@@ -35616,7 +35652,8 @@ function clearActivityLog() {
       uid:      _myUid,
       name:     CU.name || CU.username || 'Unknown',
       role:     CU.role || 'user',
-      joinedAt: Date.now()
+      joinedAt: _myJoinedAt || Date.now(),
+      lastSeen: Date.now()
     });
   }
 
@@ -35637,7 +35674,7 @@ function clearActivityLog() {
     // Deduplicate by uid — keep the freshest entry per user
     var byUid = {};
     online.forEach(function (u) {
-      if (!byUid[u.uid] || u.joinedAt > byUid[u.uid].joinedAt) {
+      if (!byUid[u.uid] || _lastActive(u) > _lastActive(byUid[u.uid])) {
         byUid[u.uid] = u;
       }
     });
@@ -35664,7 +35701,7 @@ function clearActivityLog() {
       var isMe   = u.uid === _myUid;
       var initl  = (u.name || '?').charAt(0).toUpperCase();
       var color  = typeof avatarColor === 'function' ? avatarColor(u.name) : '#6d28d9';
-      var since  = u.joinedAt ? _since(u.joinedAt) : '';
+      var since  = _lastActive(u) ? _since(_lastActive(u)) : '';
       var rlabel = typeof roleLabel === 'function' ? roleLabel(u.role) : (u.role || '');
       return '<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #f8f8f8">' +
         '<div style="position:relative;flex-shrink:0">' +
@@ -35719,6 +35756,8 @@ function clearActivityLog() {
   function stopPresence() {
     _started = false;
     if (_heartbeatTmr) { clearInterval(_heartbeatTmr); _heartbeatTmr = null; }
+    if (_tickTmr)      { clearInterval(_tickTmr); _tickTmr = null; }
+    _lastOnline = [];
     if (_connRef)      { _connRef.off(); _connRef = null; }
     if (_listenerRef)  { _listenerRef.off(); _listenerRef = null; }
     if (_myRef)        { try { _myRef.remove(); } catch (e) {} _myRef = null; }
