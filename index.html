@@ -4647,7 +4647,7 @@ function renderOnboardForm(formDiv, projId, p, fields) {
       '<div style="display:inline-flex;align-items:center;gap:10px;background:#1a1a2e;border-radius:12px;padding:10px 20px;margin-bottom:12px">' +
         '<div style="width:36px;height:36px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#1a1a2e">KB</div>' +
         '<div style="color:#fff;font-size:15px;font-weight:700">KB Studio Productions</div></div>' +
-      '<div style="font-size:20px;font-weight:900;color:#1a1a2e">Welcome, ' + p.bride + ' & ' + p.groom + '! 🎊</div>' +
+      '<div style="font-size:20px;font-weight:900;color:#1a1a2e">Welcome, ' + coupleName(p.bride, p.groom) + '! 🎊</div>' +
       '<div style="font-size:13px;color:#888;margin-top:6px">Please fill in your details so we can personalise your experience and celebrate with you every year!</div>' +
     '</div>' +
     '<div style="background:#fef9c3;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:20px;font-size:13px;color:#854d0e">📅 Event Date: <b>' + (p.date || 'TBD') + '</b> &nbsp;·&nbsp; 📦 Package: <b>' + (p.package || p.type || 'TBD') + '</b></div>' +
@@ -4715,7 +4715,7 @@ function populateObProjSel() {
   var sel = document.getElementById('ob-proj-sel'); if (!sel) return;
   sel.innerHTML = '<option value="">-- Select a booked project --</option>' +
     pl().sort(function(a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).map(function(p) {
-      return '<option value="' + p.id + '">' + p.bride + ' & ' + p.groom + (p.city ? ' — ' + p.city : '') + (p.refcode ? ' [' + p.refcode + ']' : '') + '</option>';
+      return '<option value="' + p.id + '">' + coupleName(p.bride, p.groom) + (p.city ? ' — ' + p.city : '') + (p.refcode ? ' [' + p.refcode + ']' : '') + '</option>';
     }).join('');
 }
 
@@ -4730,7 +4730,7 @@ function buildObWAMsg(p, url) {
   var city = p.city || p.state || '';
   var pkg  = p.package || p.type || '';
   var L = [];
-  L.push('Hi ' + bride + (groomFirst ? ' & ' + groomFirst : '') + '! ð');
+  L.push('Hi ' + coupleName(bride, groomFirst) + '! ð');
   L.push('');
   L.push('Congratulations on your upcoming celebrations! We are absolutely thrilled to be part of your special journey. ð·â¤ï¸');
   L.push('');
@@ -4778,7 +4778,7 @@ function onObProjChange() {
   if (info) {
     info.style.display = 'block';
     info.innerHTML =
-      'ð¤ <b>' + p.bride + ' & ' + p.groom + '</b>' +
+      'ð¤ <b>' + coupleName(p.bride, p.groom) + '</b>' +
       (p.phone ? ' &nbsp;&middot;&nbsp; ð± ' + (fieldVisible('phone') ? p.phone : MASK_TEXT) : '') +
       (p.whatsapp && p.whatsapp !== p.phone ? ' &nbsp;&middot;&nbsp; ð¬ ' + (fieldVisible('whatsapp') ? p.whatsapp : MASK_TEXT) : '') +
       '<br>ð Event: <b>' + (p.date || 'TBD') + '</b>' +
@@ -4919,7 +4919,7 @@ function renderObResponses() {
       var bookStr = bookTs ? fmtDate(new Date(bookTs)) : '—';
       return '<tr>' +
         '<td><input type="checkbox" class="ob-row-check" value="' + p.id + '"></td>' +
-        '<td><div style="font-weight:700">' + escHtml(p.bride + ' & ' + p.groom) + '</div>' +
+        '<td><div style="font-weight:700">' + escHtml(coupleName(p.bride, p.groom)) + '</div>' +
           '<div style="font-size:11px;color:#888">' + (fieldVisible('phone') ? (p.phone||'') : (p.phone ? MASK_TEXT : '')) + '</div></td>' +
         '<td style="font-size:12px;color:#1d4ed8;font-weight:600">' + bookStr + '</td>' +
         '<td>' + fmtDate(p.date) + '</td>' +
@@ -4949,7 +4949,7 @@ function bulkCopyObLinks() {
   if (!checked.length) { showToast('Select at least one client first.'); return; }
   var links = checked.map(function(id) {
     var p = projects[id]; if (!p) return '';
-    return (p.bride||'') + ' & ' + (p.groom||'') + ': ' + getObURL(parseInt(id));
+    return coupleName(p.bride||'', p.groom||'') + ': ' + getObURL(parseInt(id));
   }).filter(Boolean).join('\n');
   navigator.clipboard.writeText(links).then(function() {
     var statusEl = document.getElementById('ob-bulk-status');
@@ -4994,7 +4994,7 @@ function viewObResponse(id) {
   ].filter(function(r) { return r[1]; });
   var title = document.getElementById('ob-resp-modal-title');
   var body = document.getElementById('ob-resp-modal-body');
-  if (title) title.textContent = p.bride + ' & ' + p.groom + ' — Onboarding';
+  if (title) title.textContent = coupleName(p.bride, p.groom) + ' — Onboarding';
   if (body) {
     body.innerHTML =
       '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#166534">✅ Submitted: ' + fmtDate(ob.submittedAt) + '</div>' +
@@ -5296,7 +5296,7 @@ function renderCelebrations() {
         if (years >= 1) {
           var diff = Math.ceil((anniv - today) / 86400000);
           if (diff <= window_days) {
-            events.push({ type: 'anniversary', proj: p, date: anniv, daysLeft: diff, years: years, label: p.bride + ' & ' + p.groom, sub: years + (years===1?' Year':' Years') + ' Anniversary', icon: '💍' });
+            events.push({ type: 'anniversary', proj: p, date: anniv, daysLeft: diff, years: years, label: coupleName(p.bride, p.groom), sub: years + (years===1?' Year':' Years') + ' Anniversary', icon: '💍' });
           }
         }
       }
@@ -5369,7 +5369,7 @@ function renderCelebrations() {
     var waFull = waNum.length === 10 ? '91' + waNum : waNum.length === 12 && waNum.startsWith('91') ? waNum : '';
     if (!waFull && waNum.length > 0) console.warn('Celebrations: unexpected phone length:', waNum.length, '— skipping WA link');
     var greetMsg = e.type === 'anniversary'
-      ? 'Dear ' + p.bride + ' & ' + p.groom + '! 💍\n\nHappy ' + e.sub + '! 🎊\n\nIt\'s been ' + (e.years) + ' beautiful year' + (e.years===1?'':'s') + ' since your special day. Wishing you endless love, laughter, and joy! 💕\n\n— Team KB Studio Productions 📷'
+      ? 'Dear ' + coupleName(p.bride, p.groom) + '! 💍\n\nHappy ' + e.sub + '! 🎊\n\nIt\'s been ' + (e.years) + ' beautiful year' + (e.years===1?'':'s') + ' since your special day. Wishing you endless love, laughter, and joy! 💕\n\n— Team KB Studio Productions 📷'
       : e.type === 'bride_bday'
         ? 'Dear ' + p.bride + '! 🎂\n\nWishing you a very Happy Birthday! 🎊🌸\n\nMay this year be filled with love, joy, and wonderful memories!\n\n— Team KB Studio Productions 📷'
         : 'Dear ' + p.groom + '! 🎂\n\nWishing you a very Happy Birthday! 🎊🎉\n\nMay this year bring you happiness and success!\n\n— Team KB Studio Productions 📷';
@@ -5380,7 +5380,7 @@ function renderCelebrations() {
         '<div style="flex:1">' +
           '<div style="font-size:15px;font-weight:800">' + e.label + '</div>' +
           '<div style="font-size:12px;color:#555;margin-top:2px">' + e.sub + ' &nbsp;·&nbsp; ' + fmtDate(e.date) + '</div>' +
-          '<div style="font-size:11px;color:#888;margin-top:2px">Couple: ' + p.bride + ' & ' + p.groom + (p.city ? ' · ' + p.city : '') + '</div>' +
+          '<div style="font-size:11px;color:#888;margin-top:2px">Couple: ' + coupleName(p.bride, p.groom) + (p.city ? ' · ' + p.city : '') + '</div>' +
         '</div>' +
         '<div style="text-align:right;flex-shrink:0">' +
           '<div style="font-size:18px;font-weight:900;color:' + col + '">' + whenText + '</div>' +
@@ -6465,7 +6465,7 @@ function kbErpRun7DayReminders(projectsList) {
 
       var notif = {
         type: 'kb_7day_reminder',
-        title: '🔔 Payment due ' + label + ' — ' + (p.bride||'') + ' & ' + (p.groom||''),
+        title: '🔔 Payment due ' + label + ' — ' + coupleName(p.bride||'', p.groom||''),
         body: s.label + ': ' + (balance).toLocaleString('en-IN', {style:'currency',currency:'INR',maximumFractionDigits:0}) + ' due on ' + s.dueDate,
         projId: p.id,
         stageKey: s.key,
@@ -6514,7 +6514,7 @@ function kbErpGetReminderMsg(p, stageKey) {
   var bal = Math.max(0, s.amount - paid);
   var dueStr = s.dueDate ? (' on ' + s.dueDate) : '';
   return 'Hello! 🙏\nGentle reminder from KB Studio Productions.\n\n' +
-    'Client: ' + (p.bride||'') + ' & ' + (p.groom||'') + '\n' +
+    'Client: ' + coupleName(p.bride||'', p.groom||'') + '\n' +
     'Payment: ' + s.label + '\n' +
     'Amount due: ₹' + bal.toLocaleString('en-IN') + dueStr + '\n\n' +
     'Please arrange the payment at your earliest convenience.\n' +
@@ -7277,7 +7277,7 @@ function runIntegrityCheck(){
       db.ref('crm_projects/'+p.id).update({stage:'payment',updatedAt:Date.now()},function(err){
         if(!err){
           logStageChange(p.id,'complete','payment','Integrity fix: balance ₹'+fmt(balDue(p))+' still outstanding','System');
-          showToast('⚠️ Integrity: '+p.bride+' & '+p.groom+' moved back to Payment Pending (₹'+fmt(balDue(p))+' due).');
+          showToast('⚠️ Integrity: '+coupleName(p.bride, p.groom)+' moved back to Payment Pending (₹'+fmt(balDue(p))+' due).');
           if(typeof renderPipeline==='function')renderPipeline();
         }
       });
@@ -7336,14 +7336,14 @@ function autoAdvanceStage(projId,targetStage,reason){
 
   // GATE: Nothing reaches 'complete' unless all payments are cleared
   if(targetStage==='complete'&&netVal(p)>0&&balDue(p)>0){
-    showToast('⚠️ '+p.bride+' & '+p.groom+': balance ₹'+fmt(balDue(p))+' still due — cannot move to Complete.');
+    showToast('⚠️ '+coupleName(p.bride, p.groom)+': balance ₹'+fmt(balDue(p))+' still due — cannot move to Complete.');
     return;
   }
 
   db.ref('crm_projects/'+projId).update({stage:targetStage,updatedAt:Date.now()},function(err){
     if(!err){
       logStageChange(projId, cur, targetStage, reason, 'Auto');
-      showToast('📦 Pipeline: '+p.bride+' & '+p.groom+' → '+stageLabel(targetStage)+' ('+reason+')');
+      showToast('📦 Pipeline: '+coupleName(p.bride, p.groom)+' → '+stageLabel(targetStage)+' ('+reason+')');
       if(targetStage==='complete'){
         firePaymentClosedNotification(projId,p,'Auto');
         if(p.clientFlag){
@@ -7419,7 +7419,7 @@ function renderClient360(projId) {
   var timelineEl = document.getElementById('c360-timeline');
   if (!p) { if (timelineEl) timelineEl.innerHTML = '<div style="color:#aaa;padding:20px 0">Project not found.</div>'; return; }
 
-  if (titleEl) titleEl.textContent = '🕐 Client 360 — ' + (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+  if (titleEl) titleEl.textContent = '🕐 Client 360 — ' + coupleName(p.bride || '', p.groom);
   if (subEl) subEl.textContent = (p.refcode || '') + ' · ' + stageLabel(p.stage) + (p.date ? ' · Event: ' + fmtDate(p.date) : '');
 
   if (headerEl) {
@@ -7493,7 +7493,7 @@ function runPaymentAutomations(projId){
     db.ref('crm_projects/'+projId).update({stage:'payment',updatedAt:Date.now()},function(err){
       if(!err){
         logStageChange(projId,'complete','payment','Balance still outstanding — moved back by system','Auto');
-        showToast('\u26a0\ufe0f '+p.bride+' & '+p.groom+' has balance \u20b9'+fmt(balDue(p))+' outstanding — moved back to Payment Pending.');
+        showToast('\u26a0\ufe0f '+coupleName(p.bride, p.groom)+' has balance \u20b9'+fmt(balDue(p))+' outstanding — moved back to Payment Pending.');
         if(typeof renderPipeline==='function')renderPipeline();
       }
     });
@@ -7501,7 +7501,7 @@ function runPaymentAutomations(projId){
   }
   // All paid but waiting for accounts confirmation
   if(netVal(p)>0&&balDue(p)<=0&&p.stage==='payment'){
-    showToast('\u2705 '+p.bride+' & '+p.groom+': all payments received! Accounts team must confirm to mark Complete.');
+    showToast('\u2705 '+coupleName(p.bride, p.groom)+': all payments received! Accounts team must confirm to mark Complete.');
   }
 }
 
@@ -7512,9 +7512,9 @@ function confirmAllPaymentsReceived(projId){
     showToast('\U0001f512 Only the Accounts team can confirm project completion.');return;
   }
   if(netVal(p)>0&&balDue(p)>0){
-    alert('Cannot mark as Complete \u2014 \u20b9'+fmt(balDue(p))+' balance is still due for '+p.bride+' & '+p.groom+'.');return;
+    alert('Cannot mark as Complete \u2014 \u20b9'+fmt(balDue(p))+' balance is still due for '+coupleName(p.bride, p.groom)+'.');return;
   }
-  if(!confirm('Confirm ALL payments received for '+p.bride+' & '+p.groom+' and mark project as COMPLETE?\n\nThis action will be logged.'))return;
+  if(!confirm('Confirm ALL payments received for '+coupleName(p.bride, p.groom)+' and mark project as COMPLETE?\n\nThis action will be logged.'))return;
   autoAdvanceStage(projId,'complete','All payments confirmed by '+(CU.name||CU.username));
 }
 
@@ -7540,12 +7540,12 @@ function confirmDeliveryToClient(projId){
   if(delivs.length&&!delivs.every(function(d){return delivIsDone(d.status);})){
     alert('Not all deliverables are marked Delivered & Approved yet. Please get client approval on every deliverable before confirming.');return;
   }
-  if(!confirm('Confirm that ALL deliverables have been handed over to '+p.bride+' & '+p.groom+'?\n\nThis will move the project to Payment Pending.'))return;
+  if(!confirm('Confirm that ALL deliverables have been handed over to '+coupleName(p.bride, p.groom)+'?\n\nThis will move the project to Payment Pending.'))return;
   var reason='Delivery confirmed by '+(CU.name||CU.username);
   db.ref('crm_projects/'+projId).update({deliveryConfirmedBy:CU.name||CU.username,deliveryConfirmedAt:Date.now(),stage:'payment',updatedAt:Date.now()},function(err){
     if(!err){
       logStageChange(projId,'delivery','payment',reason,CU.name||CU.username);
-      showToast('\ud83d\udce6 Delivery confirmed! '+p.bride+' & '+p.groom+' moved to Payment Pending.');
+      showToast('\ud83d\udce6 Delivery confirmed! '+coupleName(p.bride, p.groom)+' moved to Payment Pending.');
       if(typeof renderPipeline==='function')renderPipeline();
       if(typeof renderDashboard==='function')renderDashboard();
       if(editProjId===projId)renderStageLog();
@@ -7563,7 +7563,7 @@ function approveRawData(){
   if(!editProjId)return;
   var p=projects[editProjId];if(!p)return;
   if(!CU||CU.role!=='datamanager'){showToast('Only Data Manager can approve raw data.');return;}
-  if(!confirm('Approve all raw data for '+p.bride+' & '+p.groom+' and move to Post-Production?'))return;
+  if(!confirm('Approve all raw data for '+coupleName(p.bride, p.groom)+' and move to Post-Production?'))return;
   db.ref('crm_projects/'+editProjId).update({rawDataApproved:true,rawDataApprovedBy:CU.name||CU.username,rawDataApprovedAt:Date.now()},function(err){
     if(!err){
       showToast('Raw data approved!');
@@ -7598,7 +7598,7 @@ function renderDataVault() {
   pl().forEach(function(p) {
     (p.dataEntries || []).forEach(function(e) {
       rows.push({
-        couple: p.bride + ' & ' + p.groom,
+        couple: coupleName(p.bride, p.groom),
         refcode: p.refcode || '',
         eventDate: p.date || '',
         stage: p.stage || '',
@@ -7749,7 +7749,7 @@ function renderDataManagerDashboard(dc) {
           var urgency = daysPast >= 7 ? '#dc2626' : daysPast >= 3 ? '#d97706' : '#16a34a';
           var entries = (p.dataEntries || []).length;
           return '<tr>' +
-            '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+            '<td style="font-weight:700">' + coupleName(p.bride, p.groom) + '</td>' +
             '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
             '<td style="font-size:12px">' + pDate + '</td>' +
             '<td style="color:' + urgency + ';font-weight:700">' + daysPast + 'd ago</td>' +
@@ -7770,7 +7770,7 @@ function renderDataManagerDashboard(dc) {
         pendingNoDate.map(function(p) {
           var entries = (p.dataEntries || []).length;
           return '<tr>' +
-            '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+            '<td style="font-weight:700">' + coupleName(p.bride, p.groom) + '</td>' +
             '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
             '<td>' + (p.city || '—') + '</td>' +
             '<td style="font-size:12px">' + (p.type || '—') + '</td>' +
@@ -7786,7 +7786,7 @@ function renderDataManagerDashboard(dc) {
       '<table class="tbl"><thead><tr><th>Couple</th><th>Ref</th><th>Event Date</th><th>Approved By</th><th>Approved On</th><th></th></tr></thead><tbody>' +
       approved.map(function(p) {
         return '<tr>' +
-          '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+          '<td style="font-weight:700">' + coupleName(p.bride, p.groom) + '</td>' +
           '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
           '<td>' + (firstEventDate(p) || '—') + '</td>' +
           '<td>' + (p.dataLogApprovedBy || '—') + '</td>' +
@@ -7821,7 +7821,7 @@ function openDMDrill(type) {
       var urgency = daysPast !== null && daysPast >= 7 ? '#dc2626' : daysPast !== null && daysPast >= 3 ? '#d97706' : '#555';
       var entries = (p.dataEntries || []).length;
       return '<tr>' +
-        '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+        '<td style="font-weight:700">' + coupleName(p.bride, p.groom) + '</td>' +
         '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
         '<td style="font-size:12px">' + (pDate || '<span style="color:#d97706">⚠️ Not set</span>') + '</td>' +
         '<td style="color:' + urgency + ';font-weight:700">' + (daysPast !== null ? daysPast + 'd ago' : '—') + '</td>' +
@@ -7841,7 +7841,7 @@ function openDMDrill(type) {
     emptyMsg = 'No approvals yet.';
     rows = approvedList.map(function(p) {
       return '<tr>' +
-        '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+        '<td style="font-weight:700">' + coupleName(p.bride, p.groom) + '</td>' +
         '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
         '<td style="font-size:12px">' + (firstEventDate(p) || '—') + '</td>' +
         '<td>' + (p.dataLogApprovedBy || '—') + '</td>' +
@@ -7865,7 +7865,7 @@ function openDMDrill(type) {
       var dLeft = daysUntil(pDate);
       var col = dLeft <= 7 ? '#dc2626' : dLeft <= 14 ? '#d97706' : '#1d4ed8';
       return '<tr>' +
-        '<td style="font-weight:700">' + p.bride + ' & ' + p.groom + '</td>' +
+        '<td style="font-weight:700">' + coupleName(p.bride, p.groom) + '</td>' +
         '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
         '<td style="font-size:12px;font-weight:600">' + pDate + '</td>' +
         '<td style="color:' + col + ';font-weight:800">' + dLeft + ' days</td>' +
@@ -7925,7 +7925,7 @@ function openFutureWorkDrill() {
     var dLabel = pDate ? (dLeft < 0 ? Math.abs(dLeft) + 'd ago' : dLeft + 'd left') : '⚠️ Not set';
     var bal = balDue(p);
     return '<tr>' +
-      '<td style="font-weight:700">' + priorityBadge(p) + ' ' + p.bride + ' & ' + p.groom + '</td>' +
+      '<td style="font-weight:700">' + priorityBadge(p) + ' ' + coupleName(p.bride, p.groom) + '</td>' +
       '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
       '<td style="font-size:12px">' + (pDate || '<span style="color:#d97706">⚠️ Not set</span>') + '</td>' +
       '<td style="color:' + dCol + ';font-weight:700;font-size:12px">' + dLabel + '</td>' +
@@ -8005,7 +8005,7 @@ function renderArchiveQueue() {
   }
 
   var rows = queue.map(function(p) {
-    var couple = escHtml((p.bride||'') + ' & ' + (p.groom||''));
+    var couple = escHtml(coupleName(p.bride||'', p.groom||''));
     var req = p.archiveRequest || {};
     var statusLabel = req.clientApproval === 'approved' ? '<span style="color:#16a34a;font-weight:700">✅ Client Approved</span>'
       : req.clientApproval === 'declined' ? '<span style="color:#dc2626;font-weight:700">❌ Client Declined</span>'
@@ -8062,7 +8062,7 @@ function exportArchiveQueueExcel() {
   if (!queue.length) { showToast('No data to export'); return; }
   var rows = [['Couple', 'Ref Code', 'Event Date', 'Total Value (INR)', 'Balance (INR)', 'Deletion Request Status']];
   queue.forEach(function(p) {
-    var couple = (p.bride||'') + ' & ' + (p.groom||'');
+    var couple = coupleName(p.bride||'', p.groom||'');
     var paidAmt = typeof paidTotal === 'function' ? paidTotal(p) : 0;
     var totalAmt = typeof netVal === 'function' ? netVal(p) : (p.value || 0);
     var balance = totalAmt - paidAmt;
@@ -8147,7 +8147,7 @@ function exportArchiveQueuePDF() {
     if (i % 2 === 0) { doc.setFillColor(249, 250, 251); doc.rect(startX, currentY, pageW - 28, rowH, 'F'); }
     doc.setDrawColor(240, 240, 240);
     doc.line(startX, currentY + rowH, startX + (pageW - 28), currentY + rowH);
-    var couple = (p.bride||'') + ' & ' + (p.groom||'');
+    var couple = coupleName(p.bride||'', p.groom||'');
     var paidAmt = typeof paidTotal === 'function' ? paidTotal(p) : 0;
     var totalAmt = typeof netVal === 'function' ? netVal(p) : (p.value || 0);
     var balance = totalAmt - paidAmt;
@@ -8191,14 +8191,14 @@ function openArchiveRequest(projId) {
   var p = projects[projId]; if (!p) return;
   var req = p.archiveRequest || {};
   var ex = document.getElementById('archive-req-modal'); if (ex) ex.remove();
-  var couple = escHtml((p.bride||'') + ' & ' + (p.groom||''));
+  var couple = escHtml(coupleName(p.bride||'', p.groom||''));
 
   // Build WhatsApp message
   var waMsg = encodeURIComponent(
     'Hi, this is KB Studio. As we have successfully delivered all your wedding memories, ' +
     'we would like to inform you that we are planning to clear the raw data from our servers. ' +
     'Please confirm if you have received and saved all delivered files. ' +
-    'Reply YES to approve data deletion or NO to retain for now.\n\nCouple: ' + (p.bride||'') + ' & ' + (p.groom||'')
+    'Reply YES to approve data deletion or NO to retain for now.\n\nCouple: ' + coupleName(p.bride||'', p.groom||'')
   );
   var waNum = (p.phone||'').replace(/[^0-9]/g,'');
   var waLink = waNum ? 'https://wa.me/91' + waNum + '?text=' + waMsg : '';
@@ -8271,7 +8271,7 @@ function saveArchiveRequest(projId) {
 
 function confirmArchiveClient(projId) {
   var p = projects[projId]; if (!p) return;
-  var couple = (p.bride||'') + ' & ' + (p.groom||'');
+  var couple = coupleName(p.bride||'', p.groom||'');
   if (!confirm('Archive ' + couple + '?\n\nThis will move all their data to the Archives section. The client will no longer appear in active lists.\n\nThis can be undone by a Superadmin.')) return;
 
   // Build full archive snapshot
@@ -8732,7 +8732,7 @@ function checklistDayCardHTML(p, ed, dayId, tplObj, toggleFnName, showCoupleName
   }
   var pct = totalItems ? Math.round((doneItems/totalItems)*100) : null;
   var progressHTML = pct !== null ? '<div style="display:flex;align-items:center;gap:8px;margin-top:8px"><div style="flex:1;height:6px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;background:'+(pct===100?'#16a34a':'#3b82f6')+';width:'+pct+'%"></div></div><span style="font-size:11px;font-weight:700;color:#555">'+doneItems+'/'+totalItems+'</span></div>' : '';
-  var titleLine = showCoupleName ? ((p.bride||'')+' & '+(p.groom||'')+' — '+fmtDate(ed.date)) : fmtDate(ed.date);
+  var titleLine = showCoupleName ? (coupleName(p.bride||'', p.groom||'')+' — '+fmtDate(ed.date)) : fmtDate(ed.date);
 
   return '<div style="background:#fff;border-radius:14px;border:1px solid #e5e5e5;padding:16px 18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">' +
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
@@ -8956,7 +8956,7 @@ function renderCrewPortal() {
     // Single-event mode: just this event's shoot day(s), no other clients, no upcoming/past split.
     myDays.sort(function(a,b){ return a.ed.date.localeCompare(b.ed.date); });
     var evtProject = myDays.length ? myDays[0].p : (_crewPortal.projects[eventFilter] ? Object.assign({}, _crewPortal.projects[eventFilter], {id: eventFilter}) : null);
-    var coupleLine = evtProject ? ((evtProject.bride||'')+' & '+(evtProject.groom||'')) : 'This Event';
+    var coupleLine = evtProject ? (coupleName(evtProject.bride||'', evtProject.groom||'')) : 'This Event';
     portal.innerHTML =
       '<div style="max-width:640px;margin:0 auto;padding:20px 16px 60px">' +
         '<div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)">' +
@@ -9299,7 +9299,7 @@ function approveDataLog() {
   if (!entries.length) { showToast('Add at least one data entry before approving.'); return; }
   var unsecured = entries.filter(function(e) { return e.status === 'pending'; });
   if (unsecured.length) { if (!confirm(unsecured.length + ' entr' + (unsecured.length>1?'ies are':'y is') + ' still pending. Approve anyway and move to Post-Production?')) return; }
-  else { if (!confirm('All data secured! Approve and move ' + p.bride + ' & ' + p.groom + ' to Post-Production?')) return; }
+  else { if (!confirm('All data secured! Approve and move ' + coupleName(p.bride, p.groom) + ' to Post-Production?')) return; }
   db.ref('crm_projects/' + editProjId).update({ dataLogApproved: true, dataLogApprovedBy: CU.name || CU.username, dataLogApprovedAt: Date.now(), rawDataApproved: true, rawDataApprovedBy: CU.name || CU.username, rawDataApprovedAt: Date.now() }, function(err) {
     if (!err) {
       showToast('✅ Data approved! Moving to Post-Production...');
@@ -10073,7 +10073,7 @@ function showDeliveredWAPopup(d,p){
     +'<div style="display:flex;align-items:center;gap:10px">'
     +'<div style="width:40px;height:40px;background:#25D366;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px">💬</div>'
     +'<div><div style="font-size:15px;font-weight:800">Notify Client on WhatsApp</div>'
-    +'<div style="font-size:12px;color:#888">'+dname+' is ready · '+p.bride+' & '+p.groom+'</div></div></div>'
+    +'<div style="font-size:12px;color:#888">'+dname+' is ready · '+coupleName(p.bride, p.groom)+'</div></div></div>'
     +'<button onclick="document.getElementById(\'deliv-wa-popup\').remove()" style="background:#f1f5f9;border:none;border-radius:8px;width:32px;height:32px;font-size:18px;cursor:pointer;color:#666;display:flex;align-items:center;justify-content:center">×</button>'
     +'</div>'
     +(!hasPhone?'<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12px;color:#854d0e;margin-bottom:12px">⚠️ No WhatsApp number saved for this client. Add it in the project details to send directly.</div>':'')
@@ -10142,7 +10142,7 @@ function renderBriefTab(p){
   if(copyBtn)copyBtn.onclick=function(){navigator.clipboard.writeText(url).then(function(){showToast('📋 Brief link copied!');});};
   var waBtn=document.getElementById('btn-wa-brief');
   if(waBtn)waBtn.onclick=function(){
-    var msg='Hi '+p.bride+' & '+p.groom+'!\n\nPlease fill in your post-production brief:\n\n'+url+'\n\nThanks!\n— KB Studio Productions';
+    var msg='Hi '+coupleName(p.bride, p.groom)+'!\n\nPlease fill in your post-production brief:\n\n'+url+'\n\nThanks!\n— KB Studio Productions';
     window.open('https://wa.me/'+(p.whatsapp||'')+'?text='+encodeURIComponent(msg),'_blank');
   };
   var brief=p.clientBrief;
@@ -10223,7 +10223,7 @@ function renderBriefFormPublic(formDiv, briefId, p, fields){
     '<div style="text-align:center;margin-bottom:20px">'+
       '<div style="font-size:26px;font-weight:900;color:#1a1a2e">KB Studio Productions</div>'+
       '<div style="font-size:14px;color:#888;margin-top:4px">Post-Production Brief</div>'+
-      '<div style="margin-top:8px;font-size:14px;color:#555">For: <b>'+p.bride+' & '+p.groom+'</b></div>'+
+      '<div style="margin-top:8px;font-size:14px;color:#555">For: <b>'+coupleName(p.bride, p.groom)+'</b></div>'+
     '</div>'+
     '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;margin-bottom:18px;font-size:13px;color:#166534">Please fill this carefully — it directly shapes your final videos and albums.</div>'+
     fieldsHTML+
@@ -10514,7 +10514,7 @@ function scanAlbumRepair(){
       if(!Array.isArray(d.albumUnits) || d.albumUnits.length<=ALBUM_UNIT_MAX) return;
       var withProgress=d.albumUnits.filter(albumUnitHasProgress);
       var keep = withProgress.length ? withProgress.slice(0,ALBUM_UNIT_MAX) : [d.albumUnits[0]];
-      findings.push({projId:p.id, projName:(p.bride+' & '+p.groom), di:di, delivName:d.name, currentCount:d.albumUnits.length, keepUnits:keep});
+      findings.push({projId:p.id, projName:(coupleName(p.bride, p.groom)), di:di, delivName:d.name, currentCount:d.albumUnits.length, keepUnits:keep});
     });
   });
   if(!findings.length){
@@ -10566,12 +10566,12 @@ function assignTask(projId, path, mode, targetUserId, roleForBroadcast){
   var finish=function(err){
     if(err){showToast('❌ Error: '+err.message);return;}
     showToast('✅ '+stageLabelForPath(path)+' assigned'+(mode==='direct'?' to '+obj.assignedToName:' — broadcast to team'));
-    logActivity('deliverable','Task Assigned',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)+' → '+(mode==='direct'?obj.assignedToName:'broadcast/'+roleLabel(roleForBroadcast))+' by '+who),{projId:projId});
+    logActivity('deliverable','Task Assigned',(coupleName(p.bride, p.groom)+' — '+stageLabelForPath(path)+' → '+(mode==='direct'?obj.assignedToName:'broadcast/'+roleLabel(roleForBroadcast))+' by '+who),{projId:projId});
     pushSystemNotification({
       type:'task_assigned', icon:'📌',
       title:(mode==='direct'?'Task Assigned To You':'New Task Available'),
-      body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — '+stageLabelForPath(path)+(mode==='direct'?' assigned to you by '+who+'.':' is open — first to claim it gets it.'),
-      projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+      body:(coupleName(p.bride, p.groom))+(p.refcode?' ['+p.refcode+']':'')+' — '+stageLabelForPath(path)+(mode==='direct'?' assigned to you by '+who+'.':' is open — first to claim it gets it.'),
+      projId:projId, clientName:coupleName(p.bride, p.groom), refcode:p.refcode||'',
       forRoles: mode==='direct' ? [] : [roleForBroadcast],
       forUserId: mode==='direct' ? targetUserId : undefined,
       at:new Date().toISOString(), requiresAction:true, actionLabel: mode==='direct'?'Start Task':'Claim Task'
@@ -10609,7 +10609,7 @@ function openAssignConfirmModal(projId, di, ui, stageKey){
   }).join('');
   var html='<div style="padding:4px 2px">'+
     '<div style="font-size:15px;font-weight:800;margin-bottom:4px">'+stage.icon+' Assign '+stage.label+'</div>'+
-    '<div style="font-size:12px;color:#888;margin-bottom:14px">'+(p.bride+' & '+p.groom)+' — "'+(u.name||'Album')+'"'+(u.photoCount?' · '+u.photoCount+' photos':'')+'. Selection was just marked complete — confirm who should take this task.</div>'+
+    '<div style="font-size:12px;color:#888;margin-bottom:14px">'+(coupleName(p.bride, p.groom))+' — "'+(u.name||'Album')+'"'+(u.photoCount?' · '+u.photoCount+' photos':'')+'. Selection was just marked complete — confirm who should take this task.</div>'+
     '<label class="fl">Assign To'+(def?' <span style="color:#888;font-weight:400">(pre-filled with the default for this stage)</span>':'')+'</label>'+
     '<select class="fi" id="acm-assignee" style="margin-bottom:14px">'+opts+'</select>'+
     '<div style="display:flex;gap:8px;justify-content:flex-end">'+
@@ -10646,7 +10646,7 @@ function claimTask(projId, path){
     t.status='assigned'; t.assignedTo=CU.id; t.assignedToName=who; t.claimedAt=now;
     setNestedTask(p,path,t);
     showToast('✅ Task claimed — it\'s yours now.');
-    logActivity('deliverable','Task Claimed',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)+' claimed by '+who),{projId:projId});
+    logActivity('deliverable','Task Claimed',(coupleName(p.bride, p.groom)+' — '+stageLabelForPath(path)+' claimed by '+who),{projId:projId});
     rerenderAlbumViews();
   });
 }
@@ -10663,7 +10663,7 @@ function startTask(projId, path){
     t.status='in_progress'; t.startedAt=now;
     setNestedTask(p,path,t);
     showToast('🎬 Task started.');
-    logActivity('deliverable','Task Started',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)),{projId:projId});
+    logActivity('deliverable','Task Started',(coupleName(p.bride, p.groom)+' — '+stageLabelForPath(path)),{projId:projId});
     rerenderAlbumViews();
   });
 }
@@ -10682,13 +10682,13 @@ function completeTask(projId, path){
     t.status='done'; t.completedAt=now; t.completedBy=who;
     setNestedTask(p,path,t);
     showToast('✅ '+stageLabelForPath(path)+' marked done!');
-    logActivity('deliverable','Task Completed',(p.bride+' & '+p.groom+' — '+stageLabelForPath(path)+' completed by '+who),{projId:projId});
+    logActivity('deliverable','Task Completed',(coupleName(p.bride, p.groom)+' — '+stageLabelForPath(path)+' completed by '+who),{projId:projId});
     notifyNextStageReady(projId,p,path);
     if(path.split('/').pop()==='printing'){
       pushSystemNotification({
         type:'album_sent_printing', icon:'🖨️', title:'Album Sent to Printing',
-        body:(p.bride+' & '+p.groom)+' — album has gone to print. Removed from the active production board.',
-        projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+        body:(coupleName(p.bride, p.groom))+' — album has gone to print. Removed from the active production board.',
+        projId:projId, clientName:coupleName(p.bride, p.groom), refcode:p.refcode||'',
         forRoles:['superadmin','relmgr'], at:new Date().toISOString(), requiresAction:false
       });
     }
@@ -10719,11 +10719,11 @@ function requestAlbumRevision(projId, di, ui){
       return;
     }
     showToast('🔁 Revision requested — Album Making reopened.');
-    logActivity('deliverable','Album Revision Requested',(p.bride+' & '+p.groom+' — "'+(u.name||'Album')+'" revision #'+u.revisionCount+' by '+who),{projId:projId});
+    logActivity('deliverable','Album Revision Requested',(coupleName(p.bride, p.groom)+' — "'+(u.name||'Album')+'" revision #'+u.revisionCount+' by '+who),{projId:projId});
     pushSystemNotification({
       type:'album_revision', icon:'🔁', title:'Revision Requested',
-      body:(p.bride+' & '+p.groom)+' — client requested changes on "'+(u.name||'Album')+'". Album Making has been reopened.',
-      projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+      body:(coupleName(p.bride, p.groom))+' — client requested changes on "'+(u.name||'Album')+'". Album Making has been reopened.',
+      projId:projId, clientName:coupleName(p.bride, p.groom), refcode:p.refcode||'',
       forRoles:['albummaker','albumretoucher'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Resume'
     });
     rerenderAlbumViews();
@@ -10739,8 +10739,8 @@ function notifyNextStageReady(projId,p,completedPath){
   pushSystemNotification({
     type:'album_stage_ready', icon:next.icon,
     title:next.label+' — Ready to Assign',
-    body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — previous stage is done. '+next.label+' is ready to be assigned.',
-    projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+    body:(coupleName(p.bride, p.groom))+(p.refcode?' ['+p.refcode+']':'')+' — previous stage is done. '+next.label+' is ready to be assigned.',
+    projId:projId, clientName:coupleName(p.bride, p.groom), refcode:p.refcode||'',
     forRoles:['superadmin','relmgr'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Assign'
   });
 }
@@ -10749,18 +10749,18 @@ function notifyNextStageReady(projId,p,completedPath){
 function markPhotoSelectionComplete(projId){
   if(!can('canMarkSelection')){showToast('⛔ Only the Relationship Manager or Post Production Head can mark selection.');return;}
   var p=projects[projId]; if(!p) return;
-  if(!confirm('Confirm photo selection has been received from '+p.bride+' & '+p.groom+'?\n\nThis will notify Superadmin/RelMgr to assign a Photo Retoucher.'))return;
+  if(!confirm('Confirm photo selection has been received from '+coupleName(p.bride, p.groom)+'?\n\nThis will notify Superadmin/RelMgr to assign a Photo Retoucher.'))return;
   var who=CU?(CU.name||CU.username):'Relationship Manager';
   var now=Date.now();
   db.ref('crm_projects/'+projId+'/photoSelection').set({status:'received',at:now,by:who},function(err){
     if(err){showToast('❌ Error: '+err.message);return;}
     p.photoSelection={status:'received',at:now,by:who};
     showToast('✅ Photo selection marked complete.');
-    logActivity('deliverable','Photo Selection Received',(p.bride+' & '+p.groom+' — photo selection marked complete by '+who),{projId:projId});
+    logActivity('deliverable','Photo Selection Received',(coupleName(p.bride, p.groom)+' — photo selection marked complete by '+who),{projId:projId});
     pushSystemNotification({
       type:'photo_selection_received', icon:'🖼️', title:'Photo Selection Received — Assign a Retoucher',
-      body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — client has completed photo selection. Ready to assign for retouching.',
-      projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+      body:(coupleName(p.bride, p.groom))+(p.refcode?' ['+p.refcode+']':'')+' — client has completed photo selection. Ready to assign for retouching.',
+      projId:projId, clientName:coupleName(p.bride, p.groom), refcode:p.refcode||'',
       forRoles:['superadmin','relmgr'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Assign Retoucher'
     });
     renderSelectionStatusCard(p);
@@ -10778,7 +10778,7 @@ function markAlbumSelectionComplete(projId, di, ui){
   var d=(p.customDelivs||[])[di]; if(!d) return;
   ensureAlbumUnits(d);
   var u=d.albumUnits[ui]; if(!u) return;
-  if(!confirm('Confirm selection has been received for "'+(u.name||'this album')+'" from '+p.bride+' & '+p.groom+'?\n\nThis will notify Superadmin/RelMgr/Album & Photo Head to assign the Selection & Sorting Check task.'))return;
+  if(!confirm('Confirm selection has been received for "'+(u.name||'this album')+'" from '+coupleName(p.bride, p.groom)+'?\n\nThis will notify Superadmin/RelMgr/Album & Photo Head to assign the Selection & Sorting Check task.'))return;
   var who=CU?(CU.name||CU.username):'Relationship Manager';
   var now=Date.now();
   var prevSelection=u.selection;
@@ -10786,11 +10786,11 @@ function markAlbumSelectionComplete(projId, di, ui){
   persistAlbumUnit(projId, di, ui, function(err){
     if(err){ u.selection=prevSelection; showToast('❌ Error: '+err); renderSelectionStatusCard(p); return; }
     showToast('✅ Selection marked complete for "'+(u.name||'Album')+'".');
-    logActivity('deliverable','Album Selection Received',(p.bride+' & '+p.groom+' — "'+(u.name||'Album')+'" selection marked complete by '+who),{projId:projId});
+    logActivity('deliverable','Album Selection Received',(coupleName(p.bride, p.groom)+' — "'+(u.name||'Album')+'" selection marked complete by '+who),{projId:projId});
     pushSystemNotification({
       type:'album_selection_received', icon:'📔', title:'Album Selection Received — Assign the Chain',
-      body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — "'+(u.name||'Album')+'" selection is complete. Ready to assign Selection & Sorting Check. Due in '+ALBUM_SLA_DAYS+' days.',
-      projId:projId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+      body:(coupleName(p.bride, p.groom))+(p.refcode?' ['+p.refcode+']':'')+' — "'+(u.name||'Album')+'" selection is complete. Ready to assign Selection & Sorting Check. Due in '+ALBUM_SLA_DAYS+' days.',
+      projId:projId, clientName:coupleName(p.bride, p.groom), refcode:p.refcode||'',
       forRoles:['superadmin','relmgr','albumhead'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Assign Task'
     });
     renderSelectionStatusCard(p);
@@ -10881,7 +10881,7 @@ function apShowClientHistory(projId,label){
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
   modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">'
-    +'<div><div style="font-size:15px;font-weight:800">🕒 Activity History</div><div style="font-size:12px;color:#888">'+(label||(p.bride+' & '+p.groom))+'</div></div>'
+    +'<div><div style="font-size:15px;font-weight:800">🕒 Activity History</div><div style="font-size:12px;color:#888">'+(label||(coupleName(p.bride, p.groom)))+'</div></div>'
     +'<button onclick="document.getElementById(\'ap-history-modal\').remove()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">Close</button></div>'
     +'<div id="ap-history-body"><div style="color:#aaa;padding:20px 0;text-align:center">Loading…</div></div>'
     +'</div>';
@@ -10933,7 +10933,7 @@ function apDailySweep(){
       if(existing[key]) return;
       var dLeft=unitDaysLeft(o.item.u);
       pushSystemNotification({type:'album_overdue', icon:'⚠️', title:'Album Overdue',
-        body:(o.p.bride+' & '+o.p.groom)+(o.p.refcode?' ['+o.p.refcode+']':'')+' — "'+label+'" is '+Math.abs(dLeft)+' day'+(Math.abs(dLeft)!==1?'s':'')+' past the '+ALBUM_SLA_DAYS+'-day SLA.',
+        body:(coupleName(o.p.bride, o.p.groom))+(o.p.refcode?' ['+o.p.refcode+']':'')+' — "'+label+'" is '+Math.abs(dLeft)+' day'+(Math.abs(dLeft)!==1?'s':'')+' past the '+ALBUM_SLA_DAYS+'-day SLA.',
         pid:o.p.id, unitLabel:label, forRoles:['superadmin','albumhead'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Open'});
     });
   });
@@ -10944,7 +10944,7 @@ function apDailySweep(){
       if(existing[p.id]) return;
       var dLeft=photoDaysLeft(p);
       pushSystemNotification({type:'photo_overdue', icon:'⚠️', title:'Photo Retouching Overdue',
-        body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — retouching is '+Math.abs(dLeft)+' day'+(Math.abs(dLeft)!==1?'s':'')+' past the '+PHOTO_SLA_DAYS+'-day SLA.',
+        body:(coupleName(p.bride, p.groom))+(p.refcode?' ['+p.refcode+']':'')+' — retouching is '+Math.abs(dLeft)+' day'+(Math.abs(dLeft)!==1?'s':'')+' past the '+PHOTO_SLA_DAYS+'-day SLA.',
         pid:p.id, forRoles:['superadmin','albumhead'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Open'});
     });
   });
@@ -10990,7 +10990,7 @@ function apOpenPeriodManager(){
     var cur=wpKeyFor(p,mode);
     var opts='<option value="unplanned"'+(cur==='unplanned'?' selected':'')+'>— Not Yet Assigned —</option>'
       +keys.map(function(k){return '<option value="'+k+'"'+(cur===k?' selected':'')+'>'+wpLabelFor(k,mode)+'</option>';}).join('');
-    return '<tr><td style="font-weight:600;padding:8px">'+p.bride+' & '+p.groom+'</td>'
+    return '<tr><td style="font-weight:600;padding:8px">'+coupleName(p.bride, p.groom)+'</td>'
       +'<td style="padding:8px"><select class="fi" style="font-size:12px;padding:5px 8px" onchange="apSetTarget('+p.id+',\''+mode+'\',this.value)">'+opts+'</select></td></tr>';
   }).join('');
   var modal=document.createElement('div');
@@ -11153,7 +11153,7 @@ function renderAlbumBoard(){
         var locked=isPathLocked(p,path);
         html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px">';
         html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
-        html+='<div><div style="font-size:15px;font-weight:800">'+stage.icon+' '+stage.label+'</div><div style="font-size:11px;color:#888">'+p.bride+' & '+p.groom+' · '+(p.city||'')+' · <b>'+albumUnitDisplayName(item)+'</b></div></div>';
+        html+='<div><div style="font-size:15px;font-weight:800">'+stage.icon+' '+stage.label+'</div><div style="font-size:11px;color:#888">'+coupleName(p.bride, p.groom)+' · '+(p.city||'')+' · <b>'+albumUnitDisplayName(item)+'</b></div></div>';
         html+=taskStatusBadge(t);
         html+='</div>';
         if(locked){
@@ -11186,7 +11186,7 @@ function renderAlbumBoard(){
         var overdue=unitIsOverdue(u);
         html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:'+(overdue?'#fff5f5':'#fff')+'">';
         html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">';
-        html+='<div style="display:flex;gap:10px;align-items:flex-start">'+apOrderControlsFor(p.id)+'<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+' <span style="font-weight:600;color:#3b82f6">· '+albumUnitDisplayName(item)+'</span>'+(u.photoCount?' <span style="font-weight:400;color:#aaa;font-size:12px">('+u.photoCount+' photos)</span>':'')+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+(u.revisionCount?' · 🔁 '+u.revisionCount+' revision(s)':'')+'</div></div></div>';
+        html+='<div style="display:flex;gap:10px;align-items:flex-start">'+apOrderControlsFor(p.id)+'<div><div style="font-size:15px;font-weight:800">'+coupleName(p.bride, p.groom)+' <span style="font-weight:600;color:#3b82f6">· '+albumUnitDisplayName(item)+'</span>'+(u.photoCount?' <span style="font-weight:400;color:#aaa;font-size:12px">('+u.photoCount+' photos)</span>':'')+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+' · Event: '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+(u.revisionCount?' · 🔁 '+u.revisionCount+' revision(s)':'')+'</div></div></div>';
         html+='<div style="text-align:right"><div style="font-size:11px;font-weight:700;color:'+(overdue?'#dc2626':'#888')+'">'+(overdue?'⚠️ OVERDUE by '+Math.abs(dLeft)+' days':dLeft+' days left (of '+ALBUM_SLA_DAYS+')')+'</div>';
         html+='<div style="display:flex;gap:5px;margin-top:4px"><button class="btn btn-sm" style="font-size:11px" onclick="apShowClientHistory('+p.id+',\''+albumUnitDisplayName(item).replace(/'/g,"\\'")+'\')">🕒 History</button><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></div></div>';
         html+='</div>';
@@ -11220,7 +11220,7 @@ function renderAlbumBoard(){
     html+='<table class="tbl"><thead><tr><th>Couple</th><th>Album</th><th>City</th><th>Event Date</th><th></th></tr></thead><tbody>';
     awaiting.forEach(function(item){
       var p=item.p, u=item.u;
-      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td>';
+      html+='<tr><td><div style="font-weight:700">'+coupleName(p.bride, p.groom)+'</div></td>';
       html+='<td>'+(u.name||'Album '+(item.ui+1))+(u.photoCount?' <span style="color:#aaa">· '+u.photoCount+'</span>':'')+'</td>';
       html+='<td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
       html+='<td style="display:flex;gap:6px;flex-wrap:wrap">';
@@ -11239,7 +11239,7 @@ function renderAlbumBoard(){
       var p=item.p, u=item.u;
       var pt=getTaskObj(p,item.base+'/tasks/printing');
       var dt=getTaskObj(p,item.base+'/tasks/delivered');
-      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(u.name||'Album '+(item.ui+1))+'</td><td>'+fmtDate(p.date)+'</td><td>'+(u.selection?fmtDate(new Date(u.selection.at).toISOString().slice(0,10)):'—')+'</td><td>'+(pt.completedAt?fmtDate(new Date(pt.completedAt).toISOString().slice(0,10)):'—')+'</td><td>'+(dt.status==='done'?'🎉 Delivered':'🖨️ At Printer')+'</td></tr>';
+      html+='<tr><td><div style="font-weight:700">'+coupleName(p.bride, p.groom)+'</div></td><td>'+(u.name||'Album '+(item.ui+1))+'</td><td>'+fmtDate(p.date)+'</td><td>'+(u.selection?fmtDate(new Date(u.selection.at).toISOString().slice(0,10)):'—')+'</td><td>'+(pt.completedAt?fmtDate(new Date(pt.completedAt).toISOString().slice(0,10)):'—')+'</td><td>'+(dt.status==='done'?'🎉 Delivered':'🖨️ At Printer')+'</td></tr>';
     });
     html+='</tbody></table></div>';
   }
@@ -11306,7 +11306,7 @@ function renderPhotoRetouchPanel(){
         var t=p.photoRetouchTask;
         html+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px">';
         html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
-        html+='<div><div style="font-size:15px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+'</div></div>';
+        html+='<div><div style="font-size:15px;font-weight:800">'+coupleName(p.bride, p.groom)+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+'</div></div>';
         html+=taskStatusBadge(t);
         html+='</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
         if(t.status==='open') html+='<button class="btn btn-sm" style="font-size:11px;background:#eab308;color:#fff" onclick="claimTask('+p.id+',\'photoRetouchTask\')">📥 Claim Task</button>';
@@ -11331,7 +11331,7 @@ function renderPhotoRetouchPanel(){
         var t=p.photoRetouchTask||{};
         html+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #e5e5e5;border-radius:10px;padding:12px 14px">';
         html+=apOrderControlsFor(p.id);
-        html+='<div style="flex:1;min-width:160px"><div style="font-size:14px;font-weight:800">'+p.bride+' & '+p.groom+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+'</div></div>';
+        html+='<div style="flex:1;min-width:160px"><div style="font-size:14px;font-weight:800">'+coupleName(p.bride, p.groom)+'</div><div style="font-size:11px;color:#888">'+(p.city||'')+'</div></div>';
         html+=taskStatusBadge(t);
         if(canAssign && (!t.status||t.status==='open')) html+=albumRetouchAssignControl(p);
         html+='<button class="btn btn-sm" style="font-size:11px" onclick="apShowClientHistory('+p.id+',\'Photo Retouching\')">🕒 History</button>';
@@ -11349,7 +11349,7 @@ function renderPhotoRetouchPanel(){
   } else {
     html+='<table class="tbl"><thead><tr><th>Couple</th><th>City</th><th>Event Date</th><th></th></tr></thead><tbody>';
     awaiting.forEach(function(p){
-      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
+      html+='<tr><td><div style="font-weight:700">'+coupleName(p.bride, p.groom)+'</div></td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
       html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
     });
     html+='</tbody></table>';
@@ -11361,7 +11361,7 @@ function renderPhotoRetouchPanel(){
     html+='<table class="tbl"><thead><tr><th>Couple</th><th>Retoucher</th><th>Completed</th></tr></thead><tbody>';
     done.forEach(function(p){
       var t=p.photoRetouchTask||{};
-      html+='<tr><td>'+p.bride+' & '+p.groom+'</td><td>'+(t.assignedToName||'—')+'</td><td>'+(t.completedAt?fmtDate(new Date(t.completedAt).toISOString().slice(0,10)):'—')+'</td></tr>';
+      html+='<tr><td>'+coupleName(p.bride, p.groom)+'</td><td>'+(t.assignedToName||'—')+'</td><td>'+(t.completedAt?fmtDate(new Date(t.completedAt).toISOString().slice(0,10)):'—')+'</td></tr>';
     });
     html+='</tbody></table></div>';
   }
@@ -11472,7 +11472,7 @@ function renderPprDrill(key,rows){
     html+='<table class="tbl"><thead><tr><th>Couple</th><th>Album</th><th>City</th><th>Event Date</th>'+(key==='albumsPendingAfterSel'?'<th>Stage</th><th>Days Left</th>':'')+'<th></th></tr></thead><tbody>';
     rows.forEach(function(row){
       var p=row.p, item=row.item, u=item.u;
-      html+='<tr><td><div style="font-weight:700">'+p.bride+' & '+p.groom+'</div></td><td>'+(u.name||'Album '+(item.ui+1))+'</td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
+      html+='<tr><td><div style="font-weight:700">'+coupleName(p.bride, p.groom)+'</div></td><td>'+(u.name||'Album '+(item.ui+1))+'</td><td>'+(p.city||'—')+'</td><td>'+fmtDate(p.date)+'</td>';
       if(key==='albumsPendingAfterSel'){
         var dLeft=unitDaysLeft(u), overdue=unitIsOverdue(u);
         var cur=unitCurrentStage(u);
@@ -11490,7 +11490,7 @@ function renderPprDrill(key,rows){
       var s=d.status||'pending';
       html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div></td>';
       html+='<td><span style="font-size:10.5px;font-weight:700;color:'+(statusColors[s]||'#94a3b8')+'">'+(statusBadges[s]||'⏳ Not Started')+'</span></td>';
-      html+='<td>'+p.bride+' & '+p.groom+'</td><td>'+(p.city||'—')+'</td><td>'+(d.date?fmtDate(d.date):'—')+'</td>';
+      html+='<td>'+coupleName(p.bride, p.groom)+'</td><td>'+(p.city||'—')+'</td><td>'+(d.date?fmtDate(d.date):'—')+'</td>';
       html+='<td><button class="btn btn-sm" style="font-size:11px" onclick="openProject('+p.id+',\'t-deliv\')">📂 Open</button></td></tr>';
     });
     html+='</tbody></table>';
@@ -11590,7 +11590,7 @@ function wpFindCandidates(raw){
   return pl().filter(function(p){
     if(p.stage!=='postprod') return false;
     var b=wpNormName(p.bride), g=wpNormName(p.groom);
-    var full1=wpNormName(p.bride+' & '+p.groom), full2=wpNormName(p.groom+' & '+p.bride);
+    var full1=wpNormName(coupleName(p.bride, p.groom)), full2=wpNormName(p.groom+' & '+p.bride);
     if(full1===norm || full2===norm) return true;
     if(parts.length===2){
       if((b===parts[0]&&g===parts[1]) || (b===parts[1]&&g===parts[0])) return true;
@@ -11621,10 +11621,10 @@ function renderWpBulkResults(){
     if(!r.candidates.length){
       html+='<span style="color:#dc2626;font-size:11px">⚠️ No match — check spelling, or assign this one manually below</span>';
     } else if(r.candidates.length===1){
-      html+='<span style="color:#16a34a;font-size:11px">✅ '+r.candidates[0].bride+' &amp; '+r.candidates[0].groom+' ('+(r.candidates[0].city||'—')+')</span>';
+      html+='<span style="color:#16a34a;font-size:11px">✅ '+coupleName(r.candidates[0].bride, r.candidates[0].groom, ' &amp; ')+' ('+(r.candidates[0].city||'—')+')</span>';
     } else {
       html+='<select class="fi" style="font-size:11px;padding:4px 6px" onchange="wpBulkPickChoice('+i+',this.value)"><option value="">— multiple matches, pick one —</option>';
-      r.candidates.forEach(function(c){ html+='<option value="'+c.id+'">'+c.bride+' &amp; '+c.groom+' ('+(c.city||'—')+')</option>'; });
+      r.candidates.forEach(function(c){ html+='<option value="'+c.id+'">'+coupleName(c.bride, c.groom, ' &amp; ')+' ('+(c.city||'—')+')</option>'; });
       html+='</select>';
     }
     html+='</td></tr>';
@@ -12071,7 +12071,7 @@ function wpExportRows(){
                // "#" column wherever a fully-approved client got filtered out.
     list.forEach(function(p){
       var row={
-        client:(p.bride||'')+' & '+(p.groom||''),
+        client:coupleName(p.bride||'', p.groom||''),
         city:p.city||'—',
         eventDate:p.date?fmtDate(p.date):'—',
         // Both shown regardless of which one is grouping the report, so a
@@ -12247,7 +12247,7 @@ function wpClientRowCompact(p,border,mk,idx,total){
     'style="display:flex;align-items:center;gap:10px;padding:8px 14px;'+(border?'border-bottom:1px solid #f0f0f0':'')+'">' +
     wpOrderControls(p,mk,idx,total) +
     '<div style="flex:1;min-width:150px;cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')">' +
-      '<span style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+'</span>' +
+      '<span style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+coupleName(p.bride, p.groom, ' &amp; ')+'</span>' +
       wpAmbiguousFlag(p) +
       '<span style="font-size:11px;color:#999;margin-left:8px">'+(p.city||'—')+(p.date?(' · '+fmtDate(p.date)):'')+'</span>' +
     '</div>' + wpMonthSelect(p) + wpWeekSelect(p) +
@@ -12289,7 +12289,7 @@ function wpClientRow(p,videoTypes,mk,idx,total){
   var delivs=p.customDelivs||[];
   var html='<tr data-wp-row="'+p.id+'" data-wp-mk="'+mk+'">';
   html+='<td style="text-align:center;vertical-align:middle">'+wpOrderControls(p,mk,idx,total)+'</td>';
-  html+='<td style="cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')"><div style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+p.bride+' &amp; '+p.groom+wpAmbiguousFlag(p)+'</div>' +
+  html+='<td style="cursor:pointer" onclick="openProject('+p.id+',\'t-deliv\')"><div style="font-weight:700;font-size:12.5px">'+priorityBadge(p)+' '+coupleName(p.bride, p.groom, ' &amp; ')+wpAmbiguousFlag(p)+'</div>' +
     '<div style="font-size:10.5px;color:#999;margin-top:2px">'+(p.city||'—')+' · '+(p.date?('Event: '+fmtDate(p.date)):'No event date')+'</div></td>';
   html+='<td>'+wpMonthSelect(p)+'</td>';
   html+='<td>'+wpWeekSelect(p)+'</td>';
@@ -12426,7 +12426,7 @@ function wpSetDelivStatus(pid,delivId,newStatus){
     if(err){ showToast('❌ Could not save: '+err.message); return; }
     p.customDelivs=delivs;
     logActivity('deliverable','Work Progress Status Changed',
-      (p.bride||'')+' & '+(p.groom||'')+' — '+(d.name||d.type||'Deliverable')+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
+      coupleName(p.bride||'', p.groom||'')+' — '+(d.name||d.type||'Deliverable')+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
       {projId:pid});
     if(newStatus==='delivered' && prevStatus!=='delivered') showDeliveredWAPopup(d,p);
     showToast('✅ Status updated');
@@ -12463,7 +12463,7 @@ function wpSetReelItemStatus(pid,delivId,reelIdx,newStatus){
     if(err){ showToast('❌ Could not save: '+err.message); return; }
     p.customDelivs=delivs;
     logActivity('deliverable','Work Progress Status Changed',
-      (p.bride||'')+' & '+(p.groom||'')+' — '+(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1)+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
+      coupleName(p.bride||'', p.groom||'')+' — '+(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1)+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
       {projId:pid});
     if(newStatus==='delivered' && prevStatus!=='delivered'){
       var msgD=Object.assign({},d,{name:(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1),link:d.reelItems[reelIdx].link||d.link||''});
@@ -12528,7 +12528,7 @@ function wpFlattenCards(){
         d.reelItems.forEach(function(ri,ri_idx){
           cards.push({
             pid:p.id, delivId:d.id, reelIdx:ri_idx,
-            client:(p.bride||'')+' & '+(p.groom||''), city:p.city||'', priority:parseInt(p.priority)||0,
+            client:coupleName(p.bride||'', p.groom||''), city:p.city||'', priority:parseInt(p.priority)||0,
             label:(d.name||d.type||'Reel')+' — Reel '+(ri_idx+1), category:d.category||'',
             status:ri.status||'pending', deadline:delivDeadline(d), editorId:d.editorId||'', note:null
           });
@@ -12536,7 +12536,7 @@ function wpFlattenCards(){
       } else {
         cards.push({
           pid:p.id, delivId:d.id, reelIdx:null,
-          client:(p.bride||'')+' & '+(p.groom||''), city:p.city||'', priority:parseInt(p.priority)||0,
+          client:coupleName(p.bride||'', p.groom||''), city:p.city||'', priority:parseInt(p.priority)||0,
           label:d.name||d.type||'Deliverable', category:d.category||'',
           status:d.status||'pending', deadline:delivDeadline(d), editorId:d.editorId||'', note:d.note||null
         });
@@ -12557,11 +12557,11 @@ function wpFlattenAllCards(){
       if(!wpIsVideoDeliv(d)) return;
       if(d.reelItems && d.reelItems.length>1){
         d.reelItems.forEach(function(ri,ri_idx){
-          cards.push({pid:p.id, delivId:d.id, reelIdx:ri_idx, client:(p.bride||'')+' & '+(p.groom||''), refcode:p.refcode||'',
+          cards.push({pid:p.id, delivId:d.id, reelIdx:ri_idx, client:coupleName(p.bride||'', p.groom||''), refcode:p.refcode||'',
             label:(d.name||d.type||'Reel')+' — Reel '+(ri_idx+1), status:ri.status||'pending', deadline:delivDeadline(d), editorId:d.editorId||''});
         });
       } else {
-        cards.push({pid:p.id, delivId:d.id, reelIdx:null, client:(p.bride||'')+' & '+(p.groom||''), refcode:p.refcode||'',
+        cards.push({pid:p.id, delivId:d.id, reelIdx:null, client:coupleName(p.bride||'', p.groom||''), refcode:p.refcode||'',
           label:d.name||d.type||'Deliverable', status:d.status||'pending', deadline:delivDeadline(d), editorId:d.editorId||''});
       }
     });
@@ -12714,7 +12714,7 @@ function vaAllItems(){
   vaClientList().forEach(function(p){
     (p.customDelivs||[]).forEach(function(d){
       if(delivBucket(d)!=='video') return;
-      items.push({projId:p.id,couple:p.bride+' & '+p.groom,city:p.city||'',eventDate:p.date,d:d,p:p});
+      items.push({projId:p.id,couple:coupleName(p.bride, p.groom),city:p.city||'',eventDate:p.date,d:d,p:p});
     });
   });
   return items;
@@ -12806,7 +12806,7 @@ function vaRenderQueuePage(clients){
     var pending=pd.filter(function(d){return !delivIsDone(d.status);}).length;
     var overdueCt=pd.filter(function(d){var dl=delivDeadline(d);return dl&&daysUntil(dl)<0&&!delivIsDone(d.status);}).length;
     html+='<tr><td style="text-align:center;color:#bbb;font-weight:700">'+(idx+1)+'</td>';
-    html+='<td style="font-weight:700;cursor:pointer" onclick="vaShowOverview('+p.id+')">'+p.bride+' & '+p.groom+'</td>';
+    html+='<td style="font-weight:700;cursor:pointer" onclick="vaShowOverview('+p.id+')">'+coupleName(p.bride, p.groom)+'</td>';
     html+='<td style="font-size:12px">'+fmtDate(p.date)+'</td>';
     html+='<td style="font-size:12px;color:#999">'+(p.city||'—')+'</td>';
     html+='<td style="text-align:center">'+pd.length+'</td>';
@@ -12840,7 +12840,7 @@ function vaShowOverview(projId){
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
   modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.2)">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
-    +'<div style="font-size:16px;font-weight:800">'+p.bride+' & '+p.groom+'</div>'
+    +'<div style="font-size:16px;font-weight:800">'+coupleName(p.bride, p.groom)+'</div>'
     +'<button onclick="document.getElementById(\'va-overview-modal\').remove()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer">Close</button></div>'
     +'<div style="font-size:12px;color:#999;margin-bottom:16px">'+(p.city||'')+' · Event '+fmtDate(p.date)+(p.refcode?' · '+p.refcode:'')+'</div>'
     +'<table class="tbl"><thead><tr><th>Deliverable</th><th>Status</th><th>Editor</th><th>Deadline</th></tr></thead><tbody>'+rows+'</tbody></table>'
@@ -12920,7 +12920,7 @@ function vaRenderStatusPage(items,inReview){
   clients.forEach(function(p){
     var pd=p.customDelivs||[];
     if(!pd.length) return;
-    html+='<tr><td style="font-weight:700;cursor:pointer" onclick="vaShowOverview('+p.id+')">'+p.bride+' & '+p.groom+'</td>';
+    html+='<tr><td style="font-weight:700;cursor:pointer" onclick="vaShowOverview('+p.id+')">'+coupleName(p.bride, p.groom)+'</td>';
     videoTypes.forEach(function(vt){
       var matches=pd.filter(function(d){return d.type===vt.type;});
       html+='<td style="vertical-align:top;padding:6px 4px">'+ppvDelivPill(vt,matches,p.id)+'</td>';
@@ -13149,7 +13149,7 @@ function ppvSetDelivStatus(pid,delivId,newStatus){
     if(err){ showToast('❌ Could not save: '+err.message); return; }
     p.customDelivs=delivs;
     logActivity('deliverable','Video Production Status Changed',
-      (p.bride||'')+' & '+(p.groom||'')+' — '+(d.name||d.type||'Deliverable')+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
+      coupleName(p.bride||'', p.groom||'')+' — '+(d.name||d.type||'Deliverable')+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
       {projId:pid});
     logDelivEvent(pid,delivId,'Status changed to '+wpStatusLabelForLog(newStatus)+' (inline)');
     if(newStatus==='delivered' && prevStatus!=='delivered') showDeliveredWAPopup(d,p);
@@ -13181,7 +13181,7 @@ function ppvSetReelItemStatus(pid,delivId,reelIdx,newStatus){
     if(err){ showToast('❌ Could not save: '+err.message); return; }
     p.customDelivs=delivs;
     logActivity('deliverable','Video Production Status Changed',
-      (p.bride||'')+' & '+(p.groom||'')+' — '+(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1)+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
+      coupleName(p.bride||'', p.groom||'')+' — '+(d.name||d.type||'Reel')+' — Reel '+(reelIdx+1)+': '+wpStatusLabelForLog(prevStatus)+' → '+wpStatusLabelForLog(newStatus)+' by '+who,
       {projId:pid});
     logDelivEvent(pid,delivId,'Reel '+(reelIdx+1)+' status changed to '+wpStatusLabelForLog(newStatus)+' (inline)');
     if(newStatus==='delivered' && prevStatus!=='delivered'){
@@ -13424,7 +13424,7 @@ function ppvRenderPeriodManagerListOnly(){
     var cur=wpKeyFor(p,mode);
     var opts='<option value="unplanned"'+(cur==='unplanned'?' selected':'')+'>— Not Yet Assigned —</option>'
       +keys.map(function(k){return '<option value="'+k+'"'+(cur===k?' selected':'')+'>'+wpLabelFor(k,mode)+'</option>';}).join('');
-    return '<tr><td style="font-weight:600;padding:8px">'+p.bride+' & '+p.groom+'<div style="font-size:10.5px;color:#999;font-weight:400">'+(p.city||'')+'</div></td>'
+    return '<tr><td style="font-weight:600;padding:8px">'+coupleName(p.bride, p.groom)+'<div style="font-size:10.5px;color:#999;font-weight:400">'+(p.city||'')+'</div></td>'
       +'<td style="padding:8px"><select class="fi" style="font-size:12px;padding:5px 8px" onchange="ppvSetTarget('+p.id+',\''+mode+'\',this.value)">'+opts+'</select></td></tr>';
   }).join('');
   list.innerHTML='<table class="tbl"><thead><tr><th>Client</th><th>'+(mode==='week'?'Week':'Month')+'</th></tr></thead><tbody>'+rows+'</tbody></table>';
@@ -13456,10 +13456,10 @@ function ppvRenderBulkResults(){
     if(!r.candidates.length){
       html+='<span style="color:#dc2626;font-size:11px">⚠️ No match — check spelling, or assign this one from the Search tab</span>';
     } else if(r.candidates.length===1){
-      html+='<span style="color:#16a34a;font-size:11px">✅ '+r.candidates[0].bride+' &amp; '+r.candidates[0].groom+' ('+(r.candidates[0].city||'—')+')</span>';
+      html+='<span style="color:#16a34a;font-size:11px">✅ '+coupleName(r.candidates[0].bride, r.candidates[0].groom, ' &amp; ')+' ('+(r.candidates[0].city||'—')+')</span>';
     } else {
       html+='<select class="fi" style="font-size:11px;padding:4px 6px" onchange="ppvBulkPickChoice('+i+',this.value)"><option value="">— multiple matches, pick one —</option>';
-      r.candidates.forEach(function(c){ html+='<option value="'+c.id+'">'+c.bride+' &amp; '+c.groom+' ('+(c.city||'—')+')</option>'; });
+      r.candidates.forEach(function(c){ html+='<option value="'+c.id+'">'+coupleName(c.bride, c.groom, ' &amp; ')+' ('+(c.city||'—')+')</option>'; });
       html+='</select>';
     }
     html+='</td></tr>';
@@ -13541,7 +13541,7 @@ function ppvDailySweep(){
       var key=p.id+'::'+d.id+'::'+dl;
       if(existing[key]) return;
       var days=daysUntil(dl);
-      var body=(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — '+(d.name||d.type)+' was due '+dl+' ('+Math.abs(days)+' day'+(Math.abs(days)!==1?'s':'')+' overdue).';
+      var body=(coupleName(p.bride, p.groom))+(p.refcode?' ['+p.refcode+']':'')+' — '+(d.name||d.type)+' was due '+dl+' ('+Math.abs(days)+' day'+(Math.abs(days)!==1?'s':'')+' overdue).';
       if(d.editorId){
         pushSystemNotification({type:'deliv_overdue', icon:'⚠️', title:'Deliverable Overdue', body:body,
           pid:p.id, delivId:d.id, deadline:dl, forRoles:[], forUserId:d.editorId, at:new Date().toISOString(), requiresAction:true, actionLabel:'Open'});
@@ -13558,7 +13558,7 @@ function ppvDailySweep(){
       var p=item.p,d=item.d;
       var key=p.id+'::'+d.id+'::'+d.reviewSubmittedAt;
       if(existing[key]) return;
-      var body=(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — '+(d.name||d.type)+' has been waiting on your review for '+item.waitDays+' day'+(item.waitDays!==1?'s':'')+'.';
+      var body=(coupleName(p.bride, p.groom))+(p.refcode?' ['+p.refcode+']':'')+' — '+(d.name||d.type)+' has been waiting on your review for '+item.waitDays+' day'+(item.waitDays!==1?'s':'')+'.';
       pushSystemNotification({type:'review_stale', icon:'👁️', title:'Review Sitting Too Long', body:body,
         pid:p.id, delivId:d.id, reviewSubmittedAt:d.reviewSubmittedAt, forRoles:['superadmin','videohead','postprod'], at:new Date().toISOString(), requiresAction:true, actionLabel:'Review Now'});
     });
@@ -13655,7 +13655,7 @@ function renderPostProd(){
         eHtml+='</div>';
         eHtml+=revBanner;
         eHtml+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;background:#f8f8f8;padding:10px;border-radius:8px;margin-bottom:10px">';
-        eHtml+='<div><span style="color:#888">👫 Couple:</span> <b>'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</b></div>';
+        eHtml+='<div><span style="color:#888">👫 Couple:</span> <b>'+priorityBadge(p)+' '+coupleName(p.bride, p.groom)+'</b></div>';
         eHtml+='<div><span style="color:#888">📍 City:</span> '+(p.city||'—')+'</div>';
         eHtml+='<div><span style="color:#888">📅 Event Date:</span> '+fmtDate(p.date)+'</div>';
         eHtml+='<div><span style="color:#888">⏰ Deadline:</span> '+deadlineText+'</div>';
@@ -13681,7 +13681,7 @@ function renderPostProd(){
       myDone.forEach(function(item){
         var d=item.d,p=item.p;
         eHtml+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div><span style="font-size:11px;color:#888">'+(d.category||'')+'</span></td>';
-        eHtml+='<td style="font-weight:600">'+p.bride+' & '+p.groom+'</td>';
+        eHtml+='<td style="font-weight:600">'+coupleName(p.bride, p.groom)+'</td>';
         eHtml+='<td style="font-size:12px">'+fmtDate(d.date)+'</td></tr>';
       });
       eHtml+='</tbody></table></div>';
@@ -13739,7 +13739,7 @@ function renderPostProd(){
       // This tab is video-only, for every role viewing it — Album & Photo
       // work is tracked separately in the Album & Photo Production tab.
       if (delivBucket(d) !== 'video') return;
-      allItems.push({projId:p.id,couple:p.bride+' & '+p.groom,city:p.city||'',
+      allItems.push({projId:p.id,couple:coupleName(p.bride, p.groom),city:p.city||'',
         eventDate:p.date,d:d,p:p});
     });
   });
@@ -14050,7 +14050,7 @@ function renderPostProd(){
         var del=pd.filter(function(d){return delivIsDone(d.status);}).length;
         var pct=pd.length?Math.round(del/pd.length*100):0;
         html+='<tr><td style="text-align:center">'+ppvOrderControls(p,_queueList,_qNum-1,_queueList.length)+'</td>';
-        html+='<td><div style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+priorityBadge(p)+' '+p.bride+' & '+p.groom+'</div></td>';
+        html+='<td><div style="font-weight:700;cursor:pointer" onclick="openProject('+p.id+')">'+priorityBadge(p)+' '+coupleName(p.bride, p.groom)+'</div></td>';
         html+='<td style="font-size:12px;font-weight:700;color:#0369a1">'+fmtDate(p.date)+'</td>';
         html+='<td style="font-size:12px">'+(p.city||'—')+'</td>';
         html+='<td style="text-align:center">'+ppAgingBadge(daysInPostProd(p))+'</td>';
@@ -14110,7 +14110,7 @@ function buildEditorStats(){
   else if(filterVal==='custom'){fromDate=document.getElementById('pp-date-from')?document.getElementById('pp-date-from').value:'';toDate=document.getElementById('pp-date-to')?document.getElementById('pp-date-to').value:'';}
 
   var allItems2=[];
-  pl().forEach(function(p){(p.customDelivs||[]).forEach(function(d){allItems2.push({projId:p.id,couple:p.bride+' & '+p.groom,d:d,p:p});});});
+  pl().forEach(function(p){(p.customDelivs||[]).forEach(function(d){allItems2.push({projId:p.id,couple:coupleName(p.bride, p.groom),d:d,p:p});});});
 
   var editorStats={};
   allItems2.forEach(function(item){
@@ -14298,7 +14298,7 @@ function buildDeliverablesDash(filteredList) {
   if (_ppDelivSearch.trim()) {
     var sq = _ppDelivSearch.trim().toLowerCase();
     rows = rows.filter(function(r){
-      return (r.p.bride+' & '+r.p.groom).toLowerCase().indexOf(sq) > -1 ||
+      return (coupleName(r.p.bride, r.p.groom)).toLowerCase().indexOf(sq) > -1 ||
              (r.d.name||r.d.type||'').toLowerCase().indexOf(sq) > -1;
     });
   }
@@ -14337,7 +14337,7 @@ function buildDeliverablesDash(filteredList) {
     hdr.style.cssText = 'background:#f8fafc;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;border-bottom:1px solid #e5e7eb';
     hdr.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
-        '<span style="font-size:13px;font-weight:800;color:#1a1a1a">' + (p.bride||'') + ' & ' + (p.groom||'') + '</span>' +
+        '<span style="font-size:13px;font-weight:800;color:#1a1a1a">' + coupleName(p.bride||'', p.groom||'') + '</span>' +
         '<span style="font-size:9px;font-weight:700;color:#64748b;background:#e2e8f0;padding:1px 7px;border-radius:10px">' + (p.refcode||'') + '</span>' +
         (p.date ? '<span style="font-size:10.5px;color:#64748b">📅 ' + p.date + '</span>' : '') +
         (p.city ? '<span style="font-size:10.5px;color:#64748b">📍 ' + (p.city||'') + '</span>' : '') +
@@ -14462,7 +14462,7 @@ function exportPPReport(fmt) {
     });
     if (!delivs.length) return;
 
-    var clientName = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+    var clientName = coupleName(p.bride || '', p.groom);
     var eventDate  = p.eventDays && p.eventDays.length ? p.eventDays.map(function(ed){ return ed.date || ''; }).filter(Boolean).sort()[0] : (p.eventDate || '');
     var editor     = function(edId) {
       if (!edId) return '—';
@@ -14656,8 +14656,8 @@ function wpNotifyAssignment(projId,delivId,editorId,deadline){
   pushSystemNotification({
     type:'deliv_assigned', icon:'🎬',
     title:'New Deliverable Assigned To You',
-    body:(p.bride+' & '+p.groom)+(p.refcode?' ['+p.refcode+']':'')+' — '+(d?(d.name||d.type):'Deliverable')+' assigned by '+who+(deadline?'. Due '+deadline+'.':'.'),
-    projId:projId, delivId:delivId, clientName:p.bride+' & '+p.groom, refcode:p.refcode||'',
+    body:(coupleName(p.bride, p.groom))+(p.refcode?' ['+p.refcode+']':'')+' — '+(d?(d.name||d.type):'Deliverable')+' assigned by '+who+(deadline?'. Due '+deadline+'.':'.'),
+    projId:projId, delivId:delivId, clientName:coupleName(p.bride, p.groom), refcode:p.refcode||'',
     forRoles:[], forUserId:editorId,
     at:new Date().toISOString(), requiresAction:true, actionLabel:'View Task'
   });
@@ -15020,7 +15020,7 @@ function renderPayments(){
         var filtPaid=filtPaidByProj[p.id]||0;
         var badge=balDue(p)<=0?'<span class="badge b-green">Fully Paid</span>':totalPaid>0?'<span class="badge b-amber">Partial</span>':'<span class="badge b-red">Unpaid</span>';
         return '<tr>'+
-          '<td><div style="font-weight:700">'+p.bride+' & '+p.groom+(p.clientFlag?' '+getFlagBadgeHTML(p.clientFlag):'')+'</div><div style="font-size:11px;color:#888">'+(fieldVisible('phone') ? (p.phone||'') : (p.phone ? MASK_TEXT : ''))+'</div></td>'+
+          '<td><div style="font-weight:700">'+coupleName(p.bride, p.groom)+(p.clientFlag?' '+getFlagBadgeHTML(p.clientFlag):'')+'</div><div style="font-size:11px;color:#888">'+(fieldVisible('phone') ? (p.phone||'') : (p.phone ? MASK_TEXT : ''))+'</div></td>'+
           '<td><span class="refcode" style="font-size:10px">'+(p.refcode||'—')+'</span></td>'+
           '<td>'+regionBadge(p.region)+'</td>'+
           '<td>'+fmt(netVal(p))+'</td>'+
@@ -15040,7 +15040,7 @@ function renderPayments(){
       list.sort(function(a,b){return Math.max(0,balDue(b))-Math.max(0,balDue(a));}).map(function(p){
         var badge=balDue(p)<=0?'<span class="badge b-green">Fully Paid</span>':paidTotal(p)>0?'<span class="badge b-amber">Partial</span>':'<span class="badge b-red">Unpaid</span>';
         return '<tr>'+
-          '<td><div style="font-weight:700">'+p.bride+' & '+p.groom+(p.clientFlag?' '+getFlagBadgeHTML(p.clientFlag):'')+'</div><div style="font-size:11px;color:#888">'+(fieldVisible('phone') ? (p.phone||'') : (p.phone ? MASK_TEXT : ''))+'</div></td>'+
+          '<td><div style="font-weight:700">'+coupleName(p.bride, p.groom)+(p.clientFlag?' '+getFlagBadgeHTML(p.clientFlag):'')+'</div><div style="font-size:11px;color:#888">'+(fieldVisible('phone') ? (p.phone||'') : (p.phone ? MASK_TEXT : ''))+'</div></td>'+
           '<td><span class="refcode" style="font-size:10px">'+(p.refcode||'—')+'</span></td>'+
           '<td>'+regionBadge(p.region)+'</td>'+
           '<td>'+fmt(netVal(p))+'</td>'+
@@ -15202,7 +15202,7 @@ var RB_CONFIG = {
         return true;
       }).map(function(p){
         return {
-          couple: (p.bride||'')+(p.groom?' & '+p.groom:''),
+          couple: coupleName(p.bride||'', p.groom),
           phone: p.phone||'', whatsapp: p.whatsapp||'', email: p.email||'',
           city: p.city||'', state: p.state||'', region: p.region||'',
           venue: p.venue||'', type: p.type||'', package: p.package||'', source: p.source||'',
@@ -15262,9 +15262,9 @@ var RB_CONFIG = {
             if (hay.indexOf(f.search) === -1) return;
           }
           out.push({
-            date: e.date||'', couple: (p.bride||'')+(p.groom?' & '+p.groom:''),
+            date: e.date||'', couple: coupleName(p.bride||'', p.groom),
             phone: p.phone||'', refcode: p.refcode||'', eventDate: firstEventDate(p)||'',
-            stage: e.stage||'', particulars: 'Payment received — '+((p.bride||'')+(p.groom?' & '+p.groom:''))+(e.stage?' ('+e.stage+')':''),
+            stage: e.stage||'', particulars: 'Payment received — '+(coupleName(p.bride||'', p.groom))+(e.stage?' ('+e.stage+')':''),
             amount: parseInt(e.amount)||0, gstAmount: parseInt(e.gstAmount)||0,
             account: e.account||'', mode: e.mode||'', ref: e.ref||'',
             recordedBy: e.recordedBy||'', notes: e.notes||''
@@ -15325,7 +15325,7 @@ var RB_CONFIG = {
             if (hay.indexOf(f.search) === -1) return;
           }
           out.push({
-            couple: (p.bride||'')+(p.groom?' & '+p.groom:''), refcode: p.refcode||'',
+            couple: coupleName(p.bride||'', p.groom), refcode: p.refcode||'',
             city: p.city||'', eventDate: firstEventDate(p)||'', stage: stageLabel(p.stage),
             category: d.category||'', name: d.name||'', type: d.type||'',
             qty: parseInt(d.qty)||1, specs: d.specs||'',
@@ -15377,7 +15377,7 @@ var RB_CONFIG = {
               if (hay.indexOf(f.search) === -1) return;
             }
             out.push({
-              couple: (p.bride||'')+(p.groom?' & '+p.groom:''), refcode: p.refcode||'',
+              couple: coupleName(p.bride||'', p.groom), refcode: p.refcode||'',
               delivName: d.name||'', reelNum: idx+1,
               status: {pending:'Pending',inprogress:'In Progress',delivered:'Delivered',changes:'Changes'}[ri.status||'pending']||ri.status,
               date: ri.date||'', link: ri.link||''
@@ -16024,7 +16024,7 @@ function firePaymentClosedNotification(projId, p, triggeredBy) {
     var notif = {
       type: 'payment_closed',
       projId: projId,
-      couple: (p.bride || '') + ' & ' + (p.groom || ''),
+      couple: coupleName(p.bride || '', p.groom || ''),
       refcode: p.refcode || '',
       totalValue: (typeof netVal === 'function') ? netVal(p) : (p.value || 0),
       paidTotal: (typeof paidTotal === 'function') ? paidTotal(p) : 0,
@@ -16125,7 +16125,7 @@ function exportPaymentsReportExcel() {
   allEntries.forEach(function(x){
     var p = x.proj, e = x.entry;
     txRows.push([
-      e.date || '', (p.bride||'') + ' & ' + (p.groom||''), p.refcode || '',
+      e.date || '', coupleName(p.bride||'', p.groom||''), p.refcode || '',
       e.account || '', parseInt(e.amount)||0, e.mode || '', e.label || e.stage || '',
       firstEventDate(p) || ''
     ]);
@@ -16141,7 +16141,7 @@ function exportPaymentsReportExcel() {
     var bal = balDue(p);
     var status = bal<=0 ? 'Fully Paid' : totalPaid>0 ? 'Partial' : 'Unpaid';
     projRows.push([
-      (p.bride||'') + ' & ' + (p.groom||''), p.refcode||'', firstEventDate(p)||'',
+      coupleName(p.bride||'', p.groom||''), p.refcode||'', firstEventDate(p)||'',
       netVal(p), totalPaid, filtPaidByProj[p.id]||0, Math.max(0,bal), status
     ]);
   });
@@ -16207,7 +16207,7 @@ function getPayProjectsStatementRows() {
     var bal = balDue(p);
     var lastEntry = (p.payLedger||[]).slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');})[0];
     return {
-      couple: (p.bride||'') + ' & ' + (p.groom||''),
+      couple: coupleName(p.bride||'', p.groom||''),
       phone: p.phone || '',
       whatsapp: p.whatsapp || '',
       email: p.email || '',
@@ -16556,7 +16556,7 @@ function _erpRenderSchedule(list) {
     html += '<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:10px">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:6px">' +
         '<div>' +
-          '<div style="font-size:14px;font-weight:800;color:#111">'+(p.bride||'—')+' &amp; '+(p.groom||'—')+'</div>' +
+          '<div style="font-size:14px;font-weight:800;color:#111">'+coupleName(p.bride||'—', p.groom, ' &amp; ')+'</div>' +
           '<div style="font-size:11px;color:#888;margin-top:2px">' +
             (p.refcode ? '<span style="font-family:monospace;background:#f3f4f6;padding:1px 5px;border-radius:3px">'+p.refcode+'</span> · ' : '') +
             (p.city||p.state||'') + (p.date ? ' · 📅 '+fmtDate(p.date) : '') + ' · ' + stageBadge(p.stage) +
@@ -16662,7 +16662,7 @@ function _erpRenderForecast(list) {
                    : urgent  ? '<span style="color:#d97706;font-weight:700">in '+daysLeft+'d</span>'
                    : fmtDate(item.dueDate);
       html += '<tr style="background:'+rowBg+'">'+
-        '<td><div style="font-weight:700;font-size:12px">'+(item.p.bride||'—')+' &amp; '+(item.p.groom||'—')+'</div><div style="font-size:10px;color:#888">'+(item.p.refcode||'')+'</div></td>'+
+        '<td><div style="font-weight:700;font-size:12px">'+coupleName(item.p.bride||'—', item.p.groom, ' &amp; ')+'</div><div style="font-size:10px;color:#888">'+(item.p.refcode||'')+'</div></td>'+
         '<td><span class="badge b-blue" style="font-size:10px">'+item.ins.label+'</span></td>'+
         '<td>'+fmt(item.ins.expected)+'</td>'+
         '<td style="color:#16a34a">'+fmt(item.ins.paid)+'</td>'+
@@ -16683,7 +16683,7 @@ function _erpRenderForecast(list) {
       '<table class="tbl"><thead><tr><th>Client</th><th>Instalment</th><th>Expected</th><th>Balance</th><th>Stage</th><th>Set Date</th></tr></thead><tbody>';
     withoutDate.forEach(function(item) {
       html += '<tr>'+
-        '<td><div style="font-weight:700;font-size:12px">'+(item.p.bride||'—')+' &amp; '+(item.p.groom||'—')+'</div><div style="font-size:10px;color:#888">'+(item.p.refcode||'')+'</div></td>'+
+        '<td><div style="font-weight:700;font-size:12px">'+coupleName(item.p.bride||'—', item.p.groom, ' &amp; ')+'</div><div style="font-size:10px;color:#888">'+(item.p.refcode||'')+'</div></td>'+
         '<td><span class="badge b-blue" style="font-size:10px">'+item.ins.label+'</span></td>'+
         '<td>'+fmt(item.ins.expected)+'</td>'+
         '<td style="font-weight:700;color:#d97706">'+fmt(item.balance)+'</td>'+
@@ -16735,7 +16735,7 @@ function _erpRenderOverdue(list) {
   items.forEach(function(item) {
     var severity = item.daysLate > 30 ? '#7f1d1d' : item.daysLate > 7 ? '#dc2626' : '#d97706';
     html += '<tr style="background:#fef2f2">'+
-      '<td><div style="font-weight:700;font-size:12px">'+(item.p.bride||'—')+' &amp; '+(item.p.groom||'—')+'</div>'+
+      '<td><div style="font-weight:700;font-size:12px">'+coupleName(item.p.bride||'—', item.p.groom, ' &amp; ')+'</div>'+
         '<div style="font-size:10px;color:#888">'+(item.p.refcode||'')+' · '+(item.p.city||'')+' · '+stageBadge(item.p.stage)+'</div></td>'+
       '<td><span class="badge b-red" style="font-size:10px">'+item.ins.label+'</span></td>'+
       '<td>'+fmt(item.ins.expected)+'</td>'+
@@ -16791,7 +16791,7 @@ function _erpRenderReceived(list) {
     var e = item.e;
     html += '<tr>'+
       '<td style="white-space:nowrap">'+fmtDate(e.date||'')+'</td>'+
-      '<td><div style="font-weight:700;font-size:12px">'+(item.p.bride||'—')+' &amp; '+(item.p.groom||'—')+'</div>'+
+      '<td><div style="font-weight:700;font-size:12px">'+coupleName(item.p.bride||'—', item.p.groom, ' &amp; ')+'</div>'+
         '<div style="font-size:10px;color:#888">'+(item.p.refcode||'')+'</div></td>'+
       '<td><span class="badge b-blue" style="font-size:10px">'+item.label+'</span></td>'+
       '<td style="font-weight:800;color:#16a34a">'+fmt(e.amount)+'</td>'+
@@ -16835,8 +16835,8 @@ function _erpRenderForecastChart(list) {
                   .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
       buckets[ym].expected += s.amount;
       buckets[ym].received += Math.min(paid, s.amount);
-      if (buckets[ym].clients.indexOf(p.bride + ' & ' + p.groom) === -1)
-        buckets[ym].clients.push(p.bride + ' & ' + p.groom);
+      if (buckets[ym].clients.indexOf(coupleName(p.bride, p.groom)) === -1)
+        buckets[ym].clients.push(coupleName(p.bride, p.groom));
     });
 
     // Also include general ledger payments by date
@@ -16983,7 +16983,7 @@ function _erpRenderAging(list) {
   function renderBucket(items, label, color, bg, border) {
     if (!items.length) return '<div style="background:'+bg+';border:1px solid '+border+';border-radius:10px;padding:12px;margin-bottom:10px;color:'+color+'"><b>'+label+'</b> — No entries</div>';
     var rows = items.map(function(i) {
-      var wa = 'https://wa.me/' + (i.p.whatsapp||i.p.phone||'').replace(/\D/g,'') + '?text=' + encodeURIComponent('Hello! Gentle reminder from KB Studio Productions.\n\n'+i.p.bride+' & '+i.p.groom+' — '+i.label+': \u20b9'+i.balance.toLocaleString('en-IN')+' is outstanding.\nPlease arrange the payment.\nThank you! \u2014 KB Studio');
+      var wa = 'https://wa.me/' + (i.p.whatsapp||i.p.phone||'').replace(/\D/g,'') + '?text=' + encodeURIComponent('Hello! Gentle reminder from KB Studio Productions.\n\n'+coupleName(i.p.bride, i.p.groom)+' — '+i.label+': \u20b9'+i.balance.toLocaleString('en-IN')+' is outstanding.\nPlease arrange the payment.\nThank you! \u2014 KB Studio');
       return '<tr><td style="font-weight:700">'+(i.p.bride||'')+'<br><span style="font-size:10px;color:#888;font-weight:400">'+(i.p.groom||'')+'</span></td>' +
         '<td style="font-size:11px">'+i.label+'</td>' +
         '<td>'+(i.dueDate ? i.dueDate : '<span style="color:#aaa">No date</span>')+'</td>' +
@@ -17085,7 +17085,7 @@ function _erpRenderReminders(list) {
 
   function buildReminderMsg(p, s) {
     if (p.kbSchedule && typeof kbErpGetReminderMsg === 'function') return kbErpGetReminderMsg(p, s.key);
-    return 'Hello! Gentle reminder from KB Studio Productions.\n\n' + (p.bride||'') + ' & ' + (p.groom||'') + ' — ' + s.label + ': \u20b9' + s.balance.toLocaleString('en-IN') + ' is pending.' + (s.dueDate ? ' Due: ' + s.dueDate : '') + '\n\nKindly arrange. Thank you!';
+    return 'Hello! Gentle reminder from KB Studio Productions.\n\n' + coupleName(p.bride||'', p.groom||'') + ' — ' + s.label + ': \u20b9' + s.balance.toLocaleString('en-IN') + ' is pending.' + (s.dueDate ? ' Due: ' + s.dueDate : '') + '\n\nKindly arrange. Thank you!';
   }
 
   function renderGroup(items, title, color, bg) {
@@ -17136,7 +17136,7 @@ function _erpRenderReminders(list) {
 function kbCopySmsMsg(projId, stageKey) {
   var p = projects[projId]; if (!p) return;
   var msg = typeof kbErpGetReminderMsg === 'function' ? kbErpGetReminderMsg(p, stageKey) :
-    'Payment reminder: ' + (p.bride||'') + ' & ' + (p.groom||'') + ' has a payment due. Please contact KB Studio Productions.';
+    'Payment reminder: ' + coupleName(p.bride||'', p.groom||'') + ' has a payment due. Please contact KB Studio Productions.';
   if (navigator.clipboard) {
     navigator.clipboard.writeText(msg).then(function(){ showToast('SMS message copied!'); });
   } else {
@@ -17226,7 +17226,7 @@ function kbGenerateStageReceipt(projId, stageKey) {
     '</div>' +
     '<hr style="margin:20px 0;border:none;border-top:2px solid #1a1a1a">' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;font-size:13px">' +
-      '<div><b>Client</b><br>'+(p.bride||'—')+' &amp; '+(p.groom||'—')+'</div>' +
+      '<div><b>Client</b><br>'+coupleName(p.bride||'—', p.groom, ' &amp; ')+'</div>' +
       '<div><b>Event Date</b><br>'+(p.date||'—')+'</div>' +
       '<div><b>City</b><br>'+(p.city||'—')+'</div>' +
       '<div><b>Package</b><br>'+(p.package||'—')+'</div>' +
@@ -17277,7 +17277,7 @@ function erpOpenDue(projId, stageKey, stageLabel) {
   var dueKey = 'pay_' + stageKey + '_due';
   var notesKey = 'pay_' + stageKey + '_due_notes';
   document.getElementById('erp-due-info').innerHTML =
-    '<strong>'+(p.bride||'—')+' &amp; '+(p.groom||'—')+'</strong><br>' +
+    '<strong>'+coupleName(p.bride||'—', p.groom, ' &amp; ')+'</strong><br>' +
     'Instalment: <strong>'+stageLabel+'</strong> · Expected: <strong>'+fmt(ins.expected)+'</strong> · Balance: <strong style="color:#dc2626">'+fmt(ins.balance)+'</strong>';
   var inp = document.getElementById('erp-due-date-inp');
   var nInp = document.getElementById('erp-due-notes-inp');
@@ -17320,7 +17320,7 @@ function erpOpenPay(projId) {
   _erpPayCtx = { projId:projId, stageKey:first.key, stageLabel:first.label, expAmount:first.balance };
 
   document.getElementById('erp-pay-info').innerHTML =
-    '<strong>'+(p.bride||'—')+' &amp; '+(p.groom||'—')+'</strong> · <span style="font-family:monospace;font-size:11px">'+(p.refcode||'')+'</span><br>' +
+    '<strong>'+coupleName(p.bride||'—', p.groom, ' &amp; ')+'</strong> · <span style="font-family:monospace;font-size:11px">'+(p.refcode||'')+'</span><br>' +
     pending.map(function(s){
       return '<span style="background:'+(s.status==='partial'?'#fef9c3':'#fee2e2')+';border-radius:5px;padding:2px 7px;font-size:11px;margin-right:4px;cursor:pointer" onclick="erpSelectIns(\''+projId+'\',\''+s.key+'\',\''+s.label.replace(/'/g,'\\\'')+'\',' + s.balance + ')">'+
         s.label+': <strong>'+fmt(s.balance)+'</strong></span>';
@@ -17400,7 +17400,7 @@ function erpSubmitPayment() {
     closeModal('erp-pay-modal');
     showToast('✅ Payment of ' + fmt(amt) + ' recorded!');
     if (typeof logActivity === 'function') {
-      logActivity('payment', 'Payment recorded: '+fmt(amt)+' for '+_erpPayCtx.stageLabel+' — '+(p.bride||'')+' & '+(p.groom||''), projId);
+      logActivity('payment', 'Payment recorded: '+fmt(amt)+' for '+_erpPayCtx.stageLabel+' — '+coupleName(p.bride||'', p.groom||''), projId);
     }
     renderAccountsERP();
   });
@@ -17434,7 +17434,7 @@ function erpExportCSV() {
     _erpBuildInstalments(p).forEach(function(ins) {
       if (!ins.expected) return;
       rows.push([
-        (p.bride||'')+'&'+(p.groom||''),
+        coupleName(p.bride||'', p.groom||''),
         p.refcode||'',
         p.date||'',
         p.stage||'',
@@ -17460,7 +17460,7 @@ $('btn-export-clients').addEventListener('click',function(){var allY={};pl().for
 ['exp-type','exp-region','exp-year','exp-stage','exp-source'].forEach(function(id){var el=$(id);if(el)el.addEventListener('change',updateExportPreview);});
 function getExportList(){var yf=gv('exp-year'),rf=gv('exp-region'),sf=gv('exp-stage'),srcf=gv('exp-source');return pl().filter(function(p){var d=p.bookdate||p.date;if(yf&&(!d||d.split('-')[0]!==yf))return false;if(rf&&p.region!==rf)return false;if(sf&&p.stage!==sf)return false;if(srcf&&p.source!==srcf)return false;return true;});}
 function updateExportPreview(){var list=getExportList();var type=gv('exp-type');var typeLabel={contacts:'Contact List',full:'Full Client Sheet',payments:'Payment Sheet',referral:'Referral List'}[type]||type;$('exp-preview').innerHTML='<strong>'+list.length+' clients</strong> will be exported as <strong>'+typeLabel+'</strong>.';}
-function buildCSVData(){var list=getExportList();var type=gv('exp-type');var rows=[],headers=[];if(type==='contacts'){headers=['Name','Phone','WhatsApp','Email','City','State','Region'];rows=list.map(function(p){return[p.bride+' & '+p.groom,p.phone||'',p.whatsapp||'',p.email||'',p.city||'',p.state||'',p.region||''];});}else if(type==='full'){headers=['Name','Phone','WhatsApp','Email','City','State','Region','Event Date','Booking Date','Event Type','Package','Source','Value','Discount','Stage','Ref Code','Venue'];rows=list.map(function(p){return[p.bride+' & '+p.groom,p.phone||'',p.whatsapp||'',p.email||'',p.city||'',p.state||'',p.region||'',p.date||'',p.bookdate||'',p.type||'',p.package||'',p.source||'',p.value||0,p.discount||0,p.stage||'',p.refcode||'',p.venue||''];});}else if(type==='payments'){headers=['Name','Phone','Region','State','Net Value','Paid','Balance','Stage'];rows=list.map(function(p){return[p.bride+' & '+p.groom,p.phone||'',p.region||'',p.state||'',netVal(p),paidTotal(p),balDue(p),p.stage||''];});}else if(type==='referral'){var refList=Object.values(referral);headers=['Name','Phone','City','Ref Code','Points','Value (₹)'];rows=refList.map(function(c){return[c.name,c.phone||'',c.city||'',c.code||'',c.points||0,c.points||0];});}return{headers:headers,rows:rows};}
+function buildCSVData(){var list=getExportList();var type=gv('exp-type');var rows=[],headers=[];if(type==='contacts'){headers=['Name','Phone','WhatsApp','Email','City','State','Region'];rows=list.map(function(p){return[coupleName(p.bride, p.groom),p.phone||'',p.whatsapp||'',p.email||'',p.city||'',p.state||'',p.region||''];});}else if(type==='full'){headers=['Name','Phone','WhatsApp','Email','City','State','Region','Event Date','Booking Date','Event Type','Package','Source','Value','Discount','Stage','Ref Code','Venue'];rows=list.map(function(p){return[coupleName(p.bride, p.groom),p.phone||'',p.whatsapp||'',p.email||'',p.city||'',p.state||'',p.region||'',p.date||'',p.bookdate||'',p.type||'',p.package||'',p.source||'',p.value||0,p.discount||0,p.stage||'',p.refcode||'',p.venue||''];});}else if(type==='payments'){headers=['Name','Phone','Region','State','Net Value','Paid','Balance','Stage'];rows=list.map(function(p){return[coupleName(p.bride, p.groom),p.phone||'',p.region||'',p.state||'',netVal(p),paidTotal(p),balDue(p),p.stage||''];});}else if(type==='referral'){var refList=Object.values(referral);headers=['Name','Phone','City','Ref Code','Points','Value (₹)'];rows=refList.map(function(c){return[c.name,c.phone||'',c.city||'',c.code||'',c.points||0,c.points||0];});}return{headers:headers,rows:rows};}
 $('btn-export-csv').addEventListener('click',function(){var d=buildCSVData();var csv=[d.headers].concat(d.rows).map(function(row){return row.map(function(cell){return '"'+(String(cell).replace(/"/g,'""'))+'"';}).join(',');}).join('\n');var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='KB-Studio-Export-'+gv('exp-type')+'-'+tod()+'.csv';document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);closeModal('export-modal');showToast('📄 CSV exported successfully!');});
 $('btn-export-pdf').addEventListener('click',function(){var d=buildCSVData();var type=gv('exp-type');var typeLabel={contacts:'Contact List',full:'Full Client Sheet',payments:'Payment Sheet',referral:'Referral List'}[type]||type;var win=window.open('','_blank');win.document.write('<!DOCTYPE html><html><head><title>KB Studio</title><style>body{font-family:Arial,sans-serif;padding:24px;font-size:12px}table{width:100%;border-collapse:collapse}th{background:#1a1a1a;color:#fff;padding:8px 10px;text-align:left;font-size:11px}td{padding:8px 10px;border-bottom:1px solid #eee;font-size:12px}tr:nth-child(even) td{background:#f9f9f9}.footer{margin-top:24px;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:12px}</style></head><body><h1>KB Studio Productions</h1><h2>'+typeLabel+' &middot; '+fmtDate(new Date())+'</h2><table><thead><tr>'+d.headers.map(function(h){return '<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+d.rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+c+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table><div class=\'footer\'>KB Studio Productions &middot; Total: '+d.rows.length+' records &middot; '+fmtDateTime(Date.now())+'</div></body></html>');win.document.close();setTimeout(function(){win.print();},500);closeModal('export-modal');showToast('\ud83d\udcd1 PDF ready to print/save!');});
 
@@ -17715,7 +17715,7 @@ $('btn-save-proj').addEventListener('click',function(){
     if (typeof logActivity === 'function') {
       var schedDiff = _diffKbScheduleStages(ex.kbSchedule, p.kbSchedule);
       if (schedDiff.length) {
-        logActivity('payment', 'Payment schedule changed', (p.bride||'')+' & '+(p.groom||'')+' — '+schedDiff.length+' change(s)', { projectId: id, changes: schedDiff });
+        logActivity('payment', 'Payment schedule changed', coupleName(p.bride||'', p.groom||'')+' — '+schedDiff.length+' change(s)', { projectId: id, changes: schedDiff });
       }
     }
     editProjId=id;
@@ -17762,7 +17762,7 @@ $('btn-save-proj').addEventListener('click',function(){
         if(proofMetas && proofMetas.length) entry.proofDocIds=proofMetas.map(function(m){return m.id;});
         var upd={payLedger:[entry],bookdate:p.bookdate||_pendingAdvancePayment.date};
         db.ref('crm_projects/'+id).update(upd,function(){
-          showToast('\u2705 Advance '+fmt(_pendingAdvancePayment.amount)+' recorded for '+bride+' & '+groom);
+          showToast('\u2705 Advance '+fmt(_pendingAdvancePayment.amount)+' recorded for '+coupleName(bride, groom));
           if(editProjId===id) renderPayLedger();
           setTimeout(function(){runPaymentAutomations(id);},400);
         });
@@ -17773,7 +17773,7 @@ $('btn-save-proj').addEventListener('click',function(){
     }
   });
 });
-function autoLinkReferral(p){var ex=Object.values(referral).find(function(c){return c.projectId===p.id||c.refcode===p.refcode;});if(ex)return;var id=Date.now();db.ref('crm_referral/'+id).set({id:id,name:p.bride+(p.groom?' & '+p.groom:''),phone:p.phone||'',city:p.city||p.state||'',booking:netVal(p)||0,code:p.refcode,projectId:p.id,points:0,history:[],createdAt:tod()});}
+function autoLinkReferral(p){var ex=Object.values(referral).find(function(c){return c.projectId===p.id||c.refcode===p.refcode;});if(ex)return;var id=Date.now();db.ref('crm_referral/'+id).set({id:id,name:coupleName(p.bride, p.groom),phone:p.phone||'',city:p.city||p.state||'',booking:netVal(p)||0,code:p.refcode,projectId:p.id,points:0,history:[],createdAt:tod()});}
 // btn-delete-proj listener and deleteProjDirect defined in activity log section below
 
 
@@ -18021,7 +18021,7 @@ function renderPaymentPipeline() {
         // Header row
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:6px">' +
           '<div>' +
-            '<div style="font-size:14px;font-weight:800;color:#111">' + (p.bride||'—') + ' &amp; ' + (p.groom||'—') + '</div>' +
+            '<div style="font-size:14px;font-weight:800;color:#111">' + coupleName(p.bride||'—', p.groom, ' &amp; ') + '</div>' +
             '<div style="font-size:11px;color:#888;margin-top:1px">' +
               (p.refcode ? '<span style="font-family:monospace;background:#f3f4f6;padding:1px 5px;border-radius:3px">' + p.refcode + '</span> · ' : '') +
               (p.city || p.state || '') + (p.type ? ' · ' + p.type : '') +
@@ -18115,7 +18115,7 @@ function getPipelineStatementRows() {
   return (_ppLastFilteredRows || []).map(function(r){
     var p = r.p;
     return {
-      couple: (p.bride||'') + ' & ' + (p.groom||''),
+      couple: coupleName(p.bride||'', p.groom||''),
       phone: p.phone || '',
       whatsapp: p.whatsapp || '',
       email: p.email || '',
@@ -18175,7 +18175,7 @@ function renderTxnFeed(keepPage) {
       if (accF && e.account !== accF) return;
       if (dateRange && !inDateRange(e.date || '', dateRange)) return;
       if (modeF && (e.mode || '') !== modeF) return;
-      var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+      var couple = coupleName(p.bride || '', p.groom);
       if (searchQ && couple.toLowerCase().indexOf(searchQ) === -1) return;
       allTxns.push({ e: e, p: p, idx: idx, couple: couple });
     });
@@ -18529,7 +18529,7 @@ function exportTxnFeedExcel() {
       if (accF && e.account !== accF) return;
       if (dateRange && !inDateRange(e.date || '', dateRange)) return;
       if (modeF && (e.mode || '') !== modeF) return;
-      var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+      var couple = coupleName(p.bride || '', p.groom);
       if (searchQ && couple.toLowerCase().indexOf(searchQ) === -1) return;
       allTxns.push({ e: e, p: p, couple: couple });
     });
@@ -19273,13 +19273,13 @@ $('btn-save-pay-entry').addEventListener('click',function(){
 function deletePayEntry(idx){if(CU&&(CU.role==='admin'||CU.role==='intern')){showToast('You cannot delete payments. Contact Super Admin or Accounts.');return;}if(!editProjId)return;var p=projects[editProjId];if(!p)return;if(!confirm('Remove this payment entry?'))return;var ledger=(p.payLedger||[]).filter(function(_,i){return i!==idx;});db.ref('crm_projects/'+editProjId).update({payLedger:ledger},function(){showToast('Entry removed.');renderPayLedger();});}
 
 function updateRPGstPreview(){var amt=parseInt(gv('rp-amount'))||0;var rate=parseFloat(gv('rp-gst-rate'))||0;var gstAmt=calcGstAmt(amt,rate);var trEl=$('rp-total-received');if(trEl)trEl.value=(amt+gstAmt)?fmt(amt+gstAmt):'';}
-$('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');}).map(function(p){var pid=p.id||Object.keys(projects).find(function(k){return projects[k]===p;});return '<option value="'+pid+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');sv('rp-mode','UPI');sv('rp-gst-rate','0');var rptr=$('rp-total-received');if(rptr)rptr.value='';var rpf=$('rp-proof-file');if(rpf)rpf.value='';var rpp=$('rp-proof-preview');if(rpp){rpp.style.display='none';rpp.innerHTML='';}toggleProofRow('rp');$('rp-client-info').style.display='none';openModal('rp-modal');});
+$('btn-record-pay').addEventListener('click',function(){var sel=$('rp-client');sel.innerHTML='<option value="">-- Select Client --</option>'+pl().sort(function(a,b){return (a.bride||'').localeCompare(b.bride||'');}).map(function(p){var pid=p.id||Object.keys(projects).find(function(k){return projects[k]===p;});return '<option value="'+pid+'">'+coupleName(p.bride, p.groom)+' — '+(p.state||p.city||'')+'</option>';}).join('');populateAccountDropdown('rp-account');sv('rp-date',tod());sv('rp-amount','');sv('rp-ref','');sv('rp-notes','');sv('rp-due','');sv('rp-mode','UPI');sv('rp-gst-rate','0');var rptr=$('rp-total-received');if(rptr)rptr.value='';var rpf=$('rp-proof-file');if(rpf)rpf.value='';var rpp=$('rp-proof-preview');if(rpp){rpp.style.display='none';rpp.innerHTML='';}toggleProofRow('rp');$('rp-client-info').style.display='none';openModal('rp-modal');});
 $('rp-client').addEventListener('change',function(){
   var id=this.value;var p=projects[id]||projects[parseInt(id)];var info=$('rp-client-info');
   if(!p){info.style.display='none';return;}
   info.style.display='block';
   var net=netVal(p);var paid=paidTotal(p);var bal=balDue(p);
-  info.innerHTML='<strong>'+p.bride+' & '+p.groom+'</strong> · '+(p.state||p.city||'')+
+  info.innerHTML='<strong>'+coupleName(p.bride, p.groom)+'</strong> · '+(p.state||p.city||'')+
     '<br>Value: <strong>'+fmt(net)+'</strong> · Paid: <strong style="color:#16a34a">'+fmt(paid)+'</strong> · Balance: <strong style="color:#dc2626">'+fmt(bal)+'</strong>';
   // Use smart dropdown — hides fully-paid stages, pre-selects next due
   populateStageDropdown('rp-stage', id);
@@ -19548,7 +19548,7 @@ function showWAStageSuggestion(projId, toStage) {
     ? (phone.length === 10 ? '91' + phone : phone)
     : '';
   _waPopupMsg = tpl.msg;
-  document.getElementById('wa-popup-label').textContent = tpl.label + ' — ' + p.bride + ' & ' + p.groom;
+  document.getElementById('wa-popup-label').textContent = tpl.label + ' — ' + coupleName(p.bride, p.groom);
   document.getElementById('wa-popup-msg').textContent = tpl.msg;
   document.getElementById('wa-stage-popup').style.display = 'block';
   setTimeout(function() { document.getElementById('wa-stage-popup').style.display = 'none'; }, 30000);
@@ -19768,10 +19768,10 @@ function syncKbScheduleFromCustomSplit() {
 function updatePayPresetPreview(){var preset=gv('f-pay-preset')||'30-50-10-5-5';var val=parseInt(gv('f-value'))||0;var disc=parseInt(gv('f-discount'))||0;var net=val-disc;var el=$('pay-preset-preview');if(!el)return;if(!val||preset==='custom'){el.style.display='none';return;}var terms=PAY_PRESETS[preset]||PAY_PRESETS['30-50-10-5-5'];el.style.display='block';el.innerHTML=terms.map(function(t){return '<span style="margin-right:10px;color:#166534"><strong>'+t.label+':</strong> ₹'+Math.round(net*t.pct/100).toLocaleString('en-IN')+'</span>';}).join('');}
 
 // ═══ WHATSAPP ════════════════════════════════════════
-function populateWASel(){var sel=$('wa-proj-sel');sel.innerHTML='<option value="">-- Select Project --</option>'+pl().map(function(p){return '<option value="'+p.id+'">'+p.bride+' & '+p.groom+' — '+(p.state||p.city||'')+(p.refcode?' ['+p.refcode+']':'')+'</option>';}).join('');sel.onchange=renderWA;$('wa-area').innerHTML='';}
+function populateWASel(){var sel=$('wa-proj-sel');sel.innerHTML='<option value="">-- Select Project --</option>'+pl().map(function(p){return '<option value="'+p.id+'">'+coupleName(p.bride, p.groom)+' — '+(p.state||p.city||'')+(p.refcode?' ['+p.refcode+']':'')+'</option>';}).join('');sel.onchange=renderWA;$('wa-area').innerHTML='';}
 function renderWA(){var id=parseInt(gv('wa-proj-sel'));var p=projects[id];if(!p){$('wa-area').innerHTML='';return;}var refClient=Object.values(referral).find(function(c){return c.projectId===p.id||c.refcode===p.refcode;});var points=refClient?refClient.points:0;var refHistory=refClient?(refClient.history||[]):[];var lastCredit=refHistory.filter(function(h){return h.type==='earn';}).slice(-1)[0];var lastRedeem=refHistory.filter(function(h){return h.type==='redeem';}).slice(-1)[0];var totalEarned=refHistory.filter(function(h){return h.type==='earn';}).reduce(function(a,h){return a+h.pts;},0);var totalRedeemed=refHistory.filter(function(h){return h.type==='redeem';}).reduce(function(a,h){return a+Math.abs(h.pts);},0);var code=p.refcode||'[Code Pending]';var fn=(p.bride||'Client').split(' ')[0];
 var templates=[
-  {section:'📋 Project Updates',label:'📌 Booking Confirmation',msg:'Dear '+p.bride+' & '+p.groom+'! 🎉\n\nYour booking with *KB Studio Productions* is confirmed!\n\n📅 Event Date: '+(p.date||'TBD')+'\n📍 Venue: '+(p.venue||p.city||p.state)+'\n📦 Package: '+(p.package||'TBD')+'\n💰 Value: '+fmt(p.value||0)+'\n\n🔑 Your Referral Code: *'+code+'*\n\n— Team KB Studio Productions 📷'},
+  {section:'📋 Project Updates',label:'📌 Booking Confirmation',msg:'Dear '+coupleName(p.bride, p.groom)+'! 🎉\n\nYour booking with *KB Studio Productions* is confirmed!\n\n📅 Event Date: '+(p.date||'TBD')+'\n📍 Venue: '+(p.venue||p.city||p.state)+'\n📦 Package: '+(p.package||'TBD')+'\n💰 Value: '+fmt(p.value||0)+'\n\n🔑 Your Referral Code: *'+code+'*\n\n— Team KB Studio Productions 📷'},
   {section:'📋 Project Updates',label:'📋 Pre-Production Update',msg:'Hi '+fn+'! 🌸\n\nWe\'re in *Pre-Production* for your event on *'+(p.date||'your special day')+'*!\n\nWe\'ll connect to discuss shot list, family groups & day timeline.\n\nStay excited! ✨\n\n— Team KB Studio 📷'},
   {section:'📋 Project Updates',label:'🎬 Shoot Day Reminder',msg:'Good morning '+fn+'! ☀️\n\nYour KB Studio team is ready!\n📅 '+(p.date||'')+' · 📍 '+(p.venue||p.city||p.state||'')+'\n\nWe\'ll arrive 1 hour early. See you soon! 💕\n\n— Team KB Studio 📷'},
   {section:'📋 Project Updates',label:'🎞️ Post-Production Update',msg:'Dear '+fn+'! 🎬\n\nYour project is in *Post-Production*!\n\n⏳ Expected delivery: '+(p.deliveryDate||'45–60 days')+'\n\nThank you for your patience! 🙏\n\n— Team KB Studio 📷'},
@@ -20945,7 +20945,7 @@ function renderCollectionsByAccount() {
       '<table class="tbl"><thead><tr><th>Date</th><th>Client</th><th>Stage</th><th>Amount</th><th>Mode</th><th>Ref/UTR</th></tr></thead><tbody>' +
       txns.map(function(x) {
         return '<tr><td>' + fmtDate(x.entry.date || '') + '</td>' +
-          '<td><span style="cursor:pointer;color:#1d4ed8;text-decoration:underline" onclick="openProjectPayments(' + x.proj.id + ')">' + escHtml(x.proj.bride + ' & ' + x.proj.groom) + '</span></td>' +
+          '<td><span style="cursor:pointer;color:#1d4ed8;text-decoration:underline" onclick="openProjectPayments(' + x.proj.id + ')">' + escHtml(coupleName(x.proj.bride, x.proj.groom)) + '</span></td>' +
           '<td style="font-size:11px;color:#888">' + (x.entry.stage || '-') + '</td>' +
           '<td style="font-weight:700;color:#16a34a">' + fmt(x.entry.amount) + '</td>' +
           '<td>' + (x.entry.mode || '-') + '</td>' +
@@ -21117,7 +21117,7 @@ function renderGstReport() {
       var e = x.entry, p = x.proj;
       return '<tr>' +
         '<td>' + fmtDate(e.date || '') + '</td>' +
-        '<td><span style="cursor:pointer;color:#1d4ed8;text-decoration:underline" onclick="openProjectPayments(' + p.id + ')">' + escHtml(p.bride + ' & ' + p.groom) + '</span></td>' +
+        '<td><span style="cursor:pointer;color:#1d4ed8;text-decoration:underline" onclick="openProjectPayments(' + p.id + ')">' + escHtml(coupleName(p.bride, p.groom)) + '</span></td>' +
         '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
         '<td>' + fmt(e.amount) + '</td>' +
         '<td>' + (e.gstRate || 0) + '%</td>' +
@@ -21163,7 +21163,7 @@ function exportGstReportExcel() {
   entries.slice().sort(function(a,b){ return (a.entry.date||'').localeCompare(b.entry.date||''); }).forEach(function(x) {
     var p = x.proj, e = x.entry;
     txRows.push([
-      e.date || '', (p.bride||'') + ' & ' + (p.groom||''), p.refcode || '',
+      e.date || '', coupleName(p.bride||'', p.groom||''), p.refcode || '',
       parseInt(e.amount)||0, parseFloat(e.gstRate)||0, parseInt(e.gstAmount)||0,
       entryTotalReceived(e), e.account || '', e.mode || '', e.label || e.stage || ''
     ]);
@@ -21204,7 +21204,7 @@ function getGstStatementRows() {
   return entries.slice().sort(function(a,b){ return (a.entry.date||'').localeCompare(b.entry.date||''); }).map(function(x) {
     var p = x.proj, e = x.entry;
     return {
-      date: e.date || '', couple: (p.bride||'') + ' & ' + (p.groom||''),
+      date: e.date || '', couple: coupleName(p.bride||'', p.groom||''),
       phone: p.phone || '', email: p.email || '', city: p.city || '', state: p.state || '',
       refcode: p.refcode || '', baseAmount: parseInt(e.amount)||0, gstRate: parseFloat(e.gstRate)||0,
       gstAmount: parseInt(e.gstAmount)||0, totalReceived: entryTotalReceived(e),
@@ -21471,7 +21471,7 @@ function renderEditorPortal(portal, editor, editorId, allProjects) {
 
       // Project info
       '<div style="margin-top:10px;padding:10px;background:#f8f8f8;border-radius:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">' +
-        '<div><span style="color:#888">👫 Couple:</span> <b>' + p.bride + ' & ' + p.groom + '</b></div>' +
+        '<div><span style="color:#888">👫 Couple:</span> <b>' + coupleName(p.bride, p.groom) + '</b></div>' +
         '<div><span style="color:#888">📍 City:</span> ' + (p.city || '—') + '</div>' +
         '<div><span style="color:#888">📅 Event:</span> ' + (p.date || '—') + '</div>' +
         '<div><span style="color:#888">⏰ Deadline:</span> ' +
@@ -22088,7 +22088,7 @@ function kbRunScheduleAudit() {
     if (scheduleChecks.length) {
       results.push({
         id: p.id,
-        client: (p.bride||'') + ' & ' + (p.groom||''),
+        client: coupleName(p.bride||'', p.groom||''),
         issues: scheduleChecks.map(function(c){ return c.label; }).join(' | ')
       });
     }
@@ -22244,7 +22244,7 @@ function hcDupCard(group, matchLabel, matchValue, type) {
     var fd = firstEventDate(p)||p.date||'—';
     cardHtml += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fafafa;border:1px solid #f0f0f0;border-radius:8px;flex-wrap:wrap">'
       +'<div style="flex:1;min-width:200px">'
-        +'<div style="font-size:13px;font-weight:700">'+p.bride+' &amp; '+p.groom+'</div>'
+        +'<div style="font-size:13px;font-weight:700">'+coupleName(p.bride, p.groom, ' &amp; ')+'</div>'
         +'<div style="font-size:11px;color:#888;margin-top:2px">'
           +(p.refcode?'<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">'+p.refcode+'</span>':'')
           +(p.city?p.city+' · ':'')+fd
@@ -22254,7 +22254,7 @@ function hcDupCard(group, matchLabel, matchValue, type) {
         +stageBadge(p.stage)
         +'<span style="font-size:12px;font-weight:700;color:#1a1a1a">₹'+fmt(netVal(p))+'</span>'
         +'<button class="btn btn-primary btn-sm" onclick="openProject('+p.id+')" style="font-size:11px;padding:4px 10px">Open</button>'
-        +(canDelete ? '<button class="btn btn-sm hc-del-dupe-btn" data-id="'+p.id+'" data-name="'+encodeURIComponent(p.bride+' & '+p.groom)+'" style="font-size:11px;padding:4px 10px;background:#fef2f2;color:#dc2626;border-color:#fecaca;border:1px solid #fecaca;border-radius:6px;cursor:pointer">🗑️ Delete</button>' : '')
+        +(canDelete ? '<button class="btn btn-sm hc-del-dupe-btn" data-id="'+p.id+'" data-name="'+encodeURIComponent(coupleName(p.bride, p.groom))+'" style="font-size:11px;padding:4px 10px;background:#fef2f2;color:#dc2626;border-color:#fecaca;border:1px solid #fecaca;border-radius:6px;cursor:pointer">🗑️ Delete</button>' : '')
       +'</div>'
       +'</div>';
   });
@@ -22280,8 +22280,8 @@ function renderDuplicates(container) {
       var rec = dupeConfirmed[key];
       var ids = rec.ids || key.split('_').map(function(x) { return parseInt(x, 10); });
       var pA = projects[ids[0]], pB = projects[ids[1]];
-      var nameA = pA ? (pA.bride + ' & ' + pA.groom) : 'Deleted client';
-      var nameB = pB ? (pB.bride + ' & ' + pB.groom) : 'Deleted client';
+      var nameA = pA ? (coupleName(pA.bride, pA.groom)) : 'Deleted client';
+      var nameB = pB ? (coupleName(pB.bride, pB.groom)) : 'Deleted client';
       html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #ecfdf5;flex-wrap:wrap">'
         + '<div style="flex:1;min-width:220px;font-size:12px"><b>' + nameA + '</b> vs <b>' + nameB + '</b>'
           + '<div style="color:#888;font-size:11px;margin-top:1px">Confirmed by ' + (rec.confirmedBy || '—') + (rec.confirmedAt ? (' · ' + new Date(rec.confirmedAt).toLocaleDateString()) : '') + '</div>'
@@ -22381,7 +22381,7 @@ function hcSaveCardFields(projId, containerId) {
   db.ref('crm_projects/'+projId).update(upd, function(err) {
     if (err) { showToast('❌ Save failed: '+err.message); return; }
     Object.keys(upd).forEach(function(f){ if (f !== 'updatedAt') projects[projId][f] = upd[f]; });
-    showToast('✅ Saved ' + count + ' field' + (count > 1 ? 's' : '') + ' — ' + p.bride + ' & ' + p.groom);
+    showToast('✅ Saved ' + count + ' field' + (count > 1 ? 's' : '') + ' — ' + coupleName(p.bride, p.groom));
     // Re-render tiles to update counts (debounced) — this is what makes the
     // progress bar / percentage move the instant a fix is saved.
     clearTimeout(hcSaveCardFields._t);
@@ -22455,7 +22455,7 @@ function hcRenderFailureCard(p, failures, idSuffix) {
 
   cardHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #f5f5f5;gap:12px">'
     +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:14px;font-weight:800">'+p.bride+' &amp; '+p.groom+'</div>'
+      +'<div style="font-size:14px;font-weight:800">'+coupleName(p.bride, p.groom, ' &amp; ')+'</div>'
       +'<div style="font-size:11px;color:#888;margin-top:2px">'
         +(p.refcode?'<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">'+p.refcode+'</span>':'')
         +(p.city?p.city+' · ':'')
@@ -22587,7 +22587,7 @@ function syncEventDateScheduleMismatches() {
     return;
   }
   var preview = mismatched.slice(0, 8).map(function(p) {
-    return '• ' + p.bride + ' & ' + p.groom + ' — ' + p.date + ' → ' + firstEventDate(p);
+    return '• ' + coupleName(p.bride, p.groom) + ' — ' + p.date + ' → ' + firstEventDate(p);
   }).join('\n') + (mismatched.length > 8 ? '\n…and ' + (mismatched.length - 8) + ' more' : '');
 
   if (!confirm(
@@ -22648,7 +22648,7 @@ function syncSingleEventDateMismatch(pid) {
   db.ref('crm_projects/' + pid + '/date').set(fed, function(err) {
     if (err) { showToast('❌ Sync failed: ' + err.message); return; }
     if (projects[pid]) projects[pid].date = fed;
-    showToast('✅ Synced ' + p.bride + ' & ' + p.groom + '\'s Wedding/Event Date to ' + fed + '.');
+    showToast('✅ Synced ' + coupleName(p.bride, p.groom) + '\'s Wedding/Event Date to ' + fed + '.');
     renderHealthCheck();
   });
 }
@@ -23662,7 +23662,7 @@ function buildSidebar() {
 function openProject(id, tabId) {
   var p = projects[id]; if (!p) return;
   editProjId = id;
-  document.getElementById('proj-modal-title').textContent = p.bride + ' & ' + p.groom;
+  document.getElementById('proj-modal-title').textContent = coupleName(p.bride, p.groom);
   document.getElementById('proj-modal-refcode').innerHTML = p.refcode ? '<span class="refcode">' + p.refcode + '</span>' : '';
   document.getElementById('btn-delete-proj').style.display = (CU && CU.role === 'superadmin') ? 'block' : 'none';
   var npBlockEx = document.getElementById('new-proj-advance-block'); if (npBlockEx) npBlockEx.style.display = 'none';
@@ -23837,7 +23837,7 @@ function openProjectStage(id) { openProject(id, 't-stage'); }
 function deleteProjDirect(id) {
   if (!CU || CU.role !== 'superadmin') { alert('Only Super Admin can delete.'); return; }
   var p = projects[id]; if (!p) return;
-  if (!confirm('PERMANENTLY DELETE "' + p.bride + ' & ' + p.groom + '"?\n\nThis will also remove the referral entry.')) return;
+  if (!confirm('PERMANENTLY DELETE "' + coupleName(p.bride, p.groom) + '"?\n\nThis will also remove the referral entry.')) return;
   db.ref('crm_projects/' + id).remove(function() {
     var refMatch = Object.values(referral).find(function(c) { return c.projectId === id || c.refcode === p.refcode; });
     if (refMatch) db.ref('crm_referral/' + refMatch.id).remove();
@@ -23902,7 +23902,7 @@ function renderNotifPanel() {
     return '<div style="padding:11px 16px;border-bottom:1px solid #f5f5f5;display:flex;align-items:center;gap:10px">' +
       '<div style="flex-shrink:0;font-size:20px">' + icon + '</div>' +
       '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + a.p.bride + ' & ' + a.p.groom + '</div>' +
+        '<div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + coupleName(a.p.bride, a.p.groom) + '</div>' +
         '<div style="font-size:11px;color:#888;margin-top:1px">' + (a.type === 'delivery' ? 'Delivery' : 'Event') + ' &nbsp;·&nbsp; <span style="color:' + col + ';font-weight:700">' + when + '</span></div>' +
       '</div>' +
       '<div style="display:flex;gap:4px;flex-shrink:0">' +
@@ -23942,7 +23942,7 @@ function renderPayDueAlerts() {
     var col = a.days < 0 ? '#dc2626' : a.days <= 7 ? '#d97706' : '#1d4ed8';
     var when = a.days < 0 ? Math.abs(a.days) + ' days overdue' : a.days === 0 ? 'Due today' : a.days + ' days';
     return '<div class="due-alert" style="background:' + col + '18;border:1px solid ' + col + '44;display:flex;align-items:center;justify-content:space-between">' +
-      '<span><b>' + a.p.bride + ' & ' + a.p.groom + '</b>' + (a.stage ? ' &middot; ' + a.stage : '') +
+      '<span><b>' + coupleName(a.p.bride, a.p.groom) + '</b>' + (a.stage ? ' &middot; ' + a.stage : '') +
       ' &middot; <b style="color:' + col + '">' + when + '</b> &middot; Balance: ' + fmt(balDue(a.p)) + '</span>' +
       '<div style="display:flex;gap:6px;flex-shrink:0">' +
       '<button class="btn btn-sm" onclick="openProjectPayments(' + a.p.id + ')">View</button>' +
@@ -24016,7 +24016,7 @@ function renderFuturePayments() {
             whenHtml = '<span style="color:#888;font-size:12px">Awaiting ' + (s.desc || s.label) + '</span>';
           }
           return '<tr>' +
-            '<td><b>' + u.p.bride + ' & ' + u.p.groom + '</b><div style="font-size:10px;color:#aaa">' + (u.p.state || u.p.city || '') + '</div></td>' +
+            '<td><b>' + coupleName(u.p.bride, u.p.groom) + '</b><div style="font-size:10px;color:#aaa">' + (u.p.state || u.p.city || '') + '</div></td>' +
             '<td><span class="badge b-blue">' + s.label + '</span></td>' +
             '<td style="font-weight:700;color:#16a34a">' + amtLabel + '</td>' +
             '<td>' + whenHtml + '</td>' +
@@ -24032,7 +24032,7 @@ function renderFuturePayments() {
         rawPending.map(function(p) {
           var bal = balDue(p);
           return '<tr>' +
-            '<td><b>' + p.bride + ' & ' + p.groom + '</b><div style="font-size:10px;color:#aaa">' + (p.state || p.city || '') + '</div></td>' +
+            '<td><b>' + coupleName(p.bride, p.groom) + '</b><div style="font-size:10px;color:#aaa">' + (p.state || p.city || '') + '</div></td>' +
             '<td>' + fmtDate(p.date || '') + '</td>' +
             '<td>' + (p.d_raw_qty ? p.d_raw_qty + ' ' + (p.d_raw_unit || 'GB') : '—') + '</td>' +
             '<td style="font-weight:700;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">' + fmt(bal) + '</td>' +
@@ -24094,7 +24094,7 @@ function openDashDrill(type) {
       '<td class="dd-num '+(bal>0?'dd-bal':'dd-muted')+'">'+(bal>0?fmt(bal):'Paid ✓')+'</td>'
     ):'';
     return '<tr class="dd-row" onclick="closeDashDrill();setTimeout(function(){editProject(\''+p.id+'\')},100)">' +
-      '<td class="dd-client"><div class="dd-name">'+(p.bride||'—')+' & '+(p.groom||'—')+'</div><div class="dd-sub">'+(p.refcode?'<span class="dd-ref">'+p.refcode+'</span> · ':'')+(p.city||'')+(p.type?' · '+p.type:'')+'</div></td>' +
+      '<td class="dd-client"><div class="dd-name">'+coupleName(p.bride||'—', p.groom)+'</div><div class="dd-sub">'+(p.refcode?'<span class="dd-ref">'+p.refcode+'</span> · ':'')+(p.city||'')+(p.type?' · '+p.type:'')+'</div></td>' +
       '<td>'+stageBadge(p.stage)+'</td><td class="dd-event">'+dLabel+'</td>'+fc+
       '<td class="dd-arrow">→</td></tr>';
   }).join('')||'<tr><td colspan="7" style="text-align:center;color:#aaa;padding:32px">No projects.</td></tr>';
@@ -24303,7 +24303,7 @@ function renderDashboard() {
     .map(function(p) {
       var d = daysUntil(p.date); var col = d <= 7 ? '#dc2626' : d <= 14 ? '#d97706' : '#1d4ed8';
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">' +
-        '<div><div style="font-size:13px;font-weight:600">' + p.bride + ' & ' + p.groom + '</div>' +
+        '<div><div style="font-size:13px;font-weight:600">' + coupleName(p.bride, p.groom) + '</div>' +
         '<div style="font-size:11px;color:#888">' + (p.date || '') + (p.city ? ' · ' + p.city : '') + (p.type ? ' · ' + p.type : '') + '</div></div>' +
         '<div style="text-align:right"><div style="font-weight:800;color:' + col + ';font-size:14px">' + d + 'd</div>' + stageBadge(p.stage) + '</div></div>';
     }).join('') || '<div class="empty" style="padding:12px">No events in next 90 days.</div>';
@@ -24311,7 +24311,7 @@ function renderDashboard() {
   // Recent bookings
   var recent = list.slice().sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); }).slice(0, 5).map(function(p) {
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f5f5f5;font-size:12px">' +
-      '<div><div style="font-weight:600">' + p.bride + ' & ' + p.groom + '</div>' +
+      '<div><div style="font-weight:600">' + coupleName(p.bride, p.groom) + '</div>' +
       '<div style="color:#888">' + (p.bookdate || p.date || '') + (p.city ? ' · ' + p.city : '') + '</div></div>' +
       (ac.canSeeFinancials ? '<span style="font-weight:700;color:#16a34a">' + fmt(netVal(p)) + '</span>' : stageBadge(p.stage)) +
     '</div>';
@@ -24347,7 +24347,7 @@ function renderDashboard() {
           var days = d.date ? daysUntil(d.date) : null;
           var col = days !== null && days <= 3 ? '#dc2626' : '#1a1a1a';
           return '<tr><td><b>' + (d.name || d.type || 'Deliverable') + '</b><br><small style="color:#888">' + (d.category || '') + '</small></td>' +
-            '<td>' + p.bride + ' & ' + p.groom + '</td>' +
+            '<td>' + coupleName(p.bride, p.groom) + '</td>' +
             '<td style="color:' + col + ';font-weight:600">' + (d.date || '—') + (days !== null ? ' (' + (days <= 0 ? '⚠️ OVERDUE' : days + 'd') + ')' : '') + '</td>' +
             '<td>' + (d.status === 'inprogress' ? '<span class="badge b-blue">🎬 Editing</span>' : d.status === 'review' ? '<span class="badge b-purple">👁️ Review</span>' : d.status === 'changes' ? '<span class="badge b-red">🔁 Changes</span>' : d.status === 'delivered' ? '<span class="badge b-blue">📦 Awaiting Approval</span>' : '<span class="badge b-amber">⏳ Pending</span>') + '</td>' +
             '<td></td></tr>';
@@ -24382,7 +24382,7 @@ function renderDashboard() {
         var statusColors={draft:'#888',sent:'#1d4ed8',positive:'#0d9488',negotiating:'#d97706',won:'#16a34a',lost:'#dc2626'};
         var statusLabels={draft:'Draft',sent:'Sent',positive:'Positive',negotiating:'Negotiating',won:'Won',lost:'Lost'};
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5">' +
-          '<div><div style="font-size:13px;font-weight:600">' + (q.bride||'—') + (q.groom?' & '+q.groom:'') + '</div>' +
+          '<div><div style="font-size:13px;font-weight:600">' + coupleName(q.bride||'—', q.groom) + '</div>' +
           '<div style="font-size:11px;color:#888">' + (q.city||'') + (q.date?' · '+q.date:'') + '</div></div>' +
           '<div style="text-align:right">' +
             '<div style="font-weight:700;color:#1a1a1a">' + fmt(net) + '</div>' +
@@ -24515,7 +24515,7 @@ function renderPipeline() {
     return '<div class="pipe-col"><div class="pipe-col-title"><span>' + labels[s] + '</span><span>' + items.length + '</span></div>' +
       items.map(function(p) {
         return '<div class="pipe-card" onclick="openProject(' + p.id + ')" style="cursor:pointer">' +
-          '<div style="font-size:13px;font-weight:700">' + priorityBadge(p) + ' ' + p.bride + ' & ' + p.groom + '</div>' +
+          '<div style="font-size:13px;font-weight:700">' + priorityBadge(p) + ' ' + coupleName(p.bride, p.groom) + '</div>' +
           '<div style="font-size:11px;color:#888;margin-top:3px">' + (p.city || '') + (p.date ? ' · ' + p.date : '') + '</div>' +
           '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px">' +
           regionBadge(p.region) + '<span style="font-weight:700;color:' + (balDue(p) > 0 ? '#dc2626' : '#16a34a') + '">' +
@@ -24638,7 +24638,7 @@ function syncLegacyCalendarShoots() {
     return;
   }
   var preview = legacy.slice(0, 8).map(function(p) {
-    return '• ' + p.bride + ' & ' + p.groom + ' — ' + fmtDate(p.date) + (p.type ? ' (' + p.type + ')' : '');
+    return '• ' + coupleName(p.bride, p.groom) + ' — ' + fmtDate(p.date) + (p.type ? ' (' + p.type + ')' : '');
   }).join('\n') + (legacy.length > 8 ? '\n…and ' + (legacy.length - 8) + ' more' : '');
 
   if (!confirm(
@@ -24714,7 +24714,7 @@ function dedupeAllEventDays() {
     var cleaned = _dedupeEventDaysArr(orig);
     if (cleaned.length !== orig.length) {
       updates['crm_projects/' + p.id + '/eventDays'] = cleaned;
-      affected.push(p.bride + ' & ' + p.groom + ' (' + orig.length + ' → ' + cleaned.length + ')');
+      affected.push(coupleName(p.bride, p.groom) + ' (' + orig.length + ' → ' + cleaned.length + ')');
     }
   });
   if (!affected.length) {
@@ -24796,7 +24796,7 @@ function _getCalEvents() {
         var type = 'other';
         ['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty'].forEach(function(t){ if(rawType.indexOf(t)>-1) type=t; });
         if (_calTypeFilter && !_calTypeFilter.has(type)) return;
-        events.push({ date: ev.date, title: p.bride + ' & ' + p.groom, sub: ev.name || ev.type || '', type: type, proj: p, evDay: ev, isLegacy: false,
+        events.push({ date: ev.date, title: coupleName(p.bride, p.groom), sub: ev.name || ev.type || '', type: type, proj: p, evDay: ev, isLegacy: false,
           prodLevel: ev.prodLevel || '', callTime: ev.callTime || '', startTime: ev.time || '' });
       });
     } else if (p.date && dateRe.test(p.date)) {
@@ -24805,7 +24805,7 @@ function _getCalEvents() {
       var typeVal = 'other';
       ['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty'].forEach(function(t){ if(rawT.indexOf(t)>-1) typeVal=t; });
       if (_calTypeFilter && !_calTypeFilter.has(typeVal)) return;
-      events.push({ date: p.date, title: p.bride + ' & ' + p.groom, sub: p.type || '', type: typeVal, proj: p, evDay: null, isLegacy: true });
+      events.push({ date: p.date, title: coupleName(p.bride, p.groom), sub: p.type || '', type: typeVal, proj: p, evDay: null, isLegacy: true });
     }
   });
   return events;
@@ -25105,14 +25105,14 @@ function _buildCalEventsForDate(dateStr) {
         var rawType=(ed.type||'other').trim();
         var t=typeMap[rawType]||rawType.toLowerCase().replace(/[^a-z]/g,'')||'other';
         if(!['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty','other'].includes(t))t='other';
-        evts.push({date:ed.date,type:t,title:p.bride+' & '+p.groom,sub:ed.type||'',proj:p,evDay:ed,isLegacy:false});
+        evts.push({date:ed.date,type:t,title:coupleName(p.bride, p.groom),sub:ed.type||'',proj:p,evDay:ed,isLegacy:false});
       });
     } else if (p.date && _dateRe2.test(p.date) && p.date===dateStr) {
       // Legacy fallback — project has no eventDays, falls back to p.date
       var rawT2=(p.type||'other').trim();
       var t2=typeMap[rawT2]||rawT2.toLowerCase().replace(/[^a-z]/g,'')||'other';
       if(!['wedding','haldi','sangeet','mehendi','reception','prewedding','engagement','afterparty','other'].includes(t2))t2='other';
-      evts.push({date:p.date,type:t2,title:p.bride+' & '+p.groom,sub:p.type||'',proj:p,evDay:null,isLegacy:true});
+      evts.push({date:p.date,type:t2,title:coupleName(p.bride, p.groom),sub:p.type||'',proj:p,evDay:null,isLegacy:true});
     }
   });
   return evts;
@@ -25120,7 +25120,7 @@ function _buildCalEventsForDate(dateStr) {
 
 function calRemoveFromCalendar(projId, evType, isLegacy) {
   var p = projects[projId]; if (!p) return;
-  var label = p.bride + ' & ' + p.groom;
+  var label = coupleName(p.bride, p.groom);
   if (!confirm('Remove "' + label + '" from the calendar?\n\n' +
     (isLegacy
       ? 'This will clear the main event date from this project. The project itself will NOT be deleted.'
@@ -25168,7 +25168,7 @@ function calShowEvent(e,projId,evType,isLegacy){
   var waBtn=document.getElementById('cal-popup-wa-btn');
   var t=evType||'other';
   if(typeBadgeEl){typeBadgeEl.className='cal-event-chip '+_chipClass(t);typeBadgeEl.textContent=typeLabels[t]||t;typeBadgeEl.style.cssText='display:inline-block;position:static;margin-bottom:4px';}
-  if(titleEl)titleEl.textContent=p.bride+' & '+p.groom;
+  if(titleEl)titleEl.textContent=coupleName(p.bride, p.groom);
   if(dateSubEl)dateSubEl.textContent=fmtDate(p.date)+(p.city?' · '+p.city:'');
   var bal=balDue?balDue(p):0;
   // Find the specific eventDay for this event type to show its venue/time/notes
@@ -25406,7 +25406,7 @@ function renderProjects(keepPage) {
         var showWA    = fieldVisible('whatsapp');
         var showEmail = fieldVisible('email');
         return '<tr>' +
-          '<td><div style="font-weight:700">' + p.bride + ' & ' + p.groom + '</div></td>' +
+          '<td><div style="font-weight:700">' + coupleName(p.bride, p.groom) + '</div></td>' +
           '<td style="font-size:12px">' + (showPhone ? (p.phone || '—') : maskField(p.phone)) + '</td>' +
           '<td style="font-size:12px">' + (showWA    ? (p.whatsapp || '—') : maskField(p.whatsapp)) + '</td>' +
           '<td style="font-size:12px">' + (showEmail ? (p.email || '—')    : maskField(p.email)) + '</td>' +
@@ -25422,7 +25422,7 @@ function renderProjects(keepPage) {
     list.map(function(p) {
       var phoneDisp = showPhone ? (p.phone || '') : (p.phone ? MASK_TEXT : '');
       return '<tr>' +
-        '<td><div style="font-weight:700">' + priorityBadge(p) + ' ' + p.bride + ' & ' + p.groom + '</div>' +
+        '<td><div style="font-weight:700">' + priorityBadge(p) + ' ' + coupleName(p.bride, p.groom) + '</div>' +
         (phoneDisp ? '<div style="font-size:11px;color:#888">' + phoneDisp + '</div>' : '') + '</td>' +
         '<td><span class="refcode" style="font-size:10px">' + (p.refcode || '—') + '</span></td>' +
         '<td style="font-size:12px;color:#555">' + (p.bookdate || '—') + '</td>' +
@@ -25455,7 +25455,7 @@ var STATEMENT_COLS_ALLPROJ = [
 function getAllProjectsStatementRows() {
   return (_lastProjFilteredList || []).map(function(p){
     return {
-      couple: (p.bride||'') + ' & ' + (p.groom||''),
+      couple: coupleName(p.bride||'', p.groom||''),
       phone: p.phone || '', whatsapp: p.whatsapp || '', email: p.email || '',
       city: p.city || '', state: p.state || '', refcode: p.refcode || '',
       bookdate: p.bookdate || p.date || '', eventDate: firstEventDate(p) || '',
@@ -25497,7 +25497,7 @@ function populateWASel() {
   var prev = sel.value;
   sel.innerHTML = '<option value="">-- Select Project --</option>' +
     pl().sort(function(a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).map(function(p) {
-      return '<option value="' + p.id + '">' + p.bride + ' & ' + p.groom + (p.city ? ' — ' + p.city : '') + (p.refcode ? ' [' + p.refcode + ']' : '') + '</option>';
+      return '<option value="' + p.id + '">' + coupleName(p.bride, p.groom) + (p.city ? ' — ' + p.city : '') + (p.refcode ? ' [' + p.refcode + ']' : '') + '</option>';
     }).join('');
   if (prev) sel.value = prev;
   sel.onchange = renderWA;
@@ -25929,7 +25929,7 @@ function buildInvoiceHTML(data, showTerms) {
   var dateStr = data.date ? fmtDate(data.date) : '';
   var dueDateStr = data.dueDate ? fmtDate(data.dueDate) : '';
   var evDateStr = data.eventDate ? fmtDate(data.eventDate) : '';
-  var clientName = (data.bride||'Client') + (data.groom ? ' & ' + data.groom : '');
+  var clientName = coupleName(data.bride||'Client', data.groom);
   var hasEvent = data.eventDate||data.venue||data.package;
 
   return getInvoiceStyles() +
@@ -26225,7 +26225,7 @@ function renderInvoicePage() {
   var prev = sel.value;
   sel.innerHTML = '<option value="">— Select a project to pre-fill —</option>' +
     pl().sort(function(a,b){return (b.updatedAt||0)-(a.updatedAt||0);}).map(function(p){
-      return '<option value="'+p.id+'">'+p.bride+' & '+p.groom+(p.city?' — '+p.city:'')+(p.refcode?' ['+p.refcode+']':'')+'</option>';
+      return '<option value="'+p.id+'">'+coupleName(p.bride, p.groom)+(p.city?' — '+p.city:'')+(p.refcode?' ['+p.refcode+']':'')+'</option>';
     }).join('');
   if(prev) sel.value = prev;
 
@@ -26264,7 +26264,7 @@ function loadInvoiceFromProject(id) {
   updateInvoicePageTotals();
   renderInvoicePaySchedule();
   renderInvoicePagePreview();
-  showToast('✅ Loaded: '+p.bride+' & '+p.groom+' · Payment schedule auto-fetched');
+  showToast('✅ Loaded: '+coupleName(p.bride, p.groom)+' · Payment schedule auto-fetched');
 }
 
 function clearInvoicePage() {
@@ -26617,7 +26617,7 @@ function renderPastInvoices() {
       var balance = subtotal - (parseFloat(inv.paid)||0);
       var balColor = balance <= 0 ? '#16a34a' : '#dc2626';
       var savedDate = fmtDate(inv.savedAt);
-      var clientName = escHtml((inv.bride||'') + (inv.groom ? ' & ' + inv.groom : '') || 'Unknown Client');
+      var clientName = escHtml(coupleName(inv.bride||'', inv.groom) || 'Unknown Client');
       var invNoSafe = escHtml(inv.invoiceNo||'—');
       var refSafe = escHtml(inv.refcode||'');
       var invNoData = (inv.invoiceNo||'').replace(/"/g,'&quot;');
@@ -26700,7 +26700,7 @@ function getInvoicesStatementRows() {
     var paid = parseFloat(inv.paid)||0;
     var balance = subtotal - paid;
     return {
-      invoiceNo: inv.invoiceNo || '', client: (inv.bride||'') + (inv.groom ? ' & ' + inv.groom : ''),
+      invoiceNo: inv.invoiceNo || '', client: coupleName(inv.bride||'', inv.groom),
       phone: inv.phone || '', email: inv.email || '', city: inv.city || '',
       refcode: inv.refcode || '', region: inv.region || '', package: inv.package || '',
       invDate: inv.date || '', dueDate: inv.dueDate || '',
@@ -27072,7 +27072,7 @@ function renderApprovalQueue() {
         var net = (parseFloat(q.value)||0)-(parseFloat(q.discount)||0);
         return '<div style="background:#ede9fe;border:1px solid #c4b5fd;border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
           '<div style="flex:1">' +
-            '<div style="font-weight:700;font-size:13px">' + (q.bride||'?') + (q.groom?' & '+q.groom:'') + '</div>' +
+            '<div style="font-weight:700;font-size:13px">' + coupleName(q.bride||'?', q.groom) + '</div>' +
             '<div style="font-size:11px;color:#6b7280;margin-top:2px">' + (q.city||'—') + ' · ' + (q.salesperson||'—') + ' · ' + (net>0?fmt(net):'No value') + '</div>' +
             '<div style="font-size:11px;color:#7c3aed;margin-top:3px">Submitted by <b>' + (q.approvalSubmittedBy||'—') + '</b>' + (q.approvalSubmittedAt ? ' · ' + fmtDateTime(q.approvalSubmittedAt) : '') + '</div>' +
           '</div>' +
@@ -27100,7 +27100,7 @@ function quickChangeStatus(id, newStatus, event) {
   if (q.status === newStatus) return;
   var label = QT_STATUS_LABELS[newStatus] || newStatus;
   var curLabel = QT_STATUS_LABELS[q.status||'draft'] || (q.status||'draft');
-  var who = (q.bride||'') + (q.groom ? ' & ' + q.groom : '') || 'This quotation';
+  var who = coupleName(q.bride||'', q.groom) || 'This quotation';
   if (!confirm('Move ' + who + ' from ' + curLabel + ' to ' + label + '?')) return;
   var realId = q.id || id; // ensure we have the Firebase key
   // Track exactly when a quotation moves to Won, so "Booked Clients" can be
@@ -27408,7 +27408,7 @@ function renderFollowUps() {
     return '<div class="card" style="padding:14px 16px;margin-bottom:10px">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px">' +
         '<div>' +
-          '<div style="font-weight:700;font-size:14px;cursor:pointer" onclick="openEditQuotation(\'' + q.id + '\')">' + (q.bride||'') + (q.groom?' &amp; '+q.groom:'') + overdueTag + '</div>' +
+          '<div style="font-weight:700;font-size:14px;cursor:pointer" onclick="openEditQuotation(\'' + q.id + '\')">' + coupleName(q.bride||'', q.groom, ' &amp; ') + overdueTag + '</div>' +
           '<div style="font-size:11px;color:#888;margin-top:2px">' + (q.city||'—') + ' · ' + (q.phone||'—') + (q.salesperson?' · '+q.salesperson:'') + ' · Due ' + dueStr + '</div>' +
           '<div style="font-size:11px;color:#7c3aed;font-weight:700;margin-top:4px">Step: ' + tpl.name + '</div>' +
         '</div>' +
@@ -27754,7 +27754,7 @@ function renderBookedClients(list) {
       var bookedAt = _quotBookedAt(qt);
       var linkedProjId = linkedProj ? (linkedProj.id || qt.projectId) : null;
       return '<tr>' +
-        '<td><div style="font-weight:700">' + (qt.bride||'Unknown') + (qt.groom ? ' & ' + qt.groom : '') + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div>' + quotCatBadge(qt) + '</td>' +
+        '<td><div style="font-weight:700">' + coupleName(qt.bride||'Unknown', qt.groom) + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div>' + quotCatBadge(qt) + '</td>' +
         '<td>' + (qt.city||'—') + '</td>' +
         '<td style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</td>' +
         '<td>' + advBadge + '</td>' +
@@ -27866,7 +27866,7 @@ function renderSalesDash() {
           var isWon  = q.status === 'won';
           return '<div class="quot-card">' +
             '<div onclick="openEditQuotation(\'' + q.id + '\')" style="cursor:pointer;margin-bottom:8px">' +
-              '<div class="quot-card-name">' + (q.bride || 'Unknown') + (q.groom ? ' & ' + q.groom : '') + '</div>' + quotCatBadge(q) +
+              '<div class="quot-card-name">' + coupleName(q.bride || 'Unknown', q.groom) + '</div>' + quotCatBadge(q) +
               '<div class="quot-card-meta">' + (q.city || '—') + (q.salesperson ? ' · ' + q.salesperson : '') + '</div>' +
               '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">' +
                 '<span style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</span>' +
@@ -27920,7 +27920,7 @@ function renderSalesDash() {
           '</div>' +
           '<div style="font-size:9px;color:' + QT_STATUS_COLORS[qt.status||'draft'] + ';font-weight:700;margin-top:3px">' + (QT_STATUS_LABELS[qt.status||'draft']||'') + '</div>';
           return '<tr>' +
-            '<td><div style="font-weight:700">' + (qt.bride||'Unknown') + (qt.groom ? ' & ' + qt.groom : '') + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div>' + quotCatBadge(qt) + '</td>' +
+            '<td><div style="font-weight:700">' + coupleName(qt.bride||'Unknown', qt.groom) + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div>' + quotCatBadge(qt) + '</td>' +
             '<td>' + (qt.city||'—') + '</td>' +
             '<td style="text-align:center"><span class="badge b-blue">' + daysCount + ' day' + (daysCount !== 1 ? 's' : '') + '</span></td>' +
             '<td style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</td>' +
@@ -28267,7 +28267,7 @@ function openEditQuotation(id) {
   // Load deliverables — use 300ms to ensure modal DOM is fully ready
   setTimeout(function(){ qdLoadFromData(q.deliverables, q.quotDeliverables); }, 300);
   loadQuotTerms(q.terms || null);
-  document.getElementById('quot-modal-title').textContent = (q.bride||'') + (q.groom ? ' & ' + q.groom : '') + ' — Quotation';
+  document.getElementById('quot-modal-title').textContent = coupleName(q.bride||'', q.groom) + ' — Quotation';
   document.getElementById('quot-modal-sub').textContent = 'Last saved: ' + (q.savedAt ? fmtDateTime(q.savedAt) : '—');
   var cvtBtn = document.getElementById('btn-quot-convert-project');
   if (cvtBtn) cvtBtn.style.display = q.status === 'won' ? '' : 'none';
@@ -28585,6 +28585,13 @@ function _sortQuotDays() {
     if (aU && bU) return 0;
     return (a.date || '').localeCompare(b.date || '');
   });
+}
+// Joins bride + groom with "&" only when BOTH are present, so a single name
+// (e.g. just "Aarti") never shows a dangling "&".
+function coupleName(b, g, sep) {
+  b = (b == null ? '' : String(b)).trim();
+  g = (g == null ? '' : String(g)).trim();
+  return (b && g) ? (b + (sep || ' & ') + g) : (b || g);
 }
 // Earliest real event date on a quotation (undecided days are skipped, since
 // they now sit at the top of the list).
@@ -30468,7 +30475,7 @@ function convertQuotToProject(overrideId) {
   var id = overrideId || editQuotId;
   var q = quotations[id]; if (!q) { showToast('Save the quotation first.'); return; }
   if (q.status !== 'won') { if (!confirm('This quotation is not marked as Won. Convert anyway?')) return; }
-  if (!confirm('Convert "' + (q.bride||'') + (q.groom ? ' & ' + q.groom : '') + '" into a full CRM Project? All details will be auto-filled.')) return;
+  if (!confirm('Convert "' + coupleName(q.bride||'', q.groom) + '" into a full CRM Project? All details will be auto-filled.')) return;
 
   // Build project data mirroring existing project structure
   var projData = {
@@ -30636,7 +30643,7 @@ function kbSyncOrLinkQuotation(projId) {
 
   // Build modal HTML
   var opts = allQuots.map(function(q) {
-    var label = (q.bride||'?') + ' & ' + (q.groom||'?') + ' — ' + (q.city||'') + (q.date ? ' · ' + q.date : '') + (q.status ? ' [' + q.status + ']' : '');
+    var label = coupleName(q.bride||'?', q.groom) + ' — ' + (q.city||'') + (q.date ? ' · ' + q.date : '') + (q.status ? ' [' + q.status + ']' : '');
     return '<option value="' + q.id + '">' + label + '</option>';
   }).join('');
 
@@ -30653,7 +30660,7 @@ function kbSyncOrLinkQuotation(projId) {
   modal.innerHTML =
     '<div style="background:#fff;border-radius:16px;padding:24px;width:480px;max-width:95vw;box-shadow:0 20px 60px rgba(0,0,0,0.3)">' +
       '<div style="font-size:15px;font-weight:800;margin-bottom:6px">🔗 Link Quotation to Project</div>' +
-      '<div style="font-size:12px;color:#888;margin-bottom:16px">Project: <strong>' + (p.bride||'') + ' & ' + (p.groom||'') + '</strong> · ' + (p.refcode||projId) + '</div>' +
+      '<div style="font-size:12px;color:#888;margin-bottom:16px">Project: <strong>' + coupleName(p.bride||'', p.groom||'') + '</strong> · ' + (p.refcode||projId) + '</div>' +
       '<div style="font-size:11px;font-weight:700;color:#555;margin-bottom:6px">Search quotation:</div>' +
       '<input type="text" id="kb-link-search" placeholder="Type bride or groom name..." style="width:100%;padding:9px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box" oninput="kbLinkQuotFilter()">' +
       '<select id="kb-link-quot-sel" size="7" style="width:100%;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;padding:4px;margin-bottom:14px;box-sizing:border-box">' + opts + '</select>' +
@@ -30682,7 +30689,7 @@ function kbLinkQuotFilter() {
                   (qt.refcode||'').toLowerCase().indexOf(q) >= 0;
   });
   sel.innerHTML = filtered.map(function(qt) {
-    var label = (qt.bride||'?') + ' & ' + (qt.groom||'?') + ' — ' + (qt.city||'') + (qt.date?' · '+qt.date:'') + (qt.status?' ['+qt.status+']':'');
+    var label = coupleName(qt.bride||'?', qt.groom) + ' — ' + (qt.city||'') + (qt.date?' · '+qt.date:'') + (qt.status?' ['+qt.status+']':'');
     return '<option value="' + qt.id + '">' + label + '</option>';
   }).join('');
 }
@@ -30894,7 +30901,7 @@ function syncProjectFromQuotation(projId, silent) {
       if (typeof logActivity === 'function' && upd.kbSchedule) {
         var schedDiff = _diffKbScheduleStages(p.kbSchedule, upd.kbSchedule);
         if (schedDiff.length) {
-          logActivity('payment', 'Payment schedule synced from quotation', (p.bride||'')+' & '+(p.groom||'')+' — '+schedDiff.length+' change(s)', { projectId: projId, quotationId: quotId, changes: schedDiff });
+          logActivity('payment', 'Payment schedule synced from quotation', coupleName(p.bride||'', p.groom||'')+' — '+schedDiff.length+' change(s)', { projectId: projId, quotationId: quotId, changes: schedDiff });
         }
       }
       // Update local cache
@@ -31181,7 +31188,7 @@ function formatDDMMYYYY(dateStr) {
 // Builds a clean "Bride & Groom - DD-MM-YYYY.pdf" filename — just the couple's
 // name and a date, no extra branding/prefix text.
 function buildClientPdfFilename(bride, groom, dateStr) {
-  var namePart = (bride || 'Client') + (groom ? ' & ' + groom : '');
+  var namePart = coupleName(bride || 'Client', groom);
   namePart = namePart.replace(/[\\/:*?"<>|]/g, ''); // strip characters invalid in filenames
   return namePart + ' - ' + formatDDMMYYYY(dateStr) + '.pdf';
 }
@@ -31294,7 +31301,7 @@ function downloadQuotationPDF() {
 function buildQuotPDFDom(q) {
   var d = q.deliverables || {};
   var net = (parseFloat(q.value)||0) - (parseFloat(q.discount)||0);
-  var clientName = (q.bride || 'Client') + (q.groom ? ' & ' + q.groom : '');
+  var clientName = coupleName(q.bride || 'Client', q.groom);
 
   // Build payTermsText from PAY_PRESETS for sync with project
   var payTermsText;
@@ -32510,7 +32517,7 @@ function renderPriorityPage() {
         (canFlag ? '<button onclick="editFlagNote(' + p.id + ',\'' + safeNote + '\')" style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;color:#374151;flex-shrink:0">✏️ Edit</button>' : '') +
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">' +
-        '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Client</div><div style="font-weight:700;font-size:14px">' + escHtml(p.bride) + ' & ' + escHtml(p.groom) + '</div><div style="font-size:12px;color:#555">' + (fieldVisible('phone') ? (p.phone || '') : (p.phone ? MASK_TEXT : '')) + '</div></div>' +
+        '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Client</div><div style="font-weight:700;font-size:14px">' + coupleName(escHtml(p.bride), escHtml(p.groom)) + '</div><div style="font-size:12px;color:#555">' + (fieldVisible('phone') ? (p.phone || '') : (p.phone ? MASK_TEXT : '')) + '</div></div>' +
         '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Stage</div><div>' + stageLabel(p.stage) + '</div><div style="font-size:11px;color:#888">' + (p.city || '') + '</div></div>' +
         '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Balance Due</div><div style="font-size:16px;font-weight:800;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">' + (bal > 0 ? fmt(bal) : '✓ Paid') + '</div></div>' +
       '</div>' +
@@ -32552,7 +32559,7 @@ function escalateToSalesHead(projId) {
   var now = new Date().toISOString();
   var escRecord = {
     projId: projId,
-    clientName: p.bride + ' & ' + p.groom,
+    clientName: coupleName(p.bride, p.groom),
     refcode: p.refcode || '',
     phone: p.phone || '',
     balance: Math.max(0, balDue(p)),
@@ -32567,7 +32574,7 @@ function escalateToSalesHead(projId) {
       type: 'escalation',
       icon: '📵',
       title: 'Client Not Responding — Escalated',
-      body: (p.bride + ' & ' + p.groom) + ' (Ref: ' + (p.refcode||'—') + ') — Balance: ' + fmt(Math.max(0, balDue(p))),
+      body: (coupleName(p.bride, p.groom)) + ' (Ref: ' + (p.refcode||'—') + ') — Balance: ' + fmt(Math.max(0, balDue(p))),
       projId: projId,
       forRoles: ['superadmin', 'sales', 'intern'],
       at: now
@@ -32598,10 +32605,10 @@ function checkEditorAssignmentNotification(projId, newProj) {
       type: 'editor_assigned',
       icon: '🗂️',
       title: 'Data Handover Required',
-      body: 'Editor ' + newEditor + ' assigned to ' + newProj.bride + ' & ' + newProj.groom + ' — please align project data immediately.',
+      body: 'Editor ' + newEditor + ' assigned to ' + coupleName(newProj.bride, newProj.groom) + ' — please align project data immediately.',
       projId: projId,
       editorName: newEditor,
-      clientName: newProj.bride + ' & ' + newProj.groom,
+      clientName: coupleName(newProj.bride, newProj.groom),
       refcode: newProj.refcode || '',
       forRoles: ['datamanager', 'superadmin', 'admin'],
       at: now,
@@ -32625,11 +32632,11 @@ function notifyDMDeliverableComplete(projId, delivId, link) {
     type: 'deliverable_done',
     icon: '✅',
     title: 'Final File Ready — Save to Records',
-    body: delivName + ' for ' + p.bride + ' & ' + p.groom + ' completed by ' + editorName + '.',
+    body: delivName + ' for ' + coupleName(p.bride, p.groom) + ' completed by ' + editorName + '.',
     link: link,
     projId: projId,
     delivId: delivId,
-    clientName: p.bride + ' & ' + p.groom,
+    clientName: coupleName(p.bride, p.groom),
     refcode: p.refcode || '',
     editorName: editorName,
     delivName: delivName,
@@ -32832,7 +32839,7 @@ function renderEnhancedNotifPanel() {
       html += '<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5;display:flex;align-items:center;gap:10px">' +
         '<div style="font-size:18px">' + icon + '</div>' +
         '<div style="flex:1;min-width:0">' +
-          '<div style="font-size:12px;font-weight:700">' + escHtml(a.p.bride) + ' & ' + escHtml(a.p.groom) + '</div>' +
+          '<div style="font-size:12px;font-weight:700">' + coupleName(escHtml(a.p.bride), escHtml(a.p.groom)) + '</div>' +
           '<div style="font-size:11px;color:' + col + ';font-weight:700">' + label + ' · Balance: ' + fmt(Math.max(0,balDue(a.p))) + '</div>' +
         '</div>' +
         '<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="closeNotifPanel();openProject(' + a.p.id + ')">View</button>' +
@@ -32850,7 +32857,7 @@ function renderEnhancedNotifPanel() {
       html += '<div style="padding:11px 16px;border-bottom:1px solid #f5f5f5;display:flex;align-items:center;gap:10px">' +
         '<div style="flex-shrink:0;font-size:20px">' + icon + '</div>' +
         '<div style="flex:1;min-width:0">' +
-          '<div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(a.p.bride) + ' & ' + escHtml(a.p.groom) + '</div>' +
+          '<div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + coupleName(escHtml(a.p.bride), escHtml(a.p.groom)) + '</div>' +
           '<div style="font-size:11px;color:#888;margin-top:1px">' + (a.type === 'delivery' ? 'Delivery' : 'Event') + ' &nbsp;·&nbsp; <span style="color:' + col + ';font-weight:700">' + when + '</span></div>' +
         '</div>' +
         '<div style="display:flex;gap:4px;flex-shrink:0">' +
@@ -33369,7 +33376,7 @@ function renderHealthSummaryWidget() {
     scores.slice(0, 8).map(function(x) {
       return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f5f5f5">' +
         healthRingHTML(x.s, 34) +
-        '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + x.p.bride + ' & ' + x.p.groom + '</div>' +
+        '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + coupleName(x.p.bride, x.p.groom) + '</div>' +
         '<div style="font-size:10px;color:#888">' + (stageLabel(x.p.stage) || 'Pre-Prod') + '</div></div>' +
         '<div style="font-size:11px;font-weight:700;color:' + healthColor(x.s) + '">' + x.s + '/100</div>' +
         '<button class="btn btn-sm" style="font-size:10px;padding:3px 8px" onclick="openProject(' + x.p.id + ')">View</button>' +
@@ -33555,7 +33562,7 @@ function renderEditingDeadlineWidget() {
     var col = item.daysLeft < 0 ? '#dc2626' : item.daysLeft <= 7 ? '#d97706' : '#16a34a';
     var label = item.daysLeft < 0 ? Math.abs(item.daysLeft) + 'd overdue' : item.daysLeft === 0 ? 'Due today' : item.daysLeft + 'd left';
     return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f5f5f5">' +
-      '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + item.p.bride + ' & ' + item.p.groom + '</div>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + coupleName(item.p.bride, item.p.groom) + '</div>' +
       '<div style="font-size:10px;color:#888">' + item.deadline + '</div></div>' +
       '<span style="font-size:11px;font-weight:700;color:' + col + ';background:' + col + '18;padding:3px 8px;border-radius:6px;flex-shrink:0">' + label + '</span>' +
       '<button class="btn btn-sm" style="font-size:10px;padding:3px 8px" onclick="openProject(' + item.p.id + ')">View</button>' +
@@ -33590,7 +33597,7 @@ if (_origPPRequestRevision) {
       '<div style="background:#fff;border-radius:16px;width:100%;max-width:520px;overflow:hidden">' +
       '<div style="background:#dc2626;padding:16px 20px;display:flex;align-items:center;justify-content:space-between">' +
       '<div style="color:#fff"><div style="font-size:15px;font-weight:800">🔄 Revision Request — Round ' + nextRound + '</div>' +
-      '<div style="font-size:12px;opacity:.8">' + (d.name || d.type) + ' · ' + p.bride + ' & ' + p.groom + '</div></div>' +
+      '<div style="font-size:12px;opacity:.8">' + (d.name || d.type) + ' · ' + coupleName(p.bride, p.groom) + '</div></div>' +
       '<button onclick="document.getElementById(\'rev-tracker-modal\').remove()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:18px;cursor:pointer">✕</button>' +
       '</div>' +
       '<div style="padding:20px">' +
@@ -33648,7 +33655,7 @@ function ppShowRevisionHistory(projId, delivId) {
     '<div style="background:#fff;border-radius:16px;width:100%;max-width:500px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column">' +
     '<div style="padding:16px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between">' +
     '<div><div style="font-size:15px;font-weight:800">🔄 Revision History</div>' +
-    '<div style="font-size:12px;color:#888">' + (d.name || d.type) + ' · ' + p.bride + ' & ' + p.groom + '</div></div>' +
+    '<div style="font-size:12px;color:#888">' + (d.name || d.type) + ' · ' + coupleName(p.bride, p.groom) + '</div></div>' +
     '<button onclick="document.getElementById(\'rev-history-modal\').remove()" style="background:#f1f5f9;border:none;border-radius:8px;width:32px;height:32px;font-size:18px;cursor:pointer;color:#666">✕</button>' +
     '</div>' +
     '<div style="padding:16px;overflow-y:auto;flex:1">' +
@@ -33864,7 +33871,7 @@ function saveClientCommsEntry(projId) {
     if (err) { showToast('❌ Error saving: ' + err.message); return; }
     showToast('✅ Interaction logged');
     var p = projects[projId];
-    if (p) logActivity('other', 'Client Interaction Logged', (p.bride||'') + ' & ' + (p.groom||'') + ' — ' + channel, { projId: projId });
+    if (p) logActivity('other', 'Client Interaction Logged', coupleName(p.bride||'', p.groom||'') + ' — ' + channel, { projId: projId });
     renderClientTimelinePanel(projId);
   });
 }
@@ -34004,7 +34011,7 @@ function renderCIHub(forceReload) {
       var p = projects[pid];
       snap.forEach(function(c) {
         var issue = Object.assign({ _key: c.key, _projId: pid }, c.val());
-        issue._clientName = p ? (p.bride + ' & ' + p.groom) : 'Unknown';
+        issue._clientName = p ? (coupleName(p.bride, p.groom)) : 'Unknown';
         issue._refcode = p ? (p.refcode || '') : '';
         issue._projStage = p ? (p.stage || '') : '';
         issue._clientPhone = p ? (p.phone || '') : '';
@@ -34348,7 +34355,7 @@ function renderClientPortal(container, p, projId) {
       + '<div style="position:absolute;bottom:-30px;left:-20px;width:100px;height:100px;background:rgba(255,255,255,.02);border-radius:50%"></div>'
       + '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;position:relative">'
         + '<div style="width:48px;height:48px;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#1a1a1a;flex-shrink:0">KB</div>'
-        + '<div style="flex:1"><div style="color:#fff;font-size:17px;font-weight:800">'+escHtml(p.bride)+' & '+escHtml(p.groom)+'</div>'
+        + '<div style="flex:1"><div style="color:#fff;font-size:17px;font-weight:800">'+coupleName(escHtml(p.bride), escHtml(p.groom))+'</div>'
           + (p.refcode ? '<div style="color:rgba(255,255,255,.45);font-size:11px;margin-top:1px;font-family:monospace">'+escHtml(p.refcode)+'</div>' : '')
         + '</div>'
         + healthRingHTML(health, 42)
@@ -34495,7 +34502,7 @@ function renderFeedbackForm(container, projId, p) {
     '<div style="text-align:center;margin-bottom:24px">' +
     '<div style="width:56px;height:56px;background:#1a1a1a;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#fff;margin:0 auto 12px">KB</div>' +
     '<h2 style="font-size:20px;font-weight:900;color:#1a1a2e;margin-bottom:6px">Share Your Experience</h2>' +
-    '<p style="color:#555;font-size:13px;line-height:1.6">' + p.bride + ' & ' + p.groom + ' · It means a lot to hear from you!</p>' +
+    '<p style="color:#555;font-size:13px;line-height:1.6">' + coupleName(p.bride, p.groom) + ' · It means a lot to hear from you!</p>' +
     '</div>' +
     starInputsHTML +
     '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px">📝 Any additional feedback or suggestions?</div>' +
@@ -34602,7 +34609,7 @@ function renderFeedbackDashboard() {
       var col = avgScore >= 4 ? '#16a34a' : avgScore >= 3 ? '#d97706' : '#dc2626';
       return '<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:12px;margin-bottom:8px">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
-        '<div style="font-size:13px;font-weight:700">' + f.p.bride + ' & ' + f.p.groom + '</div>' +
+        '<div style="font-size:13px;font-weight:700">' + coupleName(f.p.bride, f.p.groom) + '</div>' +
         '<div style="font-size:15px;font-weight:900;color:' + col + '">' + starsHTML(avgScore) + ' ' + avgScore.toFixed(1) + '</div>' +
         '</div>' +
         '<div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:#888">' +
@@ -35097,7 +35104,7 @@ function clearActivityLog() {
     var value  = (document.getElementById('f-value')  || {}).value || '';
     var city   = (document.getElementById('f-city')   || {}).value || '';
     var date   = (document.getElementById('f-date')   || {}).value || '';
-    var couple = (bride + (groom ? ' & ' + groom : '')).trim() || 'Unknown';
+    var couple = coupleName(bride, groom) || 'Unknown';
     setTimeout(function() {
       if (isNew) {
         logActivity('project', 'Project Created',
@@ -35131,10 +35138,10 @@ function clearActivityLog() {
     if (!editProjId || !CU || CU.role !== 'superadmin') return;
     var p = projects[editProjId];
     if (!p) return;
-    if (!confirm('PERMANENTLY DELETE "' + p.bride + ' & ' + p.groom + '"?\n\nThis cannot be undone.')) return;
+    if (!confirm('PERMANENTLY DELETE "' + coupleName(p.bride, p.groom) + '"?\n\nThis cannot be undone.')) return;
     // Log before remove (capture data while still available)
     logActivity('project', 'Project Deleted',
-      (p.bride + (p.groom ? ' & ' + p.groom : '')) + ' [' + (p.refcode || 'no ref') + '] — ' + (p.city || '') + ' · ₹' + (p.value || 0),
+      (coupleName(p.bride, p.groom)) + ' [' + (p.refcode || 'no ref') + '] — ' + (p.city || '') + ' · ₹' + (p.value || 0),
       { refcode: p.refcode, value: p.value });
     // Remove referral entry if exists
     var refMatch = Object.values(referral).find(function(c) { return c.projectId === editProjId || c.refcode === p.refcode; });
@@ -35153,7 +35160,7 @@ function clearActivityLog() {
   btn.addEventListener('click', function() {
     var p      = editProjId ? projects[editProjId] : null;
     if (!p) return;
-    var couple = p.bride + (p.groom ? ' & ' + p.groom : '');
+    var couple = coupleName(p.bride, p.groom);
     var amt    = (document.getElementById('pe-amount')  || {}).value || '0';
     var stage  = (document.getElementById('pe-stage')   || {}).value || '';
     var mode   = (document.getElementById('pe-mode')    || {}).value || '';
@@ -35179,7 +35186,7 @@ function clearActivityLog() {
     _orig(idx);
     if (p && entry) {
       logActivity('payment', 'Payment Deleted',
-        '₹' + (entry.amount || 0) + ' removed from ' + p.bride + (p.groom ? ' & ' + p.groom : '') +
+        '₹' + (entry.amount || 0) + ' removed from ' + coupleName(p.bride, p.groom) +
           ' [' + (p.refcode || '') + '] — Stage: ' + (entry.stage || '') + (entry.date ? ' · ' + entry.date : ''),
         { refcode:p.refcode, amount:entry.amount, stage:entry.stage });
     }
@@ -35193,7 +35200,7 @@ function clearActivityLog() {
   window.logStageChange = function(projId, from, to, reason, who) {
     _origLogStage(projId, from, to, reason, who);
     var p = projects[projId] || {};
-    var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+    var couple = coupleName(p.bride || '', p.groom);
     logActivity('stage', 'Stage Changed',
       (couple || projId) + ' — ' + (from || '?') + ' → ' + (to || '?') + (reason ? ' (' + reason + ')' : ''),
       { projId:projId, refcode:p.refcode, from:from, to:to, reason:reason, changedBy:who });
@@ -35213,7 +35220,7 @@ function clearActivityLog() {
     var isNew  = !editQuotId;
     var result = _origSaveQuot(silent);
     if (!silent) {
-      var couple = bride + (groom ? ' & ' + groom : '');
+      var couple = coupleName(bride, groom);
       logActivity('quotation', isNew ? 'Quotation Created' : 'Quotation Updated',
         couple + (city ? ' · ' + city : '') + ' — ₹' + parseInt(value||0).toLocaleString('en-IN') + ' · Status: ' + status,
         { couple:couple, value:value, status:status, city:city });
@@ -35229,7 +35236,7 @@ function clearActivityLog() {
   window.deleteQuotation = function(id) {
     var q = quotations[id] || {};
     logActivity('quotation', 'Quotation Deleted',
-      (q.bride || '') + (q.groom ? ' & ' + q.groom : '') + ' — ₹' + (q.value || 0) + ' · ' + (q.status || ''),
+      coupleName(q.bride || '', q.groom) + ' — ₹' + (q.value || 0) + ' · ' + (q.status || ''),
       { id:id, value:q.value });
     _origDelQuot(id);
   };
@@ -35243,7 +35250,7 @@ function clearActivityLog() {
     var id = overrideId || editQuotId;
     var q  = quotations[id] || {};
     logActivity('quotation', 'Quotation Converted to Project',
-      (q.bride || '') + (q.groom ? ' & ' + q.groom : '') + ' — ₹' + (q.value || 0),
+      coupleName(q.bride || '', q.groom) + ' — ₹' + (q.value || 0),
       { quotId:id, value:q.value });
     _origConvert(overrideId);
   };
@@ -35273,7 +35280,7 @@ function clearActivityLog() {
   window.ppSaveDeliv = function(projId, delivId, updates, cb) {
     if (updates && updates.status) {
       var p = projects[projId] || {};
-      var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+      var couple = coupleName(p.bride || '', p.groom);
       var delivName = delivId || 'deliverable';
       // Try to get a readable name from the deliverable
       var delivs = p.customDelivs || [];
@@ -35405,7 +35412,7 @@ function clearActivityLog() {
   if (typeof _origSaveDataLog !== 'function') return;
   window.saveDataLogOnly = function() {
     var p = editProjId ? (projects[editProjId] || {}) : {};
-    var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+    var couple = coupleName(p.bride || '', p.groom);
     _origSaveDataLog.apply(this, arguments);
     logActivity('datalog', 'Data Log Saved',
       couple + (p.refcode ? ' [' + p.refcode + ']' : '') + ' — HD & shoot data updated',
@@ -35419,7 +35426,7 @@ function clearActivityLog() {
   if (typeof _origApproveDataLog !== 'function') return;
   window.approveDataLog = function() {
     var p = editProjId ? (projects[editProjId] || {}) : {};
-    var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+    var couple = coupleName(p.bride || '', p.groom);
     _origApproveDataLog.apply(this, arguments);
     logActivity('datalog', 'Data Log Approved',
       couple + (p.refcode ? ' [' + p.refcode + ']' : '') + ' — approved by ' + (CU ? CU.name || CU.username : 'Data Manager') + ', moved to Post-Production',
@@ -35983,7 +35990,7 @@ function hcExportCSV() {
     relevant.forEach(function(chk) {
       var fd = firstEventDate(p) || p.date || '';
       rows.push([
-        '"' + (p.bride||'').replace(/"/g,'""') + ' & ' + (p.groom||'').replace(/"/g,'""') + '"',
+        '"' + coupleName(p.bride, p.groom).replace(/"/g,'""') + '"',
         '"' + (p.refcode||'') + '"',
         '"' + (p.city||'') + '"',
         '"' + (p.state||'') + '"',
@@ -36352,7 +36359,7 @@ function hcRenderMyTasks() {
                 var fd = firstEventDate(p) || '—';
                 return '<div data-hc-card="' + p.id + '" data-search="' + ((p.bride||'')+' '+(p.groom||'')+' '+(p.refcode||'')).replace(/"/g,'') + '" style="background:#fff;border:1px solid #e5e5e5;border-left:4px solid #c4b5fd;border-radius:10px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:12px">'
                   + '<div>'
-                    + '<div style="font-size:14px;font-weight:800">' + p.bride + ' &amp; ' + p.groom + '</div>'
+                    + '<div style="font-size:14px;font-weight:800">' + coupleName(p.bride, p.groom, ' &amp; ') + '</div>'
                     + '<div style="font-size:11px;color:#888;margin-top:2px">'
                       + (p.refcode ? '<span style="font-family:monospace;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:6px">' + p.refcode + '</span>' : '')
                       + (p.city ? p.city + ' · ' : '') + fd
@@ -36473,7 +36480,7 @@ function renderHubOverview() {
         return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f5f5f5;cursor:pointer" onclick="openProject(' + p.id + ')">'
           + '<span style="font-size:18px;flex-shrink:0">' + icon + '</span>'
           + '<div style="flex:1">'
-          + '<div style="font-size:12px;font-weight:700;color:#1a1a1a">' + escHtml(p.bride) + ' &amp; ' + escHtml(p.groom) + '</div>'
+          + '<div style="font-size:12px;font-weight:700;color:#1a1a1a">' + coupleName(escHtml(p.bride), escHtml(p.groom), ' &amp; ') + '</div>'
           + '<div style="font-size:10px;color:#888">' + (p.city || '') + (p.refcode ? ' · ' + p.refcode : '') + '</div>'
           + '</div>'
           + '<span style="font-size:10px;font-weight:700;background:' + col + '20;color:' + col + ';padding:2px 8px;border-radius:10px;border:1px solid ' + col + '40">' + (p.clientFlag === 'not_responding' ? 'Not Responding' : p.clientFlag === 'vip' ? 'VIP' : 'Annoyed') + '</span>'
@@ -36494,7 +36501,7 @@ function renderHubOverview() {
         var p = projects[pid];
         snap.forEach(function(c) {
           var issue = Object.assign({ _key: c.key, _projId: pid }, c.val());
-          issue._clientName = p ? (p.bride + ' & ' + p.groom) : 'Unknown';
+          issue._clientName = p ? (coupleName(p.bride, p.groom)) : 'Unknown';
           issue._refcode = p ? (p.refcode || '') : '';
           allIssues.push(issue);
         });
@@ -36576,7 +36583,7 @@ function renderHubIssues(forceReload) {
       var p = projects[pid];
       snap.forEach(function(c) {
         var issue = Object.assign({ _key: c.key, _projId: pid }, c.val());
-        issue._clientName = p ? (p.bride + ' & ' + p.groom) : 'Unknown';
+        issue._clientName = p ? (coupleName(p.bride, p.groom)) : 'Unknown';
         issue._refcode = p ? (p.refcode || '') : '';
         issue._projStage = p ? (p.stage || '') : '';
         issue._clientPhone = p ? (p.phone || '') : '';
@@ -36770,7 +36777,7 @@ function renderHubPriority(tab) {
       '</div>' +
       // ── Client / Stage / Balance grid ──
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">' +
-        '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Client</div><div style="font-weight:700;font-size:14px">' + escHtml(p.bride) + ' & ' + escHtml(p.groom) + '</div><div style="font-size:12px;color:#555">' + (fieldVisible('phone') ? (p.phone || '') : (p.phone ? MASK_TEXT : '')) + '</div></div>' +
+        '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Client</div><div style="font-weight:700;font-size:14px">' + coupleName(escHtml(p.bride), escHtml(p.groom)) + '</div><div style="font-size:12px;color:#555">' + (fieldVisible('phone') ? (p.phone || '') : (p.phone ? MASK_TEXT : '')) + '</div></div>' +
         '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Stage</div><div>' + stageLabel(p.stage) + '</div><div style="font-size:11px;color:#888">' + (p.city || '') + '</div></div>' +
         '<div><div style="font-size:11px;color:#888;margin-bottom:2px">Balance Due</div><div style="font-size:16px;font-weight:800;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">' + (bal > 0 ? fmt(bal) : '✓ Paid') + '</div></div>' +
       '</div>' +
@@ -37315,7 +37322,7 @@ function injectSecBadge(){
         return;
       }
 
-      var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+      var couple = coupleName(p.bride || '', p.groom);
       var amt    = (entry.amount || 0).toLocaleString('en-IN');
 
       kbConfirm(
@@ -37504,7 +37511,7 @@ function injectSecBadge(){
       var bal  = Math.max(0, net - paid);
       rows.push([
         p.refcode || '',
-        (p.bride || '') + (p.groom ? ' & ' + p.groom : ''),
+        coupleName(p.bride || '', p.groom),
         p.city || p.state || '',
         p.eventType || '',
         p.eventDate || '',
@@ -37580,7 +37587,7 @@ function renderPaymentCalendar() {
   var entries = [];
   allProjects.forEach(function(p) {
     var schedule = getPaymentScheduleWithCarryForward(p);
-    var couple = (p.bride||'') + (p.groom ? ' & ' + p.groom : '');
+    var couple = coupleName(p.bride||'', p.groom);
     schedule.forEach(function(s) {
       if (s.paid >= s.exp) return; // fully paid — skip
       if (s.baseExp <= 0) return;
@@ -37724,7 +37731,7 @@ function saveInstDueDate(projId, stageKey, dateVal) {
     if (typeof showToast === 'function') showToast('📅 Due date saved for ' + stageKey);
     if (typeof logActivity === 'function') {
       var p = projects && projects[projId];
-      var couple = p ? ((p.bride||'') + (p.groom?' & '+p.groom:'')) : projId;
+      var couple = p ? (coupleName(p.bride||'', p.groom)) : projId;
       logActivity('payment', 'Instalment Due Date Set',
         stageKey + ' due date set to ' + (dateVal||'cleared') + ' for ' + couple,
         { refcode: p && p.refcode });
@@ -37850,7 +37857,7 @@ function saveInstDueDate(projId, stageKey, dateVal) {
         p.payLedger_deleted = oldDeleted;
         showToast('Entry removed. Super Admin can restore it.');
         if (typeof logActivity === 'function') {
-          var couple = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+          var couple = coupleName(p.bride || '', p.groom);
           logActivity('payment', 'Payment Deleted',
             (entry.amount || 0) + ' removed from ' + couple + ' [' + (p.refcode || '') + ']',
             { refcode: p.refcode, amount: entry.amount, stage: entry.stage });
@@ -37950,7 +37957,7 @@ window.saveEditPayEntry = function(idx) {
     document.getElementById('edit-pay-entry-modal').remove();
     showToast('✅ Payment entry updated.');
     if (typeof logActivity === 'function') {
-      var couple = (p.bride||'') + (p.groom ? ' & ' + p.groom : '');
+      var couple = coupleName(p.bride||'', p.groom);
       logActivity('payment', 'Payment Entry Edited',
         'Entry #'+(idx+1)+' updated in ' + couple + ' [' + (p.refcode||'') + ']',
         { refcode: p.refcode, amount: amt });
