@@ -2896,6 +2896,14 @@ document.addEventListener('wheel', function(e) {
     '<div class="metrics" id="sales-metrics" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:16px"></div>' +
     '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">' +
       '<button class="btn btn-primary" onclick="openNewQuotation()">+ New Quotation</button>' +
+      '<select class="fi" id="sales-cat-f" style="flex:0;width:auto" onchange="renderSalesDash()">' +
+        '<option value="">All Categories</option>' +
+        '<option value="wedding">💍 Wedding</option>' +
+        '<option value="engagement">💞 Engagement</option>' +
+        '<option value="school">🏫 School Photography</option>' +
+        '<option value="commercial">🏢 Commercial</option>' +
+        '<option value="other">📁 Other Events</option>' +
+      '</select>' +
     '</div>' +
     '<div class="tabs" id="ql-page-tabs" style="margin-bottom:0;border-bottom:2px solid #e5e5e5">' +
       '<button class="tab-btn active" id="ql-tab-pipeline" onclick="switchQLTab(\'pipeline\')" style="font-size:13px">📊 Pipeline</button>' +
@@ -3043,8 +3051,22 @@ document.addEventListener('wheel', function(e) {
       <!-- Tab 1: Client Details -->
       <div id="qt-details" class="tab-pane active">
         <div class="fg">
-          <div class="fr"><label class="fl">Client / Bride Name *</label><input class="fi" id="qf-bride" placeholder="e.g. Priya Sharma"></div>
-          <div class="fr"><label class="fl">Groom / Partner Name</label><input class="fi" id="qf-groom" placeholder="e.g. Rahul Gupta"></div>
+          <div class="fr"><label class="fl">Quotation Category *</label>
+            <select class="fi" id="qf-category" onchange="onQuotCategoryChange(this.value,true)">
+              <option value="wedding">💍 Wedding</option>
+              <option value="engagement">💞 Engagement</option>
+              <option value="school">🏫 School Photography</option>
+              <option value="commercial">🏢 Commercial</option>
+              <option value="other">📁 Other Events</option>
+            </select>
+          </div>
+          <div class="fr"><label class="fl">Event Date</label>
+            <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid #fcd34d;border-radius:8px;background:#fffbeb;cursor:pointer;font-size:13px;font-weight:600;color:#92400e;margin:0"><input type="checkbox" class="qf-noeventdate-cb" style="width:auto" onchange="setQuotNoEventDate(this.checked)"> 📅 No event date yet</label>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="fr"><label class="fl" id="qf-bride-label">Client / Bride Name *</label><input class="fi" id="qf-bride" placeholder="e.g. Priya Sharma"></div>
+          <div class="fr" id="qf-groom-wrap"><label class="fl">Groom / Partner Name</label><input class="fi" id="qf-groom" placeholder="e.g. Rahul Gupta"></div>
         </div>
         <div class="fg">
           <div class="fr"><label class="fl">Contact Number *</label><input class="fi" id="qf-phone" placeholder="9876543210"></div>
@@ -3090,8 +3112,9 @@ document.addEventListener('wheel', function(e) {
 
       <!-- Tab 2: Event Days & Crew -->
       <div id="qt-days" class="tab-pane" style="min-height:520px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
           <div style="font-size:13px;font-weight:600;color:#555">Add event days and specify crew for each day.</div>
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #fcd34d;border-radius:8px;background:#fffbeb;cursor:pointer;font-size:12px;font-weight:600;color:#92400e;margin:0"><input type="checkbox" class="qf-noeventdate-cb" style="width:auto" onchange="setQuotNoEventDate(this.checked)"> 📅 No event date yet</label>
           <button class="btn btn-primary btn-sm" onclick="addQuotDay()">+ Add Day</button>
         </div>
         <div id="quot-days-container">
@@ -27735,7 +27758,7 @@ function renderBookedClients(list) {
       var bookedAt = _quotBookedAt(qt);
       var linkedProjId = linkedProj ? (linkedProj.id || qt.projectId) : null;
       return '<tr>' +
-        '<td><div style="font-weight:700">' + (qt.bride||'Unknown') + (qt.groom ? ' & ' + qt.groom : '') + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div></td>' +
+        '<td><div style="font-weight:700">' + (qt.bride||'Unknown') + (qt.groom ? ' & ' + qt.groom : '') + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div>' + quotCatBadge(qt) + '</td>' +
         '<td>' + (qt.city||'—') + '</td>' +
         '<td style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</td>' +
         '<td>' + advBadge + '</td>' +
@@ -27795,7 +27818,8 @@ function renderSalesDash() {
   }
   renderApprovalQueue();
   var _all = ql();
-  var list = _all; // All roles with access to this page see all quotations, regardless of who created them.
+  var _catF = (document.getElementById('sales-cat-f') || {value:''}).value;
+  var list = _catF ? _all.filter(function(q) { return quotCatOf(q) === _catF; }) : _all; // All roles with access to this page see all quotations, regardless of who created them.
   var statusF = (document.getElementById('sales-status-f') || {value:''}).value;
   var personF = (document.getElementById('sales-person-f') || {value:''}).value;
   var q = ((document.getElementById('sales-search') || {value:''}).value || '').toLowerCase();
@@ -27846,7 +27870,7 @@ function renderSalesDash() {
           var isWon  = q.status === 'won';
           return '<div class="quot-card">' +
             '<div onclick="openEditQuotation(\'' + q.id + '\')" style="cursor:pointer;margin-bottom:8px">' +
-              '<div class="quot-card-name">' + (q.bride || 'Unknown') + (q.groom ? ' & ' + q.groom : '') + '</div>' +
+              '<div class="quot-card-name">' + (q.bride || 'Unknown') + (q.groom ? ' & ' + q.groom : '') + '</div>' + quotCatBadge(q) +
               '<div class="quot-card-meta">' + (q.city || '—') + (q.salesperson ? ' · ' + q.salesperson : '') + '</div>' +
               '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">' +
                 '<span style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</span>' +
@@ -27900,7 +27924,7 @@ function renderSalesDash() {
           '</div>' +
           '<div style="font-size:9px;color:' + QT_STATUS_COLORS[qt.status||'draft'] + ';font-weight:700;margin-top:3px">' + (QT_STATUS_LABELS[qt.status||'draft']||'') + '</div>';
           return '<tr>' +
-            '<td><div style="font-weight:700">' + (qt.bride||'Unknown') + (qt.groom ? ' & ' + qt.groom : '') + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div></td>' +
+            '<td><div style="font-weight:700">' + (qt.bride||'Unknown') + (qt.groom ? ' & ' + qt.groom : '') + '</div><div style="font-size:11px;color:#888">' + (qt.phone||'') + '</div>' + quotCatBadge(qt) + '</td>' +
             '<td>' + (qt.city||'—') + '</td>' +
             '<td style="text-align:center"><span class="badge b-blue">' + daysCount + ' day' + (daysCount !== 1 ? 's' : '') + '</span></td>' +
             '<td style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</td>' +
@@ -28215,6 +28239,8 @@ function openEditQuotation(id) {
   sv2('qf-region', q.region);
   sv2('qf-salesperson', q.salesperson); sv2('qf-status', q.status || 'draft');
   sv2('qf-notes', q.notes);
+  sv2('qf-category', quotCatOf(q)); onQuotCategoryChange(quotCatOf(q), false);
+  quotNoEventDate = (q.noEventDate === true) || (quotDays.length > 0 && quotDays.every(function(d){ return d.dateTBD; })); _syncNoEventDateUI();
   if (q.deliverables) {
     var d = q.deliverables;
     sv2('qd-teaser', d.teaser); sv2('qd-film', d.film); sv2('qd-highlight', d.highlight);
@@ -28483,6 +28509,8 @@ function clearQuotForm() {
   if (typeof renderTimelineRows === 'function') setTimeout(function(){ initTimelineTab(); renderTimelineRows(); }, 200);
   var cpr = document.getElementById('qf-payterms-custom-row');
   if (cpr) cpr.style.display = 'none';
+  quotNoEventDate = false; _syncNoEventDateUI();
+  sv2('qf-category', 'wedding'); onQuotCategoryChange('wedding', false);
 }
 
 function populateQuotSalesperson() {
@@ -28556,7 +28584,7 @@ function addQuotDay() {
     var lastDay = quotDays[quotDays.length - 1];
     if (lastDay && lastDay.date && !lastDay.dateTBD) newDate = _nextDateStr(lastDay.date);
   }
-  quotDays.push({ date: newDate, dateTBD: false, sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
+  quotDays.push({ date: newDate, dateTBD: !!quotNoEventDate, sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
   renderQuotDays();
 }
 
@@ -28564,7 +28592,68 @@ function toggleQuotDayTBD(idx, checked) {
   if (!quotDays[idx]) return;
   quotDays[idx].dateTBD = checked;
   if (checked) quotDays[idx].date = ''; // clear any picked date once marked "to be decided"
+  quotNoEventDate = quotDays.length > 0 && quotDays.every(function(d){ return d.dateTBD; });
+  _syncNoEventDateUI();
   renderQuotDays();
+}
+
+// ── "No event date yet" master toggle (top of the quotation form) ──────────
+var quotNoEventDate = false;
+function _syncNoEventDateUI() {
+  document.querySelectorAll('.qf-noeventdate-cb').forEach(function(cb){ cb.checked = !!quotNoEventDate; });
+}
+function setQuotNoEventDate(checked) {
+  if (checked && quotDays.some(function(d){ return d.date && !d.dateTBD; })) {
+    if (!confirm('This will clear the event date(s) already entered. Continue?')) { _syncNoEventDateUI(); return; }
+  }
+  quotNoEventDate = !!checked;
+  if (quotNoEventDate) {
+    if (!quotDays.length) quotDays.push({ date: '', dateTBD: true, sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
+    quotDays.forEach(function(d){ d.dateTBD = true; d.date = ''; });
+  } else {
+    quotDays.forEach(function(d){ d.dateTBD = false; });
+  }
+  _syncNoEventDateUI();
+  renderQuotDays();
+}
+
+// ── Quotation categories (wedding / engagement / school / commercial / other) ──
+var QUOT_CATEGORIES = {
+  wedding:    { label: 'Wedding',            icon: '💍', color: '#be185d', couple: true  },
+  engagement: { label: 'Engagement',         icon: '💞', color: '#7c3aed', couple: true  },
+  school:     { label: 'School Photography', icon: '🏫', color: '#0369a1', couple: false },
+  commercial: { label: 'Commercial',         icon: '🏢', color: '#0f766e', couple: false },
+  other:      { label: 'Other Events',       icon: '📁', color: '#64748b', couple: false }
+};
+// Quotations saved before categories existed have no .category — they are weddings.
+function quotCatOf(q) { var k = (q && q.category) || 'wedding'; return QUOT_CATEGORIES[k] ? k : 'wedding'; }
+function quotCatBadge(q) {
+  var k = quotCatOf(q); if (k === 'wedding') return '';
+  var c = QUOT_CATEGORIES[k];
+  return '<div style="margin-top:3px"><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:' + c.color + '18;color:' + c.color + ';border:1px solid ' + c.color + '40;white-space:nowrap">' + c.icon + ' ' + c.label + '</span></div>';
+}
+function onQuotCategoryChange(val, fromUser) {
+  var cat = QUOT_CATEGORIES[val] ? val : 'wedding';
+  var info = QUOT_CATEGORIES[cat];
+  var sel = document.getElementById('qf-category'); if (sel && sel.value !== cat) sel.value = cat;
+  var lbl = document.getElementById('qf-bride-label');
+  var inp = document.getElementById('qf-bride');
+  var gw  = document.getElementById('qf-groom-wrap');
+  var g   = document.getElementById('qf-groom');
+  if (info.couple) {
+    if (lbl) lbl.textContent = 'Client / Bride Name *';
+    if (inp) inp.placeholder = 'e.g. Priya Sharma';
+    if (gw) gw.style.display = '';
+  } else {
+    // Single-name mode: one field for the school / company / client
+    var single = { school: ['School / Institution Name *', 'e.g. Delhi Public School'], commercial: ['Company / Brand Name *', 'e.g. Acme Pvt. Ltd.'] }[cat] || ['Client / Organisation Name *', 'e.g. Client or organisation name'];
+    if (lbl) lbl.textContent = single[0];
+    if (inp) inp.placeholder = single[1];
+    if (gw) gw.style.display = 'none';
+    if (g) g.value = '';
+  }
+  // Engagement quotations start with the studio's standard engagement deliverables
+  if (fromUser && cat === 'engagement' && !quotDeliverables.length) qdApplyPackage('engagement-package');
 }
 
 function removeQuotDay(idx) {
@@ -28662,6 +28751,15 @@ function renderQuotDays() {
         '</div>';
       }).join('');
 
+      var asstOpts = [['', '\u2014 None \u2014'], ['1', '1 Assistant'], ['1\u20132', '1\u20132 Assistants'], ['2\u20133', '2\u20133 Assistants']].map(function(o) {
+        return '<option value="' + o[0] + '"' + ((sess.assistant || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('');
+      var assistantRow = '<div class="crew-row">' +
+        '<label style="font-size:13px;color:#555">Assistant</label>' +
+        '<select class="fi" onchange="updateQuotSession(' + i + ',' + si + ',\'assistant\',this.value)" style="padding:6px 8px">' + asstOpts + '</select>' +
+        '<span style="font-size:11px;color:' + (sess.assistant ? '#16a34a' : '#ddd') + ';font-weight:700">' + (sess.assistant ? '\u2713' : '\u2013') + '</span>' +
+      '</div>';
+
       var customNameField = !isPreset ?
         '<input class="fi" type="text" value="' + escHtml(sess.name||'') + '" placeholder="Session name" style="font-size:12px;padding:4px 8px;flex:1;min-width:110px;max-width:180px" onchange="updateQuotSession('+i+','+si+',\'name\',this.value)">' : '';
 
@@ -28678,7 +28776,7 @@ function renderQuotDays() {
         '</div>' +
         '<div class="crew-section">' +
           '<div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Crew for this Session</div>' +
-          crewRows +
+          crewRows + assistantRow +
         '</div>' +
       '</div>';
     }).join('');
@@ -29444,6 +29542,11 @@ var QD_PRESETS = [
   { id:'save-the-date',     cat:'📸 Photos', label:'Save the Date',        detail:'8 Photos', icon:'💌', durations:['4 Photos','6 Photos','8 Photos','10 Photos','12 Photos','Custom'], isCount:true },
   { id:'prewed-reels',      cat:'🎬 Video', label:'Pre-Wedding Reels',     detail:'2 Reels',  icon:'📱', durations:['2 Reels','3 Reels','4 Reels','5 Reels','Custom'], isCount:true },
   { id:'prewed-edited-photos', cat:'📸 Photos', label:'Pre-Wedding Edited Photos', detail:'50 Photos', icon:'🖼️', durations:['20 Photos','30 Photos','40 Photos','50 Photos','60 Photos','70 Photos','Custom'], isCount:true },
+  // ── Engagement ──
+  { id:'eng-teaser',        cat:'💞 Engagement', label:'Engagement Teaser',        detail:'1–2 Min',    icon:'🎞️', durations:['1–2 Min','2–3 Min','Custom'] },
+  { id:'eng-edited-photos', cat:'💞 Engagement', label:'Engagement Edited Photos', detail:'100 Photos', icon:'🖼️', durations:['50 Photos','100 Photos','150 Photos','200 Photos','Custom'], isCount:true },
+  { id:'eng-reels',         cat:'💞 Engagement', label:'Engagement Reels',         detail:'2 Reels',    icon:'📱', durations:['1 Reel','2 Reels','3 Reels','4 Reels','Custom'], isCount:true },
+  { id:'eng-long-video',    cat:'💞 Engagement', label:'Long Video',               detail:'Optional',   icon:'🎥', durations:['Optional','5–8 Min','8–12 Min','Custom'], optional:true },
   { id:'highlight-film',    cat:'🎬 Video', label:'Highlight Film',        detail:'7–8 Min',    icon:'🎬', durations:['3–5 Min','5–7 Min','7–8 Min','7–10 Min','Custom'] },
   { id:'wedding-film',      cat:'🎬 Video', label:'Wedding Film',          detail:'20–30 Min',  icon:'🎥', durations:['15–20 Min','20–30 Min','30–45 Min','Custom'] },
   { id:'trad-video',        cat:'🎬 Video', label:'Traditional Video',     detail:'Full Coverage', icon:'📹', durations:['20–30 Min','15–20 Min','30–45 Min','Half Day','Full Coverage','Multi-Day','Custom'], hasPerEvent:true },
@@ -29497,6 +29600,18 @@ var QD_PACKAGES = [
       { id: 'prewed-edited-photos',   detail: '50 Photos' },
       { id: 'full-raw',               detail: 'All Files' }
     ]
+  },
+  {
+    id: 'engagement-package',
+    label: 'Engagement Package',
+    icon: '💞',
+    desc: 'Teaser (1–2 / 2–3 min), 100 edited photos, 2 reels & optional long video',
+    items: [
+      { id: 'eng-teaser',        detail: '1–2 Min' },
+      { id: 'eng-edited-photos', detail: '100 Photos' },
+      { id: 'eng-reels',         detail: '2 Reels' },
+      { id: 'eng-long-video',    detail: 'Optional', optional: true }
+    ]
   }
 ];
 
@@ -29527,6 +29642,7 @@ function qdApplyPackage(pkgId) {
     if (item.photoCount  !== undefined) entry.photoCount  = item.photoCount;
     if (item.perEvent    !== undefined) entry.perEvent    = item.perEvent;
     if (item.perEventDur !== undefined) entry.perEventDur = item.perEventDur;
+    if (item.optional    !== undefined) entry.optional    = item.optional;
     // Compose the display detail string immediately so it's correct without
     // requiring the user to touch any field (mirrors qdUpdateField's logic)
     if (preset.hasSizes || preset.hasQty) {
@@ -29785,7 +29901,7 @@ function qdTogglePreset(id) {
   } else {
     var preset = QD_PRESETS.find(function(p){ return p.id===id; });
     if (!preset) return;
-    quotDeliverables.push({ id:preset.id, label:preset.label, detail:preset.detail, icon:preset.icon, note:'' });
+    quotDeliverables.push({ id:preset.id, label:preset.label, detail:preset.detail, icon:preset.icon, note:'', optional: !!preset.optional });
   }
   qdInit();
   qdSyncHidden();
@@ -29866,6 +29982,7 @@ function qdRenderList() {
             (d.detail==='Custom' || (preset && preset.durations.indexOf(d.detail)===-1) ?
               '<input value="' + (d.customDetail||d.detail||'') + '" onchange="qdUpdateCustomDetail(' + i + ',this.value)" placeholder="Enter detail" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;width:120px;font-family:inherit">' : '')
           ) +
+          '<label style="display:flex;align-items:center;gap:4px;font-size:11px;color:#92400e;font-weight:600;cursor:pointer;white-space:nowrap;margin:0"><input type="checkbox" style="width:auto" ' + (d.optional ? 'checked' : '') + ' onchange="qdUpdateField(' + i + ',\'optional\',this.checked)"> Optional</label>' +
           // Optional remark (always shown)
           '<input value="' + escHtml(d.note||'') + '" placeholder="Note (optional)" onchange="qdUpdateNote(' + i + ',this.value)" style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:6px;flex:1;min-width:100px;font-family:inherit">' +
         '</div>' +
@@ -30061,7 +30178,9 @@ function saveQuotation(silent) {
 
   var data = {
     bride: bride,
-    groom: gv2('qf-groom'),
+    groom: (QUOT_CATEGORIES[gv2('qf-category')] || QUOT_CATEGORIES.wedding).couple ? gv2('qf-groom') : '',
+    category: QUOT_CATEGORIES[gv2('qf-category')] ? gv2('qf-category') : 'wedding',
+    noEventDate: !!quotNoEventDate,
     phone: gv2('qf-phone'),
     email: gv2('qf-email'),
     city: gv2('qf-city'),
@@ -30433,7 +30552,7 @@ function convertQuotToProject(overrideId) {
   })();
 
   // Auto-generate refcode
-  var initials = ((q.bride||'X').substring(0,1) + (q.groom||'Y').substring(0,1)).toUpperCase();
+  var initials = (q.groom ? ((q.bride||'X').substring(0,1) + q.groom.substring(0,1)) : ((q.bride||'').replace(/[^A-Za-z]/g,'').substring(0,2) || 'XY')).toUpperCase();
   projData.refcode = initials + '-' + Date.now().toString().slice(-6);
 
   // Use a timestamp-based numeric ID (consistent with all other projects in this CRM)
@@ -30803,7 +30922,7 @@ function buildDelivNotesFromQuot(q) {
     return q.quotDeliverables.map(function(item) {
       var detail = item.customDetail || item.detail || '';
       var note = item.note ? (' — ' + item.note) : '';
-      return (item.label || 'Item') + (detail ? ': ' + detail : '') + note;
+      return (item.label || 'Item') + (detail ? ': ' + detail : '') + ((item.optional && detail !== 'Optional') ? ' (Optional)' : '') + note;
     }).join('\n');
   }
   // ── Legacy fallback (quotations saved before the chip-based deliverables UI) ──
@@ -30845,7 +30964,7 @@ function buildCustomDelivsFromQuot(q) {
     // deliverables and have no place on the editor/delivery pipeline.
     var skipIds = { 'travel': true, 'accommodation': true, 'online-gallery': true };
     return q.quotDeliverables
-      .filter(function(item) { return !skipIds[item.id]; })
+      .filter(function(item) { return !skipIds[item.id] && !(item.optional && (item.customDetail || item.detail || '') === 'Optional'); })
       .map(function(item, i) {
         var detail = item.customDetail || item.detail || '';
         // Reels with a quantity > 1 in the chip UI are expanded into individually
@@ -30983,6 +31102,8 @@ function collectQuotData() {
     bride: gv2('qf-bride'), groom: gv2('qf-groom'), phone: gv2('qf-phone'),
     email: gv2('qf-email'), city: gv2('qf-city'), venue: gv2('qf-venue'),
     region: gv2('qf-region'),
+    category: QUOT_CATEGORIES[gv2('qf-category')] ? gv2('qf-category') : 'wedding',
+    noEventDate: !!quotNoEventDate,
     days: JSON.parse(JSON.stringify(quotDays)),
     deliverables: {
       teaser: gv2('qd-teaser'), film: gv2('qd-film'), highlight: gv2('qd-highlight'),
@@ -31363,7 +31484,7 @@ function buildQuotPDFDom(q) {
     // ── HEADLINE: "Wedding" then "Quotation" ──
     '<div style="position:relative;z-index:1;padding:72px 56px 0;flex-shrink:0;">' +
       '<div style="font-size:88px;font-weight:400;line-height:0.92;color:' + coverTextCol + ';letter-spacing:-2px;font-family:\'Cormorant Garamond\',Georgia,\'Times New Roman\',serif;">' +
-        'Wedding' +
+        ({ engagement: 'Engagement', school: 'School', commercial: 'Commercial', other: 'Event' }[q.category] || 'Wedding') +
       '</div>' +
       '<div style="font-size:88px;font-weight:400;line-height:0.95;color:' + coverTextCol + ';letter-spacing:-2px;font-family:\'Cormorant Garamond\',Georgia,\'Times New Roman\',serif;margin-bottom:0">' +
         'Quotation' +
@@ -31489,7 +31610,7 @@ function buildQuotPDFDom(q) {
           '<tr><td colspan="2" style="padding:9px 0 3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:' + coverAccCol + ';font-family:Arial,sans-serif">' +
             subHeaderText +
           '</td></tr>' : '';
-        var rows = crewItems.length
+        var rows = (crewItems.length || sess.assistant)
           ? crewItems.map(function(r){
               return '<tr>' +
                 '<td style="padding:5px 0 5px 12px;border-bottom:1px solid ' + coverTextCol + '18;color:' + coverTextCol + ';font-family:Arial,sans-serif;font-size:12px">' + r.label + '</td>' +
@@ -31497,6 +31618,12 @@ function buildQuotPDFDom(q) {
               '</tr>';
             }).join('')
           : '<tr><td colspan="2" style="padding:5px 0 5px 12px;color:#aaa;font-style:italic;font-size:11px">No crew specified</td></tr>';
+        if (sess.assistant) {
+          rows += '<tr>' +
+            '<td style="padding:5px 0 5px 12px;border-bottom:1px solid ' + coverTextCol + '18;color:' + coverTextCol + ';font-family:Arial,sans-serif;font-size:12px">Assistant</td>' +
+            '<td style="padding:5px 0;border-bottom:1px solid ' + coverTextCol + '18;color:' + coverTextCol + ';font-weight:700;font-family:Georgia,serif;font-size:12px;text-align:right">' + sess.assistant + '</td>' +
+          '</tr>';
+        }
         return subHeader + rows;
       }).join('');
 
@@ -31524,7 +31651,7 @@ function buildQuotPDFDom(q) {
       var totalRows = 0;
       sessions.forEach(function(sess) {
         var crewItems = CREW_ROLES.filter(function(r){ return sess.crew && sess.crew[r.key] > 0; });
-        totalRows += Math.max(crewItems.length, 1);
+        totalRows += Math.max(crewItems.length + (sess.assistant ? 1 : 0), 1);
         if (sessions.length > 1) totalRows += 0.7; // sub-header row
       });
       // heading ~38px, table header ~24px, each row ~26px, separator ~8px, margin ~16px
@@ -31664,7 +31791,11 @@ function buildQuotPDFDom(q) {
         'accommodation':   'Hotel / Client Managed',
         'save-the-date':   'Pre-Wedding Announcement Shots',
         'prewed-reels':    'Vertical · Curated Cuts',
-        'prewed-edited-photos': 'High-Res Edited Images'
+        'prewed-edited-photos': 'High-Res Edited Images',
+        'eng-teaser':        'Cinematic Story Teaser',
+        'eng-edited-photos': 'High-Res Edited Images',
+        'eng-reels':         'Vertical · Curated Cuts',
+        'eng-long-video':    'Full-Length Film'
       };
       // Combine selected duration + type descriptor for subtitle
       var typeDesc = (preset && subMap[qd.id]) ? subMap[qd.id] : '';
@@ -31679,7 +31810,7 @@ function buildQuotPDFDom(q) {
       }
 
       delivItems.push({
-        l:   (qd.icon ? qd.icon + ' ' : '') + qd.label,
+        l:   (qd.icon ? qd.icon + ' ' : '') + qd.label + ((qd.optional && valStr !== 'Optional') ? ' (Optional)' : ''),
         sub: subStr,
         v:   valStr
       });
