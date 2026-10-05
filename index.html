@@ -3182,6 +3182,9 @@ document.addEventListener('wheel', function(e) {
             <option value="30-50-10-10">30% + 50% + 10% + 10%</option>
             <option value="20-60-10-10">20% + 60% + 10% + 10%</option>
             <option value="50-50">50% + 50%</option>
+            <option value="50-50-event">50% + 50% (Event)</option>
+            <option value="50-40-10">50% + 40% + 10%</option>
+            <option value="40-50-5-5">40% + 50% + 5% + 5%</option>
             <option value="custom">✏️ Custom Payment Split</option>
           </select>
         </div>
@@ -3570,6 +3573,9 @@ document.addEventListener('wheel', function(e) {
               <option value="30-50-10-10">30% + 50% + 10% + 10%</option>
               <option value="20-60-10-10">20% + 60% + 10% + 10%</option>
               <option value="50-50">50% + 50%</option>
+            <option value="50-50-event">50% + 50% (Event)</option>
+            <option value="50-40-10">50% + 40% + 10%</option>
+            <option value="40-50-5-5">40% + 50% + 5% + 5%</option>
               <option value="custom">✏️ Custom Payment Split</option>
             </select>
           </div>
@@ -5984,12 +5990,57 @@ function wireNdCategoryCustom(){
     dl.innerHTML=Object.keys(known).sort().map(function(c){return '<option value="'+c.replace(/"/g,'&quot;')+'">';}).join('');
   }
 }
-var DEFAULT_PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}],'50-50-event':[{key:'p50c',label:'Advance',pct:50,desc:'To block the date'},{key:'p50d',label:'Final Instalment',pct:50,desc:'Before the event'}],'30-10-50-5-5':[{key:'p30c',label:'Advance',pct:30,desc:'To block the date'},{key:'p10c',label:'2nd Instalment',pct:10,desc:'Before pre-wedding shoot'},{key:'p50e',label:'3rd Instalment',pct:50,desc:'Before first event'},{key:'p5c',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5d',label:'Final Instalment',pct:5,desc:'Before final delivery'}]};
+var DEFAULT_PAY_PRESETS={'30-50-10-5-5':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p5a',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final delivery'}],'30-50-10-10':[{key:'p30',label:'Advance',pct:30,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'20-60-10-10':[{key:'p20',label:'Advance',pct:20,desc:'To block the date'},{key:'p60',label:'2nd Instalment',pct:60,desc:'Before first event'},{key:'p10a',label:'3rd Instalment',pct:10,desc:'Before raw data delivery'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final delivery'}],'50-50':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50b',label:'Final Instalment',pct:50,desc:'Before final delivery'}],'50-50-event':[{key:'p50c',label:'Advance',pct:50,desc:'To block the date'},{key:'p50d',label:'Final Instalment',pct:50,desc:'Before the event'}],'50-40-10':[{key:'p50a',label:'Advance',pct:50,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:40,desc:'Due on event day'},{key:'p10b',label:'Final Instalment',pct:10,desc:'Before final deliverables'}],'40-50-5-5':[{key:'p20',label:'Advance',pct:40,desc:'To block the date'},{key:'p50',label:'2nd Instalment',pct:50,desc:'Due on event day'},{key:'p5a',label:'3rd Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5b',label:'Final Instalment',pct:5,desc:'Before final deliverables'}],'30-10-50-5-5':[{key:'p30c',label:'Advance',pct:30,desc:'To block the date'},{key:'p10c',label:'2nd Instalment',pct:10,desc:'Before pre-wedding shoot'},{key:'p50e',label:'3rd Instalment',pct:50,desc:'Before first event'},{key:'p5c',label:'4th Instalment',pct:5,desc:'After teaser & highlight delivery'},{key:'p5d',label:'Final Instalment',pct:5,desc:'Before final delivery'}]};
 // PAY_PRESETS starts as the built-in defaults, then gets overlaid with anything
 // saved under crmSettings.payment_presets (see syncPayPresets, called whenever
 // crm_settings loads/changes). This lets Settings → Payment Split Presets add,
 // edit, or override presets without touching code — every existing PAY_PRESETS[key]
 // usage below keeps working unchanged since PAY_PRESETS is just reassigned in place.
+// ── Payment split → schedule stage classifier ───────────────────────────────
+// Any split (built-in or created in Settings → Payment Split Presets) is turned
+// into KB schedule stages by working out what each row IS: advance / event /
+// raw data / teaser / final. Built-in stage keys keep their original meaning;
+// everything else is classified from the row's label + "when due" wording, so a
+// brand-new split works without any code change.
+var PAY_KEY_KIND = {
+  p30:'advance', p20:'advance', p50a:'advance', p50c:'advance',
+  p50:'event', p60:'event', p50b:'event', p50d:'event',
+  p10a:'rawdata', p10:'rawdata',
+  p5a:'teaser',
+  p10b:'final', p5b:'final', p10c:'final'
+};
+var PAY_KIND_INFO = {
+  advance: { key:'kb_advance', gate:'project_create', label:'Advance',            desc:'To block the date' },
+  rawdata: { key:'kb_rawdata', gate:'raw_data',       label:'Raw Data Payment',   desc:'Raw data locked until paid' },
+  teaser:  { key:'kb_teaser',  gate:'teaser',         label:'Teaser & Highlight', desc:'Teaser locked until paid' },
+  final:   { key:'kb_final',   gate:'final_delivery', label:'Final Delivery',     desc:'Final delivery locked until paid' },
+  event:   { key:null,         gate:'none',           label:'Event Payment',      desc:'Due on event day' }
+};
+function payTermKind(presetKey, t) {
+  // '30-10-50-5-5' reuses a legacy key (p10c) for a pre-wedding payment, so it is read by text.
+  if (t && t.key && PAY_KEY_KIND[t.key] && presetKey !== '30-10-50-5-5') return PAY_KEY_KIND[t.key];
+  var l = (((t && t.label) || '') + ' ' + ((t && t.desc) || '')).toLowerCase();
+  if (/advance|booking|token|block the date|retainer|deposit/.test(l)) return 'advance';
+  if (/raw.?data|raw.?file|hard.?driv|footage|rushes|unedited/.test(l)) return 'rawdata';
+  if (/teaser|highlight|same.?day|sde|reel|short.?film/.test(l)) return 'teaser';
+  if (/final|album|deliver|complet|handover|balance|last/.test(l)) return 'final';
+  return 'event';
+}
+// Per-stage totals for the project form's 5-stage builder.
+function payPresetStageMap(presetKey) {
+  var terms = PAY_PRESETS[presetKey]; if (!terms || !terms.length) return null;
+  var m = { s1:null, s2:null, s3:null, s4:null, s5:null, ev:[] };
+  var slot = { advance:'s1', event:'s2', rawdata:'s3', teaser:'s4', final:'s5' };
+  terms.forEach(function(t) {
+    var kind = payTermKind(presetKey, t), v = parseFloat(t.pct) || 0;
+    if (!v) return;
+    var k = slot[kind];
+    m[k] = (m[k] || 0) + v;
+    if (kind === 'event') m.ev.push(v);
+  });
+  return m;
+}
+
 var PAY_PRESETS = DEFAULT_PAY_PRESETS;
 function syncPayPresets(){
   PAY_PRESETS = Object.assign({}, DEFAULT_PAY_PRESETS, crmSettings.payment_presets || {});
@@ -6267,10 +6318,12 @@ function updatePayBuilderBadge() {
     '20-60-10-10':  '20·60·10·10%',
     '50-50':        '50·50%',
     '50-50-event':  '50·50% (Event)',
+    '50-40-10':     '50·40·10%',
+    '40-50-5-5':    '40·50·5·5%',
     '30-10-50-5-5': '30·10·50·5·5%',
     'custom':       'Custom Split'
   };
-  var label = labels[val] || val;
+  var label = labels[val] || (PAY_PRESETS[val] ? payPresetOptionLabel(PAY_PRESETS[val]) : val);
   badge.textContent = label;
   badge.style.display = label ? 'inline-block' : 'none';
 }
@@ -6605,8 +6658,8 @@ function kbErpGetGateStatus(p) {
   // When a project was created before kbSchedule existed, payLedger entries
   // carry the old preset keys (p30, p50, p10a…). Gate status must count those too.
   var KB_TO_LEGACY = {
-    kb_advance:    ['p30','p20','p50a','cp0'],          // Advance / deposit stage
-    kb_event:      ['p50','p60'],                       // Event payment (single-wedding)
+    kb_advance:    ['p30','p20','p50a','p50c','cp0'],          // Advance / deposit stage
+    kb_event:      ['p50','p60','p50d'],                       // Event payment (single-wedding)
     kb_prewed:     ['p50a','p40','p30b'],               // Pre-wed payment (dual mode)
     kb_mainevent:  ['p60','p50'],                       // Main event payment (dual mode)
     kb_rawdata:    ['p10a','p10'],                      // Raw data release
@@ -18722,7 +18775,7 @@ function isEventLinkedStage(p, stageKey){
 function isAdvanceStageKey(s) {
   var n = normStage(s);
   if (!n) return false;
-  if (n==='p30'||n==='p20'||n==='p50a'||n==='cp0'||n==='cq0'||n==='kb_advance') return true;
+  if (n==='p30'||n==='p20'||n==='p50a'||n==='p50c'||n==='cp0'||n==='cq0'||n==='kb_advance') return true;
   return n.indexOf('advance')!==-1 || n.indexOf('booking')!==-1;
 }
 
@@ -18730,8 +18783,8 @@ function isAdvanceStageKey(s) {
 // Used in getPaymentScheduleWithCarryForward when getPayTerms returns kb_* keys
 // (from kbSchedule) but old payLedger entries carry preset keys (p20, p50…).
 var _KB_TO_LEGACY_KEYS = {
-  kb_advance:   ['p30','p20','p50a','cp0','cq0','advance'],
-  kb_event:     ['p50','p60','event'],
+  kb_advance:   ['p30','p20','p50a','p50c','cp0','cq0','advance'],
+  kb_event:     ['p50','p60','p50d','event'],
   kb_event2:    ['event2'],
   kb_event3:    ['event3'],
   kb_event4:    ['event4'],
@@ -18826,7 +18879,7 @@ function getPaymentScheduleWithCarryForward(p){
   var carry=0;
   // Forward map: preset term key → equivalent kb_* key in ledger
   var LEGACY_TO_KB={
-    p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', cp0:'kb_advance',
+    p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', p50c:'kb_advance', cp0:'kb_advance', p50d:'kb_event',
     p50:'kb_event',   p60:'kb_event',
     event2:'kb_event2', event3:'kb_event3', event4:'kb_event4',
     p40:'kb_prewed',  p30b:'kb_prewed',
@@ -19626,9 +19679,12 @@ function onPayPresetChange(){
     '30-50-10-5-5': { s1:30, s2:50, s3:10, s4:5,  s5:5  },
     '30-50-10-10':  { s1:30, s2:50, s3:10, s4:null,s5:10 },
     '20-60-10-10':  { s1:20, s2:60, s3:10, s4:null,s5:10 },
-    '50-50':        { s1:50, s2:50, s3:null,s4:null,s5:null }
+    '50-50':        { s1:50, s2:50, s3:null,s4:null,s5:null },
+    '50-50-event':  { s1:50, s2:50, s3:null,s4:null,s5:null },
+    '50-40-10':     { s1:50, s2:40, s3:null,s4:null,s5:10 },
+    '40-50-5-5':    { s1:40, s2:50, s3:null,s4:5,  s5:5  }
   };
-  var map = presetMap[preset];
+  var map = presetMap[preset] || payPresetStageMap(preset);
   if (!map) return;
 
   function setStage(rowId, valId, typeId, val) {
@@ -19654,7 +19710,11 @@ function onPayPresetChange(){
   setStage('kb-stage-row-5','kb-s5-val','kb-s5-type',map.s5);
 
   // Split event mode: halve s2 across the two sub-fields
-  if (_kbErpEventMode === 'split' && map.s2) {
+  if (_kbErpEventMode === 'split' && map.s2 && map.ev && map.ev.length >= 2) {
+    var evA = map.ev[0], evB = map.ev.slice(1).reduce(function(a,b){ return a + b; }, 0);
+    var s2aX = document.getElementById('kb-s2a-val'); if(s2aX){s2aX.value=evA;s2aX.readOnly=true;s2aX.style.background='#f0f4ff';}
+    var s2bX = document.getElementById('kb-s2b-val'); if(s2bX){s2bX.value=evB;s2bX.readOnly=true;s2bX.style.background='#f0f4ff';}
+  } else if (_kbErpEventMode === 'split' && map.s2) {
     var half = map.s2 / 2;
     var s2aEl = document.getElementById('kb-s2a-val'); if(s2aEl){s2aEl.value=half;s2aEl.readOnly=true;s2aEl.style.background='#f0f4ff';}
     var s2bEl = document.getElementById('kb-s2b-val'); if(s2bEl){s2bEl.value=half;s2bEl.readOnly=true;s2bEl.style.background='#f0f4ff';}
@@ -29477,13 +29537,14 @@ function openEditPaymentPreset(key) {
         '<div>' +
           '<div style="font-size:16px;font-weight:800">✏️ Edit Payment Split: '+escHtml(payPresetOptionLabel(stages))+'</div>' +
           '<div style="font-size:12px;color:#888;margin-top:2px">Changes save to Firebase and apply to all future quotations &amp; projects</div>' +
+          '<div style="font-size:11px;color:#6366f1;margin-top:4px">Tip: name each stage (or its When Due) with Advance, Event, Raw Data, Teaser or Final &mdash; the CRM uses it to link payments and delivery locks automatically.</div>' +
         '</div>' +
         '<button onclick="closePaymentPresetModal()" style="background:#f1f5f9;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:18px;line-height:1">×</button>' +
       '</div>' +
       '<div style="padding:20px 24px">' +
         '<div style="font-size:12px;font-weight:700;color:#555;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">' +
           '<span>Stages</span>' +
-          '<button onclick="_ppRows.push({label:\'\',pct:0,desc:\'\'});_ppRebuild()" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">+ Add Stage</button>' +
+          '<button onclick="_ppRows.push({key:\'s\'+Date.now(),label:\'\',pct:0,desc:\'\'});_ppRebuild()" style="background:#1a1a1a;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">+ Add Stage</button>' +
         '</div>' +
         '<div style="display:grid;grid-template-columns:1fr 64px 1.4fr 32px;gap:6px;margin-bottom:4px">' +
           '<div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase">Label</div>' +
@@ -30362,6 +30423,8 @@ function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
     p30:  { key:'kb_advance',  label:'Advance',            gate:'project_create', desc:'To block the date' },
     p20:  { key:'kb_advance',  label:'Advance',            gate:'project_create', desc:'To block the date' },
     p50a: { key:'kb_advance',  label:'Advance',            gate:'project_create', desc:'To block the date' },
+    p50c: { key:'kb_advance',  label:'Advance',            gate:'project_create', desc:'To block the date' },
+    p50d: { key:'kb_event',    label:'Event Payment',      gate:'none',           desc:'Due on event day' },
     p50:  { key:'kb_event',    label:'Event Payment',      gate:'none',           desc:'Due on event day' },
     p60:  { key:'kb_event',    label:'Event Payment',      gate:'none',           desc:'Due on event day' },
     p50b: { key:'kb_event',    label:'Event Payment',      gate:'none',           desc:'Due on event day' },
@@ -30378,15 +30441,29 @@ function _buildKbScheduleFromQuot(q, net, eventDate, eventDays) {
     var preset = (q.payterms && PAY_PRESETS[q.payterms]) ? q.payterms : '30-50-10-5-5';
     var terms = PAY_PRESETS[preset] || PAY_PRESETS['30-50-10-5-5'];
     var stages = [];
-    terms.forEach(function(t) {
-      var kb = PRESET_TO_KB[t.key];
-      if (!kb) return;
-      if (stages.find(function(s){ return s.key === kb.key; })) return;
-      var evDate = kb.key === 'kb_event' ? (sortedEventDates[0] || '') : '';
-      stages.push({ key: kb.key, label: t.label || kb.label, type: 'pct', val: t.pct,
-        amount: Math.round(net * t.pct / 100), dueDate: evDate, gate: kb.gate, desc: t.desc || kb.desc });
+    var kinds = terms.map(function(t){ return payTermKind(preset, t); });
+    var evCount = kinds.filter(function(k){ return k === 'event'; }).length;
+    var pMode = evCount >= 2 ? 'split' : 'single';
+    var pEventKeys = pMode === 'split' ? ['kb_prewed','kb_mainevent','kb_event3','kb_event4'] : ['kb_event','kb_event2','kb_event3','kb_event4'];
+    var pEvIdx = 0;
+    terms.forEach(function(t, i) {
+      var info = PAY_KIND_INFO[kinds[i]];
+      var val = parseFloat(t.pct) || 0;
+      if (!val) return;
+      var key = info.key, dueDate = '';
+      if (kinds[i] === 'event') {
+        key = pEventKeys[pEvIdx] || ('kb_event_extra_' + pEvIdx);
+        dueDate = sortedEventDates[pEvIdx] || sortedEventDates[0] || '';
+        pEvIdx++;
+      }
+      var dup = stages.find(function(s){ return s.key === key; });
+      if (dup) { // two rows of the same kind: combine so the total stays 100%
+        dup.val += val; dup.amount = Math.round(net * dup.val / 100); return;
+      }
+      stages.push({ key: key, label: t.label || info.label, type: 'pct', val: val,
+        amount: Math.round(net * val / 100), dueDate: dueDate, gate: info.gate, desc: t.desc || info.desc });
     });
-    return stages.length ? { stages: stages, eventMode: 'single' } : null;
+    return stages.length ? { stages: stages, eventMode: pMode } : null;
   }
 
   // ── CUSTOM path — label-based classification, any event name ────────────
