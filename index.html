@@ -7083,7 +7083,7 @@ function refresh(){
   _refreshTimer = setTimeout(function(){
     var ap=document.querySelector('.page.active');
     if(ap) renderPage(ap.id.replace('page-',''));
-  }, 80);
+  }, 250);
 }
 
 // ── Tracks whether child listeners for crm_projects are already attached ──
@@ -21241,7 +21241,7 @@ function getPayDateRange() {
 }
 
 // ═══ SEARCH LISTENERS (additional wires for new filters) ════════
-$('proj-search').addEventListener('input',function(){renderProjects();});
+$('proj-search').addEventListener('input',function(){kbSearchDebounce(renderProjects,250);});
 $('proj-stage-f').addEventListener('change',function(){renderProjects();});
 $('proj-region-f').addEventListener('change',function(){renderProjects();});
 $('proj-state-f').addEventListener('change',function(){renderProjects();});
@@ -35774,18 +35774,34 @@ function clearActivityLog() {
     // Stops itself once this input has been removed from the DOM (e.g. its
     // modal/row was closed or re-rendered) — otherwise these timers pile up
     // silently for the rest of the session, one per date field ever created.
-    var lastVal = orig.value;
-    var _dmyPollId = setInterval(function(){
-      if(!document.contains(orig)){
-        clearInterval(_dmyPollId);
-        return;
-      }
-      if(orig.value !== lastVal){
-        lastVal = orig.value;
-        display.value = isoToDMY(orig.value);
-      }
-    }, 100);
+    // PERF: previously a separate 100ms setInterval per date input (80+ always-live
+    // inputs => 800+ timer callbacks/sec for the whole session). Now: a value-setter
+    // hook syncs instantly when code assigns .value, plus ONE shared 1s sweep as a
+    // safety net (covers form.reset() etc.) that also prunes detached inputs.
+    var _vd = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    try {
+      Object.defineProperty(orig, 'value', {
+        configurable: true,
+        get: function(){ return _vd.get.call(this); },
+        set: function(v){ _vd.set.call(this, v); display.value = isoToDMY(_vd.get.call(this)); }
+      });
+    } catch(e) {}
+    _dmyTracked.push({ orig: orig, display: display, last: _vd.get.call(orig) });
   }
+
+  var _dmyTracked = [];
+  setInterval(function(){
+    if (document.hidden) return;
+    var keep = [];
+    for (var i = 0; i < _dmyTracked.length; i++) {
+      var t = _dmyTracked[i];
+      if (!t.orig.isConnected) continue;           // drop removed inputs
+      var cur = t.orig.value;
+      if (cur !== t.last) { t.last = cur; t.display.value = isoToDMY(cur); }
+      keep.push(t);
+    }
+    _dmyTracked = keep;
+  }, 1000);
 
   function scan(){
     document.querySelectorAll('input[type="date"]').forEach(wrapInput);
