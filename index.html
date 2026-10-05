@@ -3060,9 +3060,6 @@ document.addEventListener('wheel', function(e) {
               <option value="other">📁 Other Events</option>
             </select>
           </div>
-          <div class="fr"><label class="fl">Event Date</label>
-            <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid #fcd34d;border-radius:8px;background:#fffbeb;cursor:pointer;font-size:13px;font-weight:600;color:#92400e;margin:0"><input type="checkbox" class="qf-noeventdate-cb" style="width:auto" onchange="setQuotNoEventDate(this.checked)"> 📅 No event date yet</label>
-          </div>
         </div>
         <div class="fg">
           <div class="fr"><label class="fl" id="qf-bride-label">Client / Bride Name *</label><input class="fi" id="qf-bride" placeholder="e.g. Priya Sharma"></div>
@@ -3114,7 +3111,6 @@ document.addEventListener('wheel', function(e) {
       <div id="qt-days" class="tab-pane" style="min-height:520px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
           <div style="font-size:13px;font-weight:600;color:#555">Add event days and specify crew for each day.</div>
-          <label style="display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid #fcd34d;border-radius:8px;background:#fffbeb;cursor:pointer;font-size:12px;font-weight:600;color:#92400e;margin:0"><input type="checkbox" class="qf-noeventdate-cb" style="width:auto" onchange="setQuotNoEventDate(this.checked)"> 📅 No event date yet</label>
           <button class="btn btn-primary btn-sm" onclick="addQuotDay()">+ Add Day</button>
         </div>
         <div id="quot-days-container">
@@ -15461,7 +15457,7 @@ var RB_CONFIG = {
         }
         return true;
       }).map(function(q){
-        var ed = (q.days && q.days[0] && q.days[0].date) ? q.days[0].date : (q.date||'');
+        var ed = qFirstDate(q) || (q.date||'');
         var vd = liveValueDiscount(q);
         return {
           bride: q.bride||'', groom: q.groom||'', phone: q.phone||'', email: q.email||'',
@@ -27284,7 +27280,7 @@ function getFollowupQueue(mode) {
 
 function substituteFollowupVars(str, q) {
   var net = (parseFloat(q.value)||0) - (parseFloat(q.discount)||0);
-  var firstDayDate = (q.days && q.days[0] && q.days[0].date) ? q.days[0].date : '';
+  var firstDayDate = qFirstDate(q);
   var map = {
     '{bride}': q.bride || '', '{groom}': q.groom || '', '{phone}': q.phone || '',
     '{city}': q.city || '', '{source}': q.source || '', '{salesperson}': q.salesperson || '',
@@ -28578,6 +28574,25 @@ function _nextDateStr(dateStr) {
   return dt.getFullYear() + '-' + mm + '-' + dd;
 }
 
+// Days with no date decided yet (flag ticked OR date left blank) float to the
+// TOP; dated days follow in chronological order. Array.sort is stable, so
+// undecided days keep the order they were added in.
+function _sortQuotDays() {
+  quotDays.sort(function(a, b) {
+    var aU = (a.dateTBD || !a.date), bU = (b.dateTBD || !b.date);
+    if (aU && !bU) return -1;
+    if (!aU && bU) return 1;
+    if (aU && bU) return 0;
+    return (a.date || '').localeCompare(b.date || '');
+  });
+}
+// Earliest real event date on a quotation (undecided days are skipped, since
+// they now sit at the top of the list).
+function qFirstDate(q) {
+  var ds = ((q && q.days) || []).map(function(d){ return d && !d.dateTBD ? d.date : ''; }).filter(Boolean).sort();
+  return ds[0] || '';
+}
+
 function addQuotDay() {
   var newDate = '';
   if (quotDays.length) {
@@ -28585,6 +28600,7 @@ function addQuotDay() {
     if (lastDay && lastDay.date && !lastDay.dateTBD) newDate = _nextDateStr(lastDay.date);
   }
   quotDays.push({ date: newDate, dateTBD: !!quotNoEventDate, sessions: [{ name: 'Full Day', occasion: '', crew: _defaultCrew() }] });
+  _sortQuotDays();
   renderQuotDays();
 }
 
@@ -28594,6 +28610,7 @@ function toggleQuotDayTBD(idx, checked) {
   if (checked) quotDays[idx].date = ''; // clear any picked date once marked "to be decided"
   quotNoEventDate = quotDays.length > 0 && quotDays.every(function(d){ return d.dateTBD; });
   _syncNoEventDateUI();
+  _sortQuotDays();
   renderQuotDays();
 }
 
@@ -28688,13 +28705,7 @@ function updateQuotDay(idx, field, val) {
   // wrong "first day" and the user never needs to delete/re-add days
   // just to fix ordering.
   if (field === 'date') {
-    quotDays.sort(function(a, b) {
-      if (a.dateTBD && !b.dateTBD) return 1;   // TBD days sink to the end
-      if (!a.dateTBD && b.dateTBD) return -1;
-      if (!a.date && b.date) return 1;
-      if (a.date && !b.date) return -1;
-      return (a.date || '').localeCompare(b.date || '');
-    });
+    _sortQuotDays();
     renderQuotDays();
   }
 }
@@ -30487,8 +30498,8 @@ function convertQuotToProject(overrideId) {
   };
 
   // First day date as event date + booking date
-  if (q.days && q.days.length > 0 && q.days[0].date) {
-    projData.date = q.days[0].date;
+  if (qFirstDate(q)) {
+    projData.date = qFirstDate(q);
     // Also set bookdate from quotation save date if not set by advance payment block below
     if (!projData.bookdate) projData.bookdate = q.savedAt ? new Date(q.savedAt).toISOString().slice(0,10) : '';
   }
@@ -30875,7 +30886,7 @@ function syncProjectFromQuotation(projId, silent) {
     }
 
     // First event day date → project event date only if not already set
-    if (q.days && q.days.length && q.days[0].date) upd.date = upd.date || q.days[0].date;
+    if (qFirstDate(q)) upd.date = upd.date || qFirstDate(q);
 
     db.ref('crm_projects/' + projId).update(upd, function(err) {
       if (err) { showToast('❌ Sync error: ' + err.message); return; }
@@ -31235,7 +31246,7 @@ function downloadQuotationPDF() {
       function captureNext() {
         if (idx >= pageArr.length) {
           setMsg('Saving file…');
-          var eventDate = (q.days && q.days[0] && q.days[0].date) ? q.days[0].date : '';
+          var eventDate = qFirstDate(q);
           var filename = buildClientPdfFilename(q.bride, q.groom, eventDate);
           pdf.save(filename);
           wrap.remove();
