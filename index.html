@@ -1839,11 +1839,8 @@ document.addEventListener('wheel', function(e) {
       <div class="page-title">Team &amp; Freelancers</div>
       <div class="page-sub">Manage your full-time team and freelancer pool.</div>
 
-      <!-- ── Team / Freelancer toggle ── -->
-      <div style="display:flex;gap:0;margin-bottom:16px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;width:fit-content">
-        <button id="team-tab-btn" onclick="switchTeamTab('team')" style="padding:9px 22px;font-size:13px;font-weight:700;background:#1a1a1a;color:#fff;border:none;cursor:pointer">👥 Team Members</button>
-        <button id="freelancer-tab-btn" onclick="switchTeamTab('freelancer')" style="padding:9px 22px;font-size:13px;font-weight:700;background:#fff;color:#64748b;border:none;cursor:pointer">🎯 Freelancers</button>
-      </div>
+      <!-- Freelancers now live on their own page -->
+      <div style="margin-bottom:14px"><button class="btn btn-sm" onclick="navTo('freelancers')">🧑‍🎨 Freelancers have their own page → open</button></div>
 
       <!-- ── TEAM MEMBER SECTION ── -->
       <div id="team-section">
@@ -2089,15 +2086,17 @@ document.addEventListener('wheel', function(e) {
 
     <div id="page-freelancers" class="page">
       <div class="page-title">🧑‍🎨 Freelancers</div>
-      <div class="page-sub">Add and manage freelance editors — rate card, terms &amp; conditions, availability and payment details.</div>
+      <div class="page-sub">Add freelancers, set their rates &amp; terms, see their work and what is due to them — all in one place.</div>
+      <div id="fl-tabbar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+        <div style="display:flex;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+          <button id="fl-tab-dir" onclick="flGoTab('dir')" style="padding:9px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer">👥 Freelancers</button>
+          <button id="fl-tab-work" onclick="flGoTab('work')" style="padding:9px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer">💼 Work &amp; Payouts</button>
+          <button id="fl-tab-summary" onclick="flGoTab('summary')" style="padding:9px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer">📊 Post-production summary</button>
+        </div>
+        <button id="fl-add-btn" class="btn btn-primary" style="font-size:14px;padding:10px 20px" onclick="openAddFreelancer()">➕ Add Freelancer</button>
+      </div>
       <div id="fld-content"><div class="empty">Loading…</div></div>
-    </div>
-
-    <div id="page-flpayouts" class="page">
-      <div class="page-title">🎯 Freelancer Work &amp; Payouts</div>
-      <div class="page-sub">Who is working on which deliverable, what is due to each freelancer, and the full post-production picture — live, any time.</div>
-      <div style="margin-bottom:12px"><button class="btn btn-sm" onclick="navTo('freelancers')">🧑‍🎨 Manage freelancers</button> <button class="btn btn-primary btn-sm" onclick="openAddFreelancer()">➕ Add Freelancer</button></div>
-      <div id="flp-content"><div class="empty">Loading…</div></div>
+      <div id="flp-content" style="display:none"></div>
     </div>
 
     <div id="page-reports" class="page">
@@ -19882,7 +19881,8 @@ var _currentTeamTab = 'team';
 var _editFreelancerId = null;
 
 function switchTeamTab(tab) {
-  _currentTeamTab = tab;
+  if (tab === 'freelancer') { navTo('freelancers'); return; }
+  _currentTeamTab = 'team'; tab = 'team';
   var teamBtn = document.getElementById('team-tab-btn');
   var flBtn   = document.getElementById('freelancer-tab-btn');
   var teamSec = document.getElementById('team-section');
@@ -20744,6 +20744,16 @@ function renderFlDirectory() {
     return [f.name, f.nickname, f.city, f.skills, f.phone, f.role].join(' ').toLowerCase().indexOf(q) > -1;
   }).sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
 
+  var hires = {};
+  Object.values(projects || {}).forEach(function(pr) {
+    ((pr && pr.eventDays) || []).forEach(function(ed) {
+      ['dayPh1','dayPh2','dayPh3','dayPh4','dayVid1','dayVid2','dayVid3','dayVid4','dayDrone','dayPhono','dayCoord','dayAsst1','dayAsst2'].forEach(function(k) {
+        if (ed[k]) hires[ed[k]] = (hires[ed[k]] || 0) + 1;
+      });
+    });
+  });
+  var nameCount = {};
+  Object.values(freelancerData || {}).forEach(function(f) { var k = (f.name || '').trim().toLowerCase(); nameCount[k] = (nameCount[k] || 0) + 1; });
   var work = {};
   Object.values(projects || {}).forEach(function(pr) {
     if (!pr || !pr.customDelivs) return;
@@ -20758,12 +20768,11 @@ function renderFlDirectory() {
   var avail = { available: '✅ Available', busy: '🔴 Busy', inactive: '⚫ Inactive' };
 
   var h = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">' +
-    (canEdit ? '<button class="btn btn-primary" style="font-size:14px;padding:10px 20px" onclick="openAddFreelancer()">➕ Add Freelancer</button>' : '') +
-    '<input class="fi" id="fld-search" placeholder="Search name, city, skill…" value="' + escHtml(qEl ? qEl.value : '') + '" style="max-width:240px" oninput="renderFlDirectory()">' +
+        '<input class="fi" id="fld-search" placeholder="Search name, city, skill…" value="' + escHtml(qEl ? qEl.value : '') + '" style="max-width:240px" oninput="renderFlDirectory()">' +
     '<select class="fi" id="fld-role" style="max-width:170px" onchange="renderFlDirectory()"><option value="">All roles</option>' +
       Object.keys(roles).sort().map(function(r) { return '<option' + (rf === r ? ' selected' : '') + '>' + escHtml(r) + '</option>'; }).join('') + '</select>' +
     '<span style="font-size:12px;color:#888">' + list.length + ' freelancer' + (list.length !== 1 ? 's' : '') + '</span>' +
-    '<button class="btn btn-sm" style="margin-left:auto" onclick="navTo(\'flpayouts\')">🎯 Work &amp; Payouts →</button></div>';
+    '</div>';
 
   h += '<div class="card" style="padding:0"><div class="mob-scroll"><table class="tbl"><thead><tr><th>Freelancer</th><th>Contact</th><th>Rate card</th><th>Terms</th><th>Work</th><th></th></tr></thead><tbody>' +
     (list.length ? list.map(function(f) {
@@ -20771,15 +20780,16 @@ function renderFlDirectory() {
       var rc = f.rates || {};
       var chips = FL_RATE_TYPES.filter(function(t) { return parseFloat(rc[t.key]) > 0; }).map(function(t) {
         return '<span style="display:inline-block;background:#f5f3ff;color:#6d28d9;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700;margin:1px 3px 1px 0">' + t.type + ' ₹' + Number(rc[t.key]).toLocaleString('en-IN') + '</span>';
-      }).join('') + flCustomChips(f) || '<span style="color:#d97706;font-size:11px">⚠️ No rates yet</span>';
-      return '<tr><td><div style="font-weight:700">🎯 ' + escHtml(f.name) + '</div><div style="font-size:11px;color:#888">' + escHtml(f.role || '') + (f.city ? ' · ' + escHtml(f.city) : '') + ' · ' + (avail[f.availability || 'available']) + '</div></td>' +
+      }).join('') + flCustomChips(f) || '<span style="color:#aaa;font-size:11px">Not set</span>';
+      return '<tr><td><div style="font-weight:700">' + escHtml(f.name) + (nameCount[(f.name || '').trim().toLowerCase()] > 1 ? ' <span title="Another freelancer has the same name" style="background:#fef3c7;color:#92400e;border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700">possible duplicate</span>' : '') + '</div><div style="font-size:11px;color:#888">' + escHtml(f.role || '') + (f.city ? ' · ' + escHtml(f.city) : '') + ' · ' + (avail[f.availability || 'available']) + '</div></td>' +
         '<td style="font-size:12px">' + (f.phone ? '📞 ' + escHtml(f.phone) : '—') + (f.upi ? '<div style="font-size:11px;color:#6d28d9">UPI: ' + escHtml(f.upi) + '</div>' : '') + '</td>' +
         '<td style="max-width:300px">' + chips + '</td>' +
-        '<td>' + (f.termsAgreed ? '<span style="color:#16a34a;font-size:11px;font-weight:700">✅ Agreed' + (f.termsDate ? '<br>' + fmtDate(f.termsDate) : '') + '</span>' : '<span style="color:#d97706;font-size:11px;font-weight:700">⚠️ Pending</span>') + '</td>' +
-        '<td style="font-size:12px">' + w.open + ' open · ' + w.done + ' done' + (money && w.due ? '<div style="color:#d97706;font-weight:700">' + fmt(w.due) + ' due</div>' : '') + '</td>' +
+        '<td>' + (f.termsAgreed ? '<span style="color:#16a34a;font-size:11px;font-weight:700">✅ Agreed' + (f.termsDate ? '<br>' + fmtDate(f.termsDate) : '') + '</span>' : '<span style="color:#aaa;font-size:11px">Not signed</span>') + '</td>' +
+        '<td style="font-size:12px">' + ((hires[f.id] || 0) ? '🎬 ' + hires[f.id] + ' event' + (hires[f.id] > 1 ? 's' : '') + '<br>' : '') + ((w.open + w.done) ? w.open + ' open · ' + w.done + ' deliverables done' : '<span style="color:#aaa">No edits assigned</span>') + (money && w.due ? '<div style="color:#d97706;font-weight:700">' + fmt(w.due) + ' due</div>' : '') + '</td>' +
         '<td style="white-space:nowrap">' + (canEdit ? '<button class="btn btn-sm" onclick="openEditFreelancer(\'' + f.id + '\')">Edit</button> ' : '') +
+          '<button class="btn btn-sm" title="Copy shoot checklist link" onclick="copyCrewPortalLink(\'' + f.id + '\')">🔗</button> ' +
           '<button class="btn btn-sm" title="Rate card &amp; agreement (print)" onclick="printFreelancerAgreement(\'' + f.id + '\')">📄</button> ' +
-          '<button class="btn btn-sm" title="View their work" onclick="_flpState.fl=\'' + f.id + '\';navTo(\'flpayouts\')">📦</button> ' +
+          '<button class="btn btn-sm" title="View their work" onclick="_flpState.fl=\'' + f.id + '\';flGoTab(\'work\')">📦</button> ' +
           (canDel ? '<button class="btn-danger" onclick="deleteFreelancer(\'' + f.id + '\')">✕</button>' : '') + '</td></tr>';
     }).join('') : '<tr><td colspan="6" class="empty">No freelancers yet. Click <b>➕ Add Freelancer</b> to add your first one.</td></tr>') +
     '</tbody></table></div></div>';
@@ -20789,6 +20799,26 @@ function renderFlDirectory() {
   var pos = hadFocus ? document.activeElement.selectionStart : 0;
   root.innerHTML = h;
   if (hadFocus) { var ne = document.getElementById('fld-search'); if (ne) { ne.focus(); try { ne.setSelectionRange(pos, pos); } catch (e) {} } }
+}
+
+var _flTab = 'dir';
+function flGoTab(t) {
+  _flTab = t;
+  var pg = document.getElementById('page-freelancers');
+  if (pg && pg.classList.contains('active')) flRenderTab(); else navTo('freelancers');
+}
+function flRenderTab() {
+  var d = document.getElementById('fld-content'), w = document.getElementById('flp-content'); if (!d || !w) return;
+  d.style.display = _flTab === 'dir' ? '' : 'none';
+  w.style.display = _flTab === 'dir' ? 'none' : '';
+  ['dir', 'work', 'summary'].forEach(function(t) {
+    var b = document.getElementById('fl-tab-' + t); if (!b) return;
+    b.style.background = t === _flTab ? '#1a1a1a' : '#fff';
+    b.style.color = t === _flTab ? '#fff' : '#64748b';
+  });
+  var add = document.getElementById('fl-add-btn');
+  if (add) add.style.display = (CU && ['superadmin','admin','videohead','postprod'].indexOf(CU.role) > -1) ? '' : 'none';
+  if (_flTab === 'dir') renderFlDirectory(); else renderFlPayouts();
 }
 
 // ═══ FREELANCER WORK & PAYOUTS PAGE ══════════════════════════════════
@@ -20841,7 +20871,7 @@ function renderFlPayouts() {
   var canPay = money && CU && (CU.role === 'superadmin' || can('canRecordPayments'));
   var all = flpCollect();
   var scoped = all.filter(function(r) { return _flpState.scope === 'all' || r.p.stage !== 'complete'; });
-  var h = '';
+  var h = '', hSum = '';
 
   // ── 1. Overall post-production summary ─────────────────────────────
   var T = { total: 0, unassigned: 0, prog: 0, review: 0, approved: 0, overdue: 0, fl: 0 };
@@ -20884,6 +20914,8 @@ function renderFlPayouts() {
     }).join('') : '<tr><td colspan="12" class="empty">No deliverables yet.</td></tr>') +
     '</tbody></table></div></div>';
 
+  hSum = h; h = '';
+
   // ── 2. Per-freelancer summary (all time) ───────────────────────────
   var byF = {};
   all.forEach(function(r) {
@@ -20906,18 +20938,17 @@ function renderFlPayouts() {
          mc('blue', 'In pipeline (not yet approved)', fmt(totPipe)) +
          mc('green', 'Paid so far', fmt(totPaid)) + '</div>';
   }
-  h += '<div class="card" style="padding:0;margin-top:10px"><div class="mob-scroll"><table class="tbl"><thead><tr><th>Freelancer</th><th>Assigned</th><th>Working</th><th>In review</th><th>Approved</th><th>Overdue</th>' +
-       (money ? '<th>Pipeline</th><th>Payable</th><th>Paid</th>' : '') + '<th>Terms</th><th></th></tr></thead><tbody>' +
+  h += '<div class="card" style="padding:0;margin-top:10px"><div class="mob-scroll"><table class="tbl"><thead><tr><th>Freelancer</th><th>Working</th><th>In review</th><th>Approved</th><th>Overdue</th>' +
+       (money ? '<th>Payable</th><th>Paid</th>' : '') + '<th></th></tr></thead><tbody>' +
     (fids.length ? fids.map(function(id) {
       var s = byF[id], f = s.f;
       return '<tr><td><div style="font-weight:700">🎯 ' + escHtml(f.name) + '</div><div style="font-size:11px;color:#888">' + escHtml(f.role || '') + (f.city ? ' · ' + escHtml(f.city) : '') + '</div></td>' +
-        '<td>' + s.assigned + '</td><td>' + s.prog + '</td><td>' + s.review + '</td><td style="color:#16a34a;font-weight:700">' + s.done + '</td>' +
+        '<td>' + s.prog + '</td><td>' + s.review + '</td><td style="color:#16a34a;font-weight:700">' + s.done + '</td>' +
         '<td style="color:' + (s.overdue ? '#dc2626' : 'inherit') + ';font-weight:' + (s.overdue ? 700 : 400) + '">' + s.overdue + '</td>' +
-        (money ? '<td>' + fmt(s.pipeline) + '</td><td style="font-weight:700;color:' + (s.due ? '#d97706' : 'inherit') + '">' + fmt(s.due) + '</td><td style="color:#16a34a">' + fmt(s.paid) + '</td>' : '') +
-        '<td>' + (f.termsAgreed ? '<span style="color:#16a34a;font-size:11px;font-weight:700">✅ Agreed</span>' : '<span style="color:#d97706;font-size:11px;font-weight:700">⚠️ Pending</span>') + '</td>' +
+        (money ? '<td style="font-weight:700;color:' + (s.due ? '#d97706' : 'inherit') + '">' + fmt(s.due) + '</td><td style="color:#16a34a">' + fmt(s.paid) + '</td>' : '') +
         '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="flpSet(\'fl\',\'' + id + '\')">View work</button> ' +
           (canPay && s.due > 0 ? '<button class="btn btn-sm" style="background:#dcfce7;color:#166534;border-color:#86efac" onclick="flpPayAllDue(\'' + id + '\')">💸 Pay ' + fmt(s.due) + '</button>' : '') + '</td></tr>';
-    }).join('') : '<tr><td colspan="11" class="empty">No deliverables are assigned to freelancers yet. Assign one from Post Production → Assign Editor (freelancers are listed with 🎯).</td></tr>') +
+    }).join('') : '<tr><td colspan="8" class="empty">No deliverables are assigned to freelancers yet. Assign one from Post Production → Assign Editor (freelancers are listed with 🎯).</td></tr>') +
     '</tbody></table></div></div>';
 
   // ── 3. Deliverable-level detail ────────────────────────────────────
@@ -20948,7 +20979,7 @@ function renderFlPayouts() {
     }).join('') : '<tr><td colspan="9" class="empty">Nothing matches this filter.</td></tr>') +
     '</tbody></table></div></div>';
 
-  root.innerHTML = h;
+  root.innerHTML = (_flTab === 'summary') ? hSum : h;
 }
 
 function flpSetAmount(projId, delivId, val) {
@@ -23372,7 +23403,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['flpayouts', 'freelancers', 'dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog', 'contracts'],
+    pages: ['freelancers', 'dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog', 'contracts'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -23388,7 +23419,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['flpayouts', 'freelancers', 'dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
+    pages: ['freelancers', 'dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -23404,7 +23435,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canMarkSelection:true, canAssignAlbumTasks:true
   },
   postprod: {
-    pages: ['flpayouts', 'freelancers', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['freelancers', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -23414,7 +23445,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManagePostProd:true, canMarkSelection:true
   },
   videohead: {
-    pages: ['flpayouts', 'freelancers', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['freelancers', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -23470,7 +23501,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   accounts: {
-    pages: ['flpayouts', 'freelancers', 'dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck', 'contracts'],
+    pages: ['freelancers', 'dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck', 'contracts'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true, canDeletePayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
@@ -23910,7 +23941,7 @@ function renderPage(name) {
   else if (name === 'postprod') renderPostProdPage();
   else if (name === 'priority') renderPriorityPage();
   else if (name === 'payments') renderPayments();
-  else if (name === 'team') { if (_currentTeamTab === 'freelancer') { switchTeamTab('freelancer'); } else { switchTeamTab('team'); } }
+  else if (name === 'team') { switchTeamTab('team'); }
   else if (name === 'contracts') { renderContractsPage(); }
   else if (name === 'referral') renderReferral();
   else if (name === 'whatsapp') { populateWASel(); renderWA(); }
@@ -23933,8 +23964,7 @@ function renderPage(name) {
   else if (name === 'clientissues') { renderCIHub(true); }
   else if (name === 'clienthub') { switchHubTab(_hubTab || 'overview'); }
   else if (name === 'workprogress') { renderWorkProgress(); }
-  else if (name === 'freelancers') { renderFlDirectory(); }
-  else if (name === 'flpayouts') { renderFlPayouts(); }
+  else if (name === 'freelancers') { flRenderTab(); }
 }
 
 // Jump into Projects, filtered to a single lead source (used by Reports > Lead Sources drill-through)
@@ -23950,6 +23980,7 @@ function navToProjectsBySource(source) {
 }
 
 function navTo(name) {
+  if (name === 'flpayouts') { name = 'freelancers'; _flTab = 'work'; }
   // Redirect legacy pages to unified Client Relations Hub
   if (name === 'priority') { name = 'clienthub'; _hubTab = 'vip'; }
   if (name === 'clientissues') { name = 'clienthub'; _hubTab = 'issues'; }
@@ -24071,7 +24102,7 @@ var SIDEBAR_ICON_MAP = {
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Overview',          items:['dashboard','reports','reportbuilder','healthcheck','onboarding','quotations','followups'] },
-  { label:'Post Productions',  items:['projects','pipeline','postprod','workprogress','freelancers','flpayouts'] },
+  { label:'Post Productions',  items:['projects','pipeline','postprod','workprogress','freelancers'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
