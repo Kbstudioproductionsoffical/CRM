@@ -2087,9 +2087,16 @@ document.addEventListener('wheel', function(e) {
       <div id="wp-content"></div>
     </div>
 
+    <div id="page-freelancers" class="page">
+      <div class="page-title">🧑‍🎨 Freelancers</div>
+      <div class="page-sub">Add and manage freelance editors — rate card, terms &amp; conditions, availability and payment details.</div>
+      <div id="fld-content"><div class="empty">Loading…</div></div>
+    </div>
+
     <div id="page-flpayouts" class="page">
       <div class="page-title">🎯 Freelancer Work &amp; Payouts</div>
       <div class="page-sub">Who is working on which deliverable, what is due to each freelancer, and the full post-production picture — live, any time.</div>
+      <div style="margin-bottom:12px"><button class="btn btn-sm" onclick="navTo('freelancers')">🧑‍🎨 Manage freelancers</button> <button class="btn btn-primary btn-sm" onclick="openAddFreelancer()">➕ Add Freelancer</button></div>
       <div id="flp-content"><div class="empty">Loading…</div></div>
     </div>
 
@@ -4274,11 +4281,7 @@ document.addEventListener('wheel', function(e) {
       <div class="section-divider" style="margin-top:8px">Professional Profile</div>
       <div class="fg3">
         <div class="fr"><label class="fl">Role / Skill *</label>
-          <select class="fi" id="fl-role">
-            <option>Photographer</option><option>Videographer</option><option>Drone Operator</option>
-            <option>Phonographer</option><option>Editor</option><option>Assistant</option>
-            <option>Coordinator</option><option>Makeup Artist</option><option>Other</option>
-          </select>
+          <select class="fi" id="fl-role" onchange="flRoleChanged(this)"></select>
         </div>
         <div class="fr"><label class="fl">Based in City</label><input class="fi" id="fl-city" placeholder="e.g. Delhi, Jaipur…"></div>
         <div class="fr"><label class="fl">Availability</label>
@@ -4311,6 +4314,9 @@ document.addEventListener('wheel', function(e) {
       <div class="section-divider" style="margin-top:8px">💰 Rate Card — pay per deliverable</div>
       <div class="info info-blue" style="margin-bottom:10px">Amount paid = rate × the deliverable's <b>Qty</b>, filled in automatically when you assign this freelancer in Post Production. You can override the amount for any single deliverable on the <b>Freelancer Payouts</b> page. Leave a rate blank if they don't do that work.</div>
       <div id="fl-rate-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:10px"></div>
+      <div style="font-size:12px;font-weight:700;margin:4px 0 6px">➕ Other rates <span style="font-weight:400;color:#888">— any work not listed above (per day, per shoot, per hour, per design…)</span></div>
+      <div id="fl-custom-rates"></div>
+      <button type="button" class="btn btn-sm" style="margin-bottom:12px" onclick="flAddCustomRateRow('','')">+ Add rate line</button>
       <div class="section-divider" style="margin-top:8px">📜 Terms &amp; Conditions</div>
       <div class="fg3">
         <div class="fr"><label class="fl">Payment terms</label><select class="fi" id="fl-payterms"></select></div>
@@ -20420,6 +20426,7 @@ function ctrDeleteContract(id) {
 }
 
 function renderFreelancers() {
+  try { if (typeof renderFlDirectory === 'function') renderFlDirectory(); } catch (e) {}
   var grid = document.getElementById('freelancer-grid'); if (!grid) return;
   var q    = ((document.getElementById('freelancer-search')||{}).value||'').toLowerCase();
   var rolF = ((document.getElementById('freelancer-role-f')||{}).value||'');
@@ -20501,11 +20508,11 @@ function openAddFreelancer(prefill) {
   var modal_title = document.getElementById('freelancer-modal-title');
   if (modal_title) modal_title.textContent = 'Add Freelancer';
   ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby'].forEach(function(i){sv(i,'');});
-  sv('fl-role','Photographer'); sv('fl-availability','available'); sv('fl-rating','');
-  flBuildRateGrid({}); flFillPayTerms(''); sv('fl-terms',''); sv('fl-termsdate',''); sv('fl-termsagreed','no');
+  flFillRoleSelect('Photographer'); sv('fl-availability','available'); sv('fl-rating','');
+  flBuildRateGrid({}, []); flFillPayTerms(''); sv('fl-terms',''); sv('fl-termsdate',''); sv('fl-termsagreed','no');
   if (prefill) {
     if (prefill.name) sv('fl-name', prefill.name);
-    if (prefill.role) sv('fl-role', prefill.role);
+    if (prefill.role) flFillRoleSelect(prefill.role);
     if (prefill.phone) sv('fl-phone', prefill.phone);
   }
   openModal('freelancer-modal');
@@ -20517,10 +20524,10 @@ function openEditFreelancer(id) {
   var modal_title = document.getElementById('freelancer-modal-title');
   if (modal_title) modal_title.textContent = 'Edit — ' + f.name;
   ['name','nickname','phone','whatsapp','email','city','exp','rate','skills','equipment','upi','bankaccount','ifsc','notes','idproof','referredby'].forEach(function(k){sv('fl-'+k, f[k]||'');});
-  sv('fl-role', f.role||'Photographer');
+  flFillRoleSelect(f.role||'Photographer');
   sv('fl-availability', f.availability||'available');
   sv('fl-rating', f.rating||'');
-  flBuildRateGrid(f.rates||{}); flFillPayTerms(f.payTerms||''); sv('fl-terms', f.terms||''); sv('fl-termsdate', f.termsDate||''); sv('fl-termsagreed', f.termsAgreed?'yes':'no');
+  flBuildRateGrid(f.rates||{}, f.customRates||[]); flFillPayTerms(f.payTerms||''); sv('fl-terms', f.terms||''); sv('fl-termsdate', f.termsDate||''); sv('fl-termsagreed', f.termsAgreed?'yes':'no');
   openModal('freelancer-modal');
 }
 
@@ -20552,7 +20559,54 @@ function flFillPayTerms(sel) {
   if (sel && opts.indexOf(sel) < 0) opts.push(sel);
   el.innerHTML = opts.map(function(o) { return '<option' + (o === (sel || FL_PAY_TERMS[0]) ? ' selected' : '') + '>' + escHtml(o) + '</option>'; }).join('');
 }
-function flBuildRateGrid(rates) {
+var FL_DEFAULT_ROLES = ['Photographer','Videographer','Drone Operator','Phonographer','Editor','Photo Editor','Video Editor','Album Designer','Colorist','Motion Graphics / Animator','Sound / Audio Engineer','Voice-over Artist','Graphic Designer','Assistant','Coordinator','Makeup Artist','Other'];
+function flFillRoleSelect(current) {
+  var el = document.getElementById('fl-role'); if (!el) return;
+  var list = FL_DEFAULT_ROLES.slice();
+  Object.values(freelancerData || {}).forEach(function(f) { if (f.role && list.indexOf(f.role) < 0) list.push(f.role); });
+  if (current && list.indexOf(current) < 0) list.push(current);
+  el.innerHTML = list.map(function(r) { return '<option' + (r === current ? ' selected' : '') + '>' + escHtml(r) + '</option>'; }).join('') +
+                 '<option value="__new__">➕ Add new type…</option>';
+  el.value = current || list[0];
+  el.setAttribute('data-prev', el.value);
+}
+function flRoleChanged(sel) {
+  if (sel.value !== '__new__') { sel.setAttribute('data-prev', sel.value); return; }
+  var name = (prompt('Name of the new freelancer type (e.g. Makeup Artist, Mehendi Artist, Lighting Crew, Album Designer):') || '').trim();
+  if (!name) { sel.value = sel.getAttribute('data-prev') || sel.options[0].value; return; }
+  flFillRoleSelect(name);
+}
+function flAddCustomRateRow(label, amount) {
+  var host = document.getElementById('fl-custom-rates'); if (!host) return;
+  var row = document.createElement('div');
+  row.className = 'fl-cr-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px;align-items:center';
+  row.innerHTML = '<input class="fi fl-cr-label" placeholder="e.g. Per day, Per shoot, Per hour" style="flex:2" value="' + escHtml(label || '') + '">' +
+                  '<input class="fi fl-cr-amt" type="number" min="0" placeholder="₹ amount" style="flex:1" value="' + (amount === '' || amount == null ? '' : amount) + '">' +
+                  '<button type="button" class="btn-danger" onclick="this.parentNode.remove()">✕</button>';
+  host.appendChild(row);
+}
+function flReadCustomRates() {
+  var out = [];
+  document.querySelectorAll('#fl-custom-rates .fl-cr-row').forEach(function(r) {
+    var l = r.querySelector('.fl-cr-label').value.trim(), a = parseFloat(r.querySelector('.fl-cr-amt').value);
+    if (l && a > 0) out.push({ label: l, amount: a });
+  });
+  return out;
+}
+function flCustomChips(f) {
+  return (f.customRates || []).map(function(c) {
+    return '<span style="display:inline-block;background:#ecfeff;color:#0e7490;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700;margin:1px 3px 1px 0">' + escHtml(c.label) + ' ₹' + Number(c.amount).toLocaleString('en-IN') + '</span>';
+  }).join('');
+}
+function flCustomRows(f) {
+  return (f.customRates || []).map(function(c) {
+    return '<tr><td>' + escHtml(c.label) + '</td><td style="text-align:right">₹' + Number(c.amount).toLocaleString('en-IN') + '</td></tr>';
+  }).join('');
+}
+function flBuildRateGrid(rates, customRates) {
+  var ch = document.getElementById('fl-custom-rates');
+  if (ch) { ch.innerHTML = ''; (customRates || []).forEach(function(c) { flAddCustomRateRow(c.label, c.amount); }); }
   var host = document.getElementById('fl-rate-grid'); if (!host) return;
   rates = rates || {};
   host.innerHTML = FL_RATE_TYPES.map(function(t) {
@@ -20596,7 +20650,7 @@ function flCardExtras(f) {
   var r = f.rates || {};
   var chips = FL_RATE_TYPES.filter(function(t) { return parseFloat(r[t.key]) > 0; }).map(function(t) {
     return '<span style="background:#f5f3ff;color:#6d28d9;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700">' + t.type + ' ₹' + Number(r[t.key]).toLocaleString('en-IN') + '</span>';
-  }).join('');
+  }).join('') + flCustomChips(f);
   var terms = f.termsAgreed
     ? '<span style="color:#16a34a;font-weight:700;font-size:11px">✅ Terms agreed' + (f.termsDate ? ' · ' + fmtDate(f.termsDate) : '') + '</span>'
     : '<span style="color:#d97706;font-weight:700;font-size:11px">⚠️ Terms not signed off</span>';
@@ -20611,7 +20665,7 @@ function printFreelancerAgreement(id) {
   var r = f.rates || {};
   var rows = FL_RATE_TYPES.filter(function(t) { return parseFloat(r[t.key]) > 0; }).map(function(t) {
     return '<tr><td>' + t.type + '</td><td style="text-align:right">₹' + Number(r[t.key]).toLocaleString('en-IN') + '</td></tr>';
-  }).join('') || '<tr><td colspan="2" style="color:#999">No rates defined</td></tr>';
+  }).join('') + flCustomRows(f) || '<tr><td colspan="2" style="color:#999">No rates defined</td></tr>';
   var terms = escHtml(f.terms || flDefaultTerms());
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Freelancer Agreement — ' + escHtml(f.name) + '</title>' +
     '<style>body{font-family:Arial,sans-serif;max-width:760px;margin:30px auto;padding:0 20px;color:#222;font-size:13px;line-height:1.55}' +
@@ -20673,6 +20727,68 @@ function ppRateHint(e, d) {
   if (!e || !e._fl) return '';
   var rate = flRateFor(freelancerData[e.id], d && d.type);
   return rate ? ' — ₹' + rate.toLocaleString('en-IN') + '/' + ((d && d.type) || 'unit') : ' — no rate set';
+}
+
+
+// ═══ FREELANCERS DIRECTORY PAGE (dedicated place to add / manage freelancers) ═══
+function renderFlDirectory() {
+  var root = document.getElementById('fld-content'); if (!root) return;
+  var canEdit = CU && ['superadmin','admin','videohead','postprod'].indexOf(CU.role) > -1;
+  var canDel  = CU && (CU.role === 'superadmin' || CU.role === 'admin');
+  var money   = can('canSeeFinancials') || (CU && CU.role === 'superadmin');
+  var qEl = document.getElementById('fld-search'), rEl = document.getElementById('fld-role');
+  var q = qEl ? qEl.value.toLowerCase() : '', rf = rEl ? rEl.value : '';
+  var list = Object.values(freelancerData || {}).filter(function(f) {
+    if (rf && f.role !== rf) return false;
+    if (!q) return true;
+    return [f.name, f.nickname, f.city, f.skills, f.phone, f.role].join(' ').toLowerCase().indexOf(q) > -1;
+  }).sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
+
+  var work = {};
+  Object.values(projects || {}).forEach(function(pr) {
+    if (!pr || !pr.customDelivs) return;
+    pr.customDelivs.forEach(function(d) {
+      if (!d || !d.editorId || !freelancerData[d.editorId]) return;
+      var w = work[d.editorId] || (work[d.editorId] = { open: 0, done: 0, due: 0 });
+      if (delivIsDone(d.status)) { w.done++; if (d.payStatus !== 'paid') w.due += flpAmount(d); } else w.open++;
+    });
+  });
+  var roles = {};
+  Object.values(freelancerData || {}).forEach(function(f) { if (f.role) roles[f.role] = 1; });
+  var avail = { available: '✅ Available', busy: '🔴 Busy', inactive: '⚫ Inactive' };
+
+  var h = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">' +
+    (canEdit ? '<button class="btn btn-primary" style="font-size:14px;padding:10px 20px" onclick="openAddFreelancer()">➕ Add Freelancer</button>' : '') +
+    '<input class="fi" id="fld-search" placeholder="Search name, city, skill…" value="' + escHtml(qEl ? qEl.value : '') + '" style="max-width:240px" oninput="renderFlDirectory()">' +
+    '<select class="fi" id="fld-role" style="max-width:170px" onchange="renderFlDirectory()"><option value="">All roles</option>' +
+      Object.keys(roles).sort().map(function(r) { return '<option' + (rf === r ? ' selected' : '') + '>' + escHtml(r) + '</option>'; }).join('') + '</select>' +
+    '<span style="font-size:12px;color:#888">' + list.length + ' freelancer' + (list.length !== 1 ? 's' : '') + '</span>' +
+    '<button class="btn btn-sm" style="margin-left:auto" onclick="navTo(\'flpayouts\')">🎯 Work &amp; Payouts →</button></div>';
+
+  h += '<div class="card" style="padding:0"><div class="mob-scroll"><table class="tbl"><thead><tr><th>Freelancer</th><th>Contact</th><th>Rate card</th><th>Terms</th><th>Work</th><th></th></tr></thead><tbody>' +
+    (list.length ? list.map(function(f) {
+      var w = work[f.id] || { open: 0, done: 0, due: 0 };
+      var rc = f.rates || {};
+      var chips = FL_RATE_TYPES.filter(function(t) { return parseFloat(rc[t.key]) > 0; }).map(function(t) {
+        return '<span style="display:inline-block;background:#f5f3ff;color:#6d28d9;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700;margin:1px 3px 1px 0">' + t.type + ' ₹' + Number(rc[t.key]).toLocaleString('en-IN') + '</span>';
+      }).join('') + flCustomChips(f) || '<span style="color:#d97706;font-size:11px">⚠️ No rates yet</span>';
+      return '<tr><td><div style="font-weight:700">🎯 ' + escHtml(f.name) + '</div><div style="font-size:11px;color:#888">' + escHtml(f.role || '') + (f.city ? ' · ' + escHtml(f.city) : '') + ' · ' + (avail[f.availability || 'available']) + '</div></td>' +
+        '<td style="font-size:12px">' + (f.phone ? '📞 ' + escHtml(f.phone) : '—') + (f.upi ? '<div style="font-size:11px;color:#6d28d9">UPI: ' + escHtml(f.upi) + '</div>' : '') + '</td>' +
+        '<td style="max-width:300px">' + chips + '</td>' +
+        '<td>' + (f.termsAgreed ? '<span style="color:#16a34a;font-size:11px;font-weight:700">✅ Agreed' + (f.termsDate ? '<br>' + fmtDate(f.termsDate) : '') + '</span>' : '<span style="color:#d97706;font-size:11px;font-weight:700">⚠️ Pending</span>') + '</td>' +
+        '<td style="font-size:12px">' + w.open + ' open · ' + w.done + ' done' + (money && w.due ? '<div style="color:#d97706;font-weight:700">' + fmt(w.due) + ' due</div>' : '') + '</td>' +
+        '<td style="white-space:nowrap">' + (canEdit ? '<button class="btn btn-sm" onclick="openEditFreelancer(\'' + f.id + '\')">Edit</button> ' : '') +
+          '<button class="btn btn-sm" title="Rate card &amp; agreement (print)" onclick="printFreelancerAgreement(\'' + f.id + '\')">📄</button> ' +
+          '<button class="btn btn-sm" title="View their work" onclick="_flpState.fl=\'' + f.id + '\';navTo(\'flpayouts\')">📦</button> ' +
+          (canDel ? '<button class="btn-danger" onclick="deleteFreelancer(\'' + f.id + '\')">✕</button>' : '') + '</td></tr>';
+    }).join('') : '<tr><td colspan="6" class="empty">No freelancers yet. Click <b>➕ Add Freelancer</b> to add your first one.</td></tr>') +
+    '</tbody></table></div></div>';
+
+  // keep focus in the search box while typing
+  var hadFocus = document.activeElement && document.activeElement.id === 'fld-search';
+  var pos = hadFocus ? document.activeElement.selectionStart : 0;
+  root.innerHTML = h;
+  if (hadFocus) { var ne = document.getElementById('fld-search'); if (ne) { ne.focus(); try { ne.setSelectionRange(pos, pos); } catch (e) {} } }
 }
 
 // ═══ FREELANCER WORK & PAYOUTS PAGE ══════════════════════════════════
@@ -20901,7 +21017,7 @@ document.addEventListener('DOMContentLoaded', function() {
       equipment: gv('fl-equipment'), upi: gv('fl-upi'), bankaccount: gv('fl-bankaccount'),
       ifsc: gv('fl-ifsc'), notes: gv('fl-notes'), idproof: gv('fl-idproof'),
       referredby: gv('fl-referredby'), isFreelancer: true,
-      rates: flReadRates(), payTerms: gv('fl-payterms'), terms: gv('fl-terms'),
+      rates: flReadRates(), customRates: flReadCustomRates(), payTerms: gv('fl-payterms'), terms: gv('fl-terms'),
       termsDate: gv('fl-termsdate'), termsAgreed: gv('fl-termsagreed') === 'yes',
       createdAt: (_editFreelancerId && freelancerData[_editFreelancerId] && freelancerData[_editFreelancerId].createdAt) || Date.now(),
       updatedAt: Date.now()
@@ -23256,7 +23372,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['flpayouts', 'dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog', 'contracts'],
+    pages: ['flpayouts', 'freelancers', 'dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog', 'contracts'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -23272,7 +23388,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['flpayouts', 'dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
+    pages: ['flpayouts', 'freelancers', 'dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -23288,7 +23404,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canMarkSelection:true, canAssignAlbumTasks:true
   },
   postprod: {
-    pages: ['flpayouts', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['flpayouts', 'freelancers', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -23298,7 +23414,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManagePostProd:true, canMarkSelection:true
   },
   videohead: {
-    pages: ['flpayouts', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['flpayouts', 'freelancers', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -23354,7 +23470,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   accounts: {
-    pages: ['flpayouts', 'dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck', 'contracts'],
+    pages: ['flpayouts', 'freelancers', 'dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck', 'contracts'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true, canDeletePayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
@@ -23817,6 +23933,7 @@ function renderPage(name) {
   else if (name === 'clientissues') { renderCIHub(true); }
   else if (name === 'clienthub') { switchHubTab(_hubTab || 'overview'); }
   else if (name === 'workprogress') { renderWorkProgress(); }
+  else if (name === 'freelancers') { renderFlDirectory(); }
   else if (name === 'flpayouts') { renderFlPayouts(); }
 }
 
@@ -23947,14 +24064,14 @@ var SIDEBAR_ICON_MAP = {
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
   healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
-  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑', workprogress:'📶', flpayouts:'🎯',
+  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑', workprogress:'📶', flpayouts:'🎯', freelancers:'🧑‍🎨',
   contracts:'📝'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Overview',          items:['dashboard','reports','reportbuilder','healthcheck','onboarding','quotations','followups'] },
-  { label:'Post Productions',  items:['projects','pipeline','postprod','workprogress','flpayouts'] },
+  { label:'Post Productions',  items:['projects','pipeline','postprod','workprogress','freelancers','flpayouts'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
@@ -24029,7 +24146,7 @@ function sidebarPageLabel(page) {
     users: 'Users & Logins',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
     clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings',
-    followups:'Follow-Ups', reportbuilder:'Report Builder', workprogress:'Work Progress', flpayouts:'Freelancer Payouts',
+    followups:'Follow-Ups', reportbuilder:'Report Builder', workprogress:'Work Progress', flpayouts:'Freelancer Payouts', freelancers:'Freelancers',
     contracts:'Contracts'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
