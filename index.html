@@ -2087,6 +2087,12 @@ document.addEventListener('wheel', function(e) {
       <div id="wp-content"></div>
     </div>
 
+    <div id="page-flpayouts" class="page">
+      <div class="page-title">🎯 Freelancer Work &amp; Payouts</div>
+      <div class="page-sub">Who is working on which deliverable, what is due to each freelancer, and the full post-production picture — live, any time.</div>
+      <div id="flp-content"><div class="empty">Loading…</div></div>
+    </div>
+
     <div id="page-reports" class="page">
       <div class="page-title">Reports &amp; Analytics</div>
       <div class="page-sub">Business performance with interactive charts and filters.</div>
@@ -4301,6 +4307,18 @@ document.addEventListener('wheel', function(e) {
       <!-- Payment -->
       <div class="section-divider" style="margin-top:8px">Payment Details</div>
       <div class="fg3"><div class="fr"><label class="fl">UPI ID</label><input class="fi" id="fl-upi" placeholder="e.g. rohit@okaxis"></div><div class="fr"><label class="fl">Bank Account</label><input class="fi" id="fl-bankaccount" placeholder="Account number"></div><div class="fr"><label class="fl">IFSC Code</label><input class="fi" id="fl-ifsc" placeholder="e.g. HDFC0001234"></div></div>
+      <!-- Rate card & terms -->
+      <div class="section-divider" style="margin-top:8px">💰 Rate Card — pay per deliverable</div>
+      <div class="info info-blue" style="margin-bottom:10px">Amount paid = rate × the deliverable's <b>Qty</b>, filled in automatically when you assign this freelancer in Post Production. You can override the amount for any single deliverable on the <b>Freelancer Payouts</b> page. Leave a rate blank if they don't do that work.</div>
+      <div id="fl-rate-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:10px"></div>
+      <div class="section-divider" style="margin-top:8px">📜 Terms &amp; Conditions</div>
+      <div class="fg3">
+        <div class="fr"><label class="fl">Payment terms</label><select class="fi" id="fl-payterms"></select></div>
+        <div class="fr"><label class="fl">Terms agreed on</label><input class="fi" type="date" id="fl-termsdate"></div>
+        <div class="fr"><label class="fl">Freelancer accepted?</label><select class="fi" id="fl-termsagreed"><option value="no">⚠️ Not yet</option><option value="yes">✅ Yes, accepted</option></select></div>
+      </div>
+      <div class="fr"><label class="fl">Terms &amp; Conditions <button type="button" class="btn btn-sm" style="margin-left:8px" onclick="flLoadDefaultTerms()">Load default template</button></label>
+        <textarea class="fi" id="fl-terms" rows="10" placeholder="Click 'Load default template' and edit it, or write your own terms."></textarea></div>
       <!-- Notes -->
       <div class="section-divider" style="margin-top:8px">Notes &amp; Tags</div>
       <div class="fr"><label class="fl">Internal Notes</label><textarea class="fi" id="fl-notes" rows="2" placeholder="e.g. Very reliable for pre-wedding shoots. Brings own lighting."></textarea></div>
@@ -12880,7 +12898,7 @@ function vaShowOverview(projId){
   var p=projects[projId]; if(!p) return;
   var pd=(p.customDelivs||[]).filter(function(d){return delivBucket(d)==='video';});
   var rows=pd.length?pd.map(function(d){
-    var edName=d.editorId&&teamData[d.editorId]?teamData[d.editorId].name:'Unassigned';
+    var edName=d.editorId&&ppPerson(d.editorId)?ppPerson(d.editorId).name:'Unassigned';
     var dl=delivDeadline(d);
     var overdue=dl&&daysUntil(dl)<0&&!delivIsDone(d.status);
     return '<tr><td style="font-weight:600">'+(d.name||d.type)+'</td>'
@@ -12911,10 +12929,7 @@ function vaRenderAssignPage(ready){
   var rankByProj={};
   vaClientList().forEach(function(p,idx){ rankByProj[p.id]=idx; });
   ready=ready.slice().sort(function(a,b){ return (rankByProj[a.projId]||0)-(rankByProj[b.projId]||0); });
-  var editors=Object.values(teamData).filter(function(t){
-    var r=(t.role||'').toLowerCase();
-    return r==='editor'||r==='videographer'||r.includes('edit')||r.includes('post');
-  }).sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+  var editors=ppEditorList();
   var edLoad={};
   vaAllItems().forEach(function(i){
     if(!i.d.editorId||delivIsDone(i.d.status))return;
@@ -12928,7 +12943,7 @@ function vaRenderAssignPage(ready){
     var d=item.d, p=item.p;
     var edOpts='<option value="">— Select Editor —</option>'+editors.map(function(e){
       var load=edLoad[e.id]||{active:0,overdue:0};
-      return '<option value="'+e.id+'">'+e.name+' ('+(e.city||e.region||'—')+') — '+load.active+' active'+(load.overdue?', '+load.overdue+' overdue':'')+'</option>';
+      return '<option value="'+e.id+'">'+e.name+' ('+(e.city||e.region||'—')+') — '+load.active+' active'+(load.overdue?', '+load.overdue+' overdue':'')+ppRateHint(e,d)+'</option>';
     }).join('');
     html+='<tr><td style="text-align:center;color:#bbb;font-weight:700">'+((rankByProj[p.id]||0)+1)+'</td>';
     html+='<td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</div><span style="font-size:11px;color:#999">'+(d.category||d.type||'')+'</span></td>';
@@ -12951,7 +12966,7 @@ function vaRenderStatusPage(items,inReview){
     html+='<div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #eee">Waiting on your review <span style="color:#999">'+inReview.length+'</span></div>';
     html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Drive Link</th><th>Action</th></tr></thead><tbody>';
     inReview.forEach(function(item){
-      var d=item.d,edName=d.editorId&&teamData[d.editorId]?teamData[d.editorId].name:(d.editorId||'—');
+      var d=item.d,edName=d.editorId&&ppPerson(d.editorId)?ppPerson(d.editorId).name:(d.editorId||'—');
       html+='<tr><td style="font-weight:700">'+(d.name||d.type||'Deliverable')+'</td><td style="font-weight:600">'+item.couple+'</td><td>'+edName+'</td>';
       html+='<td><div style="display:flex;gap:5px;align-items:center;min-width:180px">';
       html+='<input id="dlink-'+item.projId+'-'+d.id+'" type="text" value="'+(d.link||'')+'" placeholder="Paste Drive link…" style="flex:1;border:1px solid '+(d.link?'#86efac':'#ddd')+';border-radius:6px;padding:4px 8px;font-size:11px;min-width:0" onkeydown="if(event.key===\'Enter\')ppSaveDriveLink('+item.projId+',\''+d.id+'\')">';
@@ -13941,10 +13956,7 @@ function renderPostProd(){
     if(!ready.length){
       html+='<div class="empty">✅ Every deliverable in this period has an editor.</div>';
     } else {
-      var editors=Object.values(teamData).filter(function(t){
-        var r=(t.role||'').toLowerCase();
-        return r==='editor'||r==='videographer'||r.includes('edit')||r.includes('post');
-      }).sort(function(a,b){return(a.name||'').localeCompare(b.name||'');});
+      var editors=ppEditorList();
       var edLoad={};
       allItems.forEach(function(i){
         if(!i.d.editorId||delivIsDone(i.d.status))return;
@@ -13961,7 +13973,7 @@ function renderPostProd(){
         var edOpts='<option value="">— Select Editor —</option>'+editors.map(function(e){
           var load=edLoad[e.id]||{active:0,overdue:0};
           var loadTxt=' — '+load.active+' active'+(load.overdue?', '+load.overdue+' overdue⚠️':'');
-          return '<option value="'+e.id+'" '+(d.editorId===e.id?'selected':'')+'>'+e.name+' ('+(e.city||e.region||'—')+')'+loadTxt+'</option>';
+          return '<option value="'+e.id+'" '+(d.editorId===e.id?'selected':'')+'>'+e.name+' ('+(e.city||e.region||'—')+')'+loadTxt+ppRateHint(e,d)+'</option>';
         }).join('');
         html+='<tr><td><div style="font-weight:700">'+(d.name||d.type||'Deliverable')+(d.note?' <span title="'+d.note.replace(/"/g,'&quot;')+'">📝</span>':'')+'</div><span style="font-size:11px;color:#888">'+(d.category||d.type||'')+'</span></td>';
         html+='<td style="font-weight:600">'+item.couple+'</td>';
@@ -13986,7 +13998,7 @@ function renderPostProd(){
       // silently sitting for days: it always surfaces at the top.
       review.sort(function(a,b){return(a.d.reviewSubmittedAt||'').localeCompare(b.d.reviewSubmittedAt||'');});
       review.forEach(function(item){
-        var d=item.d;var edName=d.editorId&&teamData[d.editorId]?teamData[d.editorId].name:(d.editorId||'—');
+        var d=item.d;var edName=d.editorId&&ppPerson(d.editorId)?ppPerson(d.editorId).name:(d.editorId||'—');
         var revCount=d.revisionCount||0;
         var waitDays=d.reviewSubmittedAt?Math.floor((Date.now()-new Date(d.reviewSubmittedAt).getTime())/86400000):null;
         var waitCell=waitDays===null?'<span style="color:#aaa;font-size:12px">—</span>'
@@ -14024,7 +14036,7 @@ function renderPostProd(){
       html+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Revision Notes</th><th>Deadline</th><th>Days Left</th><th>Drive Link</th><th>Action</th></tr></thead><tbody>';
       editing.sort(function(a,b){var ed=(a.p.date||'9999').localeCompare(b.p.date||'9999');return ed!==0?ed:(a.d.date||'9999').localeCompare(b.d.date||'9999');}).forEach(function(item){
         var d=item.d;var days=d.date?daysUntil(d.date):null;var urgent=days!==null&&days<=3;
-        var edName=d.editorId&&teamData[d.editorId]?teamData[d.editorId].name:(d.editorId||'Unassigned');
+        var edName=d.editorId&&ppPerson(d.editorId)?ppPerson(d.editorId).name:(d.editorId||'Unassigned');
         var revCount=d.revisionCount||0;
         var revCell=revCount>0
           ?'<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:6px 8px;max-width:200px">'
@@ -14060,7 +14072,7 @@ function renderPostProd(){
       if(!items.length) return h+'<div class="empty" style="margin-bottom:10px">Nothing here yet.</div>';
       h+='<div class="mob-scroll"><table class="tbl"><thead><tr><th>Deliverable</th><th>Project</th><th>Editor</th><th>Revisions</th><th>Date</th><th>Link</th><th></th></tr></thead><tbody>';
       items.sort(function(a,b){return(b.d.date||'').localeCompare(a.d.date||'');}).forEach(function(item){
-        var d=item.d;var edName=d.editorId&&teamData[d.editorId]?teamData[d.editorId].name:(d.editorId||'—');
+        var d=item.d;var edName=d.editorId&&ppPerson(d.editorId)?ppPerson(d.editorId).name:(d.editorId||'—');
         var revCount=d.revisionCount||0;
         var revCell=revCount>0
           ?'<span style="background:#fef3c7;color:#854d0e;border:1px solid #fde68a;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700;cursor:pointer" onclick="ppShowDelivRevisions('+item.projId+',\''+d.id+'\')">🔄 '+revCount+' round'+(revCount!==1?'s':'')+'</span>'
@@ -14443,7 +14455,7 @@ function buildDeliverablesDash(filteredList) {
             changes:    {bg:'#fee2e2', fc:'#991b1b', label:'🔁 Changes Requested'}
           }[rst] || {bg:'#f1f5f9', fc:'#475569', label: rst};
           var edName = '—';
-          if (d.editorId && teamData && teamData[d.editorId]) edName = teamData[d.editorId].name || '—';
+          if (d.editorId && ppPerson(d.editorId)) edName = ppPerson(d.editorId).name || '—';
           var subTr = document.createElement('tr');
           subTr.style.cssText = 'background:'+(ri%2===0?'#fff':'#fafafa')+';border-bottom:1px solid #f1f5f9';
           subTr.innerHTML =
@@ -14458,7 +14470,7 @@ function buildDeliverablesDash(filteredList) {
       var st = d.status || 'pending';
       var sv = statusMap[st] || {bg:'#f1f5f9', fc:'#475569', label: st};
       var edName = '—';
-      if (d.editorId && teamData && teamData[d.editorId]) edName = teamData[d.editorId].name || '—';
+      if (d.editorId && ppPerson(d.editorId)) edName = ppPerson(d.editorId).name || '—';
       var tr = document.createElement('tr');
       tr.style.cssText = 'background:'+(ri%2===0?'#fff':'#fafafa')+';border-bottom:1px solid #f1f5f9';
       tr.innerHTML =
@@ -14702,7 +14714,7 @@ function ppSaveDeliv(projId, delivId, updates, cb) {
 // loadAndRenderNotifications fix; forRoles:[] now correctly means "no role
 // broadcast," so this only reaches the one person it's meant for).
 function wpNotifyAssignment(projId,delivId,editorId,deadline){
-  if(!editorId) return;
+  if(!editorId || (freelancerData && freelancerData[editorId])) return; // freelancers have no CRM login
   var p=projects[projId]; if(!p) return;
   var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});
   var who=CU?(CU.name||CU.username):'Admin';
@@ -14718,10 +14730,10 @@ function wpNotifyAssignment(projId,delivId,editorId,deadline){
 function ppAssignEditor(projId,delivId,editorId){
   var p=projects[projId];if(!p)return;
   var d=(p.customDelivs||[]).find(function(x){return x.id===delivId;});
-  ppSaveDeliv(projId, delivId, {editorId:editorId, status:editorId?'inprogress':'pending'}, function(){
+  ppSaveDeliv(projId, delivId, Object.assign({editorId:editorId, status:editorId?'inprogress':'pending'}, ppPayFields(editorId,d)), function(){
     showToast('✅ Editor assigned!'); renderPostProd();
     wpNotifyAssignment(projId,delivId,editorId,null);
-    if(editorId){var nm=teamData[editorId]?teamData[editorId].name:editorId; logDelivEvent(projId,delivId,'Assigned to '+nm);}
+    if(editorId){var nm=ppPerson(editorId)?ppPerson(editorId).name:editorId; logDelivEvent(projId,delivId,'Assigned to '+nm);}
   });
 }
 
@@ -14747,10 +14759,10 @@ function ppConfirmAssign(projId,delivId){
   var date=dlInput?dlInput.value:'';
   if(!editorId){showToast('⚠️ Please select an editor first.');return;}
   if(!date){ date=calcAutoDeadline(d.type); } // fall back to the turnaround-rule deadline instead of blocking
-  ppSaveDeliv(projId, delivId, {editorId:editorId, deadline:date, status:'inprogress'}, function(){
+  ppSaveDeliv(projId, delivId, Object.assign({editorId:editorId, deadline:date, status:'inprogress'}, ppPayFields(editorId,d)), function(){
     showToast('✅ Editor assigned & started!'); renderPostProd();
     wpNotifyAssignment(projId,delivId,editorId,date);
-    var nm=teamData[editorId]?teamData[editorId].name:editorId;
+    var nm=ppPerson(editorId)?ppPerson(editorId).name:editorId;
     logDelivEvent(projId,delivId,'Assigned to '+nm,'Deadline: '+date+(dlInput&&dlInput.value?'':' (auto, '+turnaroundDaysFor(d.type)+' working days)'));
   });
 }
@@ -20463,6 +20475,7 @@ function renderFreelancers() {
           '<div style="display:flex;gap:4px;flex-shrink:0">' +
             '<button class="btn btn-sm" onclick="openEditFreelancer(\''+f.id+'\')">Edit</button>' +
             '<button class="btn btn-sm" style="background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe" title="Copy Shoot Checklist portal link" onclick="copyCrewPortalLink(\''+f.id+'\')">🔗</button>' +
+            '<button class="btn btn-sm" title="Rate card &amp; agreement (print)" onclick="printFreelancerAgreement(\''+f.id+'\')">📄</button>' +
             (showDel ? '<button class="btn-danger" onclick="deleteFreelancer(\''+f.id+'\')">✕</button>' : '') +
           '</div>' +
         '</div>' +
@@ -20474,6 +20487,7 @@ function renderFreelancers() {
           (f.rating ? '<div style="color:#f59e0b;font-size:11px">'+starStr(f.rating)+'</div>' : '<div></div>') +
           '<div style="color:#1d4ed8;font-weight:700">🎯 '+hireCount+' event'+(hireCount!==1?'s':'')+' done</div>' +
           (f.skills ? '<div style="grid-column:1/-1;color:#555">🎨 '+f.skills+'</div>' : '') +
+          flCardExtras(f) +
           (f.notes  ? '<div style="grid-column:1/-1;color:#888;font-style:italic;font-size:11px">'+f.notes+'</div>' : '') +
         '</div>' +
         (f.upi ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;font-size:11px;color:#6d28d9;font-family:monospace">UPI: '+f.upi+'</div>' : '') +
@@ -20488,6 +20502,7 @@ function openAddFreelancer(prefill) {
   if (modal_title) modal_title.textContent = 'Add Freelancer';
   ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby'].forEach(function(i){sv(i,'');});
   sv('fl-role','Photographer'); sv('fl-availability','available'); sv('fl-rating','');
+  flBuildRateGrid({}); flFillPayTerms(''); sv('fl-terms',''); sv('fl-termsdate',''); sv('fl-termsagreed','no');
   if (prefill) {
     if (prefill.name) sv('fl-name', prefill.name);
     if (prefill.role) sv('fl-role', prefill.role);
@@ -20505,6 +20520,7 @@ function openEditFreelancer(id) {
   sv('fl-role', f.role||'Photographer');
   sv('fl-availability', f.availability||'available');
   sv('fl-rating', f.rating||'');
+  flBuildRateGrid(f.rates||{}); flFillPayTerms(f.payTerms||''); sv('fl-terms', f.terms||''); sv('fl-termsdate', f.termsDate||''); sv('fl-termsagreed', f.termsAgreed?'yes':'no');
   openModal('freelancer-modal');
 }
 
@@ -20512,6 +20528,362 @@ function deleteFreelancer(id) {
   var f = freelancerData[id]; if (!f) return;
   if (!confirm('Remove freelancer "' + f.name + '"?\nThis cannot be undone.')) return;
   db.ref('crm_freelancers/'+id).remove(function(){ showToast('Freelancer removed.'); });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// FREELANCER RATE CARD · TERMS · ASSIGNMENT · PAYOUTS
+// ═══════════════════════════════════════════════════════════════════════
+var FL_RATE_TYPES = [
+  {key:'teaser',     type:'Teaser',          label:'🎞️ Teaser'},
+  {key:'highlight',  type:'Highlight',       label:'🎬 Highlight'},
+  {key:'longvideo',  type:'Long Video',      label:'🎥 Long Video'},
+  {key:'reel',       type:'Reel',            label:'📱 Reel'},
+  {key:'editedpics', type:'Edited Pictures', label:'🖼️ Edited Pictures'},
+  {key:'album',      type:'Album',           label:'📔 Album Design'},
+  {key:'frame',      type:'Frame',           label:'🖼️ Frame'},
+  {key:'magazine',   type:'Magazine',        label:'📰 Magazine'},
+  {key:'other',      type:'Other',           label:'📦 Other work'}
+];
+var FL_PAY_TERMS = ['Within 7 days of client approval','Within 15 days of client approval','Within 30 days of client approval','50% advance + 50% on client approval','Monthly cycle (1st–7th of next month)'];
+
+function flFillPayTerms(sel) {
+  var el = document.getElementById('fl-payterms'); if (!el) return;
+  var opts = FL_PAY_TERMS.slice();
+  if (sel && opts.indexOf(sel) < 0) opts.push(sel);
+  el.innerHTML = opts.map(function(o) { return '<option' + (o === (sel || FL_PAY_TERMS[0]) ? ' selected' : '') + '>' + escHtml(o) + '</option>'; }).join('');
+}
+function flBuildRateGrid(rates) {
+  var host = document.getElementById('fl-rate-grid'); if (!host) return;
+  rates = rates || {};
+  host.innerHTML = FL_RATE_TYPES.map(function(t) {
+    var v = rates[t.key] != null ? rates[t.key] : '';
+    return '<div class="fr"><label class="fl">' + t.label + ' (₹)</label>' +
+           '<input class="fi" type="number" min="0" id="fl-rt-' + t.key + '" placeholder="0" value="' + v + '"></div>';
+  }).join('');
+}
+function flReadRates() {
+  var out = {};
+  FL_RATE_TYPES.forEach(function(t) {
+    var el = document.getElementById('fl-rt-' + t.key);
+    var n = el ? parseFloat(el.value) : 0;
+    if (n > 0) out[t.key] = n;
+  });
+  return out;
+}
+function flDefaultTerms() {
+  var ta = function(t) { return turnaroundDaysFor(t); };
+  return [
+    '1. SCOPE — The Freelancer will work only on the deliverables assigned to them through the KB Studio CRM, as per the brief, specs and reference material shared for each project.',
+    '2. RATES — Payment for each deliverable is the rate in the Rate Card × the quantity assigned. A changed rate is valid only if KB Studio confirms it in writing (WhatsApp / email) before the work starts.',
+    '3. TURNAROUND — Work must be submitted by the deadline set in the CRM. Standard turnaround (working days): Teaser ' + ta('Teaser') + ', Highlight ' + ta('Highlight') + ', Reel ' + ta('Reel') + ', Long Video ' + ta('Long Video') + ', Edited Pictures ' + ta('Edited Pictures') + ', Album ' + ta('Album') + '. Any delay must be informed before the deadline.',
+    '4. REVISIONS — Up to 2 rounds of revisions requested by KB Studio or the client are included in the rate. Further rounds are chargeable only if agreed in advance.',
+    '5. PAYMENT — Payment is released after the client approves the deliverable, within the payment period stated in this agreement. Work that is rejected or incomplete is paid only after corrections are made.',
+    '6. QUALITY — Work must follow KB Studio\'s editing style, music/licensing rules and export specifications. Repeated missed deadlines or quality issues may lead to a reduced rate or end of the engagement.',
+    '7. OWNERSHIP — All footage, photos, project files and edited output belong to KB Studio / the client. The Freelancer may not publish, share or reuse any of it (including portfolios and social media) without written permission.',
+    '8. CONFIDENTIALITY — Raw data and client details are confidential. Do not share or copy them, do not contact the client directly, and delete all project data from personal devices once the project is closed.',
+    '9. INDEPENDENT CONTRACTOR — The Freelancer is not an employee, receives no salary or employee benefits, and is responsible for their own equipment, software and taxes.',
+    '10. TERMINATION — Either side may end the engagement with written notice. Approved work completed before termination will be paid.'
+  ].join('\n\n');
+}
+function flLoadDefaultTerms() {
+  var ta = document.getElementById('fl-terms'); if (!ta) return;
+  if (ta.value.trim() && !confirm('Replace the current terms with the default template?')) return;
+  ta.value = flDefaultTerms();
+}
+
+// ── Card extras: rate chips + terms status ───────────────────────────
+function flCardExtras(f) {
+  var r = f.rates || {};
+  var chips = FL_RATE_TYPES.filter(function(t) { return parseFloat(r[t.key]) > 0; }).map(function(t) {
+    return '<span style="background:#f5f3ff;color:#6d28d9;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700">' + t.type + ' ₹' + Number(r[t.key]).toLocaleString('en-IN') + '</span>';
+  }).join('');
+  var terms = f.termsAgreed
+    ? '<span style="color:#16a34a;font-weight:700;font-size:11px">✅ Terms agreed' + (f.termsDate ? ' · ' + fmtDate(f.termsDate) : '') + '</span>'
+    : '<span style="color:#d97706;font-weight:700;font-size:11px">⚠️ Terms not signed off</span>';
+  return '<div style="grid-column:1/-1;display:flex;gap:5px;flex-wrap:wrap;align-items:center">' +
+           (chips || '<span style="color:#aaa;font-size:11px">No rate card yet</span>') + '</div>' +
+         '<div style="grid-column:1/-1">' + terms + '</div>';
+}
+
+// ── Printable agreement: rate card + terms + signature block ─────────
+function printFreelancerAgreement(id) {
+  var f = freelancerData[id]; if (!f) return;
+  var r = f.rates || {};
+  var rows = FL_RATE_TYPES.filter(function(t) { return parseFloat(r[t.key]) > 0; }).map(function(t) {
+    return '<tr><td>' + t.type + '</td><td style="text-align:right">₹' + Number(r[t.key]).toLocaleString('en-IN') + '</td></tr>';
+  }).join('') || '<tr><td colspan="2" style="color:#999">No rates defined</td></tr>';
+  var terms = escHtml(f.terms || flDefaultTerms());
+  var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Freelancer Agreement — ' + escHtml(f.name) + '</title>' +
+    '<style>body{font-family:Arial,sans-serif;max-width:760px;margin:30px auto;padding:0 20px;color:#222;font-size:13px;line-height:1.55}' +
+    'h1{font-size:20px;margin:0}h2{font-size:14px;margin:22px 0 8px;border-bottom:1px solid #ccc;padding-bottom:4px}' +
+    'table{width:100%;border-collapse:collapse}td{border:1px solid #ddd;padding:6px 10px}.t{white-space:pre-wrap}' +
+    '.sig{display:flex;gap:40px;margin-top:60px}.sig div{flex:1;border-top:1px solid #333;padding-top:6px;font-size:12px}</style></head><body>' +
+    '<h1>KB Studio Productions</h1><div style="color:#666">Freelancer Engagement — Rate Card &amp; Terms</div>' +
+    '<h2>Freelancer</h2><div><b>' + escHtml(f.name) + '</b> · ' + escHtml(f.role || '') + (f.phone ? ' · ' + escHtml(f.phone) : '') + (f.city ? ' · ' + escHtml(f.city) : '') + '</div>' +
+    '<h2>Rate Card (per deliverable)</h2><table>' + rows + '</table>' +
+    '<div style="margin-top:6px;color:#666;font-size:12px">Amount payable = rate × quantity assigned. Payment terms: <b>' + escHtml(f.payTerms || FL_PAY_TERMS[0]) + '</b></div>' +
+    '<h2>Terms &amp; Conditions</h2><div class="t">' + terms + '</div>' +
+    '<div class="sig"><div>Freelancer signature &amp; date<br><b>' + escHtml(f.name) + '</b></div><div>For KB Studio Productions<br>Authorised signatory &amp; date</div></div>' +
+    '</body></html>';
+  var w = window.open('', '_blank');
+  if (!w) { showToast('⚠️ Allow pop-ups to open the agreement.'); return; }
+  w.document.write(html); w.document.close();
+  setTimeout(function() { try { w.print(); } catch (e) {} }, 400);
+}
+
+// ── Assignment helpers ───────────────────────────────────────────────
+function ppPerson(id) {
+  if (!id) return null;
+  return (teamData && teamData[id]) || (freelancerData && freelancerData[id]) || null;
+}
+function flRateFor(f, type) {
+  var r = (f && f.rates) || {};
+  for (var i = 0; i < FL_RATE_TYPES.length; i++) {
+    if (FL_RATE_TYPES[i].type === type) return parseFloat(r[FL_RATE_TYPES[i].key]) || 0;
+  }
+  if (type === 'Video') return parseFloat(r.highlight) || 0;
+  return parseFloat(r.other) || 0;
+}
+// Fields saved on a deliverable when its editor changes. Freelancer → pay snapshot; team member → pay fields cleared.
+function ppPayFields(editorId, d) {
+  if (d && d.payStatus === 'paid') return {};   // never rewrite a deliverable that has already been paid
+  var f = freelancerData && freelancerData[editorId];
+  if (!f) return { payeeType: null, payRate: null, payAmount: null, payStatus: null, payOverride: null };
+  var rate = flRateFor(f, d && d.type), qty = parseInt(d && d.qty) || 1;
+  var keep = d && d.editorId === editorId && d.payOverride && d.payAmount != null;
+  return { payeeType: 'freelancer', payRate: rate, payAmount: keep ? d.payAmount : rate * qty,
+           payOverride: keep ? true : null, payStatus: 'unpaid', assignedAt: (d && d.editorId === editorId && d.assignedAt) || Date.now() };
+}
+// Team editors + freelancers, for the "Assign Editor" dropdowns
+function ppEditorList() {
+  var team = Object.values(teamData || {}).filter(function(t) {
+    var r = (t.role || '').toLowerCase();
+    return r === 'editor' || r === 'videographer' || r.includes('edit') || r.includes('post');
+  }).sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
+  var fls = Object.values(freelancerData || {}).filter(function(f) {
+    if ((f.availability || 'available') === 'inactive') return false;
+    var r = (f.role || '').toLowerCase();
+    var hasRate = Object.keys(f.rates || {}).some(function(k) { return parseFloat(f.rates[k]) > 0; });
+    return hasRate || r.includes('edit') || r.includes('video') || r.includes('post');
+  }).sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); })
+    .map(function(f) { return Object.assign({}, f, { name: '🎯 ' + f.name, _fl: true }); });
+  return team.concat(fls);
+}
+function ppRateHint(e, d) {
+  if (!e || !e._fl) return '';
+  var rate = flRateFor(freelancerData[e.id], d && d.type);
+  return rate ? ' — ₹' + rate.toLocaleString('en-IN') + '/' + ((d && d.type) || 'unit') : ' — no rate set';
+}
+
+// ═══ FREELANCER WORK & PAYOUTS PAGE ══════════════════════════════════
+var _flpState = { scope: 'active', fl: '', pay: 'all' };
+
+function flpCollect() {
+  var all = [];
+  Object.values(projects || {}).forEach(function(p) {
+    if (!p || !p.customDelivs) return;
+    (p.customDelivs || []).forEach(function(d) {
+      if (d) all.push({ p: p, d: d, couple: coupleName(p.bride, p.groom) });
+    });
+  });
+  return all;
+}
+function flpOverdue(d) { var dl = delivDeadline(d); return !!(dl && daysUntil(dl) < 0 && !delivIsDone(d.status)); }
+function flpAmount(d) {
+  if (d.payAmount != null && d.payAmount !== '') return Number(d.payAmount) || 0;
+  var f = freelancerData && freelancerData[d.editorId];
+  return f ? flRateFor(f, d.type) * (parseInt(d.qty) || 1) : 0;
+}
+function flpBadge(s) {
+  var r = DELIV_STATUS_REGISTRY.filter(function(x) { return x.v === (s || 'pending'); })[0] || DELIV_STATUS_REGISTRY[0];
+  return '<span style="background:' + r.bg + ';color:' + r.color + ';border:1px solid ' + r.color + '44;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap">' + r.icon + ' ' + r.label + '</span>';
+}
+function flpSet(k, v) { _flpState[k] = v; renderFlPayouts(); }
+
+function flpDetailRows(all) {
+  var rows = all.filter(function(r) { return r.d.editorId && freelancerData[r.d.editorId]; });
+  if (_flpState.fl) rows = rows.filter(function(r) { return r.d.editorId === _flpState.fl; });
+  var pay = _flpState.pay;
+  rows = rows.filter(function(r) {
+    var done = delivIsDone(r.d.status), paid = r.d.payStatus === 'paid';
+    if (pay === 'open') return !done;
+    if (pay === 'due')  return done && !paid;
+    if (pay === 'paid') return paid;
+    return true;
+  });
+  rows.sort(function(a, b) {
+    var ad = delivIsDone(a.d.status) ? 1 : 0, bd = delivIsDone(b.d.status) ? 1 : 0;
+    if (ad !== bd) return ad - bd;
+    return String(delivDeadline(a.d) || '9999').localeCompare(String(delivDeadline(b.d) || '9999'));
+  });
+  return rows;
+}
+
+function renderFlPayouts() {
+  var root = document.getElementById('flp-content'); if (!root) return;
+  var money  = can('canSeeFinancials') || (CU && CU.role === 'superadmin');
+  var canPay = money && CU && (CU.role === 'superadmin' || can('canRecordPayments'));
+  var all = flpCollect();
+  var scoped = all.filter(function(r) { return _flpState.scope === 'all' || r.p.stage !== 'complete'; });
+  var h = '';
+
+  // ── 1. Overall post-production summary ─────────────────────────────
+  var T = { total: 0, unassigned: 0, prog: 0, review: 0, approved: 0, overdue: 0, fl: 0 };
+  var byType = {};
+  scoped.forEach(function(r) {
+    var d = r.d, st = d.status || 'pending', ty = d.type || 'Other';
+    var b = byType[ty] || (byType[ty] = { total: 0, un: 0, pending: 0, inprogress: 0, review: 0, changes: 0, delivered: 0, approved: 0, overdue: 0, inhouse: 0, fl: 0 });
+    b.total++; T.total++;
+    if (b[st] != null) b[st]++;
+    var isFl = d.editorId && freelancerData[d.editorId];
+    if (!d.editorId && st !== 'approved') { b.un++; T.unassigned++; }
+    else if (d.editorId) { if (isFl) { b.fl++; T.fl++; } else b.inhouse++; }
+    if (st === 'inprogress' || st === 'changes') T.prog++;
+    if (st === 'review') T.review++;
+    if (st === 'approved') T.approved++;
+    if (flpOverdue(d)) { b.overdue++; T.overdue++; }
+  });
+  var mc = function(cls, label, val, sub) {
+    return '<div class="metric ' + cls + '"><div class="ml">' + label + '</div><div class="mv">' + val + '</div>' + (sub ? '<div class="ms">' + sub + '</div>' : '') + '</div>';
+  };
+  h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">' +
+       '<span style="font-size:13px;font-weight:700">📊 Post-production summary</span>' +
+       '<select class="fi" style="max-width:230px" onchange="flpSet(\'scope\',this.value)">' +
+         '<option value="active"' + (_flpState.scope === 'active' ? ' selected' : '') + '>Active projects (not completed)</option>' +
+         '<option value="all"' + (_flpState.scope === 'all' ? ' selected' : '') + '>All projects</option></select>' +
+       '<button class="btn btn-sm" onclick="flpExportCsv()">⬇️ Export CSV</button></div>';
+  h += '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">' +
+       mc('teal', 'Deliverables', T.total, T.fl + ' with freelancers') +
+       mc('amber', 'Unassigned', T.unassigned) +
+       mc('blue', 'In progress', T.prog) +
+       mc('', 'In review', T.review) +
+       mc('green', 'Approved', T.approved) +
+       mc('', 'Overdue', '<span style="color:' + (T.overdue ? '#dc2626' : 'inherit') + '">' + T.overdue + '</span>') + '</div>';
+  var tkeys = DELIV_TYPE_REGISTRY.map(function(x) { return x.type; }).filter(function(t) { return byType[t]; });
+  Object.keys(byType).forEach(function(t) { if (tkeys.indexOf(t) < 0) tkeys.push(t); });
+  h += '<div class="card" style="padding:0;margin-top:10px"><div class="mob-scroll"><table class="tbl"><thead><tr><th>Type</th><th>Total</th><th>Unassigned</th><th>Pending</th><th>In Progress</th><th>Review</th><th>Changes</th><th>Delivered</th><th>Approved</th><th>Overdue</th><th>In-house</th><th>Freelancer</th></tr></thead><tbody>' +
+    (tkeys.length ? tkeys.map(function(t) {
+      var b = byType[t], ti = _delivTypeInfo(t);
+      return '<tr><td style="font-weight:700">' + (ti ? ti.icon + ' ' : '') + escHtml(t) + '</td><td>' + b.total + '</td><td>' + b.un + '</td><td>' + b.pending + '</td><td>' + b.inprogress + '</td><td>' + b.review + '</td><td>' + b.changes + '</td><td>' + b.delivered + '</td><td style="color:#16a34a;font-weight:700">' + b.approved + '</td><td style="color:' + (b.overdue ? '#dc2626' : 'inherit') + ';font-weight:' + (b.overdue ? 700 : 400) + '">' + b.overdue + '</td><td>' + b.inhouse + '</td><td>' + b.fl + '</td></tr>';
+    }).join('') : '<tr><td colspan="12" class="empty">No deliverables yet.</td></tr>') +
+    '</tbody></table></div></div>';
+
+  // ── 2. Per-freelancer summary (all time) ───────────────────────────
+  var byF = {};
+  all.forEach(function(r) {
+    var id = r.d.editorId; if (!id || !freelancerData[id]) return;
+    var s = byF[id] || (byF[id] = { f: freelancerData[id], assigned: 0, prog: 0, review: 0, done: 0, overdue: 0, earned: 0, paid: 0, due: 0, pipeline: 0 });
+    var amt = flpAmount(r.d), st = r.d.status || 'pending';
+    s.assigned++;
+    if (delivIsDone(st)) { s.done++; s.earned += amt; if (r.d.payStatus === 'paid') s.paid += amt; else s.due += amt; }
+    else { if (st === 'review') s.review++; else s.prog++; s.pipeline += amt; }
+    if (flpOverdue(r.d)) s.overdue++;
+  });
+  var fids = Object.keys(byF).sort(function(a, b) { return (byF[a].f.name || '').localeCompare(byF[b].f.name || ''); });
+  var totDue = 0, totPaid = 0, totPipe = 0;
+  fids.forEach(function(id) { totDue += byF[id].due; totPaid += byF[id].paid; totPipe += byF[id].pipeline; });
+
+  h += '<div style="font-size:13px;font-weight:700;margin:22px 0 8px">🎯 Freelancers — workload' + (money ? ' &amp; payouts' : '') + ' <span style="font-weight:400;color:#888;font-size:12px">(all projects, all time)</span></div>';
+  if (money) {
+    h += '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' +
+         mc('amber', 'Payable now (approved, unpaid)', fmt(totDue)) +
+         mc('blue', 'In pipeline (not yet approved)', fmt(totPipe)) +
+         mc('green', 'Paid so far', fmt(totPaid)) + '</div>';
+  }
+  h += '<div class="card" style="padding:0;margin-top:10px"><div class="mob-scroll"><table class="tbl"><thead><tr><th>Freelancer</th><th>Assigned</th><th>Working</th><th>In review</th><th>Approved</th><th>Overdue</th>' +
+       (money ? '<th>Pipeline</th><th>Payable</th><th>Paid</th>' : '') + '<th>Terms</th><th></th></tr></thead><tbody>' +
+    (fids.length ? fids.map(function(id) {
+      var s = byF[id], f = s.f;
+      return '<tr><td><div style="font-weight:700">🎯 ' + escHtml(f.name) + '</div><div style="font-size:11px;color:#888">' + escHtml(f.role || '') + (f.city ? ' · ' + escHtml(f.city) : '') + '</div></td>' +
+        '<td>' + s.assigned + '</td><td>' + s.prog + '</td><td>' + s.review + '</td><td style="color:#16a34a;font-weight:700">' + s.done + '</td>' +
+        '<td style="color:' + (s.overdue ? '#dc2626' : 'inherit') + ';font-weight:' + (s.overdue ? 700 : 400) + '">' + s.overdue + '</td>' +
+        (money ? '<td>' + fmt(s.pipeline) + '</td><td style="font-weight:700;color:' + (s.due ? '#d97706' : 'inherit') + '">' + fmt(s.due) + '</td><td style="color:#16a34a">' + fmt(s.paid) + '</td>' : '') +
+        '<td>' + (f.termsAgreed ? '<span style="color:#16a34a;font-size:11px;font-weight:700">✅ Agreed</span>' : '<span style="color:#d97706;font-size:11px;font-weight:700">⚠️ Pending</span>') + '</td>' +
+        '<td style="white-space:nowrap"><button class="btn btn-sm" onclick="flpSet(\'fl\',\'' + id + '\')">View work</button> ' +
+          (canPay && s.due > 0 ? '<button class="btn btn-sm" style="background:#dcfce7;color:#166534;border-color:#86efac" onclick="flpPayAllDue(\'' + id + '\')">💸 Pay ' + fmt(s.due) + '</button>' : '') + '</td></tr>';
+    }).join('') : '<tr><td colspan="11" class="empty">No deliverables are assigned to freelancers yet. Assign one from Post Production → Assign Editor (freelancers are listed with 🎯).</td></tr>') +
+    '</tbody></table></div></div>';
+
+  // ── 3. Deliverable-level detail ────────────────────────────────────
+  var rows = flpDetailRows(all);
+  h += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:22px 0 8px"><span style="font-size:13px;font-weight:700">📦 Assigned deliverables</span>' +
+       '<select class="fi" style="max-width:210px" onchange="flpSet(\'fl\',this.value)"><option value="">All freelancers</option>' +
+       fids.map(function(id) { return '<option value="' + id + '"' + (_flpState.fl === id ? ' selected' : '') + '>' + escHtml(byF[id].f.name) + '</option>'; }).join('') + '</select>' +
+       '<select class="fi" style="max-width:210px" onchange="flpSet(\'pay\',this.value)">' +
+         [['all', 'All work'], ['open', 'Still being worked on'], ['due', 'Approved — payment due'], ['paid', 'Paid']].map(function(o) {
+           return '<option value="' + o[0] + '"' + (_flpState.pay === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+       '<span style="font-size:12px;color:#888">' + rows.length + ' deliverable' + (rows.length !== 1 ? 's' : '') + '</span></div>';
+  h += '<div class="card" style="padding:0"><div class="mob-scroll"><table class="tbl"><thead><tr><th>Client</th><th>Deliverable</th><th>Qty</th><th>Freelancer</th><th>Status</th><th>Deadline</th>' +
+       (money ? '<th>Rate</th><th>Amount</th><th>Payment</th>' : '') + '</tr></thead><tbody>' +
+    (rows.length ? rows.map(function(r) {
+      var d = r.d, f = freelancerData[d.editorId], dl = delivDeadline(d), od = flpOverdue(d), amt = flpAmount(d), paid = d.payStatus === 'paid';
+      var rate = d.payRate != null ? d.payRate : flRateFor(f, d.type);
+      var did = "'" + String(d.id).replace(/'/g, '') + "'";
+      return '<tr><td style="font-weight:600">' + escHtml(r.couple) + (r.p.refcode ? '<div style="font-size:10px;color:#aaa">' + escHtml(r.p.refcode) + '</div>' : '') + '</td>' +
+        '<td><div style="font-weight:700">' + escHtml(d.name || d.type || 'Deliverable') + '</div><div style="font-size:11px;color:#888">' + escHtml(d.type || '') + (d.specs ? ' · ' + escHtml(d.specs) : '') + '</div></td>' +
+        '<td>' + (parseInt(d.qty) || 1) + '</td><td>🎯 ' + escHtml(f.name) + '</td><td>' + flpBadge(d.status) + '</td>' +
+        '<td style="color:' + (od ? '#dc2626' : 'inherit') + ';font-weight:' + (od ? 700 : 400) + ';white-space:nowrap">' + (dl ? fmtDate(dl) + (od ? ' ⚠️' : '') : '—') + '</td>' +
+        (money ? '<td>' + (rate ? fmt(rate) : '<span style="color:#d97706;font-size:11px">no rate</span>') + '</td>' +
+          '<td>' + (canPay && !paid ? '<input type="number" min="0" value="' + amt + '" style="width:92px;padding:4px 6px;font-size:12px;border:1px solid #d1d5db;border-radius:6px" onchange="flpSetAmount(' + r.p.id + ',' + did + ',this.value)">' : '<b>' + fmt(amt) + '</b>') + '</td>' +
+          '<td style="white-space:nowrap">' + (paid
+              ? '<span style="color:#16a34a;font-weight:700;font-size:11px">✅ Paid' + (d.paidAt ? ' · ' + fmtDate(d.paidAt) : '') + '</span>' + (canPay ? ' <button class="btn btn-sm" title="Undo" onclick="flpMarkPaid(' + r.p.id + ',' + did + ',false)">↩</button>' : '')
+              : (canPay ? '<button class="btn btn-sm" onclick="flpMarkPaid(' + r.p.id + ',' + did + ',true)">Mark paid</button>' : '<span style="color:#aaa;font-size:11px">Unpaid</span>')) + '</td>' : '') +
+        '</tr>';
+    }).join('') : '<tr><td colspan="9" class="empty">Nothing matches this filter.</td></tr>') +
+    '</tbody></table></div></div>';
+
+  root.innerHTML = h;
+}
+
+function flpSetAmount(projId, delivId, val) {
+  ppSaveDeliv(projId, delivId, { payAmount: Math.max(0, parseFloat(val) || 0), payOverride: true }, function() {
+    showToast('✅ Amount updated'); renderFlPayouts();
+  });
+}
+function flpMarkPaid(projId, delivId, paid) {
+  var p = projects[projId]; if (!p) return;
+  var d = (p.customDelivs || []).filter(function(x) { return x.id === delivId; })[0]; if (!d) return;
+  var f = freelancerData[d.editorId];
+  var who = (CU && (CU.name || CU.username)) || '';
+  ppSaveDeliv(projId, delivId, paid
+    ? { payStatus: 'paid', paidAt: Date.now(), paidBy: who, payAmount: flpAmount(d) }
+    : { payStatus: 'unpaid', paidAt: null, paidBy: null }, function() {
+    showToast(paid ? '✅ Marked as paid' : '↩ Payment reverted');
+    try { logActivity('deliverable', paid ? 'Freelancer Paid' : 'Freelancer Payment Reverted',
+      coupleName(p.bride, p.groom) + ' — ' + (d.name || d.type) + ' → ' + (f ? f.name : '') + ' ' + fmt(flpAmount(d))); } catch (e) {}
+    renderFlPayouts();
+  });
+}
+function flpPayAllDue(fid) {
+  var f = freelancerData[fid]; if (!f) return;
+  var due = flpCollect().filter(function(r) { return r.d.editorId === fid && delivIsDone(r.d.status) && r.d.payStatus !== 'paid'; });
+  if (!due.length) return;
+  var total = due.reduce(function(a, r) { return a + flpAmount(r.d); }, 0);
+  if (!confirm('Mark ' + due.length + ' approved deliverable(s) as paid to ' + f.name + '?\nTotal: ' + fmt(total))) return;
+  var who = (CU && (CU.name || CU.username)) || '', now = Date.now();
+  due.forEach(function(r) { ppSaveDeliv(r.p.id, r.d.id, { payStatus: 'paid', paidAt: now, paidBy: who, payAmount: flpAmount(r.d) }); });
+  try { logActivity('deliverable', 'Freelancer Paid', f.name + ' — ' + due.length + ' deliverables, ' + fmt(total)); } catch (e) {}
+  showToast('✅ ' + due.length + ' deliverables marked paid (' + fmt(total) + ')');
+  renderFlPayouts();
+}
+function flpExportCsv() {
+  var money = can('canSeeFinancials') || (CU && CU.role === 'superadmin');
+  var rows = flpCollect().filter(function(r) { return _flpState.scope === 'all' || r.p.stage !== 'complete'; });
+  var head = ['Client', 'Ref', 'Deliverable', 'Type', 'Qty', 'Assigned To', 'Kind', 'Status', 'Deadline', 'Overdue'];
+  if (money) head = head.concat(['Rate', 'Amount', 'Payment']);
+  var esc = function(v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var lines = [head.map(esc).join(',')];
+  rows.forEach(function(r) {
+    var d = r.d, per = ppPerson(d.editorId), isFl = d.editorId && freelancerData[d.editorId];
+    var line = [r.couple, r.p.refcode || '', d.name || '', d.type || '', parseInt(d.qty) || 1, per ? per.name : 'Unassigned',
+                isFl ? 'Freelancer' : (per ? 'In-house' : ''), d.status || 'pending', delivDeadline(d) || '', flpOverdue(d) ? 'Yes' : ''];
+    if (money) line = line.concat([isFl ? (d.payRate != null ? d.payRate : flRateFor(freelancerData[d.editorId], d.type)) : '', isFl ? flpAmount(d) : '', isFl ? (d.payStatus === 'paid' ? 'Paid' : 'Unpaid') : '']);
+    lines.push(line.map(esc).join(','));
+  });
+  var blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'post-production-summary-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 
 // Save freelancer
@@ -20529,6 +20901,8 @@ document.addEventListener('DOMContentLoaded', function() {
       equipment: gv('fl-equipment'), upi: gv('fl-upi'), bankaccount: gv('fl-bankaccount'),
       ifsc: gv('fl-ifsc'), notes: gv('fl-notes'), idproof: gv('fl-idproof'),
       referredby: gv('fl-referredby'), isFreelancer: true,
+      rates: flReadRates(), payTerms: gv('fl-payterms'), terms: gv('fl-terms'),
+      termsDate: gv('fl-termsdate'), termsAgreed: gv('fl-termsagreed') === 'yes',
       createdAt: (_editFreelancerId && freelancerData[_editFreelancerId] && freelancerData[_editFreelancerId].createdAt) || Date.now(),
       updatedAt: Date.now()
     };
@@ -22882,7 +23256,7 @@ function renderHealthCheck() {
 // ═══ ROLE-BASED ACCESS CONTROL ════════════════════════════════════════════════
 var ROLE_ACCESS = {
   superadmin: {
-    pages: ['dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog', 'contracts'],
+    pages: ['flpayouts', 'dashboard', 'pipeline', 'projects', 'quotations', 'followups', 'postprod', 'workprogress', 'payments', 'invoice', 'calendar', 'onboarding', 'whatsapp', 'team', 'referral', 'celebrations', 'reports', 'reportbuilder', 'settings', 'users', 'accounts', 'datavault', 'inventory', 'activitylog', 'healthcheck', 'clienthub', 'securitylog', 'contracts'],
     canEditProjects:true, canDeleteProjects:true, canRecordPayments:true,
     canSeeFinancials:true, canSeeTeamSalary:true, canSeeTeamBank:true,
     canManageUsers:true, canManageAccounts:true, canManageReferral:true,
@@ -22898,7 +23272,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true
   },
   admin: {
-    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
+    pages: ['flpayouts', 'dashboard', 'pipeline', 'projects', 'postprod', 'workprogress', 'whatsapp', 'onboarding', 'calendar', 'team', 'healthcheck', 'clienthub', 'datavault'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -22914,7 +23288,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:true, canMarkSelection:true, canAssignAlbumTasks:true
   },
   postprod: {
-    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['flpayouts', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -22924,7 +23298,7 @@ var ROLE_ACCESS = {
     canAssignEditors:true, canManagePostProd:true, canMarkSelection:true
   },
   videohead: {
-    pages: ['dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
+    pages: ['flpayouts', 'dashboard', 'postprod', 'team', 'whatsapp', 'healthcheck'],
     canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
     canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:false, canManageReferral:false,
@@ -22980,7 +23354,7 @@ var ROLE_ACCESS = {
     canSeeContactDetails:false
   },
   accounts: {
-    pages: ['dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck', 'contracts'],
+    pages: ['flpayouts', 'dashboard', 'pipeline', 'projects', 'postprod', 'payments', 'reports', 'reportbuilder', 'invoice', 'calendar', 'users', 'healthcheck', 'contracts'],
     canEditProjects:true, canDeleteProjects:false, canRecordPayments:true, canDeletePayments:true,
     canSeeFinancials:true, canSeeTeamSalary:false, canSeeTeamBank:false,
     canManageUsers:false, canManageAccounts:true, canManageReferral:false,
@@ -23443,6 +23817,7 @@ function renderPage(name) {
   else if (name === 'clientissues') { renderCIHub(true); }
   else if (name === 'clienthub') { switchHubTab(_hubTab || 'overview'); }
   else if (name === 'workprogress') { renderWorkProgress(); }
+  else if (name === 'flpayouts') { renderFlPayouts(); }
 }
 
 // Jump into Projects, filtered to a single lead source (used by Reports > Lead Sources drill-through)
@@ -23572,14 +23947,14 @@ var SIDEBAR_ICON_MAP = {
   whatsapp:'💬', referral:'🎁', celebrations:'🎂', team:'👥',
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
   healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
-  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑', workprogress:'📶',
+  securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑', workprogress:'📶', flpayouts:'🎯',
   contracts:'📝'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
 var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Overview',          items:['dashboard','reports','reportbuilder','healthcheck','onboarding','quotations','followups'] },
-  { label:'Post Productions',  items:['projects','pipeline','postprod','workprogress'] },
+  { label:'Post Productions',  items:['projects','pipeline','postprod','workprogress','flpayouts'] },
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
@@ -23654,7 +24029,7 @@ function sidebarPageLabel(page) {
     users: 'Users & Logins',
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
     clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings',
-    followups:'Follow-Ups', reportbuilder:'Report Builder', workprogress:'Work Progress',
+    followups:'Follow-Ups', reportbuilder:'Report Builder', workprogress:'Work Progress', flpayouts:'Freelancer Payouts',
     contracts:'Contracts'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
@@ -24426,7 +24801,9 @@ function renderDashboard() {
     var wonRevMonth = wonThisMonth.reduce(function(a,q){ return a+((parseFloat(q.value)||0)-(parseFloat(q.discount)||0)); },0);
     var pipelineVal = activeLeads.reduce(function(a,q){ return a+((parseFloat(q.value)||0)-(parseFloat(q.discount)||0)); },0);
     var totalWon = qList.filter(function(q){ return q.status==='won'; });
-    var convRate = qList.length>0 ? Math.round(totalWon.length/qList.length*100) : 0;
+    var _dLost = qList.filter(function(q){ return q.status==='lost'; }).length;
+    var _dClosed = totalWon.length + _dLost;
+    var convRate = _dClosed>0 ? Math.round(totalWon.length/_dClosed*100) : 0;
 
     dc.innerHTML =
       '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' +
@@ -27887,7 +28264,9 @@ function renderSalesDash() {
   var active = list.filter(function(q) { return ['sent','positive','negotiating'].indexOf(q.status) > -1; });
   var pipeline = active.reduce(function(a, q) { return a + (parseFloat(q.value) || 0) - (parseFloat(q.discount) || 0); }, 0);
   var wonRev = won.reduce(function(a, q) { return a + (parseFloat(q.value) || 0) - (parseFloat(q.discount) || 0); }, 0);
-  var convRate = (totalQ > 0 && won.length > 0) ? Math.round(won.length / totalQ * 100) : 0;
+  // Conversion = won / closed deals (won + lost). Open leads are excluded so the % matches the 'won / lost' subtitle.
+  var _closedQ = won.length + lost.length;
+  var convRate = (_closedQ > 0 && won.length > 0) ? Math.round(won.length / _closedQ * 100) : 0;
 
   var metricsEl = document.getElementById('sales-metrics');
   if (metricsEl) {
@@ -27924,6 +28303,15 @@ function renderSalesDash() {
           var nextCol   = nextStage ? QT_STATUS_COLORS[nextStage] : '#888';
           var isLost = q.status === 'lost';
           var isWon  = q.status === 'won';
+          // Idle-days badge for open leads (days since last save/update)
+          var idleBadge = '';
+          if (['sent','positive','negotiating'].indexOf(q.status) > -1 && q.savedAt) {
+            var _idle = Math.floor((Date.now() - Number(q.savedAt)) / 86400000);
+            if (_idle >= 14) {
+              var _ic = _idle >= 30 ? ['#fee2e2','#dc2626'] : ['#fef3c7','#b45309'];
+              idleBadge = '<span title="No update for ' + _idle + ' days" style="display:inline-block;margin-top:6px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:' + _ic[0] + ';color:' + _ic[1] + '">⏳ ' + _idle + 'd idle</span>';
+            }
+          }
           return '<div class="quot-card">' +
             '<div onclick="openEditQuotation(\'' + q.id + '\')" style="cursor:pointer;margin-bottom:8px">' +
               '<div class="quot-card-name">' + coupleName(q.bride || 'Unknown', q.groom) + '</div>' + quotCatBadge(q) +
@@ -27931,7 +28319,7 @@ function renderSalesDash() {
               '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px">' +
                 '<span style="font-weight:700;color:#134e50">' + (net > 0 ? fmt(net) : '—') + '</span>' +
                 '<span style="color:#aaa">' + (q.savedAt ? fmtDate(q.savedAt) : '') + '</span>' +
-              '</div>' +
+              '</div>' + idleBadge +
             '</div>' +
             '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
               (nextLabel && !isLost && !isWon ? '<button onclick="quickChangeStatus(\'' + q.id + '\',\'' + nextStage + '\',event)" style="font-size:13px;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid #d1d5db;background:#f3f4f6;color:#6b7280;cursor:pointer;font-family:inherit" title="Advance to ' + nextLabel + '" aria-label="Advance to ' + nextLabel + '">→</button>' : '') +
@@ -28203,10 +28591,11 @@ function _renderLeadAnalyticsInner() {
     if (!perfRows.length) {
       tblEl.innerHTML = '<div class="empty" style="padding:30px;color:#aaa">No leads in this range.</div>';
     } else {
-      tblEl.innerHTML = '<table class="tbl"><thead><tr><th>Source</th><th>Leads</th><th>Won</th><th>Lost</th><th>Conversion</th><th>Avg Deal Value (Won)</th></tr></thead><tbody>' +
+      tblEl.innerHTML = '<table class="tbl"><thead><tr><th>Source</th><th>Leads</th><th>Won</th><th>Lost</th><th title="Won ÷ (Won + Lost); open leads excluded">Conversion</th><th>Avg Deal Value (Won)</th></tr></thead><tbody>' +
         perfRows.map(function(s) {
           var r = perf[s];
-          var conv = r.total > 0 ? Math.round(r.won / r.total * 100) : 0;
+          var _cl = r.won + r.lost;
+          var conv = _cl > 0 ? Math.round(r.won / _cl * 100) : 0;
           var avgVal = r.won > 0 ? Math.round(r.wonRev / r.won) : 0;
           return '<tr>' +
             '<td style="font-weight:700">' + escHtml(s) + '</td>' +
