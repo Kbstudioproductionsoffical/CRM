@@ -2168,6 +2168,11 @@ document.addEventListener('wheel', function(e) {
       </div>
     </div>
 
+    <div id="page-attendance" class="page">
+      <div class="page-title">🕘 Attendance</div>
+      <div class="page-sub">Check in with location &amp; selfie, work from home, field duty and monthly reports.</div>
+      <div id="att-content"></div>
+    </div>
     <div id="page-settings" class="page">
       <div class="page-title">⚙️ Settings</div>
       <div class="page-sub">Customise dropdown options used across all projects.</div>
@@ -7110,11 +7115,54 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
 // picked up the fresh auth token — a read fired in that window can fail with
 // permission_denied even though the user IS properly signed in. Since .on()
 // listeners don't auto-retry after a denial, this wrapper does it manually.
+// ── Temporary disable / enable of employee logins ───────────────────
+var KB_DISABLED_MSG = '🚫 Your account has been temporarily disabled. Please contact your administrator.';
+function kbShowLoginMsg(msg){
+  var e = document.getElementById('login-err');
+  if (e) { e.style.display = 'block'; e.textContent = msg; }
+}
+function kbForceLogoutDisabled(){
+  if (!CU) return;
+  var btn = document.getElementById('btn-logout');
+  if (btn) btn.click();
+  CU = null;
+  setTimeout(function(){ kbShowLoginMsg(KB_DISABLED_MSG); }, 80);
+  try { alert(KB_DISABLED_MSG); } catch(e) {}
+}
+function kbKeepDisabled(id, rec){
+  var p = users[id];
+  if (p && p.disabled) { rec.disabled = true; rec.disabledAt = p.disabledAt || null; rec.disabledBy = p.disabledBy || null; }
+  return rec;
+}
+function toggleUserDisabled(id){
+  var u = users[id];
+  if (!u || !CU) return;
+  if (id === CU.id) { alert("You can't disable your own account."); return; }
+  if (CU.role !== 'superadmin' && CU.role !== 'admin') { alert('Only Super Admin or Admin can disable users.'); return; }
+  if (u.role === 'superadmin' && CU.role !== 'superadmin') { alert('Only a Super Admin can disable a Super Admin.'); return; }
+  var disabling = !u.disabled;
+  var msg = disabling
+    ? 'Temporarily disable login for ' + u.name + '?\n\nThey will be logged out right away and cannot sign in until you enable them again. Their data is not deleted.'
+    : 'Re-enable login for ' + u.name + '?';
+  if (!confirm(msg)) return;
+  var rec = Object.assign({}, u, { id: id });
+  if (disabling) { rec.disabled = true; rec.disabledAt = Date.now(); rec.disabledBy = CU.name || CU.username || ''; }
+  else { delete rec.disabled; delete rec.disabledAt; delete rec.disabledBy; }
+  db.ref('crm_users/' + id).set(rec, function(err){
+    if (err) { alert('Error: ' + err.message); return; }
+    users[id] = rec;
+    showToast(disabling ? '🚫 ' + u.name + ' disabled.' : '✅ ' + u.name + ' enabled.');
+    try { if (typeof logActivity === 'function') logActivity('user', disabling ? 'User Disabled' : 'User Enabled', u.name + ' (@' + u.username + ')', {}); } catch(e) {}
+    renderUsers();
+  });
+}
+
 function attachUsersListener(){
   db.ref('crm_users').on('value', function(snap){
     var fb=snap.val()||{};
     DEFAULT_USERS.forEach(function(u){if(!fb[u.id])fb[u.id]=u;});
     users=fb;
+    if (CU && users[CU.id] && users[CU.id].disabled) { kbForceLogoutDisabled(); return; }
     if (typeof refresh === 'function') refresh();
   }, function(err){
     console.warn('crm_users listener denied, retrying in 1.5s:', err && err.message);
@@ -16057,10 +16105,11 @@ function renderUsers(){
     var tm=u.teamId?teamData[u.teamId]:null;
     var deptLabel={north:'🔵 North',south:'🟠 South',both:'🌐 Both'}[u.department]||'';
     var isYou=CU&&u.id===CU.id;
-    return '<div class="user-card">'+
+    var canToggle = CU && !isYou && (CU.role==='superadmin' || (CU.role==='admin' && u.role!=='superadmin'));
+    return '<div class="user-card"'+(u.disabled?' style="opacity:.6;background:#fafafa"':'')+'>'+
       '<div class="user-card-avatar" style="background:'+col+'">'+u.name.charAt(0).toUpperCase()+'</div>'+
       '<div class="user-card-body">'+
-        '<div class="user-card-name">'+u.name+(isYou?' <span style="font-size:10px;color:#aaa;font-weight:400">(you)</span>':'')+'</div>'+
+        '<div class="user-card-name">'+u.name+(isYou?' <span style="font-size:10px;color:#aaa;font-weight:400">(you)</span>':'')+(u.disabled?' <span style="font-size:10px;background:#fee2e2;color:#dc2626;border-radius:10px;padding:2px 8px;font-weight:700;margin-left:4px">🚫 DISABLED</span>':'')+'</div>'+
         '<div class="user-card-username">@'+u.username+'</div>'+
         '<div class="user-card-meta">'+
           '<span class="user-role-pill" style="background:'+rc+'18;color:'+rc+';border:1px solid '+rc+'33">'+roleLabel(u.role)+'</span>'+
@@ -16071,6 +16120,7 @@ function renderUsers(){
       '</div>'+
       '<div class="user-card-actions">'+
         '<button class="btn btn-sm" onclick="openEditUser(&quot;'+u.id+'&quot;)" style="font-size:11px;padding:5px 10px">✏️ Edit</button>'+
+        (canToggle?'<button class="btn btn-sm" onclick="toggleUserDisabled(&quot;'+u.id+'&quot;)" style="font-size:11px;padding:5px 10px;'+(u.disabled?'color:#16a34a;border-color:#bbf7d0':'color:#d97706;border-color:#fde68a')+'">'+(u.disabled?'✅ Enable':'⏸ Disable')+'</button>':'')+
         (!isYou?'<button class="btn-danger" onclick="deleteUser(&quot;'+u.id+'&quot;)" style="font-size:11px">Remove</button>':'')+
       '</div>'+
     '</div>';
@@ -21072,7 +21122,7 @@ $('team-search').addEventListener('input',renderTeam);$('team-role-f').addEventL
 // ═══ USER / ACCOUNT MODALS ════════════════════════════
 $('btn-add-user').addEventListener('click',function(){editUserId=null;$('user-modal-title').textContent='Add User';['u-name','u-displayname','u-username','u-pass','u-phone','u-email','u-notes'].forEach(function(i){sv(i,'');});sv('u-role','admin');sv('u-department','');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=false;document.querySelectorAll('.u-secrole-cb').forEach(function(cb){cb.checked=false;});populateUserTeamDropdown('');onUserRoleChange();openModal('user-modal');});
 function openEditUser(id){var u=users[id];if(!u)return;editUserId=id;$('user-modal-title').textContent='Edit — '+u.name;sv('u-name',u.name);sv('u-displayname',u.displayname||'');sv('u-username',u.username);sv('u-pass',u.password);sv('u-role',u.role);sv('u-department',u.department||'');sv('u-phone',u.phone||'');sv('u-email',u.email||'');sv('u-notes',u.notes||'');var mcp=document.getElementById('u-must-change-pass');if(mcp)mcp.checked=!!u.mustChangePassword;var secRoles=u.secondaryRoles||[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){cb.checked=secRoles.indexOf(cb.value)!==-1;});populateUserTeamDropdown(u.teamId||'');onUserRoleChange();openModal('user-modal');}
-$('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass'),em=gv('u-email').trim().toLowerCase();if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;var secRoles=[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){if(cb.checked&&cb.value!==gv('u-role'))secRoles.push(cb.value);});db.ref('crm_users/'+id).set({id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),secondaryRoles:secRoles,department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:em,notes:gv('u-notes'),mustChangePassword:mustChange},function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
+$('btn-save-user').addEventListener('click',function(){var name=gv('u-name').trim(),un=gv('u-username').trim().toLowerCase(),pw=gv('u-pass'),em=gv('u-email').trim().toLowerCase();if(!name||!un||!pw){alert('Fill all required fields.');return;}var id=editUserId||(un+'_'+Date.now());var teamIdSel=document.getElementById('u-teamid');var teamId=teamIdSel?teamIdSel.value:'';var mcpEl=document.getElementById('u-must-change-pass');var mustChange=mcpEl?mcpEl.checked:false;var secRoles=[];document.querySelectorAll('.u-secrole-cb').forEach(function(cb){if(cb.checked&&cb.value!==gv('u-role'))secRoles.push(cb.value);});db.ref('crm_users/'+id).set(kbKeepDisabled(id,{id:id,name:name,displayname:gv('u-displayname'),username:un,password:pw,role:gv('u-role'),secondaryRoles:secRoles,department:gv('u-department'),teamId:teamId,phone:gv('u-phone'),email:em,notes:gv('u-notes'),mustChangePassword:mustChange}),function(err){if(err){alert('Error: '+err.message);return;}closeModal('user-modal');showToast('✅ User saved!');});});
 function deleteUser(id){if(id===CU.id){alert("Can't delete your own account.");return;}if(!confirm('Remove this user?'))return;db.ref('crm_users/'+id).remove(function(){showToast('User removed.');});}
 function openAddAccount(){editAccId=null;var t=$('account-modal-title');if(t)t.textContent='Add Account';['acc-name','acc-number','acc-notes'].forEach(function(i){sv(i,'');});sv('acc-type','savings');openModal('account-modal');}
 function switchUsersTab(tabId, btn){
@@ -23553,7 +23603,7 @@ var ROLE_ACCESS = {
   }
 };
 
-function getAccess() { return ROLE_ACCESS[CU ? CU.role : ''] || ROLE_ACCESS.referral; }
+function getAccess() { var _a = ROLE_ACCESS[CU ? CU.role : ''] || ROLE_ACCESS.referral; if (_a.pages.indexOf('attendance') === -1) _a.pages.push('attendance'); return _a; }
 function can(key) { return !!getAccess()[key]; }
 
 // ═══ FIELD VISIBILITY ENGINE ══════════════════════════════════════════════════
@@ -23962,6 +24012,7 @@ function renderPage(name) {
   else if (name === 'clienthub') { switchHubTab(_hubTab || 'overview'); }
   else if (name === 'workprogress') { renderWorkProgress(); }
   else if (name === 'freelancers') { flRenderTab(); }
+  else if (name === 'attendance') { renderAttendance(); }
 }
 
 // Jump into Projects, filtered to a single lead source (used by Reports > Lead Sources drill-through)
@@ -24093,7 +24144,7 @@ var SIDEBAR_ICON_MAP = {
   inventory:'📦', settings:'⚙️', users:'🔐', activitylog:'📋',
   healthcheck:'🩺', clientissues:'🎫', clienthub:'🎯',
   securitylog:'🛡️', salessettings:'⚙️', followups:'📲', reportbuilder:'📑', workprogress:'📶', flpayouts:'🎯', freelancers:'🧑‍🎨',
-  contracts:'📝'
+  contracts:'📝', attendance:'🕘'
 };
 
 // ── Default sidebar layout ──────────────────────────────────────────
@@ -24103,7 +24154,7 @@ var DEFAULT_SIDEBAR_LAYOUT = [
   { label:'Production',        items:['calendar','datavault'] },
   { label:'Finance',           items:['payments','invoice'] },
   { label:'Client Relations',  items:['clienthub','whatsapp','referral','celebrations'] },
-  { label:'Team & Assets',     items:['team','inventory','contracts'] },
+  { label:'Team & Assets',     items:['attendance','team','inventory','contracts'] },
   { sep: true },
   { label:'Administration',    items:['settings','users','activitylog','securitylog'] }
 ];
@@ -24175,7 +24226,7 @@ function sidebarPageLabel(page) {
     activitylog:'Activity Log', healthcheck:'Healthcheck', clientissues:'Client Issues Hub',
     clienthub:'Client Relations Hub', securitylog:'Security Log', salessettings:'Quotation Settings',
     followups:'Follow-Ups', reportbuilder:'Report Builder', workprogress:'Work Progress', flpayouts:'Freelancer Payouts', freelancers:'Freelancers',
-    contracts:'Contracts'
+    contracts:'Contracts', attendance:'Attendance'
   };
   return labelMap[page] || (page.charAt(0).toUpperCase() + page.slice(1));
 }
@@ -26096,6 +26147,14 @@ function loginWithFirebaseUser(fbUser, silent) {
     Object.values(users).forEach(function(u) {
       if ((u.email || '').trim().toLowerCase() === (email || '').trim().toLowerCase()) match = u;
     });
+    if (match && match.disabled) {
+      firebase.auth().signOut();
+      var lcd = document.getElementById('login-checking'); if (lcd) lcd.style.display = 'none';
+      var lfd = document.getElementById('login-form-area'); if (lfd) lfd.style.display = '';
+      kbShowLoginMsg(KB_DISABLED_MSG);
+      var gBtnD = document.getElementById('btn-google-login'); if (gBtnD) { gBtnD.disabled = false; gBtnD.textContent = 'Sign in with Google'; }
+      return;
+    }
     if (match) {
       CU = match;
       var lc = document.getElementById('login-checking'); if (lc) lc.style.display = 'none';
@@ -26236,6 +26295,11 @@ function doLogin() {
     Object.values(users).forEach(function(u) {
       if ((u.username || '').toLowerCase() === un && (u.password || '') === pw) match = u;
     });
+    if (match && match.disabled) {
+      if (errEl) { errEl.style.display = 'block'; errEl.textContent = KB_DISABLED_MSG; }
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Login →'; }
+      return;
+    }
     if (match) {
       CU = match;
       // Username/password login never authenticates with Firebase itself,
@@ -38615,6 +38679,733 @@ window.saveEditPayEntry = function(idx) {
     if (typeof renderPayLedger === 'function') renderPayLedger();
   });
 };
+</script>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// ATTENDANCE MODULE — location + selfie check-in, WFH / field duty,
+// admin team view, monthly reports and office settings.
+// Data: crm_attendance/{YYYY-MM-DD}/{userId}, crm_attendance_settings,
+//       crm_attendance_selfies/{YYYY-MM-DD}/{userId}_{in|out} (fallback)
+// ═══════════════════════════════════════════════════════════════════
+(function(){
+var ATT_DEF = {office:{name:'Office',lat:null,lng:null},radius:100,requireSelfie:true,requireLocation:true,allowWFH:true,allowField:true,workStart:'10:00',graceMin:15,halfDayHrs:4.5,weeklyOff:[0],holidays:[]};
+var S = null, P = {}, _tab = 'my', _off = 0, _month = '', _empSel = 'all', _clock = null;
+function $a(id){ return document.getElementById(id); }
+function esc(t){ return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function isAdm(){ return !!CU && (CU.role==='superadmin' || CU.role==='admin'); }
+function now(){ return Date.now() + _off; }
+function p2(n){ return (n<10?'0':'')+n; }
+function dkey(ts){ var d=new Date(ts); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+function tm(ts){ return ts ? new Date(ts).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'; }
+function hrs(r){ return (r && r.in && r.out) ? Math.max(0,(r.out.ts-r.in.ts)/36e5) : 0; }
+function fh(h){ return h ? (Math.floor(h)+'h '+p2(Math.round((h%1)*60))+'m') : '—'; }
+function dist(a,b,c,d){ var R=6371000,t=Math.PI/180,x=(c-a)*t,y=(d-b)*t,q=Math.sin(x/2)*Math.sin(x/2)+Math.cos(a*t)*Math.cos(c*t)*Math.sin(y/2)*Math.sin(y/2); return 2*R*Math.atan2(Math.sqrt(q),Math.sqrt(1-q)); }
+function defLeave(){ return [{id:'cl',name:'Casual Leave',quota:12,paid:true},{id:'sl',name:'Sick Leave',quota:6,paid:true},{id:'lop',name:'Unpaid Leave',quota:0,paid:false}]; }
+function defPay(v){ return Object.assign({company:'KB Studio Productions',address:'',pfCeiling:25000,pfRate:12,esiCeiling:21000,esiEe:0.75,esiEr:3.25}, v||{}); }
+function arr(x){ return Array.isArray(x) ? x.filter(Boolean) : (x ? Object.values(x) : []); }
+function myBranches(uid){ var ids = arr((P[uid]||{}).branchIds); return S.branches.filter(function(b){ return b.lat!=null && (!ids.length || ids.indexOf(b.id)>-1); }); }
+function shiftFor(uid){ var id = (P[uid]||{}).shiftId; return S.shifts.filter(function(x){ return x.id===id; })[0] || S.shifts[0]; }
+function nearest(loc, brs){ var best = null; brs.forEach(function(b){ var d = Math.round(dist(loc.lat,loc.lng,b.lat,b.lng)); if (!best || d < best.d) best = {b:b,d:d}; }); return best; }
+function employees(){ return Object.values(users||{}).filter(function(u){ return !u.disabled && u.role!=='referral'; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); }); }
+
+function loadSettings(cb){
+  db.ref('.info/serverTimeOffset').once('value',function(s){ _off = s.val()||0; });
+  db.ref('crm_attendance_settings').once('value',function(s){
+    var v = s.val()||{};
+    S = Object.assign({}, ATT_DEF, v); S.office = Object.assign({}, ATT_DEF.office, v.office||{});
+    if (!Array.isArray(S.weeklyOff)) S.weeklyOff = v.weeklyOff ? Object.values(v.weeklyOff) : (v.weeklyOff===undefined?[0]:[]);
+    if (!Array.isArray(S.holidays)) S.holidays = v.holidays ? Object.values(v.holidays) : [];
+    S.branches = arr(v.branches); S.shifts = arr(v.shifts);
+    if (!S.branches.length && S.office.lat!=null) S.branches = [{id:'main',name:S.office.name||'Office',lat:S.office.lat,lng:S.office.lng,radius:S.radius}];
+    if (!S.shifts.length) S.shifts = [{id:'general',name:'General',start:S.workStart,grace:S.graceMin,half:S.halfDayHrs}];
+    S.leaveTypes = arr(v.leaveTypes); if (!S.leaveTypes.length) S.leaveTypes = defLeave(); S.pay = defPay(v.pay);
+    db.ref('crm_hr_profiles').once('value',function(ps){ P = ps.val()||{}; cb(); }, function(){ P = {}; cb(); });
+  }, function(){ S = JSON.parse(JSON.stringify(ATT_DEF)); S.branches = []; S.shifts = [{id:'general',name:'General',start:'10:00',grace:15,half:4.5}]; S.leaveTypes = defLeave(); S.pay = defPay(); P = {}; cb(); });
+}
+
+// ── Day status ────────────────────────────────────────────────
+function dayInfo(rec, ds){
+  var today = dkey(now()), d = new Date(ds+'T00:00:00');
+  var off = S.weeklyOff.indexOf(d.getDay())>-1, hol = S.holidays.indexOf(ds)>-1;
+  var o = {st:'', late:false, mode:'', h:hrs(rec)};
+  if (rec && rec.manual) { o.st = rec.status; o.mode = (rec.in&&rec.in.mode)||''; o.late = !!rec.late; return o; }
+  if (rec && rec.in) {
+    o.mode = rec.in.mode; o.late = !!rec.late;
+    o.st = (rec.out && o.h < (rec.half || S.halfDayHrs)) ? 'half' : 'present';
+    return o;
+  }
+  if (hol) o.st='holiday'; else if (off) o.st='off'; else if (ds>today) o.st=''; else if (ds===today) o.st='pending'; else o.st='absent';
+  return o;
+}
+var ST = {present:['Present','#16a34a','#dcfce7'],half:['Half day','#d97706','#fef3c7'],leave:['Leave','#7c3aed','#ede9fe'],absent:['Absent','#dc2626','#fee2e2'],holiday:['Holiday','#0891b2','#cffafe'],off:['Week off','#64748b','#f1f5f9'],pending:['Not marked yet','#64748b','#f1f5f9'],'':['','#999','transparent']};
+var MODE = {office:'🏢 Office',wfh:'🏠 WFH',field:'📍 Field'};
+function badge(o){
+  var s = ST[o.st]||ST[''], x = '<span style="background:'+s[2]+';color:'+s[1]+';border-radius:10px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">'+s[0]+'</span>';
+  if (o.late) x += ' <span style="background:#fef3c7;color:#b45309;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700">⏰ Late</span>';
+  return x;
+}
+
+// ── Page shell ────────────────────────────────────────────────
+window.renderAttendance = function(){
+  var host = $a('att-content'); if (!host) return;
+  host.innerHTML = '<div style="padding:30px;text-align:center;color:#aaa">Loading…</div>';
+  loadSettings(function(){ if (!_month) _month = dkey(now()).slice(0,7); draw(); });
+};
+function draw(){
+  var adm = isAdm(), pay = canPay();
+  var tabs = [['my','🕘 My Attendance'],['req','📝 Requests'],['month',adm?'🗓 Monthly Report':'🗓 Monthly'],['slips','💵 My Payslips']];
+  if (adm) tabs.splice(2,0,['today','👥 Team Today'],['approvals','✅ Approvals']);
+  if (pay) tabs.push(['payroll','💰 Payroll']);
+  if (adm) tabs.push(['settings','⚙️ Settings']);
+  if (!tabs.some(function(t){ return t[0]===_tab; })) _tab = 'my';
+  var bar = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'+tabs.map(function(t){
+    var on = t[0]===_tab; return '<button class="btn" onclick="attTab(\''+t[0]+'\')" style="'+(on?'background:#1a1a1a;color:#fff;border-color:#1a1a1a;':'')+'font-weight:600">'+t[1]+'</button>'; }).join('')+'</div>';
+  $a('att-content').innerHTML = bar + '<div id="att-body"></div>';
+  if (_clock) { clearInterval(_clock); _clock = null; }
+  if (_tab==='my') drawMy(); else if (_tab==='req') drawReq(); else if (_tab==='today') drawToday(); else if (_tab==='approvals') drawApprovals();
+  else if (_tab==='month') drawMonth(); else if (_tab==='slips') drawSlips(); else if (_tab==='payroll') drawPayroll(); else drawSettings();
+}
+window.attTab = function(t){ _tab = t; draw(); };
+
+// ── My attendance ─────────────────────────────────────────────
+function drawMy(){
+  var ds = dkey(now()), b = $a('att-body');
+  db.ref('crm_attendance/'+ds+'/'+CU.id).once('value',function(s){
+    var r = s.val(), inn = r && r.in, out = r && r.out, info = dayInfo(r, ds);
+    var sel = [['office','🏢 Office']]; if (S.allowWFH && (P[CU.id]||{}).wfh!==false) sel.push(['wfh','🏠 Work from home']); if (S.allowField) sel.push(['field','📍 Field / on shoot']);
+    var modes = inn ? '' : '<div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0">'+sel.map(function(m,i){
+      return '<label style="flex:1;min-width:130px;border:1px solid #ddd;border-radius:10px;padding:10px 12px;cursor:pointer;font-size:13px;font-weight:600"><input type="radio" name="att-mode" value="'+m[0]+'" '+(i===0?'checked':'')+' style="margin-right:6px">'+m[1]+'</label>'; }).join('')+'</div>';
+    var status = !inn ? '<div style="color:#64748b;font-size:13px">You have not checked in today.</div>'
+      : '<div style="font-size:13px">✅ Checked in at <b>'+tm(inn.ts)+'</b> · '+(MODE[inn.mode]||inn.mode)+(r.late?' · <span style="color:#b45309;font-weight:700">Late</span>':'')+
+        (out ? '<br>🏁 Checked out at <b>'+tm(out.ts)+'</b> · Worked <b>'+fh(hrs(r))+'</b>' : '')+'</div>';
+    var btn = !inn ? '<button class="btn btn-primary" id="att-btn" onclick="attMark(\'in\')" style="width:100%;padding:14px;font-size:15px;font-weight:800">📍 Check In</button>'
+      : (!out ? '<button class="btn btn-primary" id="att-btn" onclick="attMark(\'out\')" style="width:100%;padding:14px;font-size:15px;font-weight:800;background:#dc2626;border-color:#dc2626">🏁 Check Out</button>'
+      : '<div style="text-align:center;color:#16a34a;font-weight:700;padding:10px">All done for today 🎉</div>');
+    var rule = [];
+    var mb = myBranches(CU.id); if (mb.length) rule.push('Office check-in must be within range of '+mb.map(function(b){ return esc(b.name)+' ('+b.radius+' m)'; }).join(' / ')); else rule.push('<span style="color:#dc2626">Office location not set yet — ask your admin.</span>');
+    if (S.requireSelfie) rule.push('live selfie required'); if (S.requireLocation) rule.push('location required');
+    b.innerHTML = '<div class="card" style="max-width:520px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div><div style="font-size:12px;color:#888">'+new Date(now()).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</div><div id="att-clock" style="font-size:30px;font-weight:800"></div></div><div>'+badge(info)+'</div></div>'+
+      '<div style="margin-top:8px">'+status+'</div>'+modes+
+      (out?'':'<input class="fi" id="att-note" placeholder="Note (required for field duty, optional otherwise)" style="margin:'+(inn?'12px':'0')+' 0 12px;width:100%">')+
+      btn+'<div id="att-msg" style="font-size:12px;margin-top:10px;min-height:16px;color:#64748b"></div>'+
+      '<div style="font-size:11px;color:#999;margin-top:6px">'+rule.join(' · ')+'</div></div>'+
+      '<div id="att-mine"></div>';
+    var tick = function(){ var c=$a('att-clock'); if(!c){ clearInterval(_clock); return; } c.textContent = new Date(now()).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); };
+    tick(); _clock = setInterval(tick,1000);
+    monthTable('att-mine', CU.id);
+  });
+}
+function msg(t,err){ var m=$a('att-msg'); if(m){ m.textContent=t; m.style.color = err?'#dc2626':'#64748b'; } }
+
+window.attMark = function(kind){
+  var btn = $a('att-btn'); if (btn) btn.disabled = true;
+  function fail(t){ msg(t,true); if(btn) btn.disabled=false; }
+  var ds = dkey(now()), path = 'crm_attendance/'+ds+'/'+CU.id;
+  var mRad = document.querySelector('input[name="att-mode"]:checked');
+  var noteEl = $a('att-note'), note = noteEl ? noteEl.value.trim() : '';
+  db.ref(path).once('value',function(s){
+    var r = s.val();
+    if (kind==='in' && r && r.in) return fail('You are already checked in today.');
+    if (kind==='out' && (!r || !r.in)) return fail('Check in first.');
+    if (kind==='out' && r.out) return fail('You have already checked out today.');
+    var mode = kind==='in' ? (mRad ? mRad.value : 'office') : r.in.mode;
+    if (kind==='in' && mode==='field' && !note) return fail('Please add a note: where are you working (client / venue)?');
+    if (kind==='in' && mode==='office' && !myBranches(CU.id).length) return fail('Office location is not set yet. Ask your admin to set it in Attendance → Settings.');
+    function afterLoc(loc){
+      var d = null, outRange = false, nb = null, brs = myBranches(CU.id);
+      if (loc && brs.length) { nb = nearest(loc, brs); d = nb.d; }
+      if (mode==='office' && nb && loc) {
+        outRange = d > nb.b.radius;
+        if (outRange && kind==='in') return fail('You are '+d+' m from '+nb.b.name+' — outside the allowed '+nb.b.radius+' m. Move closer, or choose Work from home / Field.');
+      }
+      function afterSelfie(selfieData){
+        msg('⏳ Saving…');
+        var ts = now(), key = ds+'/'+CU.id+'_'+kind;
+        function save(selfieRef){
+          var ev = {ts:ts, mode:mode, lat:loc?loc.lat:null, lng:loc?loc.lng:null, acc:loc?Math.round(loc.acc):null, dist:d, branch:nb?nb.b.name:null, outRange:outRange, selfie:selfieRef||null, note:note||null};
+          Object.keys(ev).forEach(function(k){ if(ev[k]===null) delete ev[k]; });
+          var done = function(err){
+            if (err) return fail('Could not save: '+err.message);
+            showToast(kind==='in'?'✅ Checked in at '+tm(ts):'✅ Checked out at '+tm(ts));
+            try{ if(typeof logActivity==='function') logActivity('attendance', kind==='in'?'Check-in':'Check-out', CU.name+' · '+(MODE[mode]||mode)+(d!=null?' · '+d+' m':''), {}); }catch(e){}
+            drawMy();
+          };
+          if (kind==='in') {
+            var sh = shiftFor(CU.id), st = ds+'T'+sh.start+':00', lateMs = new Date(st).getTime() + (+sh.grace||0)*60000;
+            var rec = {userId:CU.id, name:CU.name, date:ds, shift:sh.name, half:(+sh.half||S.halfDayHrs), in:ev, late: ts>lateMs && S.weeklyOff.indexOf(new Date(ds+'T00:00:00').getDay())===-1 && S.holidays.indexOf(ds)===-1};
+            db.ref(path).set(rec, done);
+          } else db.ref(path+'/out').set(ev, done);
+        }
+        if (!selfieData) return save(null);
+        uploadSelfie(selfieData, key, ds, save);
+      }
+      if (!S.requireSelfie) return afterSelfie(null);
+      msg('📸 Opening camera…');
+      capture(function(img){ if (!img) return fail('Selfie is required to mark attendance.'); afterSelfie(img); });
+    }
+    if (!S.requireLocation && mode!=='office') {
+      getLoc(function(e,l){ afterLoc(e?null:l); });
+    } else { msg('📍 Getting your location…'); getLoc(function(e,l){ if (e) return fail('Could not get location: '+e.message+'. Allow location access and try again.'); if (l.acc>200) msg('⚠️ Low GPS accuracy ('+Math.round(l.acc)+' m).'); afterLoc(l); }); }
+  }, function(e){ fail('Could not read attendance: '+e.message); });
+};
+function getLoc(cb){
+  if (!navigator.geolocation) return cb(new Error('Location is not supported on this device'));
+  navigator.geolocation.getCurrentPosition(function(p){ cb(null,{lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy}); }, function(e){ cb(e); }, {enableHighAccuracy:true,timeout:20000,maximumAge:0});
+}
+
+// ── Live selfie capture ───────────────────────────────────────
+function capture(cb){
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:100000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:12px';
+  ov.innerHTML = '<div style="color:#fff;font-weight:700">📸 Take a selfie</div><video id="att-vid" autoplay playsinline muted style="width:100%;max-width:420px;border-radius:14px;background:#000;transform:scaleX(-1)"></video>'+
+    '<div style="display:flex;gap:10px"><button id="att-cancel" class="btn">Cancel</button><button id="att-snap" class="btn btn-primary" style="padding:10px 26px;font-weight:800">Capture</button></div>';
+  document.body.appendChild(ov);
+  var stream = null;
+  function close(v){ if(stream) stream.getTracks().forEach(function(t){t.stop();}); ov.remove(); cb(v); }
+  $a('att-cancel').onclick = function(){ close(null); };
+  function fromImage(img){
+    var w = Math.min(480, img.videoWidth||img.width), h = Math.round(w * (img.videoHeight||img.height) / (img.videoWidth||img.width));
+    var c = document.createElement('canvas'); c.width = w; c.height = h; var x = c.getContext('2d'); x.drawImage(img,0,0,w,h);
+    var stamp = new Date(now()).toLocaleString('en-IN'); x.fillStyle='rgba(0,0,0,.55)'; x.fillRect(0,h-22,w,22); x.fillStyle='#fff'; x.font='12px sans-serif'; x.fillText(CU.name+' · '+stamp, 8, h-7);
+    return c.toDataURL('image/jpeg',0.6);
+  }
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640}},audio:false}).then(function(s){
+      stream = s; $a('att-vid').srcObject = s;
+      $a('att-snap').onclick = function(){ close(fromImage($a('att-vid'))); };
+    }).catch(function(){ fallback(); });
+  } else fallback();
+  function fallback(){
+    var v = $a('att-vid'); if (v) v.style.display='none';
+    var f = document.createElement('input'); f.type='file'; f.accept='image/*'; f.setAttribute('capture','user');
+    $a('att-snap').textContent = 'Open camera'; $a('att-snap').onclick = function(){ f.click(); };
+    f.onchange = function(){ var file=f.files[0]; if(!file) return; var im=new Image(); im.onload=function(){ close(fromImage(im)); }; im.src=URL.createObjectURL(file); };
+  }
+}
+function uploadSelfie(data, key, ds, cb){
+  function toDb(){ db.ref('crm_attendance_selfies/'+key).set(data, function(e){ cb(e?null:'@db'); }); }
+  if (typeof storage !== 'undefined' && storage) {
+    var t = setTimeout(toDb, 12000), fired = false;
+    try {
+      storage.ref('attendance/'+key+'.jpg').putString(data,'data_url').then(function(sn){ return sn.ref.getDownloadURL(); })
+        .then(function(u){ if(fired) return; fired=true; clearTimeout(t); cb(u); })
+        .catch(function(){ if(fired) return; fired=true; clearTimeout(t); toDb(); });
+    } catch(e){ clearTimeout(t); toDb(); }
+  } else toDb();
+}
+window.attShowSelfie = function(ds, uid, kind, ref){
+  function show(src){
+    var ov = document.createElement('div'); ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+    ov.onclick = function(){ ov.remove(); }; ov.innerHTML = '<img src="'+src+'" style="max-width:100%;max-height:90vh;border-radius:12px">'; document.body.appendChild(ov);
+  }
+  if (ref==='@db') db.ref('crm_attendance_selfies/'+ds+'/'+uid+'_'+kind).once('value',function(s){ if(s.val()) show(s.val()); else showToast('Selfie not found.'); });
+  else show(ref);
+};
+
+// ── Month table (own or one employee) ─────────────────────────
+function monthRange(m){ var y=+m.slice(0,4), mo=+m.slice(5,7), n=new Date(y,mo,0).getDate(), a=[]; for(var i=1;i<=n;i++) a.push(m+'-'+p2(i)); return a; }
+function loadMonth(m, cb){ db.ref('crm_attendance').orderByKey().startAt(m+'-01').endAt(m+'-31').once('value',function(s){ cb(s.val()||{}); }); }
+function summarize(days, byDate, uid){
+  var r = {P:0,H:0,L:0,A:0,late:0,wfh:0,field:0,h:0};
+  days.forEach(function(ds){ var o = dayInfo((byDate[ds]||{})[uid], ds);
+    if (o.st==='present'){ r.P++; if(o.mode==='wfh') r.wfh++; if(o.mode==='field') r.field++; } else if (o.st==='half') r.H++; else if (o.st==='leave') r.L++; else if (o.st==='absent') r.A++;
+    if (o.late) r.late++; r.h += o.h; });
+  return r;
+}
+function monthTable(hostId, uid){
+  var host = $a(hostId); if (!host) return;
+  host.innerHTML = '<div class="card" style="margin-top:12px"><div class="card-hdr"><div class="card-title">'+(uid===CU.id?'My ':'')+'Month — '+esc((users[uid]||{}).name||'')+'</div><input type="month" class="fi" id="att-m-'+hostId+'" value="'+_month+'" style="width:auto"></div><div id="att-mt-'+hostId+'" style="overflow-x:auto">Loading…</div></div>';
+  $a('att-m-'+hostId).onchange = function(){ _month = this.value || _month; monthTable(hostId, uid); };
+  loadMonth(_month, function(by){
+    var days = monthRange(_month), sm = summarize(days, by, uid);
+    var head = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:12px">'+
+      [['Present',sm.P,'#16a34a'],['Half',sm.H,'#d97706'],['Leave',sm.L,'#7c3aed'],['Absent',sm.A,'#dc2626'],['Late',sm.late,'#b45309'],['WFH',sm.wfh,'#0891b2'],['Field',sm.field,'#475569'],['Hours',fh(sm.h),'#1a1a1a']].map(function(x){ return '<span style="border:1px solid #e5e5e5;border-radius:8px;padding:5px 10px"><b style="color:'+x[2]+'">'+x[1]+'</b> '+x[0]+'</span>'; }).join('')+'</div>';
+    var rows = days.map(function(ds){
+      var rec = (by[ds]||{})[uid], o = dayInfo(rec, ds); if (!o.st && !rec) return '';
+      var d = new Date(ds+'T00:00:00');
+      var sf = rec && rec.in && rec.in.selfie ? ' <a href="#" onclick="attShowSelfie(\''+ds+'\',\''+uid+'\',\'in\',\''+rec.in.selfie.replace(/'/g,'')+'\');return false">📷</a>' : '';
+      return '<tr style="border-top:1px solid #f0f0f0"><td style="padding:6px 8px">'+ds.slice(8)+' '+d.toLocaleDateString('en-IN',{weekday:'short'})+'</td><td style="padding:6px 8px">'+badge(o)+'</td><td style="padding:6px 8px">'+(MODE[o.mode]||'')+'</td><td style="padding:6px 8px">'+tm(rec&&rec.in&&rec.in.ts)+sf+'</td><td style="padding:6px 8px">'+tm(rec&&rec.out&&rec.out.ts)+'</td><td style="padding:6px 8px">'+fh(o.h)+'</td><td style="padding:6px 8px;color:#888">'+esc((rec&&(rec.note||(rec.in&&rec.in.note)))||'')+'</td></tr>'; }).join('');
+    $a('att-mt-'+hostId).innerHTML = head+'<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;color:#888"><th style="padding:6px 8px">Date</th><th>Status</th><th>Mode</th><th>In</th><th>Out</th><th>Hours</th><th>Note</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  });
+}
+
+// ── Team today (admin) ────────────────────────────────────────
+function drawToday(){
+  var ds = dkey(now()), b = $a('att-body');
+  b.innerHTML = '<div style="color:#aaa;padding:20px">Loading…</div>';
+  db.ref('crm_attendance/'+ds).once('value',function(s){
+    var by = s.val()||{}, emps = employees(), c = {in:0,wfh:0,field:0,late:0,none:0};
+    var rows = emps.map(function(u){
+      var r = by[u.id], o = dayInfo(r, ds), i = r&&r.in, ou = r&&r.out;
+      if (i) { c.in++; if(i.mode==='wfh') c.wfh++; if(i.mode==='field') c.field++; if(r.late) c.late++; } else if (o.st==='pending'||o.st==='absent') c.none++;
+      function sf(k,e){ return e && e.selfie ? '<a href="#" onclick="attShowSelfie(\''+ds+'\',\''+u.id+'\',\''+k+'\',\''+String(e.selfie).replace(/'/g,'')+'\');return false">📷 '+(k==='in'?'In':'Out')+'</a> ' : ''; }
+      var dd = i && i.dist!=null ? (i.branch?esc(i.branch)+' · ':'')+i.dist+' m'+(i.outRange?' ⚠️':'') : (i?'—':'');
+      return '<tr style="border-top:1px solid #f0f0f0"><td style="padding:7px 8px;font-weight:600">'+esc(u.name)+((P[u.id]||{}).empCode?' <span style="color:#999;font-weight:400">'+esc(P[u.id].empCode)+'</span>':'')+'</td><td>'+badge(o)+'</td><td>'+(i?(MODE[i.mode]||''):'')+'</td><td>'+tm(i&&i.ts)+'</td><td>'+tm(ou&&ou.ts)+(ou&&ou.outRange?' ⚠️':'')+'</td><td>'+fh(hrs(r))+'</td><td>'+dd+'</td><td>'+sf('in',i)+sf('out',ou)+'</td><td style="color:#888">'+esc((i&&i.note)||'')+'</td><td><button class="btn btn-sm" onclick="attEdit(\''+ds+'\',\''+u.id+'\')">✏️</button></td></tr>'; }).join('');
+    function m(l,v,cl){ return '<div class="metric '+cl+'"><div class="ml">'+l+'</div><div class="mv">'+v+'</div></div>'; }
+    b.innerHTML = '<div class="metrics">'+m('Checked in',c.in+' / '+emps.length,'green')+m('Late',c.late,'amber')+m('WFH',c.wfh,'blue')+m('Field duty',c.field,'north')+m('Not marked',c.none,'red')+'</div>'+
+      '<div class="card" style="overflow-x:auto"><div class="card-hdr"><div class="card-title">Team — '+ds+'</div><button class="btn btn-sm" onclick="attTab(\'today\')">🔄 Refresh</button></div>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px"><thead><tr style="text-align:left;color:#888"><th style="padding:6px 8px">Employee</th><th>Status</th><th>Mode</th><th>In</th><th>Out</th><th>Hours</th><th>From office</th><th>Selfie</th><th>Note</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+  });
+}
+
+// ── Monthly report (admin: all employees) ─────────────────────
+function drawMonth(){
+  var b = $a('att-body');
+  if (!isAdm()) { b.innerHTML = '<div id="att-mine"></div>'; return monthTable('att-mine', CU.id); }
+  var emps = employees();
+  b.innerHTML = '<div class="card"><div class="card-hdr"><div class="card-title">Monthly summary</div><div style="display:flex;gap:8px;flex-wrap:wrap"><input type="month" class="fi" id="att-rm" value="'+_month+'" style="width:auto"><button class="btn btn-sm" id="att-xl">⬇ Excel</button></div></div><div id="att-rep" style="overflow-x:auto">Loading…</div></div><div id="att-emp"></div>';
+  $a('att-rm').onchange = function(){ _month = this.value || _month; drawMonth(); };
+  loadMonth(_month, function(by){
+    var days = monthRange(_month);
+    var rows = emps.map(function(u){ var s = summarize(days, by, u.id);
+      return '<tr style="border-top:1px solid #f0f0f0;cursor:pointer" onclick="attEmp(\''+u.id+'\')"><td style="padding:7px 8px;font-weight:600">'+esc(u.name)+'</td><td>'+s.P+'</td><td>'+s.H+'</td><td>'+s.L+'</td><td>'+s.A+'</td><td>'+s.late+'</td><td>'+s.wfh+'</td><td>'+s.field+'</td><td>'+fh(s.h)+'</td></tr>'; }).join('');
+    $a('att-rep').innerHTML = '<table id="att-xt" style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px"><thead><tr style="text-align:left;color:#888"><th style="padding:6px 8px">Employee</th><th>Present</th><th>Half</th><th>Leave</th><th>Absent</th><th>Late</th><th>WFH</th><th>Field</th><th>Hours</th></tr></thead><tbody>'+rows+'</tbody></table><div style="font-size:11px;color:#999;margin-top:6px">Click an employee for the day-by-day view. Absent counts only working days (week-offs and holidays excluded).</div>';
+    $a('att-xl').onclick = function(){ if (typeof XLSX==='undefined') return showToast('Excel library not loaded.'); XLSX.writeFile(XLSX.utils.table_to_book($a('att-xt')), 'Attendance_'+_month+'.xlsx'); };
+  });
+}
+window.attEmp = function(uid){ var h=$a('att-emp'); if(h){ monthTable('att-emp', uid); h.scrollIntoView({behavior:'smooth'}); } };
+
+// ── Admin: mark / correct a day ───────────────────────────────
+window.attEdit = function(ds, uid){
+  if (!isAdm()) return;
+  db.ref('crm_attendance/'+ds+'/'+uid).once('value',function(s){
+    var r = s.val()||{}, o = dayInfo(r.manual||r.in?r:null, ds), u = users[uid]||{};
+    var ov = document.createElement('div'); ov.id='att-edit'; ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+    var hm = function(e){ if(!e) return ''; var d=new Date(e.ts); return p2(d.getHours())+':'+p2(d.getMinutes()); };
+    ov.innerHTML = '<div style="background:#fff;color:#1a1a1a;border-radius:14px;padding:22px;width:100%;max-width:400px"><div style="font-weight:800;margin-bottom:12px">✏️ '+esc(u.name)+' — '+ds+'</div>'+
+      '<label class="fl">Status</label><select class="fi" id="ae-st" style="width:100%;margin-bottom:10px">'+['present','half','leave','absent'].map(function(k){ return '<option value="'+k+'"'+((r.manual?r.status:(o.st))===k?' selected':'')+'>'+ST[k][0]+'</option>'; }).join('')+'</select>'+
+      '<div style="display:flex;gap:8px;margin-bottom:10px"><div style="flex:1"><label class="fl">In time</label><input type="time" class="fi" id="ae-in" value="'+hm(r.in)+'" style="width:100%"></div><div style="flex:1"><label class="fl">Out time</label><input type="time" class="fi" id="ae-out" value="'+hm(r.out)+'" style="width:100%"></div></div>'+
+      '<label class="fl">Note</label><input class="fi" id="ae-note" value="'+esc(r.note||'')+'" style="width:100%;margin-bottom:14px">'+
+      '<div style="display:flex;gap:8px"><button class="btn" onclick="document.getElementById(\'att-edit\').remove()">Cancel</button>'+(r.in||r.manual?'<button class="btn-danger" onclick="attDelete(\''+ds+'\',\''+uid+'\')">Delete record</button>':'')+'<button class="btn btn-primary" style="flex:1" onclick="attSaveEdit(\''+ds+'\',\''+uid+'\')">Save</button></div></div>';
+    document.body.appendChild(ov);
+  });
+};
+window.attSaveEdit = function(ds, uid){
+  var u = users[uid]||{}, ref = db.ref('crm_attendance/'+ds+'/'+uid);
+  ref.once('value',function(s){
+    var r = s.val()||{}, st = $a('ae-st').value, ti = $a('ae-in').value, to = $a('ae-out').value, note = $a('ae-note').value.trim();
+    var rec = Object.assign({}, r, {userId:uid, name:u.name||'', date:ds, manual:true, status:st, editedBy:CU.name||CU.username, editedAt:now()});
+    if (note) rec.note = note; else delete rec.note;
+    function mk(t, old){ var e = Object.assign({mode:'office'}, old||{}); e.ts = new Date(ds+'T'+t+':00').getTime(); return e; }
+    if (ti) rec.in = mk(ti, r.in); if (to) rec.out = mk(to, r.out);
+    ref.set(rec, function(err){ if (err) return alert('Error: '+err.message); $a('att-edit').remove(); showToast('✅ Attendance updated.');
+      try{ if(typeof logActivity==='function') logActivity('attendance','Attendance Edited',(u.name||uid)+' · '+ds+' → '+st,{}); }catch(e){}
+      draw(); });
+  });
+};
+window.attDelete = function(ds, uid){
+  if (!confirm('Delete this attendance record?')) return;
+  db.ref('crm_attendance/'+ds+'/'+uid).remove(function(){ db.ref('crm_attendance_selfies/'+ds+'/'+uid+'_in').remove(); db.ref('crm_attendance_selfies/'+ds+'/'+uid+'_out').remove(); $a('att-edit').remove(); showToast('Record deleted.'); draw(); });
+};
+
+// ── Settings (admin): branches, shifts, rules, employee profiles ──
+function fldc(cls,l,v,t){ return '<div style="flex:1;min-width:100px"><label class="fl">'+l+'</label><input class="fi '+cls+'" type="'+(t||'text')+'" step="any" value="'+esc(v==null?'':v)+'" style="width:100%"></div>'; }
+function brRow(x){
+  x = x || {id:'b'+Date.now().toString(36)+Math.floor(Math.random()*99), name:'', lat:'', lng:'', radius:100};
+  return '<div class="as-br" data-id="'+esc(x.id)+'" style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">'+fldc('as-br-name','Branch name',x.name)+fldc('as-br-lat','Latitude',x.lat,'number')+fldc('as-br-lng','Longitude',x.lng,'number')+fldc('as-br-rad','Radius (m)',x.radius,'number')+
+    '<button class="btn btn-sm" onclick="attUseHere(this)">📍 Use my location</button><button class="btn-danger" onclick="this.closest(\'.as-br\').remove()">✕</button></div>';
+}
+function shRow(x){
+  x = x || {id:'s'+Date.now().toString(36)+Math.floor(Math.random()*99), name:'', start:'10:00', grace:15, half:4.5};
+  return '<div class="as-sh" data-id="'+esc(x.id)+'" style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">'+fldc('as-sh-name','Shift name',x.name)+fldc('as-sh-start','Starts at',x.start,'time')+fldc('as-sh-grace','Late after (min)',x.grace,'number')+fldc('as-sh-half','Half day below (hrs)',x.half,'number')+
+    '<button class="btn-danger" onclick="this.closest(\'.as-sh\').remove()">✕</button></div>';
+}
+function ltRow(x){
+  x = x || {id:'l'+Date.now().toString(36)+Math.floor(Math.random()*99), name:'', quota:0, paid:true};
+  return '<div class="as-lt" data-id="'+esc(x.id)+'" style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">'+fldc('as-lt-name','Leave type',x.name)+fldc('as-lt-quota','Days per year (0 = no limit)',x.quota,'number')+
+    '<label style="font-size:13px;padding-bottom:8px"><input type="checkbox" class="as-lt-paid" '+(x.paid!==false?'checked':'')+'> Paid</label><button class="btn-danger" onclick="this.closest(\'.as-lt\').remove()">✕</button></div>';
+}
+window.attAddLeave = function(){ $a('as-lts').insertAdjacentHTML('beforeend', ltRow()); };
+window.attAddBranch = function(){ $a('as-brs').insertAdjacentHTML('beforeend', brRow()); };
+window.attAddShift = function(){ $a('as-shs').insertAdjacentHTML('beforeend', shRow()); };
+function drawSettings(){
+  var b = $a('att-body'), days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], emps = employees();
+  function chk(id,l,v){ return '<label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px"><input type="checkbox" id="'+id+'" '+(v?'checked':'')+'> '+l+'</label>'; }
+  var jt = ['Full-time','Contractual','Intern','Freelancer'];
+  var prof = emps.map(function(u){
+    var p = P[u.id]||{}, ids = arr(p.branchIds);
+    return '<tr class="as-pr" data-u="'+esc(u.id)+'" style="border-top:1px solid #f0f0f0"><td style="padding:6px 6px;font-weight:600;white-space:nowrap">'+esc(u.name)+'</td>'+
+      '<td><input class="fi as-p-code" value="'+esc(p.empCode||'')+'" style="width:90px"></td>'+
+      '<td><input type="date" class="fi as-p-doj" value="'+esc(p.doj||'')+'"></td>'+
+      '<td><select class="fi as-p-jt">'+jt.map(function(j){ return '<option'+((p.jobType||'Full-time')===j?' selected':'')+'>'+j+'</option>'; }).join('')+'</select></td>'+
+      '<td>'+(S.branches.length?S.branches.map(function(br){ return '<label style="font-size:12px;margin-right:8px;white-space:nowrap"><input type="checkbox" class="as-p-br" value="'+esc(br.id)+'" '+(ids.indexOf(br.id)>-1?'checked':'')+'> '+esc(br.name)+'</label>'; }).join(''):'<span style="color:#aaa;font-size:11px">save branches first</span>')+'</td>'+
+      '<td><select class="fi as-p-sh">'+S.shifts.map(function(sh){ return '<option value="'+esc(sh.id)+'"'+((p.shiftId||S.shifts[0].id)===sh.id?' selected':'')+'>'+esc(sh.name)+'</option>'; }).join('')+'</select></td>'+
+      '<td style="text-align:center"><input type="checkbox" class="as-p-wfh" '+(p.wfh!==false?'checked':'')+'></td></tr>'; }).join('');
+  b.innerHTML = '<div class="card" style="max-width:820px"><div class="card-hdr"><div class="card-title">📍 Branches / office locations</div><button class="btn btn-sm" onclick="attAddBranch()">+ Add branch</button></div>'+
+    '<div id="as-brs">'+S.branches.map(brRow).join('')+'</div><div id="as-msg" style="font-size:11px;color:#888">Stand inside each branch and tap “Use my location”. 100–150 m radius works well because GPS indoors can drift. An employee with no branch ticked can check in at any branch.</div></div>'+
+    '<div class="card" style="max-width:820px"><div class="card-hdr"><div class="card-title">🕘 Shifts</div><button class="btn btn-sm" onclick="attAddShift()">+ Add shift</button></div><div id="as-shs">'+S.shifts.map(shRow).join('')+'</div></div>'+
+    '<div class="card" style="max-width:820px"><div class="card-hdr"><div class="card-title">✅ Rules</div></div>'+
+    chk('as-selfie','Require a live selfie for check-in and check-out',S.requireSelfie)+chk('as-loc','Require location access',S.requireLocation)+chk('as-wfh','Allow work from home',S.allowWFH)+chk('as-field','Allow field / on-shoot duty (note required)',S.allowField)+
+    '<label class="fl" style="margin-top:10px">Weekly off</label><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'+days.map(function(d,i){ return '<label style="font-size:13px"><input type="checkbox" class="as-off" value="'+i+'" '+(S.weeklyOff.indexOf(i)>-1?'checked':'')+'> '+d+'</label>'; }).join('')+'</div>'+
+    '<label class="fl">Holidays (one date per line, YYYY-MM-DD)</label><textarea class="fi" id="as-hol" rows="4" style="width:100%">'+esc(S.holidays.join('\n'))+'</textarea></div>'+
+    '<div class="card" style="max-width:820px"><div class="card-hdr"><div class="card-title">🌴 Leave types</div><button class="btn btn-sm" onclick="attAddLeave()">+ Add leave type</button></div><div id="as-lts">'+S.leaveTypes.map(ltRow).join('')+'</div><div style="font-size:11px;color:#888">Quota is per financial year (April–March). Unpaid types reduce payable days.</div></div>'+
+    '<div class="card" style="max-width:820px"><div class="card-hdr"><div class="card-title">💰 Payroll parameters</div></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">'+fldc('as-pay-company','Company name (on payslip)',S.pay.company)+fldc('as-pay-addr','Address (on payslip)',S.pay.address)+'</div><div style="display:flex;gap:10px;flex-wrap:wrap">'+fldc('as-pay-pfc','PF wage ceiling ₹',S.pay.pfCeiling,'number')+fldc('as-pay-pfr','PF rate % (each side)',S.pay.pfRate,'number')+fldc('as-pay-esic','ESI wage ceiling ₹',S.pay.esiCeiling,'number')+fldc('as-pay-esie','ESI employee %',S.pay.esiEe,'number')+fldc('as-pay-esir','ESI employer %',S.pay.esiEr,'number')+'</div><div style="font-size:11px;color:#888;margin-top:6px">Only used for employees whose PF / ESI is ticked in Payroll → Salary structures. Statutory rates change — confirm current values with your CA.</div></div>'+
+    '<div class="card" style="overflow-x:auto"><div class="card-hdr"><div class="card-title">👤 Employee profiles</div></div><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px"><thead><tr style="text-align:left;color:#888"><th style="padding:6px">Employee</th><th>Emp code</th><th>Joined</th><th>Job type</th><th>Branches</th><th>Shift</th><th>WFH</th></tr></thead><tbody>'+prof+'</tbody></table></div>'+
+    '<button class="btn btn-primary" style="margin:4px 0 16px" onclick="attSaveSettings()">💾 Save all settings</button>';
+}
+window.attUseHere = function(btn){
+  var row = btn.closest('.as-br'), m = $a('as-msg'); m.textContent = 'Getting location…';
+  getLoc(function(e,l){ if (e) { m.textContent = 'Failed: '+e.message; return; } row.querySelector('.as-br-lat').value = l.lat.toFixed(6); row.querySelector('.as-br-lng').value = l.lng.toFixed(6); m.textContent = '✅ Captured (accuracy ±'+Math.round(l.acc)+' m). Press Save all settings.'; });
+};
+window.attSaveSettings = function(){
+  if (!isAdm()) return;
+  var brs = [], shs = [], offs = [], pu = {};
+  document.querySelectorAll('#as-brs .as-br').forEach(function(r){
+    var n = r.querySelector('.as-br-name').value.trim(), la = parseFloat(r.querySelector('.as-br-lat').value), lo = parseFloat(r.querySelector('.as-br-lng').value), ra = parseFloat(r.querySelector('.as-br-rad').value) || 100;
+    if (n && !isNaN(la) && !isNaN(lo)) brs.push({id:r.getAttribute('data-id'), name:n, lat:la, lng:lo, radius:Math.max(10,ra)}); });
+  document.querySelectorAll('#as-shs .as-sh').forEach(function(r){
+    var n = r.querySelector('.as-sh-name').value.trim(); if (!n) return;
+    shs.push({id:r.getAttribute('data-id'), name:n, start:r.querySelector('.as-sh-start').value||'10:00', grace:parseFloat(r.querySelector('.as-sh-grace').value)||0, half:parseFloat(r.querySelector('.as-sh-half').value)||4.5}); });
+  if (!shs.length) shs.push({id:'general', name:'General', start:'10:00', grace:15, half:4.5});
+  document.querySelectorAll('.as-off').forEach(function(c){ if (c.checked) offs.push(+c.value); });
+  var hol = $a('as-hol').value.split('\n').map(function(x){ return x.trim(); }).filter(function(x){ return /^\d{4}-\d{2}-\d{2}$/.test(x); });
+  document.querySelectorAll('.as-pr').forEach(function(r){
+    var ids = []; r.querySelectorAll('.as-p-br').forEach(function(c){ if (c.checked && brs.some(function(b){ return b.id===c.value; })) ids.push(c.value); });
+    var o = {empCode:r.querySelector('.as-p-code').value.trim(), doj:r.querySelector('.as-p-doj').value, jobType:r.querySelector('.as-p-jt').value, shiftId:r.querySelector('.as-p-sh').value, wfh:r.querySelector('.as-p-wfh').checked};
+    if (ids.length) o.branchIds = ids; pu[r.getAttribute('data-u')] = o; });
+  var lts = []; document.querySelectorAll('#as-lts .as-lt').forEach(function(r){ var n = r.querySelector('.as-lt-name').value.trim(); if (n) lts.push({id:r.getAttribute('data-id'), name:n, quota:parseFloat(r.querySelector('.as-lt-quota').value)||0, paid:r.querySelector('.as-lt-paid').checked}); });
+  if (!lts.length) lts = defLeave();
+  function pn(id,d){ var v = parseFloat($a(id).value); return isNaN(v) ? d : v; }
+  var pay = {company:$a('as-pay-company').value.trim()||'Company', address:$a('as-pay-addr').value.trim(), pfCeiling:pn('as-pay-pfc',25000), pfRate:pn('as-pay-pfr',12), esiCeiling:pn('as-pay-esic',21000), esiEe:pn('as-pay-esie',0.75), esiEr:pn('as-pay-esir',3.25)};
+  var o = {branches:brs, shifts:shs, leaveTypes:lts, pay:pay, requireSelfie:$a('as-selfie').checked, requireLocation:$a('as-loc').checked, allowWFH:$a('as-wfh').checked, allowField:$a('as-field').checked, weeklyOff:offs.length?offs:[-1], holidays:hol};
+  db.ref('crm_attendance_settings').set(o, function(err){
+    if (err) return alert('Error: '+err.message);
+    db.ref('crm_hr_profiles').update(pu, function(err2){
+      if (err2) return alert('Settings saved, but profiles failed: '+err2.message);
+      showToast('✅ Attendance settings saved.');
+      loadSettings(drawSettings);
+    });
+  });
+};
+// ═══ PART 2 — requests, leave, month approval, payroll, payslips, F&F ═══
+var _rq = {}, _ptab = 'run', _pm = '', _am = '', _run = null, _amRows = {};
+var TD = 'padding:6px 8px';
+function canPay(){ return !!CU && (CU.role==='superadmin' || CU.role==='accounts'); }
+function inr(n){ return (Math.round(n)||0).toLocaleString('en-IN'); }
+function fyOf(ds){ var y = +ds.slice(0,4), m = +ds.slice(5,7); return m>=4 ? y : y-1; }
+function prevMonth(){ var d = new Date(now()); d.setDate(1); d.setMonth(d.getMonth()-1); return dkey(d.getTime()).slice(0,7); }
+function listDays(a,b){ var o = [], d = new Date(a+'T00:00:00'), e = new Date(b+'T00:00:00'); while (d<=e) { var k = dkey(d.getTime()); if (S.weeklyOff.indexOf(d.getDay())===-1 && S.holidays.indexOf(k)===-1) o.push(k); d.setDate(d.getDate()+1); } return o; }
+function chip(st){ var c = {pending:['Pending','#d97706','#fef3c7'],approved:['Approved','#16a34a','#dcfce7'],rejected:['Rejected','#dc2626','#fee2e2'],cancelled:['Cancelled','#64748b','#f1f5f9']}[st]||[st,'#999','#eee']; return '<span style="background:'+c[2]+';color:'+c[1]+';border-radius:10px;padding:2px 9px;font-size:11px;font-weight:700">'+c[0]+'</span>'; }
+function openDoc(html){ var w = window.open('','_blank'); if (!w) return alert('Please allow pop-ups to open the printable document.'); w.document.write(html); w.document.close(); w.focus(); setTimeout(function(){ try{ w.print(); }catch(e){} }, 500); }
+function usedLeave(rs, fy){ var u = {}; Object.keys(rs).forEach(function(k){ var r = rs[k]; if (r.type==='leave' && r.status==='approved' && fyOf(r.from)===fy) u[r.leaveTypeId] = (u[r.leaveTypeId]||0) + (+r.days||0); }); return u; }
+function allUsers(){ return Object.values(users||{}).filter(function(u){ return u.role!=='referral'; }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); }); }
+
+// ── Employee: requests & leave ────────────────────────────────
+function drawReq(){
+  var b = $a('att-body'); b.innerHTML = '<div style="padding:20px;color:#aaa">Loading…</div>';
+  db.ref('crm_att_requests/'+CU.id).once('value',function(s){
+    var rs = s.val()||{}, fy = fyOf(dkey(now())), used = usedLeave(rs, fy);
+    var list = Object.keys(rs).map(function(k){ var r = rs[k]; r.id = k; return r; }).sort(function(a,c){ return c.at-a.at; }).slice(0,40);
+    var bal = S.leaveTypes.filter(function(t){ return +t.quota>0; }).map(function(t){ var u = used[t.id]||0; return '<div class="metric blue"><div class="ml">'+esc(t.name)+'</div><div class="mv">'+(t.quota-u)+'</div><div class="ms">of '+t.quota+' left · FY '+fy+'-'+String(fy+1).slice(2)+'</div></div>'; }).join('');
+    var today = dkey(now());
+    var rows = list.map(function(r){
+      var det = r.type==='leave' ? esc(r.leaveName)+' · '+r.from+' → '+r.to+' · '+r.days+' day(s)' : 'Missed punch · '+r.date+(r.inTime?' · In '+r.inTime:'')+(r.outTime?' · Out '+r.outTime:'');
+      return '<tr style="border-top:1px solid #f0f0f0"><td style="'+TD+'">'+det+'<div style="color:#999">'+esc(r.reason||'')+'</div>'+(r.comment?'<div style="color:#b45309">Note: '+esc(r.comment)+'</div>':'')+'</td><td>'+chip(r.status)+'</td><td>'+(r.status==='pending'?'<button class="btn btn-sm" onclick="attCancelReq(\''+r.id+'\')">Cancel</button>':'')+'</td></tr>'; }).join('') || '<tr><td colspan="3" style="padding:14px;color:#aaa">No requests yet.</td></tr>';
+    b.innerHTML = '<div class="metrics">'+bal+'</div><div style="display:flex;gap:12px;flex-wrap:wrap">'+
+      '<div class="card" style="flex:1;min-width:280px"><div class="card-hdr"><div class="card-title">🌴 Apply for leave</div></div>'+
+      '<label class="fl">Leave type</label><select class="fi" id="rq-lt" style="width:100%;margin-bottom:8px">'+S.leaveTypes.map(function(t){ return '<option value="'+esc(t.id)+'">'+esc(t.name)+(t.paid===false?' (unpaid)':'')+'</option>'; }).join('')+'</select>'+
+      '<div style="display:flex;gap:8px;margin-bottom:8px"><div style="flex:1"><label class="fl">From</label><input type="date" class="fi" id="rq-from" value="'+today+'" style="width:100%"></div><div style="flex:1"><label class="fl">To</label><input type="date" class="fi" id="rq-to" value="'+today+'" style="width:100%"></div></div>'+
+      '<label class="fl">Reason</label><input class="fi" id="rq-why" style="width:100%;margin-bottom:10px"><button class="btn btn-primary" onclick="attLeaveSubmit()">Submit leave request</button></div>'+
+      '<div class="card" style="flex:1;min-width:280px"><div class="card-hdr"><div class="card-title">🕘 Missed punch / correction</div></div>'+
+      '<label class="fl">Date</label><input type="date" class="fi" id="pq-date" max="'+today+'" value="'+today+'" style="width:100%;margin-bottom:8px">'+
+      '<div style="display:flex;gap:8px;margin-bottom:8px"><div style="flex:1"><label class="fl">In time</label><input type="time" class="fi" id="pq-in" style="width:100%"></div><div style="flex:1"><label class="fl">Out time</label><input type="time" class="fi" id="pq-out" style="width:100%"></div></div>'+
+      '<label class="fl">Reason</label><input class="fi" id="pq-why" style="width:100%;margin-bottom:10px"><button class="btn btn-primary" onclick="attPunchSubmit()">Submit correction</button></div></div>'+
+      '<div class="card" style="overflow-x:auto"><div class="card-hdr"><div class="card-title">My requests</div></div><table style="width:100%;border-collapse:collapse;font-size:12px"><tbody>'+rows+'</tbody></table></div>';
+  });
+}
+window.attLeaveSubmit = function(){
+  var t = S.leaveTypes.filter(function(x){ return x.id===$a('rq-lt').value; })[0], f = $a('rq-from').value, to = $a('rq-to').value, why = $a('rq-why').value.trim();
+  if (!t || !f || !to || to<f) return alert('Choose a leave type and valid dates.');
+  if (!why) return alert('Please add a reason.');
+  var days = listDays(f,to).length; if (!days) return alert('Those dates are all week-offs or holidays.');
+  db.ref('crm_att_requests/'+CU.id).once('value',function(s){
+    var rs = s.val()||{}, used = usedLeave(rs, fyOf(f))[t.id]||0;
+    if (+t.quota>0 && days > t.quota-used) return alert('Not enough '+t.name+' balance ('+(t.quota-used)+' day(s) left). Apply for Unpaid Leave instead.');
+    var ref = db.ref('crm_att_requests/'+CU.id).push();
+    ref.set({type:'leave',userId:CU.id,name:CU.name,leaveTypeId:t.id,leaveName:t.name,paid:t.paid!==false,from:f,to:to,days:days,reason:why,status:'pending',at:now()},function(e){ if (e) return alert(e.message); showToast('✅ Leave request sent.'); drawReq(); });
+  });
+};
+window.attPunchSubmit = function(){
+  var d = $a('pq-date').value, i = $a('pq-in').value, o = $a('pq-out').value, why = $a('pq-why').value.trim();
+  if (!d || d>dkey(now())) return alert('Choose a past or current date.');
+  if (!i && !o) return alert('Enter the in time and/or out time.');
+  if (!why) return alert('Please add a reason.');
+  var ref = db.ref('crm_att_requests/'+CU.id).push();
+  ref.set({type:'punch',userId:CU.id,name:CU.name,date:d,inTime:i||'',outTime:o||'',reason:why,status:'pending',at:now()},function(e){ if (e) return alert(e.message); showToast('✅ Correction request sent.'); drawReq(); });
+};
+window.attCancelReq = function(id){ db.ref('crm_att_requests/'+CU.id+'/'+id).update({status:'cancelled'},function(){ drawReq(); }); };
+
+// ── Admin: approvals ──────────────────────────────────────────
+function drawApprovals(){
+  $a('att-body').innerHTML = '<div id="ap-req"></div><div id="ap-month"></div>';
+  db.ref('crm_att_requests').once('value',function(s){
+    var all = s.val()||{}, list = []; _rq = {};
+    Object.keys(all).forEach(function(uid){ Object.keys(all[uid]||{}).forEach(function(k){ var r = all[uid][k]; r.id = k; _rq[k] = r; list.push(r); }); });
+    var pend = list.filter(function(r){ return r.status==='pending'; }).sort(function(a,c){ return a.at-c.at; });
+    var done = list.filter(function(r){ return r.status!=='pending'; }).sort(function(a,c){ return c.at-a.at; }).slice(0,12);
+    function det(r){ return r.type==='leave' ? '🌴 '+esc(r.leaveName)+' · '+r.from+' → '+r.to+' · '+r.days+' day(s)' : '🕘 Missed punch · '+r.date+(r.inTime?' · In '+r.inTime:'')+(r.outTime?' · Out '+r.outTime:''); }
+    function row(r,act){ return '<tr style="border-top:1px solid #f0f0f0"><td style="'+TD+';font-weight:600">'+esc(r.name)+'</td><td>'+det(r)+'<div style="color:#999">'+esc(r.reason||'')+'</div></td><td>'+(act?'<button class="btn btn-sm" style="color:#16a34a" onclick="attDecide(\''+r.userId+'\',\''+r.id+'\',\'approved\')">✅ Approve</button> <button class="btn btn-sm" style="color:#dc2626" onclick="attDecide(\''+r.userId+'\',\''+r.id+'\',\'rejected\')">Reject</button>':chip(r.status)+(r.decidedBy?' <span style="color:#999">by '+esc(r.decidedBy)+'</span>':''))+'</td></tr>'; }
+    $a('ap-req').innerHTML = '<div class="card" style="overflow-x:auto"><div class="card-hdr"><div class="card-title">📝 Pending requests ('+pend.length+')</div></div><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px"><tbody>'+(pend.map(function(r){ return row(r,true); }).join('')||'<tr><td style="padding:14px;color:#aaa">Nothing pending.</td></tr>')+'</tbody></table>'+
+      (done.length?'<div style="font-size:11px;color:#888;margin:14px 0 4px">Recently decided</div><table style="width:100%;border-collapse:collapse;font-size:12px;min-width:560px"><tbody>'+done.map(function(r){ return row(r,false); }).join('')+'</tbody></table>':'')+'</div>';
+  });
+  drawMonthApproval();
+}
+window.attDecide = function(uid, id, dec){
+  var r = _rq[id]; if (!r || !isAdm()) return;
+  var cm = '';
+  if (dec==='rejected') { cm = prompt('Reason for rejecting (shown to the employee):') || ''; if (!cm && !confirm('Reject without a reason?')) return; }
+  function finish(){ db.ref('crm_att_requests/'+uid+'/'+id).update({status:dec,decidedBy:CU.name,decidedAt:now(),comment:cm},function(e){ if (e) return alert(e.message); showToast(dec==='approved'?'✅ Approved':'Request rejected'); try{ if(typeof logActivity==='function') logActivity('attendance','Request '+dec,r.name+' · '+(r.type==='leave'?r.leaveName+' '+r.from:'punch '+r.date),{}); }catch(x){} drawApprovals(); }); }
+  if (dec!=='approved') return finish();
+  if (r.type==='punch') applyPunch(r, finish); else applyLeave(r, finish);
+};
+function applyPunch(r, cb){
+  var ref = db.ref('crm_attendance/'+r.date+'/'+r.userId);
+  ref.once('value',function(s){
+    var ex = s.val()||{}, rec = Object.assign({}, ex, {userId:r.userId,name:r.name,date:r.date,manual:true,status:'present',regularized:true,late:false,note:'Regularized: '+r.reason,editedBy:CU.name,editedAt:now()});
+    function mk(t, old){ var e = Object.assign({mode:'office'}, old||{}); e.ts = new Date(r.date+'T'+t+':00').getTime(); return e; }
+    if (r.inTime) rec.in = mk(r.inTime, ex.in); if (r.outTime) rec.out = mk(r.outTime, ex.out);
+    ref.set(rec, function(e){ if (e) return alert(e.message); cb(); });
+  });
+}
+function applyLeave(r, cb){
+  var ds = listDays(r.from, r.to);
+  Promise.all(ds.map(function(k){ return db.ref('crm_attendance/'+k+'/'+r.userId).once('value'); })).then(function(snaps){
+    var up = {}; snaps.forEach(function(sn,i){ var ex = sn.val(); if (ex && ex.in && !ex.manual) return;
+      up[ds[i]+'/'+r.userId] = {userId:r.userId,name:r.name,date:ds[i],manual:true,status:'leave',paid:r.paid!==false,leaveType:r.leaveName,note:'Leave: '+r.leaveName,editedBy:CU.name,editedAt:now()}; });
+    return db.ref('crm_attendance').update(up);
+  }).then(cb).catch(function(e){ alert('Error: '+e.message); });
+}
+
+// ── Month-end attendance approval ─────────────────────────────
+function calc(month, by, uid){
+  var days = monthRange(month), doj = (P[uid]||{}).doj||'', c = {days:days.length,present:0,half:0,absent:0,pl:0,ul:0,pre:0,wo:0,late:0};
+  days.forEach(function(ds){
+    if (doj && ds<doj) { c.pre++; return; }
+    var rec = (by[ds]||{})[uid], o = dayInfo(rec, ds);
+    if (o.st==='present') c.present++; else if (o.st==='half') c.half++; else if (o.st==='absent') c.absent++;
+    else if (o.st==='leave') { if (rec && rec.paid===false) c.ul++; else c.pl++; }
+    else if (o.st==='holiday' || o.st==='off') c.wo++;
+    if (o.late) c.late++;
+  });
+  c.lop = c.pre + c.absent + c.ul + c.half*0.5; c.pay = Math.max(0, c.days - c.lop);
+  return c;
+}
+function drawMonthApproval(){
+  var h = $a('ap-month'); if (!h) return; if (!_am) _am = prevMonth();
+  h.innerHTML = '<div class="card"><div class="card-hdr"><div class="card-title">🔒 Month-end attendance approval</div><input type="month" class="fi" id="am-m" value="'+_am+'" style="width:auto"></div><div id="am-body" style="overflow-x:auto">Loading…</div></div>';
+  $a('am-m').onchange = function(){ _am = this.value || _am; drawMonthApproval(); };
+  loadMonth(_am, function(by){
+    Promise.all([db.ref('crm_att_approved/'+_am).once('value'), db.ref('crm_payroll_final/'+_am).once('value')]).then(function(r){
+      var ap = r[0].val()||{}, fin = !!r[1].val(), over = _am < dkey(now()).slice(0,7); _amRows = {};
+      var rows = employees().map(function(u){
+        var c = calc(_am, by, u.id), a = ap[u.id]; _amRows[u.id] = c;
+        return '<tr style="border-top:1px solid #f0f0f0"><td style="'+TD+';font-weight:600">'+esc(u.name)+'</td><td>'+c.present+'</td><td>'+c.half+'</td><td>'+c.absent+'</td><td>'+c.pl+'</td><td>'+c.ul+'</td><td>'+c.pre+'</td><td>'+c.lop+'</td><td><input type="number" step="0.5" class="fi am-pay" data-u="'+u.id+'" value="'+(a?a.pay:c.pay)+'" style="width:76px" '+(fin?'disabled':'')+'> / '+c.days+'</td><td>'+(a?chip('approved'):'<span style="color:#999">Not approved</span>')+'</td></tr>'; }).join('');
+      $a('am-body').innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:720px"><thead><tr style="text-align:left;color:#888"><th style="'+TD+'">Employee</th><th>Present</th><th>Half</th><th>Absent</th><th>Paid leave</th><th>Unpaid leave</th><th>Before joining</th><th>Loss of pay</th><th>Payable days</th><th>Status</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">'+(fin?'<span style="color:#16a34a;font-weight:700">🔒 Payroll for this month is finalized — attendance is locked.</span>':
+        (over?'<button class="btn btn-primary" onclick="attApproveMonth()">✅ Approve month attendance</button>':'<span style="color:#b45309">This month is not over yet — approve it after the last day.</span>')+(canPay()||CU.role==='superadmin'?' <button class="btn btn-sm" onclick="attReopenMonth()">Re-open month</button>':''))+'</div>'+
+        '<div style="font-size:11px;color:#999;margin-top:8px">Loss of pay = absent days + unpaid leave + half days × 0.5 + days before joining. Week-offs and holidays are paid. You can edit payable days before approving.</div>';
+    });
+  });
+}
+window.attApproveMonth = function(){
+  if (!isAdm()) return;
+  var up = {}; document.querySelectorAll('.am-pay').forEach(function(i){ var u = i.getAttribute('data-u'), c = _amRows[u]; if (!c) return; var pay = parseFloat(i.value); if (isNaN(pay)) pay = c.pay;
+    up[u] = Object.assign({}, c, {pay:Math.max(0,Math.min(c.days,pay)), month:_am, by:CU.name, at:now()}); });
+  if (!confirm('Approve attendance for '+_am+' for '+Object.keys(up).length+' employees?')) return;
+  db.ref('crm_att_approved/'+_am).update(up, function(e){ if (e) return alert(e.message); showToast('✅ Attendance approved.'); try{ if(typeof logActivity==='function') logActivity('attendance','Month Approved',_am,{}); }catch(x){} drawMonthApproval(); });
+};
+window.attReopenMonth = function(){
+  if (!confirm('Re-open '+_am+'? Approved attendance for the month will be cleared.')) return;
+  db.ref('crm_payroll_final/'+_am).once('value',function(s){ if (s.val()) return alert('Payroll is already finalized for this month. Re-open the payroll first.'); db.ref('crm_att_approved/'+_am).remove(function(){ showToast('Month re-opened.'); drawMonthApproval(); }); });
+};
+
+// ── My payslips ───────────────────────────────────────────────
+function drawSlips(){
+  var b = $a('att-body'); b.innerHTML = 'Loading…';
+  db.ref('crm_payslips/'+CU.id).once('value',function(s){
+    var v = s.val()||{}, ms = Object.keys(v).sort().reverse();
+    b.innerHTML = '<div class="card" style="max-width:520px"><div class="card-hdr"><div class="card-title">💵 My payslips</div></div>'+(ms.map(function(m){ return '<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid #f0f0f0;padding:10px 0"><div><b>'+new Date(m+'-01T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'})+'</b><div style="font-size:12px;color:#888">Net pay ₹'+inr(v[m].net)+'</div></div><button class="btn btn-sm" onclick="attMySlip(\''+m+'\')">View / Print</button></div>'; }).join('')||'<div style="color:#aaa;padding:10px 0">No payslips yet.</div>')+'</div>';
+  });
+}
+window.attMySlip = function(m){ db.ref('crm_payslips/'+CU.id+'/'+m).once('value',function(s){ if (s.val()) openDoc(slipHtml(s.val())); }); };
+
+// ── Payroll maths ─────────────────────────────────────────────
+function autoTds(annual){
+  var t = Math.max(0, annual - 75000), sl = [[400000,0],[800000,.05],[1200000,.10],[1600000,.15],[2000000,.20],[2400000,.25],[Infinity,.30]], tax = 0, prev = 0;
+  for (var i=0;i<sl.length;i++){ if (t>prev) tax += (Math.min(t,sl[i][0])-prev)*sl[i][1]; prev = sl[i][0]; }
+  if (t<=1200000) tax = 0; else tax = Math.min(tax, t-1200000);
+  return Math.round(tax*1.04/12);
+}
+function payCalc(st, ap, adj){
+  var f = ap.pay/ap.days, b0 = +st.basic||0, h0 = +st.hra||0, a0 = +st.allow||0;
+  var basic = Math.round(b0*f), hra = Math.round(h0*f), al = Math.round(a0*f), ae = +adj.earn||0, fixedGross = b0+h0+a0;
+  var pf = 0, pfEr = 0, esi = 0, esiEr = 0, tds = 0, pr = S.pay;
+  if (st.pf) { var w = st.pfFull ? basic : Math.min(basic, +pr.pfCeiling||25000); pf = Math.round(w*pr.pfRate/100); pfEr = pf; }
+  if (st.esi && fixedGross <= pr.esiCeiling) { var ew = basic+hra+al; esi = Math.ceil(ew*pr.esiEe/100); esiEr = Math.ceil(ew*pr.esiEr/100); }
+  if (st.tds==='manual') tds = Math.round(+st.tdsAmt||0); else if (st.tds==='auto') tds = autoTds(fixedGross*12);
+  var gross = basic+hra+al+ae, od = +adj.ded||0;
+  return {basic:basic,hra:hra,al:al,ae:ae,gross:gross,pf:pf,pfEr:pfEr,esi:esi,esiEr:esiEr,tds:tds,dedOther:od,net:gross-pf-esi-tds-od};
+}
+function words(n){
+  n = Math.round(n); if (n<=0) return 'Zero';
+  var a = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'], b = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function two(x){ return x<20 ? a[x] : b[Math.floor(x/10)]+(x%10?' '+a[x%10]:''); }
+  function three(x){ return (x>99 ? a[Math.floor(x/100)]+' Hundred'+(x%100?' ':'') : '')+(x%100?two(x%100):''); }
+  var cr = Math.floor(n/1e7), lk = Math.floor(n/1e5)%100, th = Math.floor(n/1e3)%100, r = n%1000, o = '';
+  if (cr) o += three(cr)+' Crore '; if (lk) o += two(lk)+' Lakh '; if (th) o += two(th)+' Thousand '; if (r) o += three(r);
+  return o.trim();
+}
+function slipHtml(R){
+  var e = R.emp||{}, c = S.pay||{}, A = R.att||{};
+  function row(l,v){ return '<tr><td>'+l+'</td><td style="text-align:right">'+inr(v)+'</td></tr>'; }
+  var earn = row('Basic',R.earn.basic)+row('House Rent Allowance',R.earn.hra)+row('Other Allowance',R.earn.allow)+(R.earn.adj?row(esc(R.adjNote||'Arrears / bonus / incentive'),R.earn.adj):'');
+  var ded = (R.ded.pf?row('Provident Fund',R.ded.pf):'')+(R.ded.esi?row('ESI',R.ded.esi):'')+(R.ded.tds?row('TDS (income tax)',R.ded.tds):'')+(R.ded.other?row('Advance / other deduction',R.ded.other):'') || '<tr><td colspan="2" style="color:#888">No deductions</td></tr>';
+  var td = R.ded.pf+R.ded.esi+R.ded.tds+R.ded.other, mn = new Date(R.month+'-01T00:00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  function kv(k,v){ return '<div><span style="color:#777">'+k+':</span> <b>'+esc(v||'—')+'</b></div>'; }
+  return '<!doctype html><html><head><meta charset="utf-8"><title>Payslip '+esc(e.name)+' '+R.month+'</title><style>body{font-family:Arial,sans-serif;font-size:13px;color:#111;margin:0;padding:24px}.w{max-width:760px;margin:auto;border:1px solid #333;padding:22px}table{width:100%;border-collapse:collapse}td,th{padding:6px 8px;border-bottom:1px solid #ddd}th{background:#f3f3f3;text-align:left}.g{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin:14px 0}@media print{body{padding:0}.w{border:none}}</style></head><body><div class="w">'+
+    '<div style="text-align:center"><div style="font-size:20px;font-weight:800">'+esc(c.company||'Company')+'</div><div style="color:#666;font-size:12px">'+esc(c.address||'')+'</div><div style="margin-top:8px;font-weight:700;font-size:15px">Payslip — '+mn+'</div></div>'+
+    '<div class="g">'+kv('Employee',e.name)+kv('Employee code',e.code)+kv('Designation',e.desig)+kv('Date of joining',e.doj)+kv('PAN',e.pan)+kv('Bank / A/c',(e.bank||'')+' '+(e.acct||''))+kv('Days in month',R.days)+kv('Payable days',R.payDays+(R.lop?' (loss of pay: '+R.lop+')':''))+'</div>'+
+    '<table><thead><tr><th>Earnings</th><th style="text-align:right">₹</th></tr></thead><tbody>'+earn+'<tr><td><b>Gross earnings</b></td><td style="text-align:right"><b>'+inr(R.gross)+'</b></td></tr></tbody></table><br>'+
+    '<table><thead><tr><th>Deductions</th><th style="text-align:right">₹</th></tr></thead><tbody>'+ded+'<tr><td><b>Total deductions</b></td><td style="text-align:right"><b>'+inr(td)+'</b></td></tr></tbody></table>'+
+    '<div style="margin-top:16px;padding:12px;background:#f3f3f3;font-size:15px"><b>Net pay: ₹'+inr(R.net)+'</b><div style="font-size:12px;color:#555;margin-top:2px">Rupees '+words(R.net)+' only</div></div>'+
+    ((R.er&&(R.er.pf||R.er.esi))?'<div style="margin-top:10px;font-size:11px;color:#666">Employer contribution (not deducted from salary): PF ₹'+inr(R.er.pf)+(R.er.esi?' · ESI ₹'+inr(R.er.esi):'')+'</div>':'')+
+    '<div style="margin-top:22px;font-size:11px;color:#888;text-align:center">This is a computer-generated payslip and does not require a signature.</div></div></body></html>';
+}
+
+// ── Payroll tab ───────────────────────────────────────────────
+function drawPayroll(){
+  if (!canPay()) { $a('att-body').innerHTML = '<div class="card">Only Super Admin or Accounts can open Payroll.</div>'; return; }
+  var tabs = [['run','Salary run'],['struct','Salary structures'],['fnf','Full & final']];
+  $a('att-body').innerHTML = '<div style="display:flex;gap:6px;margin-bottom:12px">'+tabs.map(function(t){ return '<button class="btn btn-sm" onclick="attPTab(\''+t[0]+'\')" style="'+(t[0]===_ptab?'background:#475569;color:#fff;border-color:#475569':'')+'">'+t[1]+'</button>'; }).join('')+'</div><div id="pr-host"></div>';
+  if (_ptab==='run') drawRun(); else if (_ptab==='struct') drawStruct(); else drawFnf();
+}
+window.attPTab = function(t){ _ptab = t; drawPayroll(); };
+
+function drawStruct(){
+  var h = $a('pr-host'); h.innerHTML = 'Loading…';
+  db.ref('crm_payroll_struct').once('value',function(s){
+    var st = s.val()||{}, jt = ['off','auto','manual'];
+    var rows = allUsers().map(function(u){ var x = st[u.id]||{};
+      function n(c,v,w){ return '<input type="number" class="fi '+c+'" value="'+(v==null?'':v)+'" style="width:'+(w||84)+'px">'; }
+      function t(c,v,w){ return '<input class="fi '+c+'" value="'+esc(v||'')+'" style="width:'+(w||100)+'px">'; }
+      return '<tr class="ps-r" data-u="'+esc(u.id)+'" style="border-top:1px solid #f0f0f0"><td style="'+TD+';font-weight:600;white-space:nowrap">'+esc(u.name)+(u.disabled?' <span style="color:#dc2626;font-weight:400">(disabled)</span>':'')+'</td><td>'+n('ps-basic',x.basic)+'</td><td>'+n('ps-hra',x.hra)+'</td><td>'+n('ps-allow',x.allow)+'</td>'+
+        '<td style="white-space:nowrap"><label><input type="checkbox" class="ps-pf" '+(x.pf?'checked':'')+'> PF</label> <label title="Contribute on full basic, no ceiling"><input type="checkbox" class="ps-pff" '+(x.pfFull?'checked':'')+'> full</label></td><td><label><input type="checkbox" class="ps-esi" '+(x.esi?'checked':'')+'> ESI</label></td>'+
+        '<td><select class="fi ps-tds">'+jt.map(function(j){ return '<option value="'+j+'"'+((x.tds||'off')===j?' selected':'')+'>'+({off:'No TDS',auto:'Auto estimate',manual:'Fixed amount'})[j]+'</option>'; }).join('')+'</select> '+n('ps-tdsamt',x.tdsAmt,70)+'</td><td>'+t('ps-bank',x.bank)+'</td><td>'+t('ps-acct',x.acct,130)+'</td><td>'+t('ps-ifsc',x.ifsc,100)+'</td><td>'+t('ps-pan',x.pan,100)+'</td></tr>'; }).join('');
+    h.innerHTML = '<div class="card" style="overflow-x:auto"><div class="card-hdr"><div class="card-title">💼 Monthly salary structure</div><button class="btn btn-primary btn-sm" onclick="attSaveStruct()">💾 Save</button></div>'+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1100px"><thead><tr style="text-align:left;color:#888"><th style="'+TD+'">Employee</th><th>Basic ₹</th><th>HRA ₹</th><th>Other allowance ₹</th><th>Provident Fund</th><th>ESI</th><th>TDS</th><th>Bank</th><th>Account no.</th><th>IFSC</th><th>PAN</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+      '<div style="font-size:11px;color:#999;margin-top:8px">PF, ESI and TDS are off unless you tick them. Rates and ceilings come from Settings → Payroll. “Auto estimate” uses the new tax regime for salary income only — use “Fixed amount” if the employee has other income or has chosen the old regime. PF ceiling applies unless “full” is ticked.</div></div>';
+  });
+}
+window.attSaveStruct = function(){
+  if (!canPay()) return; var up = {};
+  document.querySelectorAll('.ps-r').forEach(function(r){
+    function v(c){ return r.querySelector(c).value.trim(); }
+    var o = {basic:+v('.ps-basic')||0,hra:+v('.ps-hra')||0,allow:+v('.ps-allow')||0,pf:r.querySelector('.ps-pf').checked,pfFull:r.querySelector('.ps-pff').checked,esi:r.querySelector('.ps-esi').checked,tds:v('.ps-tds'),tdsAmt:+v('.ps-tdsamt')||0,bank:v('.ps-bank'),acct:v('.ps-acct'),ifsc:v('.ps-ifsc'),pan:v('.ps-pan').toUpperCase()};
+    if (o.basic||o.hra||o.allow||o.bank||o.acct) up[r.getAttribute('data-u')] = o; });
+  db.ref('crm_payroll_struct').update(up, function(e){ if (e) return alert(e.message); showToast('✅ Salary structures saved.'); });
+};
+
+function drawRun(){
+  var h = $a('pr-host'); if (!_pm) _pm = prevMonth();
+  h.innerHTML = '<div class="card"><div class="card-hdr"><div class="card-title">💰 Salary run</div><input type="month" class="fi" id="pr-m" value="'+_pm+'" style="width:auto"></div><div id="pr-body" style="overflow-x:auto">Loading…</div></div>';
+  $a('pr-m').onchange = function(){ _pm = this.value || _pm; drawRun(); };
+  Promise.all([db.ref('crm_payroll_struct').once('value'), db.ref('crm_att_approved/'+_pm).once('value'), db.ref('crm_payroll_runs/'+_pm).once('value'), db.ref('crm_payroll_final/'+_pm).once('value')]).then(function(r){
+    var st = r[0].val()||{}, ap = r[1].val()||{}, runs = r[2].val()||{}, fin = !!r[3].val();
+    _run = {final:fin, rows:{}, order:[]}; var missing = [];
+    employees().forEach(function(u){ if (!ap[u.id] && !runs[u.id]) missing.push(u.name); });
+    Object.keys(ap).forEach(function(uid){
+      var u = users[uid]; if (!u) return; var s = st[uid], x = {u:u, st:s, ap:ap[uid], adj:{earn:0,ded:0,note:''}};
+      if (!s || !((+s.basic||0)+(+s.hra||0)+(+s.allow||0))) { x.err = 'No salary structure set'; }
+      else { var sv = runs[uid]; if (sv && sv.adj) x.adj = {earn:sv.adj.earn||0, ded:sv.adj.ded||0, note:sv.adj.note||''}; x.calc = payCalc(s, ap[uid], x.adj); }
+      _run.rows[uid] = x; _run.order.push(uid); });
+    _run.order.sort(function(a,b){ return (users[a].name||'').localeCompare(users[b].name||''); });
+    var rows = _run.order.map(runRow).join('') || '<tr><td style="padding:14px;color:#aaa">No approved attendance for this month yet. Approve it under Approvals → Month-end attendance approval.</td></tr>';
+    $a('pr-body').innerHTML = (missing.length?'<div style="background:#fef3c7;color:#854d0e;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px">⚠️ Attendance not approved for: '+esc(missing.join(', '))+'</div>':'')+
+      '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:1050px"><thead><tr style="text-align:left;color:#888"><th style="'+TD+'">Employee</th><th>Pay days</th><th>Earned</th><th>Arrears / bonus ₹</th><th>Gross</th><th>PF</th><th>ESI</th><th>TDS</th><th>Advance / other ₹</th><th>Note</th><th>Net pay</th><th></th></tr></thead><tbody>'+rows+'</tbody><tfoot id="pr-tot"></tfoot></table>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center">'+(fin?'<span style="color:#16a34a;font-weight:700">🔒 Finalized</span>'+(CU.role==='superadmin'?' <button class="btn btn-sm" onclick="attReopenPay()">Re-open</button>':''):'<button class="btn btn-sm" onclick="attSaveRun(false)">💾 Save draft</button><button class="btn btn-primary btn-sm" onclick="attSaveRun(true)">🔒 Finalize &amp; publish payslips</button>')+
+      '<button class="btn btn-sm" onclick="attXls(\'reg\')">⬇ Salary register</button><button class="btn btn-sm" onclick="attXls(\'bank\')">⬇ Bank payment sheet</button></div>'; runTotals();
+  });
+}
+function runRow(uid){
+  var x = _run.rows[uid], u = x.u, p = P[uid]||{}, nm = '<td style="'+TD+';font-weight:600">'+esc(u.name)+(p.empCode?' <span style="color:#999;font-weight:400">'+esc(p.empCode)+'</span>':'')+'</td>';
+  if (x.err) return '<tr id="pr-'+uid+'" style="border-top:1px solid #f0f0f0">'+nm+'<td colspan="11" style="color:#dc2626">'+x.err+'</td></tr>';
+  var c = x.calc, d = _run.final ? 'disabled' : '';
+  return '<tr id="pr-'+uid+'" style="border-top:1px solid #f0f0f0">'+nm+'<td>'+x.ap.pay+' / '+x.ap.days+'</td><td>'+inr(c.basic+c.hra+c.al)+'</td><td><input type="number" class="fi" id="pe-'+uid+'" value="'+(x.adj.earn||'')+'" oninput="attRowCalc(\''+uid+'\')" style="width:90px" '+d+'></td><td id="pg-'+uid+'">'+inr(c.gross)+'</td><td id="ppf-'+uid+'">'+inr(c.pf)+'</td><td id="pesi-'+uid+'">'+inr(c.esi)+'</td><td id="ptds-'+uid+'">'+inr(c.tds)+'</td>'+
+    '<td><input type="number" class="fi" id="pd-'+uid+'" value="'+(x.adj.ded||'')+'" oninput="attRowCalc(\''+uid+'\')" style="width:90px" '+d+'></td><td><input class="fi" id="pn-'+uid+'" value="'+esc(x.adj.note||'')+'" style="width:110px" '+d+'></td><td id="pnet-'+uid+'" style="font-weight:800">'+inr(c.net)+'</td><td><button class="btn btn-sm" onclick="attSlip(\''+uid+'\')">🧾 Slip</button></td></tr>';
+}
+window.attRowCalc = function(uid){
+  var x = _run.rows[uid]; x.adj.earn = +$a('pe-'+uid).value||0; x.adj.ded = +$a('pd-'+uid).value||0; x.calc = payCalc(x.st, x.ap, x.adj); var c = x.calc;
+  $a('pg-'+uid).textContent = inr(c.gross); $a('ppf-'+uid).textContent = inr(c.pf); $a('pesi-'+uid).textContent = inr(c.esi); $a('ptds-'+uid).textContent = inr(c.tds); $a('pnet-'+uid).textContent = inr(c.net); runTotals();
+};
+function runTotals(){
+  var t = {g:0,pf:0,esi:0,tds:0,net:0,epf:0,eesi:0}; _run.order.forEach(function(u){ var c = _run.rows[u].calc; if (!c) return; t.g += c.gross; t.pf += c.pf; t.esi += c.esi; t.tds += c.tds; t.net += c.net; t.epf += c.pfEr; t.eesi += c.esiEr; });
+  var el = $a('pr-tot'); if (el) el.innerHTML = '<tr style="border-top:2px solid #ddd;font-weight:800"><td style="'+TD+'">Total</td><td></td><td></td><td></td><td>'+inr(t.g)+'</td><td>'+inr(t.pf)+'</td><td>'+inr(t.esi)+'</td><td>'+inr(t.tds)+'</td><td></td><td></td><td>'+inr(t.net)+'</td><td></td></tr><tr><td colspan="12" style="padding:6px 8px;color:#888;font-size:11px">Employer share (not deducted): PF ₹'+inr(t.epf)+' · ESI ₹'+inr(t.eesi)+'</td></tr>';
+}
+function mkRec(uid, final){
+  var x = _run.rows[uid], u = x.u, s = x.st, a = x.ap, c = x.calc, p = P[uid]||{}; x.adj.note = ($a('pn-'+uid)||{}).value || x.adj.note || '';
+  return {userId:uid,month:_pm,days:a.days,payDays:a.pay,lop:a.lop,att:{present:a.present,half:a.half,absent:a.absent,paidLeave:a.pl,unpaidLeave:a.ul,late:a.late},
+    earn:{basic:c.basic,hra:c.hra,allow:c.al,adj:c.ae},gross:c.gross,ded:{pf:c.pf,esi:c.esi,tds:c.tds,other:c.dedOther},net:c.net,er:{pf:c.pfEr,esi:c.esiEr},
+    adj:{earn:+x.adj.earn||0,ded:+x.adj.ded||0,note:x.adj.note||''},adjNote:x.adj.note||'',
+    emp:{name:u.name,code:p.empCode||'',desig:roleLabel(u.role).replace(/^[^A-Za-z]+/,''),doj:p.doj||'',pan:s.pan||'',bank:s.bank||'',acct:s.acct?'XXXXXX'+String(s.acct).slice(-4):''},
+    final:!!final,at:now(),by:CU.name};
+}
+window.attSlip = function(uid){ openDoc(slipHtml(mkRec(uid,false))); };
+window.attSaveRun = function(final){
+  if (!canPay() || _run.final) return;
+  var ok = _run.order.filter(function(u){ return !_run.rows[u].err; });
+  if (!ok.length) return alert('Nothing to save.');
+  if (final && !confirm('Finalize payroll for '+_pm+'?\n\n'+ok.length+' payslip(s) will be published to employees and attendance for the month will be locked.')) return;
+  var up = {};
+  ok.forEach(function(uid){ var rec = mkRec(uid, final); up['crm_payroll_runs/'+_pm+'/'+uid] = rec; if (final) up['crm_payslips/'+uid+'/'+_pm] = rec; });
+  if (final) up['crm_payroll_final/'+_pm] = {by:CU.name, at:now()};
+  db.ref().update(up, function(e){ if (e) return alert(e.message); showToast(final?'🔒 Payroll finalized.':'✅ Draft saved.'); try{ if(typeof logActivity==='function') logActivity('payroll',final?'Payroll Finalized':'Payroll Draft Saved',_pm,{}); }catch(x){} drawRun(); });
+};
+window.attReopenPay = function(){
+  if (CU.role!=='superadmin') return; if (!confirm('Re-open payroll for '+_pm+'? Published payslips for this month will be removed.')) return;
+  var up = {}; _run.order.forEach(function(uid){ up['crm_payslips/'+uid+'/'+_pm] = null; up['crm_payroll_runs/'+_pm+'/'+uid+'/final'] = false; }); up['crm_payroll_final/'+_pm] = null;
+  db.ref().update(up, function(e){ if (e) return alert(e.message); showToast('Payroll re-opened.'); drawRun(); });
+};
+window.attXls = function(kind){
+  if (typeof XLSX==='undefined') return showToast('Excel library not loaded.');
+  var aoa, tot = 0;
+  if (kind==='reg') {
+    aoa = [['Emp code','Name','Days','Pay days','LOP','Basic','HRA','Allowance','Arrears/bonus','Gross','PF','ESI','TDS','Other ded.','Net pay','Employer PF','Employer ESI']];
+    _run.order.forEach(function(uid){ var x = _run.rows[uid]; if (x.err) return; var c = x.calc, p = P[uid]||{}; aoa.push([p.empCode||'',x.u.name,x.ap.days,x.ap.pay,x.ap.lop,c.basic,c.hra,c.al,c.ae,c.gross,c.pf,c.esi,c.tds,c.dedOther,c.net,c.pfEr,c.esiEr]); });
+  } else {
+    aoa = [['Sr','Employee','Emp code','Bank','Account no.','IFSC','Net pay','Narration']]; var n = 0;
+    _run.order.forEach(function(uid){ var x = _run.rows[uid]; if (x.err) return; n++; var p = P[uid]||{}; aoa.push([n,x.u.name,p.empCode||'',x.st.bank||'',x.st.acct||'',x.st.ifsc||'',x.calc.net,'Salary '+_pm]); tot += x.calc.net; }); aoa.push(['','','','','','TOTAL',tot,'']);
+  }
+  var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), kind==='reg'?'Salary register':'Bank sheet'); XLSX.writeFile(wb, (kind==='reg'?'Salary_Register_':'Bank_Payment_')+_pm+'.xlsx');
+};
+
+// ── Full & final settlement ───────────────────────────────────
+function drawFnf(){
+  var h = $a('pr-host'), today = dkey(now());
+  function f(id,l,v,t){ return '<div style="flex:1;min-width:150px"><label class="fl">'+l+'</label><input class="fi" id="'+id+'" type="'+(t||'number')+'" step="any" value="'+(v==null?'':v)+'" style="width:100%"></div>'; }
+  h.innerHTML = '<div class="card" style="max-width:720px"><div class="card-hdr"><div class="card-title">🧾 Full &amp; final settlement</div></div>'+
+    '<label class="fl">Employee</label><select class="fi" id="ff-u" style="width:100%;margin-bottom:10px">'+allUsers().map(function(u){ return '<option value="'+esc(u.id)+'">'+esc(u.name)+(u.disabled?' (disabled)':'')+'</option>'; }).join('')+'</select>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">'+f('ff-lwd','Last working day',today,'date')+f('ff-sd','Salary days payable in last month',0)+f('ff-ed','Leave encashment (days)',0)+f('ff-oe','Other earnings ₹ (bonus etc.)',0)+'</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">'+f('ff-nr','Notice-period recovery ₹',0)+f('ff-adv','Advance / loan recovery ₹',0)+f('ff-od','Other deductions ₹',0)+'</div>'+
+    '<button class="btn btn-primary" onclick="attFnf()">Generate statement</button><div style="font-size:11px;color:#999;margin-top:8px">Salary = monthly gross ÷ days in the month × days payable. Leave encashment = monthly gross ÷ 30 × days. PF/ESI/TDS and gratuity are not computed here. After settling, disable the employee’s login on the Users page.</div></div>';
+}
+window.attFnf = function(){
+  var uid = $a('ff-u').value;
+  db.ref('crm_payroll_struct/'+uid).once('value',function(s){
+    var st = s.val(), g = st ? (+st.basic||0)+(+st.hra||0)+(+st.allow||0) : 0; if (!g) return alert('Set this employee’s salary structure first.');
+    var lwd = $a('ff-lwd').value; if (!lwd) return alert('Enter the last working day.');
+    var dim = new Date(+lwd.slice(0,4), +lwd.slice(5,7), 0).getDate(), n = function(i){ return +$a(i).value||0; };
+    var sal = Math.round(g/dim*n('ff-sd')), enc = Math.round(g/30*n('ff-ed')), oe = n('ff-oe'), nr = n('ff-nr'), adv = n('ff-adv'), od = n('ff-od'), earn = sal+enc+oe, ded = nr+adv+od, net = earn-ded, u = users[uid]||{}, p = P[uid]||{};
+    db.ref('crm_payroll_fnf/'+uid).set({lwd:lwd,salary:sal,encash:enc,otherEarn:oe,notice:nr,advance:adv,otherDed:od,net:net,by:CU.name,at:now()});
+    function row(l,v){ return '<tr><td>'+l+'</td><td style="text-align:right">'+inr(v)+'</td></tr>'; }
+    openDoc('<!doctype html><html><head><meta charset="utf-8"><title>Full and final — '+esc(u.name)+'</title><style>body{font-family:Arial,sans-serif;font-size:13px;padding:24px}.w{max-width:700px;margin:auto;border:1px solid #333;padding:22px}table{width:100%;border-collapse:collapse}td,th{padding:6px 8px;border-bottom:1px solid #ddd}th{background:#f3f3f3;text-align:left}</style></head><body><div class="w"><div style="text-align:center"><div style="font-size:20px;font-weight:800">'+esc(S.pay.company||'')+'</div><div style="font-weight:700;font-size:15px;margin-top:6px">Full &amp; Final Settlement</div></div>'+
+      '<p><b>'+esc(u.name)+'</b> '+(p.empCode?'('+esc(p.empCode)+')':'')+' · Joined: '+esc(p.doj||'—')+' · Last working day: '+lwd+'</p><table><thead><tr><th>Earnings</th><th style="text-align:right">₹</th></tr></thead><tbody>'+row('Salary for '+n('ff-sd')+' day(s)',sal)+row('Leave encashment ('+n('ff-ed')+' day(s))',enc)+row('Other earnings',oe)+'<tr><td><b>Total earnings</b></td><td style="text-align:right"><b>'+inr(earn)+'</b></td></tr></tbody></table><br><table><thead><tr><th>Deductions</th><th style="text-align:right">₹</th></tr></thead><tbody>'+row('Notice-period recovery',nr)+row('Advance / loan recovery',adv)+row('Other deductions',od)+'<tr><td><b>Total deductions</b></td><td style="text-align:right"><b>'+inr(ded)+'</b></td></tr></tbody></table>'+
+      '<div style="margin-top:14px;padding:12px;background:#f3f3f3;font-size:15px"><b>Net payable: ₹'+inr(net)+'</b><div style="font-size:12px;color:#555">Rupees '+words(Math.abs(net))+' only'+(net<0?' (recoverable from employee)':'')+'</div></div><div style="margin-top:40px;display:flex;justify-content:space-between;font-size:12px"><span>Employee signature</span><span>Authorised signatory</span></div></div></body></html>');
+  });
+};
+
+})();
+
 </script>
 </body>
 </html>
