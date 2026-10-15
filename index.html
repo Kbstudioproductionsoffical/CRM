@@ -4383,6 +4383,8 @@ document.addEventListener('wheel', function(e) {
             <option value="datamanager">🗂️ Data Manager — Projects &amp; reports</option>
             <option value="preprodmanager">📋 Pre-Prod Manager — Onboarding &amp; client setup</option>
             <option value="socialmedia">📱 Social Media Manager — Celebrations only</option>
+            <option value="staff">🕘 Staff — Attendance only (own check-in, leave, payslips)</option>
+            <option value="projectviewer">👁 Project Viewer — Production plan &amp; deliverables only, read-only</option>
           </select>
         </div>
         <div class="fr"><label class="fl">Department / Office</label>
@@ -6937,7 +6939,7 @@ function daysUntil(d){
 }
 function pl(){return Object.values(projects).filter(function(p){return !p.archived;});}
 function accList(){return Object.keys(accounts).length?Object.values(accounts):DEFAULT_ACCOUNTS;}
-function roleLabel(r){return {superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',relmgr:'💬 Relationship Manager',postprod:'🎬 Post Prod Head',videohead:'🎥 Video Production Admin',albumhead:'📔 Album Prod Head',albumselector:'🔍 Album Selection & Sorting',albumretoucher:'🎨 Album Retoucher',albummaker:'📔 Album Maker',photoeditor:'🖼️ Photo Retoucher',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
+function roleLabel(r){return {projectviewer:'👁 Project Viewer (Read-only)',staff:'🕘 Staff (Attendance only)',superadmin:'👑 Super Admin',intern:'🔑 Intern',admin:'🔧 Admin',relmgr:'💬 Relationship Manager',postprod:'🎬 Post Prod Head',videohead:'🎥 Video Production Admin',albumhead:'📔 Album Prod Head',albumselector:'🔍 Album Selection & Sorting',albumretoucher:'🎨 Album Retoucher',albummaker:'📔 Album Maker',photoeditor:'🖼️ Photo Retoucher',accounts:'💰 Accounts',editor:'✂️ Editor',datamanager:'🗂️ Data Manager',referral:'🎁 Referral',sales:'💼 Sales Head',salesperson:'🧑‍💼 Sales Person',preprodmanager:'📋 Pre-Prod Manager',socialmedia:'📱 Social Media Manager'}[r]||r;}
 function avatarColor(name){var c=['#1d4ed8','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#065f46'];var h=0;for(var i=0;i<(name||'').length;i++)h=name.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length];}
 function stageBadge(s){var m={preprod:['b-preprod','Pre-Prod'],production:['b-prod','Production'],postprod:['b-postprod','Post-Prod'],delivery:['b-delivery','Delivery'],payment:['b-payment','Pay Pending'],complete:['b-complete','Complete']};var v=m[s]||['b-gray',s];return '<span class="badge '+v[0]+'">'+v[1]+'</span>';}
 function regionBadge(r){return r==='north'?'<span class="badge b-north">🔵 North</span>':r==='south'?'<span class="badge b-south">🟠 South</span>':'';}
@@ -7276,7 +7278,16 @@ function attachProjectListeners(afterKey) {
   });
 }
 
+function loadStaffOnly(){
+  // Attendance-only login: skip downloading projects/quotations/etc. entirely.
+  _sidebarLayout = DEFAULT_SIDEBAR_LAYOUT;
+  buildSidebar(); applyRBAC();
+  navTo('attendance');
+}
+
 function loadAll(){
+  if (CU && CU.role === 'staff') { loadStaffOnly(); return; }
+  if (CU && CU.role === 'projectviewer') { document.querySelectorAll('.page').forEach(function(pg){ pg.classList.remove('active'); }); var _vp = document.getElementById('page-projects'); if (_vp) _vp.classList.add('active'); }
   showLoadingSkeleton();
 
   // ── Step 1: Load projects + sidebar layout together ──
@@ -16050,6 +16061,8 @@ function onUserRoleChange(){
     relmgr:'Relationship Manager — sees the Client Timeline (all logged client communications) and financial status across every project, so they can proactively update any client and hand off coverage seamlessly. Cannot delete projects, manage users, or access Settings.',
     accounts:'Full project access — can create, edit, and record payments. Can delete payment entries they personally recorded. Can view all financial reports and manage bank accounts. Cannot delete projects or manage users.',
     postprod:'Post Production Head — Full access to the Post-Production pipeline. Can view ALL post-prod clients (sorted FIFO by event date), assign editors, manage deliverables, review briefs, and update statuses. Cannot see financials, phone numbers, or other confidential client details.',
+    projectviewer:'Can see ALL projects but only their Production Plan and Deliverables — read-only. No client contact details, payments, documents, brief, raw data or any other page. Cannot edit anything.',
+    staff:'Attendance only. Can log in, mark own check-in / check-out, request leave and view own attendance and payslips. Cannot open any other CRM page.',
     editor:'Limited to their own assigned deliverables via Editor Portal. No general CRM access.',
     referral:'Access to referral section and WhatsApp only.',
     datamanager:'Access to projects only. Can update project data, manage docs, notes & briefs, and approve raw data to move projects to Post-Production.',
@@ -23603,6 +23616,26 @@ var ROLE_ACCESS = {
   }
 };
 
+// Staff = attendance-only login (own check-in/out, leave requests, payslips). No other CRM page is reachable.
+ROLE_ACCESS.staff = {
+  pages: ['attendance'],
+  canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
+  canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
+  canManageUsers:false, canManageAccounts:false, canManageReferral:false,
+  canSeeAllTabs:false, allowedTabs:[],
+  canManageSettings:false, canExport:false,
+  canSeeContactDetails:false
+};
+// Project Viewer = read-only access to ALL projects, limited to the Production Plan and Deliverables tabs. No client contact info, payments, documents, raw data or edits.
+ROLE_ACCESS.projectviewer = {
+  pages: ['projects'],
+  canEditProjects:false, canDeleteProjects:false, canRecordPayments:false,
+  canSeeFinancials:false, canSeeTeamSalary:false, canSeeTeamBank:false,
+  canManageUsers:false, canManageAccounts:false, canManageReferral:false,
+  canSeeAllTabs:false, allowedTabs:['t-production','t-deliv'],
+  canManageSettings:false, canExport:false,
+  canSeeContactDetails:false
+};
 function getAccess() { var _a = ROLE_ACCESS[CU ? CU.role : ''] || ROLE_ACCESS.referral; if (_a.pages.indexOf('attendance') === -1) _a.pages.push('attendance'); return _a; }
 function can(key) { return !!getAccess()[key]; }
 
@@ -28937,10 +28970,28 @@ function openEditQuotation(id) {
 
 function sv2(id, val) { var el = document.getElementById(id); if (el) el.value = (val === null || val === undefined) ? '' : val; }
 // ── Quotation DEFAULT Images (Firebase-persisted) ────────────────────────
+// -- Default quotation images now live in their own node (keeps crm_settings small & fast) --
+// Reads the new node; if it is empty/unreachable, falls back to the legacy copy inside crm_settings.
+function _qdiReadOnce(cb) {
+  var done = false;
+  function legacy() { if (done) return; done = true; db.ref('crm_settings/quotDefaultImages').once('value', cb, function(){ cb({ val: function(){ return null; } }); }); }
+  db.ref('crm_quot_default_images').once('value', function(s) { if (s.val() === null) legacy(); else if (!done) { done = true; cb(s); } }, legacy);
+}
+// Writes to the new node; first copies the legacy data across (once) so nothing is lost.
+function _qdiUpdate(update, cb) {
+  var newRef = db.ref('crm_quot_default_images');
+  newRef.once('value', function(s) {
+    if (s.val() !== null) { newRef.update(update, cb); return; }
+    db.ref('crm_settings/quotDefaultImages').once('value', function(o) {
+      var base = o.val() || {}; for (var k in update) base[k] = update[k];
+      newRef.set(base, cb);
+    }, function(){ newRef.update(update, cb); });
+  }, function(e){ if (cb) cb(e); });
+}
 var _defQuotImages = { cover: '', about: '' };  // loaded once from Firebase
 
 function loadDefaultQuotImages(callback) {
-  db.ref('crm_settings/quotDefaultImages').once('value', function(snap) {
+  _qdiReadOnce(function(snap) {
     var data = snap.val() || {};
     // Prefer Storage URL, fall back to legacy base64
     _defQuotImages.coverUrl = data.coverUrl || '';
@@ -28952,7 +29003,7 @@ function loadDefaultQuotImages(callback) {
 }
 
 function loadDefaultQuotImagesIntoSettings() {
-  db.ref('crm_settings/quotDefaultImages').once('value', function(snap) {
+  _qdiReadOnce(function(snap) {
     var data = snap.val() || {};
     _defQuotImages.coverUrl = data.coverUrl || '';
     _defQuotImages.cover    = data.cover    || '';
@@ -29006,7 +29057,7 @@ function uploadDefaultQuotImage(which, input) {
       _defQuotImages[which] = compressedB64;
       _defQuotImages[which + 'Url'] = '';
       var update = {}; update[which] = compressedB64; update[which + 'Url'] = '';
-      db.ref('crm_settings/quotDefaultImages').update(update, function(dbErr) {
+      _qdiUpdate(update, function(dbErr) {
         input.value = '';
         if (!dbErr) {
           showToast('✅ Default image saved (' + originalKB + 'KB → ' + compressedKB + 'KB)');
@@ -29018,7 +29069,7 @@ function uploadDefaultQuotImage(which, input) {
       // Compression failed — save raw (rare edge case)
       _defQuotImages[which] = rawB64;
       var update = {}; update[which] = rawB64;
-      db.ref('crm_settings/quotDefaultImages').update(update, function() { input.value = ''; });
+      _qdiUpdate(update, function() { input.value = ''; });
       showToast('⚠️ Saved without compression');
     });
   };
@@ -29032,7 +29083,7 @@ function clearDefaultQuotImage(which) {
   if (img) { img.src = ''; img.style.display = 'none'; }
   if (ph)  ph.style.display = 'block';
   var update = {}; update[which] = '';
-  db.ref('crm_settings/quotDefaultImages').update(update, function() {
+  _qdiUpdate(update, function() {
     showToast('🗑️ Default ' + (which === 'cover' ? 'cover' : 'about us') + ' image cleared.');
     var st = document.getElementById('def-img-status');
     if (st) st.textContent = 'No default images set yet. Upload above to apply to all future quotations.';
@@ -39003,7 +39054,7 @@ window.attDelete = function(ds, uid){
 function fldc(cls,l,v,t){ return '<div style="flex:1;min-width:100px"><label class="fl">'+l+'</label><input class="fi '+cls+'" type="'+(t||'text')+'" step="any" value="'+esc(v==null?'':v)+'" style="width:100%"></div>'; }
 function brRow(x){
   x = x || {id:'b'+Date.now().toString(36)+Math.floor(Math.random()*99), name:'', lat:'', lng:'', radius:100};
-  return '<div class="as-br" data-id="'+esc(x.id)+'" style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">'+fldc('as-br-name','Branch name',x.name)+fldc('as-br-lat','Latitude',x.lat,'number')+fldc('as-br-lng','Longitude',x.lng,'number')+fldc('as-br-rad','Radius (m)',x.radius,'number')+
+  return '<div class="as-br" data-id="'+esc(x.id)+'" style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">'+fldc('as-br-name','Branch name',x.name)+fldc('as-br-lat','Latitude',x.lat,'text')+fldc('as-br-lng','Longitude',x.lng,'text')+fldc('as-br-rad','Radius (m)',x.radius,'number')+
     '<button class="btn btn-sm" onclick="attUseHere(this)">📍 Use my location</button><button class="btn-danger" onclick="this.closest(\'.as-br\').remove()">✕</button></div>';
 }
 function shRow(x){
@@ -39049,11 +39100,20 @@ window.attUseHere = function(btn){
   getLoc(function(e,l){ if (e) { m.textContent = 'Failed: '+e.message; return; } row.querySelector('.as-br-lat').value = l.lat.toFixed(6); row.querySelector('.as-br-lng').value = l.lng.toFixed(6); m.textContent = '✅ Captured (accuracy ±'+Math.round(l.acc)+' m). Press Save all settings.'; });
 };
 window.attSaveSettings = function(){
-  if (!isAdm()) return;
+  if (!isAdm()) { alert('Only Super Admin or Admin can change attendance settings.'); return; }
   var brs = [], shs = [], offs = [], pu = {};
-  document.querySelectorAll('#as-brs .as-br').forEach(function(r){
-    var n = r.querySelector('.as-br-name').value.trim(), la = parseFloat(r.querySelector('.as-br-lat').value), lo = parseFloat(r.querySelector('.as-br-lng').value), ra = parseFloat(r.querySelector('.as-br-rad').value) || 100;
-    if (n && !isNaN(la) && !isNaN(lo)) brs.push({id:r.getAttribute('data-id'), name:n, lat:la, lng:lo, radius:Math.max(10,ra)}); });
+  var _brErr = '';
+  document.querySelectorAll('#as-brs .as-br').forEach(function(r, idx){
+    if (_brErr) return;
+    var n = r.querySelector('.as-br-name').value.trim(), latRaw = r.querySelector('.as-br-lat').value.trim(), lngRaw = r.querySelector('.as-br-lng').value.trim(), ra = parseFloat(r.querySelector('.as-br-rad').value) || 100;
+    if (!n && !latRaw && !lngRaw) return; // completely empty row: ignore
+    var NUM = /-?\d+(?:\.\d+)?/g, ln = latRaw.replace(/,/g,' ').match(NUM) || [], gn = lngRaw.replace(/,/g,' ').match(NUM) || [];
+    var la = ln.length ? parseFloat(ln[0]) : NaN, lo = gn.length ? parseFloat(gn[0]) : (ln.length > 1 ? parseFloat(ln[1]) : NaN); // accepts "28.40, 77.31" pasted into Latitude
+    if (!n) _brErr = 'Branch row ' + (idx+1) + ': please enter a branch name.';
+    else if (isNaN(la) || isNaN(lo)) _brErr = 'Branch "' + n + '": latitude / longitude is missing. Stand at the office and tap "Use my location", or paste the coordinates.';
+    else if (Math.abs(la) > 90 || Math.abs(lo) > 180) _brErr = 'Branch "' + n + '": latitude must be between -90 and 90 and longitude between -180 and 180.';
+    else brs.push({id:r.getAttribute('data-id'), name:n, lat:la, lng:lo, radius:Math.max(10,ra)}); });
+  if (_brErr) { alert(_brErr + '\n\nNothing was saved.'); return; }
   document.querySelectorAll('#as-shs .as-sh').forEach(function(r){
     var n = r.querySelector('.as-sh-name').value.trim(); if (!n) return;
     shs.push({id:r.getAttribute('data-id'), name:n, start:r.querySelector('.as-sh-start').value||'10:00', grace:parseFloat(r.querySelector('.as-sh-grace').value)||0, half:parseFloat(r.querySelector('.as-sh-half').value)||4.5}); });
@@ -39404,6 +39464,235 @@ window.attFnf = function(){
   });
 };
 
+})();
+
+</script>
+<script>
+/* ═══════════ KB STUDIO — BACKUP & RESTORE MODULE (superadmin only) ═══════════ */
+(function(){
+  var NODES_CORE = ['crm_projects','crm_quotations','crm_invoices','crm_settings','crm_users','crm_team','crm_freelancers','crm_accounts','crm_referral','crm_archive','crm_assets','crm_checklist_templates','crm_followup_templates','crm_client_comms','crm_client_issues','crm_escalations','crm_hc_tasks','crm_dupe_confirmed','crm_sidebar','crm_hr_profiles','crm_payroll_struct','crm_payroll_runs','crm_payroll_final','crm_payroll_fnf','crm_payslips','crm_attendance','crm_attendance_settings','crm_att_requests','crm_att_approved','crm_activity_log','crm_security_log','crm_notifications','crm_meta'];
+  var NODES_HEAVY = ['crm_docs','crm_quot_docs','crm_attendance_selfies','crm_quot_default_images'];
+  var DAY = 24*3600*1000, busy = false;
+
+  function isSA(){ return typeof CU !== 'undefined' && CU && CU.role === 'superadmin'; }
+  function pad(n){ return (n<10?'0':'')+n; }
+  function stamp(d){ d=d||new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes()); }
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function cnt(v){ return v && typeof v==='object' ? Object.keys(v).length : (v==null?0:1); }
+  function download(name, text){
+    var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'application/json'}));
+    a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },4000);
+  }
+  function setStatus(msg){ var e=document.getElementById('kbbk-status'); if(e) e.textContent=msg; }
+
+  function runBackup(includeHeavy, silent){
+    if(busy) return Promise.resolve(); busy=true;
+    var nodes = NODES_CORE.concat(includeHeavy?NODES_HEAVY:[]), out={}, counts={}, i=0;
+    function next(){
+      if(i>=nodes.length) return Promise.resolve();
+      var n=nodes[i++]; setStatus('Reading '+n+' ('+i+'/'+nodes.length+')…');
+      return db.ref(n).once('value').then(function(s){ var v=s.val(); if(v!==null){ out[n]=v; counts[n]=cnt(v);} }).then(next);
+    }
+    return next().then(function(){
+      var meta={app:'KB Studio CRM',version:(typeof CRM_BUILD_VERSION!=='undefined'?CRM_BUILD_VERSION:''),createdAt:new Date().toISOString(),by:(CU.name||CU.username||''),includesHeavy:!!includeHeavy,counts:counts};
+      var json=JSON.stringify({meta:meta,data:out});
+      download('kbstudio-crm-backup-'+stamp()+(includeHeavy?'-FULL':'')+'.json', json);
+      var rec={at:Date.now(),by:meta.by,mode:includeHeavy?'full':'core',sizeKB:Math.round(json.length/1024)};
+      try{ localStorage.setItem('kbbk_last',String(rec.at)); }catch(e){}
+      db.ref('crm_meta/lastBackup').set(rec);
+      setStatus('✅ Backup downloaded ('+rec.sizeKB+' KB). Keep the file somewhere safe (Google Drive / external HD).');
+      var b=document.getElementById('kbbk-banner'); if(b) b.remove();
+    }).catch(function(e){ setStatus('❌ Backup failed: '+(e&&e.message||e)); })
+      .then(function(){ busy=false; });
+  }
+
+  /* ---------- restore ---------- */
+  var loaded=null;
+  function onFile(ev){
+    var f=ev.target.files[0]; if(!f) return;
+    var r=new FileReader();
+    r.onload=function(){
+      try{
+        var j=JSON.parse(r.result); if(!j.data||!j.meta) throw new Error('Not a KB Studio backup file');
+        loaded=j; var h='<div style="font-size:12px;color:#555;margin:8px 0">Backup from <b>'+esc(j.meta.createdAt)+'</b> ('+esc(j.meta.version||'')+'). Tick the sections to restore:</div><div style="max-height:220px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px">';
+        Object.keys(j.data).forEach(function(n){
+          var skip=(n==='crm_users'||n==='crm_meta');
+          h+='<label style="display:flex;gap:8px;font-size:12px;padding:3px 0"><input type="checkbox" class="kbbk-rs" value="'+esc(n)+'" '+(skip?'':'checked')+'> <span>'+esc(n)+'</span><span style="color:#888">('+cnt(j.data[n])+' items)'+(skip?' — logins/meta, off by default':'')+'</span></label>';
+        });
+        h+='</div><div style="margin-top:10px;font-size:12px;color:#b91c1c">⚠ Restoring REPLACES the live data of each ticked section. A safety copy of the current data is downloaded first. Type <b>RESTORE</b> to confirm:</div><input id="kbbk-confirm" style="margin-top:6px;padding:7px;border:1px solid #d1d5db;border-radius:6px;width:140px"> <button id="kbbk-go" style="padding:8px 14px;background:#b91c1c;color:#fff;border:0;border-radius:6px;font-weight:700;cursor:pointer">Restore now</button>';
+        document.getElementById('kbbk-restore-box').innerHTML=h;
+        document.getElementById('kbbk-go').onclick=doRestore;
+      }catch(e){ document.getElementById('kbbk-restore-box').innerHTML='<div style="color:#b91c1c;font-size:12px">❌ '+esc(e.message)+'</div>'; }
+    };
+    r.readAsText(f);
+  }
+  function doRestore(){
+    if(busy||!loaded) return;
+    if((document.getElementById('kbbk-confirm').value||'').trim()!=='RESTORE'){ alert('Type RESTORE to confirm.'); return; }
+    var sel=[].slice.call(document.querySelectorAll('.kbbk-rs:checked')).map(function(c){return c.value;});
+    if(!sel.length){ alert('Nothing ticked.'); return; }
+    busy=true; var safety={}, i=0, j=0;
+    function snap(){ if(i>=sel.length) return Promise.resolve(); var n=sel[i++]; setStatus('Saving safety copy: '+n+'…'); return db.ref(n).once('value').then(function(s){ if(s.val()!==null) safety[n]=s.val(); }).then(snap); }
+    function put(){ if(j>=sel.length) return Promise.resolve(); var n=sel[j++]; setStatus('Restoring '+n+' ('+j+'/'+sel.length+')…'); return db.ref(n).set(loaded.data[n]).then(put); }
+    snap().then(function(){
+      download('kbstudio-PRE-RESTORE-safety-'+stamp()+'.json', JSON.stringify({meta:{app:'KB Studio CRM',createdAt:new Date().toISOString(),note:'safety copy before restore'},data:safety}));
+      return put();
+    }).then(function(){ setStatus('✅ Restore complete. Reloading in 3 seconds…'); setTimeout(function(){location.reload();},3000); })
+      .catch(function(e){ setStatus('❌ Restore failed: '+(e&&e.message||e)); }).then(function(){ busy=false; });
+  }
+
+
+  /* ---------- data size table + legacy cleanup ---------- */
+  function sizeTable(){
+    var box=document.getElementById('kbbk-size'); box.innerHTML='Measuring…'; var all=NODES_CORE.concat(NODES_HEAVY), rows=[], i=0;
+    function nx(){ if(i>=all.length) return Promise.resolve(); var n=all[i++]; box.textContent='Measuring '+n+'… ('+i+'/'+all.length+')';
+      return db.ref(n).once('value').then(function(s){ var v=s.val(); rows.push({n:n,kb:v===null?0:Math.round(JSON.stringify(v).length/1024),c:cnt(v)}); }).catch(function(){ rows.push({n:n,kb:-1,c:0}); }).then(nx); }
+    nx().then(function(){
+      rows.sort(function(a,b){return b.kb-a.kb;}); var tot=rows.reduce(function(s,r){return s+Math.max(r.kb,0);},0);
+      box.innerHTML='<table style="width:100%;font-size:12px;border-collapse:collapse"><tr style="text-align:left;color:#666"><th>Section</th><th>Size</th><th>Items</th><th>Share</th></tr>'+rows.filter(function(r){return r.kb!==0;}).map(function(r){return '<tr style="border-top:1px solid #eee"><td>'+esc(r.n)+'</td><td>'+(r.kb<0?'no access':(r.kb>=1024?(r.kb/1024).toFixed(1)+' MB':r.kb+' KB'))+'</td><td>'+r.c+'</td><td>'+(tot?Math.round(Math.max(r.kb,0)*100/tot):0)+'%</td></tr>';}).join('')+'</table><div style="font-size:11px;color:#666;margin-top:4px">Total ≈ '+(tot/1024).toFixed(1)+' MB. Big sections loaded at login (projects, settings, quotations) are what slow the CRM.</div>';
+    });
+  }
+  function cleanLegacy(){
+    if(busy) return; var n=db.ref('crm_quot_default_images'), o=db.ref('crm_settings/quotDefaultImages');
+    Promise.all([n.once('value'),o.once('value')]).then(function(r){
+      var nv=r[0].val(), ov=r[1].val();
+      if(ov===null){ setStatus('Nothing to clean: the old copy is already gone.'); return; }
+      if(nv===null){ return n.set(ov).then(function(){ setStatus('Copied images to the new location. Open a quotation, confirm the default cover/about images still show, then press this button again to remove the old copy.'); }); }
+      if(JSON.stringify(nv)!==JSON.stringify(ov)){ setStatus('New and old copies differ (you edited defaults after the move). Old copy left untouched; ask me to review.'); return; }
+      if(!confirm('New copy is identical. Remove the OLD copy from crm_settings now? (This is what makes login faster.)')) return;
+      return o.remove().then(function(){ setStatus('✅ Old copy removed. crm_settings is now lighter.'); });
+    }).catch(function(e){ setStatus('❌ '+(e&&e.message||e)+' (if this says permission denied, the Firebase rules need a rule for crm_quot_default_images)'); });
+  }
+  /* ---------- UI ---------- */
+  function openModal(){
+    if(document.getElementById('kbbk-modal')) return;
+    var auto=''; try{ auto=localStorage.getItem('kbbk_auto')==='1'?'checked':''; }catch(e){}
+    var m=document.createElement('div'); m.id='kbbk-modal';
+    m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:16px';
+    m.innerHTML='<div style="background:#fff;color:#111;border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:22px;font-family:inherit">'
+     +'<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;font-size:18px">🛡️ Backup &amp; Restore</h2><button id="kbbk-x" style="border:0;background:none;font-size:20px;cursor:pointer">✕</button></div>'
+     +'<div id="kbbk-last" style="font-size:12px;color:#666;margin:8px 0 14px">Checking last backup…</div>'
+     +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button id="kbbk-core" style="padding:10px 14px;background:#2563eb;color:#fff;border:0;border-radius:8px;font-weight:700;cursor:pointer">⬇ Quick backup (all data)</button>'
+     +'<button id="kbbk-full" style="padding:10px 14px;background:#7c3aed;color:#fff;border:0;border-radius:8px;font-weight:700;cursor:pointer">⬇ Full backup (+ documents &amp; selfies)</button></div>'
+     +'<label style="display:flex;gap:8px;font-size:12px;margin-top:12px"><input type="checkbox" id="kbbk-auto" '+auto+'> Auto-download a Quick backup on this device when I open the CRM and the last one is over 24 hours old</label>'
+     +'<div id="kbbk-status" style="font-size:12px;margin:12px 0;color:#065f46;min-height:16px"></div><hr style="border:0;border-top:1px solid #eee"><div style="font-weight:700;font-size:14px;margin:12px 0 6px">Speed check</div><button id="kbbk-sz" style="padding:8px 12px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;cursor:pointer;font-weight:600">📊 Show data size per section</button> <button id="kbbk-cl" style="padding:8px 12px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;cursor:pointer;font-weight:600">🚀 Move default quotation images out of settings</button><div id="kbbk-size" style="margin-top:8px"></div><hr style="border:0;border-top:1px solid #eee;margin-top:12px">'
+     +'<div style="font-weight:700;font-size:14px;margin:12px 0 6px">Restore from a backup file</div><input type="file" id="kbbk-file" accept=".json"><div id="kbbk-restore-box"></div></div>';
+    document.body.appendChild(m);
+    m.onclick=function(e){ if(e.target===m) m.remove(); };
+    document.getElementById('kbbk-x').onclick=function(){ m.remove(); };
+    document.getElementById('kbbk-core').onclick=function(){ runBackup(false); };
+    document.getElementById('kbbk-full').onclick=function(){ runBackup(true); };
+    document.getElementById('kbbk-file').onchange=onFile;
+    document.getElementById('kbbk-sz').onclick=sizeTable; document.getElementById('kbbk-cl').onclick=cleanLegacy;
+    document.getElementById('kbbk-auto').onchange=function(e){ try{localStorage.setItem('kbbk_auto',e.target.checked?'1':'0');}catch(x){} };
+    db.ref('crm_meta/lastBackup').once('value').then(function(s){ var v=s.val(); document.getElementById('kbbk-last').innerHTML=v?('Last backup: <b>'+new Date(v.at).toLocaleString()+'</b> by '+esc(v.by||'?')+' ('+esc(v.mode)+', '+v.sizeKB+' KB)'):'⚠ No backup has ever been taken.'; });
+  }
+  function checkDue(){
+    db.ref('crm_meta/lastBackup').once('value').then(function(s){
+      var v=s.val(), age=v?Date.now()-v.at:Infinity;
+      if(age<DAY) return;
+      var auto=false; try{ auto=localStorage.getItem('kbbk_auto')==='1'; }catch(e){}
+      if(auto){ runBackup(false); return; }
+      var b=document.createElement('div'); b.id='kbbk-banner';
+      b.style.cssText='position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#fef3c7;border:1px solid #f59e0b;color:#78350f;padding:8px 14px;border-radius:0 0 10px 10px;font-size:12px;font-weight:600;cursor:pointer';
+      b.textContent='🛡️ '+(v?'Last CRM backup was '+Math.floor(age/DAY)+' day(s) ago':'No CRM backup taken yet')+' — click to back up now';
+      b.onclick=function(){ b.remove(); openModal(); }; document.body.appendChild(b);
+    }).catch(function(){});
+  }
+  var tries=0, t=setInterval(function(){
+    if(++tries>600){ clearInterval(t); return; }
+    if(!isSA() || typeof db==='undefined') return;
+    clearInterval(t);
+    var btn=document.createElement('button'); btn.textContent='🛡️ Backup';
+    btn.style.cssText='position:fixed;left:12px;bottom:12px;z-index:9999;padding:8px 12px;background:#111827;color:#fff;border:0;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+    btn.onclick=openModal; document.body.appendChild(btn);
+    setTimeout(checkDue,4000);
+  },1000);
+})();
+
+</script>
+<script>
+/* ═══════════ PROJECT VIEWER (read-only) ROLE — all projects, no edits, no payments ═══════════ */
+(function(){
+  var ROLE = 'projectviewer';
+  function isV(){ return typeof CU !== 'undefined' && CU && CU.role === ROLE; }
+
+  // 1) CSS: hide every edit / money / export control for this role only
+  var css = document.createElement('style');
+  css.textContent =
+    'body.kb-viewer #btn-new-proj, body.kb-viewer #btn-export-clients, body.kb-viewer #btn-save-proj, body.kb-viewer #btn-delete-proj,' +
+    'body.kb-viewer #proj-modal .tab-pane:not(#t-production):not(#t-deliv), body.kb-viewer #proj-modal-refcode, body.kb-viewer #proj-source-f,' +
+    'body.kb-viewer #notif-bell-btn, body.kb-viewer #notif-panel, body.kb-viewer [onclick*="exportAllProjectsComplete"],' +
+    'body.kb-viewer #proj-modal [onclick*="openClient360"], body.kb-viewer #proj-modal .tab-pane .btn-primary, body.kb-viewer #proj-modal .tab-pane .btn-danger {display:none!important}' +
+    'body.kb-viewer #proj-modal input:disabled, body.kb-viewer #proj-modal select:disabled, body.kb-viewer #proj-modal textarea:disabled {opacity:1;color:#111;-webkit-text-fill-color:#111;background:#f5f5f7;cursor:default}';
+  document.head.appendChild(css);
+
+  // 2) Hard stop: this role can never write business data, even if a button is somehow clicked
+  var BLOCK = /^(crm_projects|crm_docs|crm_quotations|crm_quot_docs|crm_invoices|crm_settings|crm_team|crm_accounts|crm_freelancers|crm_client|crm_referral|crm_archive|crm_checklist|crm_hc_tasks|crm_escalations|crm_dupe|crm_sidebar|crm_assets|crm_followup|crm_payroll|crm_payslips|crm_hr_)/;
+  function pathOf(ref){ try { return decodeURIComponent(String(ref.toString()).replace(/^https?:\/\/[^\/]+\/?/, '')); } catch(e){ return ''; } }
+  try {
+    var P = Object.getPrototypeOf(db.ref());
+    if (P && P !== Object.prototype) ['set','update','remove','push','transaction'].forEach(function(m){
+      var orig = P[m]; if (typeof orig !== 'function') return;
+      P[m] = function(){
+        var a = [].slice.call(arguments);
+        var writes = !(m === 'push' && (a.length === 0 || typeof a[0] === 'function'));
+        if (writes && isV() && BLOCK.test(pathOf(this))) {
+          try { showToast('🔒 View-only access — changes are not allowed.'); } catch(e){}
+          var err = new Error('View-only access'); err.code = 'VIEW_ONLY';
+          var cb = (m === 'transaction') ? a[1] : a[a.length-1];
+          if (typeof cb === 'function') { try { cb(err); } catch(e){} }
+          return Promise.reject(err);
+        }
+        return orig.apply(this, a);
+      };
+    });
+  } catch(e) { console.warn('viewer guard not installed', e); }
+
+  // 3) Project popup: hide money rows, make everything read-only (runs repeatedly while the popup is open)
+  var MONEY_ROWS = ['f-value','f-discount','f-pay-preset'];
+  var MONEY_BLOCKS = ['pay-preset-preview','custom-pay-full-builder','new-proj-advance-block'];
+  var WRITE_WORDS = /save|add|del|remove|update|mark|assign|upload|attach|edit|change|approve|reject|apply|clear|generate|create|submit|import|reorder/i;
+  function lockModal(){
+    var m = document.getElementById('proj-modal'); if (!m || !isV()) return;
+    MONEY_ROWS.forEach(function(id){ var el = document.getElementById(id); if (el) { var row = el.closest('.fr') || el.parentElement; if (row) row.style.display = 'none'; } });
+    MONEY_BLOCKS.forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+    ['d-hd-owner','d-raw-qty'].forEach(function(id){ var el = document.getElementById(id); if (el) { var blk = el.closest('div[style*="border-top"]'); if (blk) blk.style.display = 'none'; } });
+    var dn = document.getElementById('f-deliv-notes'); if (dn) { var dr = dn.closest('.fr'); if (dr) dr.style.display = 'none'; }
+    var nd = document.getElementById('nd-type'); if (nd) { var box = nd.closest('div[style*="background:#f8fafc"]'); if (box) box.style.display = 'none'; }
+    m.querySelectorAll('.tab-pane input, .tab-pane select, .tab-pane textarea').forEach(function(el){ if (!el.disabled) el.disabled = true; });
+    m.querySelectorAll('.tab-pane button').forEach(function(b){
+      var oc = b.getAttribute('onclick') || '';
+      if (WRITE_WORDS.test(oc) || WRITE_WORDS.test(b.id || '')) b.style.display = 'none';
+    });
+  }
+  function tightenList(){
+    var tb = document.querySelector('#proj-table table'); if (!tb) return;
+    tb.querySelectorAll('tbody tr').forEach(function(tr){ var td = tr.children[0]; if (td && td.children.length > 1) td.removeChild(td.children[1]); });
+    tb.querySelectorAll('tr').forEach(function(tr){ [1,2].forEach(function(i){ if (tr.children[i]) tr.children[i].style.display = 'none'; }); });
+  }
+  function wrapList(){
+    if (typeof window.renderProjects !== 'function' || window.renderProjects._kbv) return;
+    var o = window.renderProjects;
+    window.renderProjects = function(){ var r = o.apply(this, arguments); if (isV()) tightenList(); return r; };
+    window.renderProjects._kbv = true;
+  }
+  function wrapOpen(){
+    if (typeof window.openProject !== 'function' || window.openProject._kbv) return;
+    var o = window.openProject;
+    window.openProject = function(){ var r = o.apply(this, arguments); if (isV()) [60,200,500,1200].forEach(function(t){ setTimeout(lockModal, t); }); return r; };
+    window.openProject._kbv = true;
+  }
+
+  var tries = 0, t = setInterval(function(){
+    if (++tries > 900) { clearInterval(t); return; }
+    if (!isV()) return;
+    clearInterval(t);
+    document.body.classList.add('kb-viewer');
+    wrapOpen(); wrapList(); if (typeof renderProjects === 'function') renderProjects();
+    setInterval(function(){ var m = document.getElementById('proj-modal'); if (m && m.classList.contains('open')) lockModal(); }, 500);
+  }, 500);
 })();
 
 </script>
