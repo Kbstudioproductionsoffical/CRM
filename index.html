@@ -29174,7 +29174,7 @@ function clearQuotImage(which) {
 
 function _loadQuotImages(q) {
   // Supports both new Storage URLs (https://…) and old base64 strings — fully backwards compatible
-  quotCoverImageB64 = (q && (q.coverImageUrl || q.coverImageB64)) || _defQuotImages.coverUrl || _defQuotImages.cover || '';
+  quotCoverImageB64 = (q && (q.coverImageUrl || q.coverImageB64)) || _defQuotImages.coverUrl || _defQuotImages.cover || '';  // (flagged-default quotations fall through to the default here)
   quotAboutImageB64 = (q && (q.aboutImageUrl || q.aboutImageB64)) || _defQuotImages.aboutUrl || _defQuotImages.about || '';
   ['cover', 'about'].forEach(function(which) {
     var src = which === 'cover' ? quotCoverImageB64 : quotAboutImageB64;
@@ -30938,10 +30938,12 @@ function saveQuotation(silent) {
     priceNotes: gv2('qf-price-notes'), // intentionally no fallback — empty means cleared
     addlServices: quotAddlEnabled ? JSON.parse(JSON.stringify(quotAddlServices)) : [],
     addlServicesEnabled: quotAddlEnabled,
-    coverImageUrl: isStorageUrl(quotCoverImageB64) ? quotCoverImageB64 : '',
-    coverImageB64: isStorageUrl(quotCoverImageB64) ? '' : (quotCoverImageB64 || ''),
-    aboutImageUrl: isStorageUrl(quotAboutImageB64) ? quotAboutImageB64 : '',
-    aboutImageB64: isStorageUrl(quotAboutImageB64) ? '' : (quotAboutImageB64 || ''),
+    coverImageUrl: (!_isDefQuotImg('cover', quotCoverImageB64) && isStorageUrl(quotCoverImageB64)) ? quotCoverImageB64 : '',
+    coverImageB64: (!_isDefQuotImg('cover', quotCoverImageB64) && !isStorageUrl(quotCoverImageB64)) ? (quotCoverImageB64 || '') : '',
+    coverImageDefault: _isDefQuotImg('cover', quotCoverImageB64),
+    aboutImageUrl: (!_isDefQuotImg('about', quotAboutImageB64) && isStorageUrl(quotAboutImageB64)) ? quotAboutImageB64 : '',
+    aboutImageB64: (!_isDefQuotImg('about', quotAboutImageB64) && !isStorageUrl(quotAboutImageB64)) ? (quotAboutImageB64 || '') : '',
+    aboutImageDefault: _isDefQuotImg('about', quotAboutImageB64),
     savedAt: Date.now(),
     // Preserve the original creation timestamp across edits — savedAt updates on every
     // save, so it can't be used to tell when a lead actually came in. createdAt is set
@@ -32024,7 +32026,26 @@ function downloadQuotationPDF() {
 }
 
 // ── DOM-based PDF content (no external fonts — uses system fonts for html2canvas) ──
+// ── Slim quotations: a quotation that uses the studio's DEFAULT cover/about image no longer
+// stores its own copy (that was ~250 KB per quotation). It stores a flag instead and the
+// default is resolved here at render time. Custom images are still stored as before.
+function _isDefQuotImg(which, val) {
+  if (!val) return false;
+  var u = which === 'cover' ? _defQuotImages.coverUrl : _defQuotImages.aboutUrl;
+  var b = which === 'cover' ? _defQuotImages.cover    : _defQuotImages.about;
+  return val === u || val === b;
+}
+function _qResolveDefaultImgs(q) {
+  if (!q) return q;
+  var c = q.coverImageB64 || q.coverImageUrl || '';
+  var a = q.aboutImageB64 || q.aboutImageUrl || '';
+  if (!c && q.coverImageDefault) c = _defQuotImages.coverUrl || _defQuotImages.cover || '';
+  if (!a && q.aboutImageDefault) a = _defQuotImages.aboutUrl || _defQuotImages.about || '';
+  return Object.assign({}, q, { coverImageB64: c, aboutImageB64: a });
+}
+
 function buildQuotPDFDom(q) {
+  q = _qResolveDefaultImgs(q);
   var d = q.deliverables || {};
   var net = (parseFloat(q.value)||0) - (parseFloat(q.discount)||0);
   var clientName = coupleName(q.bride || 'Client', q.groom);
@@ -39564,6 +39585,36 @@ window.attFnf = function(){
       return o.remove().then(function(){ setStatus('✅ Old copy removed. crm_settings is now lighter.'); });
     }).catch(function(e){ setStatus('❌ '+(e&&e.message||e)+' (if this says permission denied, the Firebase rules need a rule for crm_quot_default_images)'); });
   }
+  /* ---------- slim quotations: strip duplicate copies of the default cover/about images ---------- */
+  function slimQuotes(){
+    if(busy) return;
+    if(!window.CU || window.CU.role!=='superadmin'){ setStatus('Only the Super Admin can run this.'); return; }
+    if(typeof quotations==='undefined' || typeof _defQuotImages==='undefined' || (typeof _quotDataLoaded!=='undefined' && !_quotDataLoaded)){ setStatus('Quotations are not loaded yet. Open the Quotations page once, wait for it to load, then try again.'); return; }
+    var D=_defQuotImages, dc=D.cover||'', da=D.about||'', dcu=D.coverUrl||'', dau=D.aboutUrl||'';
+    if(!dc && !dcu && !da && !dau){ setStatus('Default images are not loaded yet. Open "New Quotation" once, close it, then try again.'); return; }
+    var ids=Object.keys(quotations), paths={}, nC=0, nA=0, saveB=0, keepB=0, keepN=0;
+    ids.forEach(function(id){
+      var q=quotations[id]; if(!q) return;
+      var c=q.coverImageB64||q.coverImageUrl||'', a=q.aboutImageB64||q.aboutImageUrl||'';
+      if(c && ((dc&&c===dc)||(dcu&&c===dcu))){ paths[id+'/coverImageB64']=null; paths[id+'/coverImageUrl']=null; paths[id+'/coverImageDefault']=true; nC++; saveB+=c.length; }
+      else if(c){ keepB+=c.length; keepN++; }
+      if(a && ((da&&a===da)||(dau&&a===dau))){ paths[id+'/aboutImageB64']=null; paths[id+'/aboutImageUrl']=null; paths[id+'/aboutImageDefault']=true; nA++; saveB+=a.length; }
+      else if(a){ keepB+=a.length; keepN++; }
+    });
+    var mb=function(b){ return (b/1048576).toFixed(1); };
+    if(!nC && !nA){ setStatus('Nothing to slim: no quotation holds an exact copy of the default images. Custom images left: '+keepN+' ('+mb(keepB)+' MB).'); return; }
+    if(!confirm('Found '+nC+' cover and '+nA+' about-page copies of the default images (about '+mb(saveB)+' MB) across '+ids.length+' quotations.\n\nThey will be replaced by a small "use default" flag; quotations look exactly the same.\nCustom/different images ('+keepN+', '+mb(keepB)+' MB) are NOT touched.\n\nHave you taken a Quick backup first? Press OK to continue.')) return;
+    busy=true;
+    var keys=Object.keys(paths), perQ={}; keys.forEach(function(k){ var id=k.split('/')[0]; (perQ[id]=perQ[id]||[]).push(k); });
+    var qids=Object.keys(perQ), i=0, CH=20, done=0;
+    function next(){
+      if(i>=qids.length){ busy=false; setStatus('✅ Done: slimmed '+done+' quotations (~'+mb(saveB)+' MB freed). Press "Show data size" to confirm. Open a quotation and its PDF to check the images still appear.'); return Promise.resolve(); }
+      var chunk={}; qids.slice(i,i+CH).forEach(function(id){ perQ[id].forEach(function(k){ chunk[k]=paths[k]; }); });
+      var n=Math.min(CH,qids.length-i);
+      return db.ref('crm_quotations').update(chunk).then(function(){ i+=n; done+=n; setStatus('Slimming… '+done+' / '+qids.length); return next(); });
+    }
+    next().catch(function(e){ busy=false; setStatus('❌ Stopped after '+done+' quotations: '+(e&&e.message||e)+'. Nothing is lost; you can press the button again to continue.'); });
+  }
   /* ---------- UI ---------- */
   function openModal(){
     if(document.getElementById('kbbk-modal')) return;
@@ -39576,7 +39627,7 @@ window.attFnf = function(){
      +'<div style="display:flex;gap:8px;flex-wrap:wrap"><button id="kbbk-core" style="padding:10px 14px;background:#2563eb;color:#fff;border:0;border-radius:8px;font-weight:700;cursor:pointer">⬇ Quick backup (all data)</button>'
      +'<button id="kbbk-full" style="padding:10px 14px;background:#7c3aed;color:#fff;border:0;border-radius:8px;font-weight:700;cursor:pointer">⬇ Full backup (+ documents &amp; selfies)</button></div>'
      +'<label style="display:flex;gap:8px;font-size:12px;margin-top:12px"><input type="checkbox" id="kbbk-auto" '+auto+'> Auto-download a Quick backup on this device when I open the CRM and the last one is over 24 hours old</label>'
-     +'<div id="kbbk-status" style="font-size:12px;margin:12px 0;color:#065f46;min-height:16px"></div><hr style="border:0;border-top:1px solid #eee"><div style="font-weight:700;font-size:14px;margin:12px 0 6px">Speed check</div><button id="kbbk-sz" style="padding:8px 12px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;cursor:pointer;font-weight:600">📊 Show data size per section</button> <button id="kbbk-cl" style="padding:8px 12px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;cursor:pointer;font-weight:600">🚀 Move default quotation images out of settings</button><div id="kbbk-size" style="margin-top:8px"></div><hr style="border:0;border-top:1px solid #eee;margin-top:12px">'
+     +'<div id="kbbk-status" style="font-size:12px;margin:12px 0;color:#065f46;min-height:16px"></div><hr style="border:0;border-top:1px solid #eee"><div style="font-weight:700;font-size:14px;margin:12px 0 6px">Speed check</div><button id="kbbk-sz" style="padding:8px 12px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;cursor:pointer;font-weight:600">📊 Show data size per section</button> <button id="kbbk-cl" style="padding:8px 12px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;cursor:pointer;font-weight:600">🚀 Move default quotation images out of settings</button> <button id="kbbk-sl" style="padding:8px 12px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;cursor:pointer;font-weight:600">🧹 Slim quotations (remove duplicate default images)</button><div id="kbbk-size" style="margin-top:8px"></div><hr style="border:0;border-top:1px solid #eee;margin-top:12px">'
      +'<div style="font-weight:700;font-size:14px;margin:12px 0 6px">Restore from a backup file</div><input type="file" id="kbbk-file" accept=".json"><div id="kbbk-restore-box"></div></div>';
     document.body.appendChild(m);
     m.onclick=function(e){ if(e.target===m) m.remove(); };
@@ -39584,7 +39635,7 @@ window.attFnf = function(){
     document.getElementById('kbbk-core').onclick=function(){ runBackup(false); };
     document.getElementById('kbbk-full').onclick=function(){ runBackup(true); };
     document.getElementById('kbbk-file').onchange=onFile;
-    document.getElementById('kbbk-sz').onclick=sizeTable; document.getElementById('kbbk-cl').onclick=cleanLegacy;
+    document.getElementById('kbbk-sz').onclick=sizeTable; document.getElementById('kbbk-cl').onclick=cleanLegacy; document.getElementById('kbbk-sl').onclick=slimQuotes;
     document.getElementById('kbbk-auto').onchange=function(e){ try{localStorage.setItem('kbbk_auto',e.target.checked?'1':'0');}catch(x){} };
     db.ref('crm_meta/lastBackup').once('value').then(function(s){ var v=s.val(); document.getElementById('kbbk-last').innerHTML=v?('Last backup: <b>'+new Date(v.at).toLocaleString()+'</b> by '+esc(v.by||'?')+' ('+esc(v.mode)+', '+v.sizeKB+' KB)'):'⚠ No backup has ever been taken.'; });
   }
