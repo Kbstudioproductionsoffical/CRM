@@ -39051,7 +39051,7 @@ window.attDelete = function(ds, uid){
 };
 
 // ── Settings (admin): branches, shifts, rules, employee profiles ──
-function fldc(cls,l,v,t){ return '<div style="flex:1;min-width:100px"><label class="fl">'+l+'</label><input class="fi '+cls+'" type="'+(t||'text')+'" step="any" value="'+esc(v==null?'':v)+'" style="width:100%"></div>'; }
+function fldc(cls,l,v,t){ return '<div style="flex:1;min-width:100px"><label class="fl">'+l+'</label><input'+(/^as-pay-/.test(cls)?' id="'+cls+'"':'')+' class="fi '+cls+'" type="'+(t||'text')+'" step="any" value="'+esc(v==null?'':v)+'" style="width:100%"></div>'; }
 function brRow(x){
   x = x || {id:'b'+Date.now().toString(36)+Math.floor(Math.random()*99), name:'', lat:'', lng:'', radius:100};
   return '<div class="as-br" data-id="'+esc(x.id)+'" style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px">'+fldc('as-br-name','Branch name',x.name)+fldc('as-br-lat','Latitude',x.lat,'text')+fldc('as-br-lng','Longitude',x.lng,'text')+fldc('as-br-rad','Radius (m)',x.radius,'number')+
