@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v74.10</title>
+<title>KB Studio CRM v74.11</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -31938,7 +31938,7 @@ function _qInlineImages(root, done) {
       if (!ok) { failed++; im.removeAttribute('src'); im.style.visibility = 'hidden'; }
       if (--left === 0) done(failed);
     }
-    timer = setTimeout(function() { fin(false); }, 9000);
+    timer = setTimeout(function() { fin(false); }, 5000);
     if (typeof fetch !== 'function') { fin(false); return; }
     fetch(src, { mode: 'cors' }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
       .then(function(b) { return new Promise(function(res, rej) { var fr = new FileReader(); fr.onload = function() { res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(b); }); })
@@ -31957,32 +31957,75 @@ function _qShowPdfReady(filename, blob, url, failedPages, pdf) {
       else { pdf.save(filename); }
     } catch (e) { showToast('❌ Could not save the file: ' + (e && e.message || e)); }
   }
+  var shareFile = null, canShare = false;
+  try { if (blob && navigator.canShare) { shareFile = new File([blob], filename, { type: 'application/pdf' }); canShare = navigator.canShare({ files: [shareFile] }); } } catch (e) { canShare = false; }
   var box = document.createElement('div');
   box.id = '_quot_ready';
   box.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9999999;background:#fff;color:#111;border:1px solid #d1d5db;border-radius:14px;padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.25);width:min(340px,calc(100vw - 36px));font-size:13px';
   box.innerHTML = '<div style="font-weight:800;font-size:14px;margin-bottom:4px">' + (failedPages.length ? '⚠️' : '✅') + ' PDF ready</div>' +
     '<div style="color:#444;word-break:break-word">' + esc2(filename) + (blob ? ' · ' + (blob.size / 1048576).toFixed(1) + ' MB' : '') + '</div>' +
     (failedPages.length ? '<div style="color:#b45309;margin-top:6px">Page(s) ' + failedPages.map(function(n) { return n + 1; }).join(', ') + ' could not be drawn — please check the file.</div>' : '') +
-    '<div style="color:#666;margin:8px 0 10px">If the file did not appear in your Downloads, click Download.</div>' +
+    '<div style="color:#666;margin:8px 0 10px">Nothing in your Downloads? Try Download, or use Print / Save as PDF.</div>' +
     '<div style="display:flex;gap:8px;flex-wrap:wrap"><button id="_qr_dl" style="padding:8px 14px;background:#134e50;color:#fff;border:0;border-radius:8px;font-weight:700;cursor:pointer">⬇ Download</button>' +
     (url ? '<button id="_qr_open" style="padding:8px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;cursor:pointer">Open in new tab</button>' : '') +
+    '<button id="_qr_print" style="padding:8px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;cursor:pointer">🖨 Print / Save as PDF</button>' +
+    (canShare ? '<button id="_qr_share" style="padding:8px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;cursor:pointer">📤 Share</button>' : '') +
     '<button id="_qr_x" style="padding:8px 12px;background:none;border:0;color:#666;cursor:pointer">Close</button></div>';
   document.body.appendChild(box);
   document.getElementById('_qr_dl').onclick = download;
-  var op = document.getElementById('_qr_open'); if (op) op.onclick = function() { window.open(url, '_blank'); };
+  var op = document.getElementById('_qr_open'); if (op) op.onclick = function() { var w = window.open(url, '_blank'); if (!w) showToast('⚠️ New tabs are blocked in this browser — use Print / Save as PDF instead.'); };
+  document.getElementById('_qr_print').onclick = function() { box.remove(); printQuotationQuick(); };
+  var sh = document.getElementById('_qr_share'); if (sh) sh.onclick = function() { navigator.share({ files: [shareFile], title: filename }).catch(function() {}); };
   document.getElementById('_qr_x').onclick = function() { box.remove(); if (url) setTimeout(function() { try { URL.revokeObjectURL(url); } catch (e) {} }, 60000); };
   download();   // automatic attempt
+}
+// ── Quotation PDF ────────────────────────────────────────────────────────────────────────────
+// Phones / tablets / in-app browsers usually block a file that is saved automatically after a long render.
+// For those, a tab is opened right at the click (while it still counts as a user action) and the finished PDF
+// is handed to it at the end, where the viewer's own Share / Save controls take over.
+function _qNeedsTabDelivery() {
+  var ua = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod|Mobile|CriOS|FxiOS|; wv\)|FBAN|FBAV|Instagram|WhatsApp/i.test(ua) ||
+         (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform || ''));
+}
+// Cross-origin images (e.g. Firebase Storage URLs) taint the canvas and make every page fail. Convert each to an
+// inline data URL; if that is impossible (bucket without CORS) leave it out so the PDF still gets made.
+function _qInlineImages(root, done) {
+  var imgs = [].slice.call(root.querySelectorAll('img')).filter(function(im) {
+    var src = im.getAttribute('src') || '';
+    return /^https?:/i.test(src) && src.indexOf(location.origin) !== 0;
+  });
+  if (!imgs.length) { done(0); return; }
+  var left = imgs.length, failed = 0;
+  imgs.forEach(function(im) {
+    var src = im.getAttribute('src'), finished = false, timer;
+    function fin(ok) {
+      if (finished) return; finished = true; clearTimeout(timer);
+      if (!ok) { failed++; im.removeAttribute('src'); im.style.visibility = 'hidden'; }
+      if (--left === 0) done(failed);
+    }
+    timer = setTimeout(function() { fin(false); }, 5000);
+    if (typeof fetch !== 'function') { fin(false); return; }
+    fetch(src, { mode: 'cors' }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+      .then(function(b) { return new Promise(function(res, rej) { var fr = new FileReader(); fr.onload = function() { res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(b); }); })
+      .then(function(d) { im.src = d; fin(true); })
+      .catch(function() { fin(false); });
+  });
 }
 function downloadQuotationPDF() {
   var q = collectQuotData();
   q.theme = currentQuotTheme;
   if (!q.bride) { showToast('⚠️ Please fill in the client name first.'); return; }
 
-  // ── Auto-save before downloading ──────────────────────────────────
-  // Save silently in background so user doesn't need to click Save separately
-  saveQuotation(true); // pass silent=true to skip the "Saved!" toast
+  var preWin = null;
+  if (_qNeedsTabDelivery()) {
+    try { preWin = window.open('', '_blank'); if (preWin) preWin.document.write('<p style="font-family:Arial,sans-serif;padding:24px">Preparing your quotation PDF…</p>'); } catch (e) { preWin = null; }
+  }
+  function closePre() { try { if (preWin && !preWin.closed) preWin.close(); } catch (e) {} }
 
-  // Show progress overlay
+  // Auto-save before downloading (silent) so the user doesn't need to click Save separately
+  saveQuotation(true);
+
   var prog = document.getElementById('_quot_progress');
   if (prog) prog.remove();
   prog = document.createElement('div');
@@ -31994,99 +32037,109 @@ function downloadQuotationPDF() {
     '<div style="font-size:13px;color:#888" id="_quot_prog_msg">Building pages…</div>' +
     '</div>';
   document.body.appendChild(prog);
+  function setMsg(t) { var m = document.getElementById('_quot_prog_msg'); if (m) m.textContent = t; }
+  function closeProg() { if (prog && prog.parentNode) prog.parentNode.removeChild(prog); }
 
-  function setMsg(t) { var m = document.getElementById('_quot_prog_msg'); if(m) m.textContent = t; }
-  function closeProg() { if(prog && prog.parentNode) prog.parentNode.removeChild(prog); }
-
-  // Check libraries
   setTimeout(function() {
     var jsPDFLib = window.jspdf && window.jspdf.jsPDF;
     if (!jsPDFLib || typeof html2canvas === 'undefined') {
-      closeProg();
+      closeProg(); closePre();
       showToast('❌ PDF library not loaded — check internet connection and try again.');
       return;
     }
 
-    // Build hidden render container
-    var existing = document.getElementById('_quot_render_wrap');
-    if (existing) existing.remove();
-    var wrap = document.createElement('div');
-    wrap.id = '_quot_render_wrap';
-    wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;z-index:-1;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;overflow:hidden;';
-    // Inject live (possibly not-yet-saved) images into a copy of q
-    // A cross-origin default-image URL would taint the PDF canvas; when the same default also exists as
-    // an inline (base64) copy, use that one instead so the picture is kept.
+    // Draw the pages inside a small, isolated frame. html2canvas copies the WHOLE document it is given for every
+    // page; copying the entire CRM screen 7 times is what made big quotations so slow, so give it a tiny document.
+    var frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none';
+    document.body.appendChild(frame);
+    var fdoc = frame.contentDocument || frame.contentWindow.document;
+    fdoc.open();
+    fdoc.write('<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a}</style></head><body></body></html>');
+    fdoc.close();
+    function cleanup() { try { frame.remove(); } catch (e) {} }
+
+    // Inject live (possibly not-yet-saved) images into a copy of q. If a default image also exists as an inline
+    // copy, prefer that over its cross-origin URL.
     function _pdfImg(val, urlKey, b64Key) { return (val && val === _defQuotImages[urlKey] && _defQuotImages[b64Key]) ? _defQuotImages[b64Key] : val; }
     var qWithImgs = Object.assign({}, q, {
       coverImageB64: _pdfImg(quotCoverImageB64 || q.coverImageUrl || q.coverImageB64 || '', 'coverUrl', 'cover'),
       aboutImageB64: _pdfImg(quotAboutImageB64 || q.aboutImageUrl || q.aboutImageB64 || '', 'aboutUrl', 'about')
     });
-    try { wrap.innerHTML = buildQuotPDFDom(qWithImgs); }
-    catch (domErr) { console.error('Quotation PDF build failed', domErr); closeProg(); showToast('❌ Could not build the PDF: ' + (domErr && domErr.message || domErr)); return; }
-    document.body.appendChild(wrap);
+    try { fdoc.body.innerHTML = buildQuotPDFDom(qWithImgs); }
+    catch (domErr) { console.error('Quotation PDF build failed', domErr); cleanup(); closeProg(); closePre(); showToast('❌ Could not build the PDF: ' + (domErr && domErr.message || domErr)); return; }
+
     setMsg('Preparing images…');
-    _qInlineImages(wrap, function(imgLeftOut) {
-    if (imgLeftOut) showToast('⚠️ ' + imgLeftOut + ' image(s) could not be loaded and were left out of the PDF.');
-    setTimeout(function() {
-      var pages = wrap.querySelectorAll('.qpdf-page');
-      if (!pages.length) { closeProg(); wrap.remove(); showToast('❌ No content to export. Fill in the form first.'); return; }
+    _qInlineImages(fdoc.body, function(imgLeftOut) {
+      if (imgLeftOut) showToast('⚠️ ' + imgLeftOut + ' image(s) could not be loaded and were left out of the PDF.');
+      setTimeout(function() {
+        var pages = fdoc.querySelectorAll('.qpdf-page');
+        if (!pages.length) { cleanup(); closeProg(); closePre(); showToast('❌ No content to export. Fill in the form first.'); return; }
 
-      var pdf = new jsPDFLib({ orientation:'portrait', unit:'mm', format:'a4' });
-      var A4_W = 210, A4_H = 297;
-      var pageArr = Array.prototype.slice.call(pages);
-      var idx = 0;
-      var failedPages = [];
+        var pdf = new jsPDFLib({ orientation:'portrait', unit:'mm', format:'a4' });
+        var A4_W = 210, A4_H = 297;
+        var pageArr = Array.prototype.slice.call(pages);
+        var idx = 0, failedPages = [];
+        var scale = (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ? 1.25 : 1.5;
 
-      function captureNext() {
-        if (idx >= pageArr.length) {
+        function finish() {
+          var drawn = pageArr.length - failedPages.length;
+          cleanup();
+          if (!drawn) { closeProg(); closePre(); showToast('❌ The PDF pages could not be drawn on this device. Please try again or use Chrome.'); return; }
           setMsg('Saving file…');
-          var eventDate = qFirstDate(q);
-          var filename = buildClientPdfFilename(q.bride, q.groom, eventDate);
-          // Build the file ourselves and show a "PDF ready" panel with a Download button. Some browsers /
-          // company-managed PCs silently block a download that is started automatically after a long render;
-          // a click on a real button is always allowed.
-          var _blob = null, _url = '';
-          try { _blob = pdf.output('blob'); _url = URL.createObjectURL(_blob); } catch (blobErr) { console.error('PDF blob failed', blobErr); }
-          wrap.remove();
+          var filename = buildClientPdfFilename(q.bride, q.groom, qFirstDate(q));
+          var viaTab = false;
+          if (preWin && !preWin.closed) {
+            try { preWin.location.href = URL.createObjectURL(pdf.output('blob')); viaTab = true; } catch (e) { console.error('open in tab failed', e); closePre(); }
+          }
+          if (!viaTab) {
+            try { pdf.save(filename); } catch (e) { closeProg(); showToast('❌ Could not save the PDF: ' + (e && e.message || e)); return; }
+          }
           closeProg();
-          _qShowPdfReady(filename, _blob, _url, failedPages, pdf);
-          return;
+          if (failedPages.length) {
+            showToast('⚠️ PDF ready, but page(s) ' + failedPages.map(function(n){return n+1;}).join(', ') + ' failed to render — please check the file.');
+          } else if (viaTab) {
+            showToast('✅ PDF opened in a new tab — use Share / Save there.');
+          } else {
+            showToast('✅ PDF downloaded: ' + filename);
+          }
         }
 
-        setMsg('Rendering page ' + (idx+1) + ' of ' + pageArr.length + '…');
-
-        html2canvas(pageArr[idx], {
-          scale: 2,
-          useCORS: false,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          width: 794,
-          height: 1123,
-          windowWidth: 794,
-          imageTimeout: 0,
-          removeContainer: false
-        }).then(function(canvas) {
-          var imgData = canvas.toDataURL('image/jpeg', 0.9);
-          // Each .qpdf-page is exactly A4 (794×1123px) — always place at full A4 size
-          if (idx > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, 0, A4_W, A4_H, undefined, 'FAST');
-          idx++; captureNext();
-        }).catch(function(err) {
-          console.error('html2canvas error on page', idx, err);
-          if (!pageArr[idx]._qRetried) {
-            // Most common cause: a cross-origin image tainting the canvas. Retry this page without images.
-            pageArr[idx]._qRetried = true;
-            pageArr[idx].querySelectorAll('img').forEach(function(im) { im.removeAttribute('src'); im.style.visibility = 'hidden'; });
-            captureNext(); return;
-          }
-          failedPages.push(idx);
-          idx++; captureNext(); // skip broken page, continue — but the user is warned at the end
-        });
-      }
-
-      captureNext();
-    }, 400);
+        function captureNext() {
+          if (idx >= pageArr.length) { finish(); return; }
+          setMsg('Rendering page ' + (idx+1) + ' of ' + pageArr.length + '…');
+          html2canvas(pageArr[idx], {
+            scale: scale,
+            useCORS: false,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            width: 794,
+            height: 1123,
+            windowWidth: 794,
+            imageTimeout: 15000,
+            removeContainer: false
+          }).then(function(canvas) {
+            var imgData = canvas.toDataURL('image/jpeg', 0.85);
+            if (idx > 0) pdf.addPage();
+            pdf.addImage(imgData, 'JPEG', 0, 0, A4_W, A4_H, undefined, 'FAST');
+            idx++; setTimeout(captureNext, 20);
+          }).catch(function(err) {
+            console.error('html2canvas error on page', idx, err);
+            if (!pageArr[idx]._qRetried) {
+              // Most common cause: a cross-origin image tainting the canvas. Retry this page once without images.
+              pageArr[idx]._qRetried = true;
+              pageArr[idx].querySelectorAll('img').forEach(function(im) { im.removeAttribute('src'); im.style.visibility = 'hidden'; });
+              captureNext(); return;
+            }
+            failedPages.push(idx);
+            if (idx > 0 || failedPages.length < pageArr.length) { /* keep page numbering aligned in the PDF */ }
+            idx++; captureNext();
+          });
+        }
+        captureNext();
+      }, 150);
     });
   }, 100);
 }
@@ -39813,5 +39866,237 @@ window.attFnf = function(){
 })();
 
 </script>
+<script>
+/* ═══════════ QUOTATION PDF FIX (v74.11) ═══════════
+   1. Working "PDF ready" panel: Download / Open / Share buttons that are real user clicks
+      (the old panel was never called, and its Print button used a function that did not exist).
+   2. Faster: big images are shrunk once, pages are drawn 2-3 at a time, lower scale, smaller JPEGs.
+   3. Preview no longer rebuilds on every keystroke / theme click (debounced, skipped when hidden). */
+(function(){
+  var lastBlob = null, lastUrl = null, lastName = '';
+
+  // ── Preview: debounce + skip when not visible ──
+  (function(){
+    var orig = window.renderQuotPreview, t = null;
+    if (typeof orig !== 'function' || orig._kbfast) return;
+    window.renderQuotPreview = function(){
+      clearTimeout(t);
+      t = setTimeout(function(){
+        var el = document.getElementById('quot-pdf-preview');
+        if (!el || el.offsetWidth === 0) return;
+        try { orig(); } catch(e){ console.error('preview error', e); }
+      }, 250);
+    };
+    window.renderQuotPreview._kbfast = true;
+  })();
+
+  // ── Shrink oversized inline images (keeps PNG transparency) ──
+  function shrinkImages(root, done){
+    var imgs = [].slice.call(root.querySelectorAll('img')).filter(function(im){
+      var s = im.getAttribute('src') || '';
+      return /^data:image\/(png|jpe?g|webp)/i.test(s) && s.length > 300000;
+    });
+    if (!imgs.length) { done(); return; }
+    var left = imgs.length, fin = false;
+    function one(){ if (--left === 0 && !fin) { fin = true; done(); } }
+    setTimeout(function(){ if (!fin) { fin = true; done(); } }, 6000);
+    imgs.forEach(function(im){
+      var src = im.getAttribute('src'), isPng = /^data:image\/png/i.test(src), probe = new Image();
+      probe.onload = function(){
+        try {
+          var MAX = 1400, w = probe.naturalWidth, h = probe.naturalHeight;
+          if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+          var c = document.createElement('canvas'); c.width = w; c.height = h;
+          var cx = c.getContext('2d');
+          if (!isPng) { cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h); }
+          cx.drawImage(probe, 0, 0, w, h);
+          var out = isPng ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.85);
+          if (out.length < src.length) im.setAttribute('src', out);
+        } catch(e){}
+        one();
+      };
+      probe.onerror = one;
+      probe.src = src;
+    });
+  }
+
+  // ── Ready panel ──
+  function showReady(filename, blob, failedPages){
+    var old = document.getElementById('_quot_ready'); if (old) old.remove();
+    if (lastUrl) { try { URL.revokeObjectURL(lastUrl); } catch(e){} }
+    lastBlob = blob; lastName = filename; lastUrl = URL.createObjectURL(blob);
+    var url = lastUrl;
+
+    function esc(t){ return String(t).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    var shareFile = null, canShare = false;
+    try {
+      if (navigator.canShare && window.File) {
+        shareFile = new File([blob], filename, { type: 'application/pdf' });
+        canShare = navigator.canShare({ files: [shareFile] });
+      }
+    } catch(e){ canShare = false; }
+
+    var box = document.createElement('div');
+    box.id = '_quot_ready';
+    box.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:2147483000;background:#fff;color:#111;border:1px solid #d1d5db;border-radius:14px;padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.25);width:min(360px,calc(100vw - 36px));font-size:13px;pointer-events:auto';
+    box.innerHTML =
+      '<div style="font-weight:800;font-size:14px;margin-bottom:4px">' + (failedPages.length ? '⚠️' : '✅') + ' Quotation PDF is ready</div>' +
+      '<div style="color:#444;word-break:break-word">' + esc(filename) + ' · ' + (blob.size/1048576).toFixed(1) + ' MB</div>' +
+      (failedPages.length ? '<div style="color:#b45309;margin-top:6px">Page(s) ' + failedPages.map(function(n){return n+1;}).join(', ') + ' could not be drawn — please check the file.</div>' : '') +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
+        '<button type="button" id="_qr_dl" style="padding:9px 14px;background:#134e50;color:#fff;border:0;border-radius:8px;font-weight:700;cursor:pointer">⬇ Download</button>' +
+        (canShare ? '<button type="button" id="_qr_share" style="padding:9px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;cursor:pointer">📤 Share / Save</button>' : '') +
+        '<button type="button" id="_qr_open" style="padding:9px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;cursor:pointer">🔍 Open</button>' +
+        '<button type="button" id="_qr_x" style="padding:9px 12px;background:none;border:0;color:#666;cursor:pointer">Close</button>' +
+      '</div>';
+    document.body.appendChild(box);
+
+    function on(id, fn){
+      var b = document.getElementById(id); if (!b) return;
+      b.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); try { fn(); } catch(err){ console.error(err); showToast('❌ ' + (err && err.message || err)); } });
+    }
+    on('_qr_dl', function(){
+      var a = document.createElement('a');
+      a.href = url; a.download = filename; a.rel = 'noopener';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ a.remove(); }, 1500);
+      // iOS / installed-app mode ignores a[download]; offer the share sheet as the backup
+      if (canShare && _isTouch()) setTimeout(function(){ navigator.share({ files: [shareFile], title: filename }).catch(function(){}); }, 400);
+    });
+    on('_qr_share', function(){ navigator.share({ files: [shareFile], title: filename }).catch(function(){}); });
+    on('_qr_open', function(){
+      var w = window.open(url, '_blank');
+      if (!w) { location.href = url; }   // popup blocked → open in this tab
+    });
+    on('_qr_x', function(){ box.remove(); });
+  }
+  function _isTouch(){
+    var ua = navigator.userAgent || '';
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.platform || ''));
+  }
+  // Used by older code paths that still call it
+  window.printQuotationQuick = function(){
+    if (lastUrl) { var w = window.open(lastUrl, '_blank'); if (!w) location.href = lastUrl; }
+    else window.downloadQuotationPDF();
+  };
+
+  // ── Main: build PDF ──
+  window.downloadQuotationPDF = function(){
+    var q = collectQuotData();
+    q.theme = currentQuotTheme;
+    if (!q.bride) { showToast('⚠️ Please fill in the client name first.'); return; }
+
+    var prog = document.getElementById('_quot_progress'); if (prog) prog.remove();
+    prog = document.createElement('div');
+    prog.id = '_quot_progress';
+    prog.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:2147482000;display:flex;align-items:center;justify-content:center;';
+    prog.innerHTML = '<div style="background:#fff;border-radius:14px;padding:32px 40px;text-align:center;max-width:320px;box-shadow:0 8px 40px rgba(0,0,0,0.3)"><div style="font-size:36px;margin-bottom:12px">📄</div><div style="font-size:16px;font-weight:700;color:#134e50;margin-bottom:8px">Generating PDF…</div><div style="font-size:13px;color:#888" id="_quot_prog_msg">Building pages…</div></div>';
+    document.body.appendChild(prog);
+    function setMsg(t){ var m = document.getElementById('_quot_prog_msg'); if (m) m.textContent = t; }
+    function closeProg(){ if (prog && prog.parentNode) prog.parentNode.removeChild(prog); }
+
+    setTimeout(function(){
+      var jsPDFLib = window.jspdf && window.jspdf.jsPDF;
+      if (!jsPDFLib || typeof html2canvas === 'undefined') { closeProg(); showToast('❌ PDF library not loaded — check internet connection and try again.'); return; }
+
+      var frame = document.createElement('iframe');
+      frame.setAttribute('aria-hidden', 'true');
+      frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none';
+      document.body.appendChild(frame);
+      var fdoc = frame.contentDocument || frame.contentWindow.document;
+      fdoc.open();
+      fdoc.write('<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a}</style></head><body></body></html>');
+      fdoc.close();
+      function cleanup(){ try { frame.remove(); } catch(e){} }
+
+      function _pdfImg(val, urlKey, b64Key){ return (val && val === _defQuotImages[urlKey] && _defQuotImages[b64Key]) ? _defQuotImages[b64Key] : val; }
+      var qWithImgs = Object.assign({}, q, {
+        coverImageB64: _pdfImg(quotCoverImageB64 || q.coverImageUrl || q.coverImageB64 || '', 'coverUrl', 'cover'),
+        aboutImageB64: _pdfImg(quotAboutImageB64 || q.aboutImageUrl || q.aboutImageB64 || '', 'aboutUrl', 'about')
+      });
+      try { fdoc.body.innerHTML = buildQuotPDFDom(qWithImgs); }
+      catch (domErr) { console.error(domErr); cleanup(); closeProg(); showToast('❌ Could not build the PDF: ' + (domErr && domErr.message || domErr)); return; }
+
+      setMsg('Preparing images…');
+      _qInlineImages(fdoc.body, function(imgLeftOut){
+        if (imgLeftOut) showToast('⚠️ ' + imgLeftOut + ' image(s) could not be loaded and were left out of the PDF.');
+        shrinkImages(fdoc.body, function(){
+          setTimeout(function(){
+            var pageArr = [].slice.call(fdoc.querySelectorAll('.qpdf-page'));
+            if (!pageArr.length) { cleanup(); closeProg(); showToast('❌ No content to export. Fill in the form first.'); return; }
+
+            var touch = _isTouch();
+            var scale = (pageArr.length > 8 || touch || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4)) ? 1.1 : 1.35;
+            var CONC = touch ? 2 : 3;
+            var results = new Array(pageArr.length), failed = [], next = 0, running = 0, doneCount = 0;
+
+            function capture(i, noImgs){
+              if (noImgs) pageArr[i].querySelectorAll('img').forEach(function(im){ im.removeAttribute('src'); im.style.visibility = 'hidden'; });
+              return html2canvas(pageArr[i], {
+                scale: scale, useCORS: false, allowTaint: true, backgroundColor: '#ffffff', logging: false,
+                width: 794, height: 1123, windowWidth: 794, imageTimeout: 15000, removeContainer: true
+              });
+            }
+            function work(i){
+              running++;
+              capture(i, false).catch(function(err){
+                console.error('page', i, err);
+                return capture(i, true);          // retry once without images
+              }).then(function(canvas){
+                results[i] = canvas.toDataURL('image/jpeg', 0.8);
+                canvas.width = canvas.height = 0;  // free memory
+              }).catch(function(err){
+                console.error('page failed', i, err); failed.push(i);
+              }).then(function(){
+                running--; doneCount++;
+                setMsg('Rendered ' + doneCount + ' of ' + pageArr.length + ' pages…');
+                pump();
+              });
+            }
+            function pump(){
+              while (running < CONC && next < pageArr.length) work(next++);
+              if (doneCount === pageArr.length) assemble();
+            }
+            var assembled = false;
+            function assemble(){
+              if (assembled) return; assembled = true;
+              cleanup();
+              if (failed.length === pageArr.length) { closeProg(); showToast('❌ The PDF pages could not be drawn on this device. Please try again or use Chrome.'); return; }
+              setMsg('Saving file…');
+              setTimeout(function(){
+                try {
+                  var pdf = new jsPDFLib({ orientation:'portrait', unit:'mm', format:'a4', compress:true });
+                  var first = true;
+                  results.forEach(function(img, i){
+                    if (!first) pdf.addPage(); first = false;
+                    if (img) pdf.addImage(img, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+                  });
+                  var blob = pdf.output('blob');
+                  var filename = buildClientPdfFilename(q.bride, q.groom, qFirstDate(q));
+                  closeProg();
+                  failed.sort(function(a,b){return a-b;});
+                  showReady(filename, blob, failed);
+                  // Desktop browsers: also start the download automatically
+                  if (!_isTouch() && !failed.length) { var b = document.getElementById('_qr_dl'); if (b) b.click(); }
+                  // Save the quotation AFTER the PDF so it does not slow the render down
+                  setTimeout(function(){ try { saveQuotation(true); } catch(e){} }, 300);
+                } catch (e) {
+                  console.error(e); closeProg();
+                  showToast('❌ Could not create the PDF file: ' + (e && e.message || e));
+                }
+              }, 30);
+            }
+            setMsg('Rendering pages…');
+            pump();
+          }, 100);
+        });
+      });
+    }, 50);
+  };
+  window.printQuotation = window.downloadQuotationPDF;
+  window.downloadQuotationHTML = window.downloadQuotationPDF;
+})();
+</script>
+
 </body>
 </html>
