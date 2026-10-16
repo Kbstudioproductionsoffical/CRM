@@ -7283,6 +7283,7 @@ function loadStaffOnly(){
   _sidebarLayout = DEFAULT_SIDEBAR_LAYOUT;
   buildSidebar(); applyRBAC();
   navTo('attendance');
+  db.ref('crm_users/' + CU.id).on('value', function(s) { var u = s.val(); if (u && u.disabled && typeof kbForceLogoutDisabled === 'function') kbForceLogoutDisabled(); });
 }
 
 function loadAll(){
@@ -31920,6 +31921,31 @@ function buildClientPdfFilename(bride, groom, dateStr) {
   namePart = namePart.replace(/[\\/:*?"<>|]/g, ''); // strip characters invalid in filenames
   return namePart + ' - ' + formatDDMMYYYY(dateStr) + '.pdf';
 }
+// Cross-origin images (e.g. Firebase Storage URLs) taint the PDF canvas and make html2canvas/toDataURL
+// fail for every page. Convert each such image to an inline data URL first; if that is not possible
+// (storage bucket without CORS), leave it out so the PDF still downloads. Calls done(<images left out>).
+function _qInlineImages(root, done) {
+  var imgs = [].slice.call(root.querySelectorAll('img')).filter(function(im) {
+    var src = im.getAttribute('src') || '';
+    return /^https?:/i.test(src) && src.indexOf(location.origin) !== 0;
+  });
+  if (!imgs.length) { done(0); return; }
+  var left = imgs.length, failed = 0;
+  imgs.forEach(function(im) {
+    var src = im.getAttribute('src'), finished = false, timer;
+    function fin(ok) {
+      if (finished) return; finished = true; clearTimeout(timer);
+      if (!ok) { failed++; im.removeAttribute('src'); im.style.visibility = 'hidden'; }
+      if (--left === 0) done(failed);
+    }
+    timer = setTimeout(function() { fin(false); }, 9000);
+    if (typeof fetch !== 'function') { fin(false); return; }
+    fetch(src, { mode: 'cors' }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+      .then(function(b) { return new Promise(function(res, rej) { var fr = new FileReader(); fr.onload = function() { res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(b); }); })
+      .then(function(d) { im.src = d; fin(true); })
+      .catch(function() { fin(false); });
+  });
+}
 function downloadQuotationPDF() {
   var q = collectQuotData();
   q.theme = currentQuotTheme;
@@ -31961,13 +31987,19 @@ function downloadQuotationPDF() {
     wrap.id = '_quot_render_wrap';
     wrap.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;z-index:-1;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;overflow:hidden;';
     // Inject live (possibly not-yet-saved) images into a copy of q
+    // A cross-origin default-image URL would taint the PDF canvas; when the same default also exists as
+    // an inline (base64) copy, use that one instead so the picture is kept.
+    function _pdfImg(val, urlKey, b64Key) { return (val && val === _defQuotImages[urlKey] && _defQuotImages[b64Key]) ? _defQuotImages[b64Key] : val; }
     var qWithImgs = Object.assign({}, q, {
-      coverImageB64: quotCoverImageB64 || q.coverImageUrl || q.coverImageB64 || '',
-      aboutImageB64: quotAboutImageB64 || q.aboutImageUrl || q.aboutImageB64 || ''
+      coverImageB64: _pdfImg(quotCoverImageB64 || q.coverImageUrl || q.coverImageB64 || '', 'coverUrl', 'cover'),
+      aboutImageB64: _pdfImg(quotAboutImageB64 || q.aboutImageUrl || q.aboutImageB64 || '', 'aboutUrl', 'about')
     });
-    wrap.innerHTML = buildQuotPDFDom(qWithImgs);
+    try { wrap.innerHTML = buildQuotPDFDom(qWithImgs); }
+    catch (domErr) { console.error('Quotation PDF build failed', domErr); closeProg(); showToast('❌ Could not build the PDF: ' + (domErr && domErr.message || domErr)); return; }
     document.body.appendChild(wrap);
-
+    setMsg('Preparing images…');
+    _qInlineImages(wrap, function(imgLeftOut) {
+    if (imgLeftOut) showToast('⚠️ ' + imgLeftOut + ' image(s) could not be loaded and were left out of the PDF.');
     setTimeout(function() {
       var pages = wrap.querySelectorAll('.qpdf-page');
       if (!pages.length) { closeProg(); wrap.remove(); showToast('❌ No content to export. Fill in the form first.'); return; }
@@ -32015,6 +32047,12 @@ function downloadQuotationPDF() {
           idx++; captureNext();
         }).catch(function(err) {
           console.error('html2canvas error on page', idx, err);
+          if (!pageArr[idx]._qRetried) {
+            // Most common cause: a cross-origin image tainting the canvas. Retry this page without images.
+            pageArr[idx]._qRetried = true;
+            pageArr[idx].querySelectorAll('img').forEach(function(im) { im.removeAttribute('src'); im.style.visibility = 'hidden'; });
+            captureNext(); return;
+          }
           failedPages.push(idx);
           idx++; captureNext(); // skip broken page, continue — but the user is warned at the end
         });
@@ -32022,6 +32060,7 @@ function downloadQuotationPDF() {
 
       captureNext();
     }, 400);
+    });
   }, 100);
 }
 
@@ -32039,8 +32078,8 @@ function _qResolveDefaultImgs(q) {
   if (!q) return q;
   var c = q.coverImageB64 || q.coverImageUrl || '';
   var a = q.aboutImageB64 || q.aboutImageUrl || '';
-  if (!c && q.coverImageDefault) c = _defQuotImages.coverUrl || _defQuotImages.cover || '';
-  if (!a && q.aboutImageDefault) a = _defQuotImages.aboutUrl || _defQuotImages.about || '';
+  if (!c && q.coverImageDefault) c = _defQuotImages.cover || _defQuotImages.coverUrl || '';
+  if (!a && q.aboutImageDefault) a = _defQuotImages.about || _defQuotImages.aboutUrl || '';
   return Object.assign({}, q, { coverImageB64: c, aboutImageB64: a });
 }
 
@@ -39491,7 +39530,7 @@ window.attFnf = function(){
 <script>
 /* ═══════════ KB STUDIO — BACKUP & RESTORE MODULE (superadmin only) ═══════════ */
 (function(){
-  var NODES_CORE = ['crm_projects','crm_quotations','crm_invoices','crm_settings','crm_users','crm_team','crm_freelancers','crm_accounts','crm_referral','crm_archive','crm_assets','crm_checklist_templates','crm_followup_templates','crm_client_comms','crm_client_issues','crm_escalations','crm_hc_tasks','crm_dupe_confirmed','crm_sidebar','crm_hr_profiles','crm_payroll_struct','crm_payroll_runs','crm_payroll_final','crm_payroll_fnf','crm_payslips','crm_attendance','crm_attendance_settings','crm_att_requests','crm_att_approved','crm_activity_log','crm_security_log','crm_notifications','crm_meta'];
+  var NODES_CORE = ['crm_projects','crm_quotations','crm_invoices','crm_settings','crm_users','crm_team','crm_freelancers','crm_accounts','crm_referral','crm_archive','crm_assets','crm_checklist_templates','crm_followup_templates','crm_client_comms','crm_client_issues','crm_escalations','crm_hc_tasks','crm_dupe_confirmed','crm_sidebar','crm_hr_profiles','crm_payroll_struct','crm_payroll_runs','crm_payroll_final','crm_payroll_fnf','crm_payslips','crm_attendance','crm_attendance_settings','crm_att_requests','crm_att_approved','crm_activity_log','crm_security_log','crm_notifications','crm_meta','contracts'];
   var NODES_HEAVY = ['crm_docs','crm_quot_docs','crm_attendance_selfies','crm_quot_default_images'];
   var DAY = 24*3600*1000, busy = false;
 
