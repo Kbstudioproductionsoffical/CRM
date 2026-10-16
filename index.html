@@ -31946,6 +31946,33 @@ function _qInlineImages(root, done) {
       .catch(function() { fin(false); });
   });
 }
+// Shown when a quotation PDF has been built. Tries the download automatically, and keeps a panel on screen with
+// a Download button (user click = never blocked), an Open-in-new-tab fallback, and any page warnings.
+function _qShowPdfReady(filename, blob, url, failedPages, pdf) {
+  var old = document.getElementById('_quot_ready'); if (old) old.remove();
+  function esc2(t) { return String(t).replace(/[&<>"]/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function download() {
+    try {
+      if (blob && url) { var a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); setTimeout(function() { a.remove(); }, 1500); }
+      else { pdf.save(filename); }
+    } catch (e) { showToast('❌ Could not save the file: ' + (e && e.message || e)); }
+  }
+  var box = document.createElement('div');
+  box.id = '_quot_ready';
+  box.style.cssText = 'position:fixed;right:18px;bottom:18px;z-index:9999999;background:#fff;color:#111;border:1px solid #d1d5db;border-radius:14px;padding:16px 18px;box-shadow:0 8px 30px rgba(0,0,0,.25);width:min(340px,calc(100vw - 36px));font-size:13px';
+  box.innerHTML = '<div style="font-weight:800;font-size:14px;margin-bottom:4px">' + (failedPages.length ? '⚠️' : '✅') + ' PDF ready</div>' +
+    '<div style="color:#444;word-break:break-word">' + esc2(filename) + (blob ? ' · ' + (blob.size / 1048576).toFixed(1) + ' MB' : '') + '</div>' +
+    (failedPages.length ? '<div style="color:#b45309;margin-top:6px">Page(s) ' + failedPages.map(function(n) { return n + 1; }).join(', ') + ' could not be drawn — please check the file.</div>' : '') +
+    '<div style="color:#666;margin:8px 0 10px">If the file did not appear in your Downloads, click Download.</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><button id="_qr_dl" style="padding:8px 14px;background:#134e50;color:#fff;border:0;border-radius:8px;font-weight:700;cursor:pointer">⬇ Download</button>' +
+    (url ? '<button id="_qr_open" style="padding:8px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;cursor:pointer">Open in new tab</button>' : '') +
+    '<button id="_qr_x" style="padding:8px 12px;background:none;border:0;color:#666;cursor:pointer">Close</button></div>';
+  document.body.appendChild(box);
+  document.getElementById('_qr_dl').onclick = download;
+  var op = document.getElementById('_qr_open'); if (op) op.onclick = function() { window.open(url, '_blank'); };
+  document.getElementById('_qr_x').onclick = function() { box.remove(); if (url) setTimeout(function() { try { URL.revokeObjectURL(url); } catch (e) {} }, 60000); };
+  download();   // automatic attempt
+}
 function downloadQuotationPDF() {
   var q = collectQuotData();
   q.theme = currentQuotTheme;
@@ -32015,14 +32042,14 @@ function downloadQuotationPDF() {
           setMsg('Saving file…');
           var eventDate = qFirstDate(q);
           var filename = buildClientPdfFilename(q.bride, q.groom, eventDate);
-          pdf.save(filename);
+          // Build the file ourselves and show a "PDF ready" panel with a Download button. Some browsers /
+          // company-managed PCs silently block a download that is started automatically after a long render;
+          // a click on a real button is always allowed.
+          var _blob = null, _url = '';
+          try { _blob = pdf.output('blob'); _url = URL.createObjectURL(_blob); } catch (blobErr) { console.error('PDF blob failed', blobErr); }
           wrap.remove();
           closeProg();
-          if (failedPages.length) {
-            showToast('⚠️ PDF downloaded, but page(s) ' + failedPages.map(function(n){return n+1;}).join(', ') + ' failed to render — please check the file and retry if anything looks missing.');
-          } else {
-            showToast('✅ PDF downloaded: ' + filename);
-          }
+          _qShowPdfReady(filename, _blob, _url, failedPages, pdf);
           return;
         }
 
@@ -32040,10 +32067,10 @@ function downloadQuotationPDF() {
           imageTimeout: 0,
           removeContainer: false
         }).then(function(canvas) {
-          var imgData = canvas.toDataURL('image/jpeg', 0.95);
+          var imgData = canvas.toDataURL('image/jpeg', 0.9);
           // Each .qpdf-page is exactly A4 (794×1123px) — always place at full A4 size
           if (idx > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, 0, A4_W, A4_H);
+          pdf.addImage(imgData, 'JPEG', 0, 0, A4_W, A4_H, undefined, 'FAST');
           idx++; captureNext();
         }).catch(function(err) {
           console.error('html2canvas error on page', idx, err);
