@@ -1571,6 +1571,7 @@ document.addEventListener('wheel', function(e) {
         <select class="fi" style="flex:0;width:auto" id="proj-source-f"><option value="">All Sources</option></select>
         <button class="btn btn-primary" id="btn-new-proj">+ New Project</button>
         <button class="btn" id="btn-export-clients" title="Export client data">⬇️ Export</button>
+        <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="dxOpenModal()" title="Deliverables of upcoming shoots, by month">📦 Deliverables by Month</button>
         <button class="btn btn-sm" style="background:#2563eb;color:#fff;border:none;font-weight:700" onclick="exportAllProjectsCompleteExcel()">📑 Complete Statement (Excel)</button>
         <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="exportAllProjectsCompletePDF()">🧾 Complete Statement (PDF)</button>
       </div>
@@ -24047,6 +24048,87 @@ function renderPage(name) {
   else if (name === 'workprogress') { renderWorkProgress(); }
   else if (name === 'freelancers') { flRenderTab(); }
   else if (name === 'attendance') { renderAttendance(); }
+}
+
+// ═══ Deliverables by shoot month — Excel extract (Projects page) ═══
+// For planning who fulfils what: one row per deliverable for every project
+// that has a shoot day in the chosen months, plus a month × type summary.
+var DX_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function dxMonthLabel(k){ var a = k.split('-'); return DX_MONTHS[parseInt(a[1], 10) - 1] + ' ' + a[0]; }
+function dxOpenModal(){
+  if (!can('canExport')) { showToast('⛔ You do not have export access.'); return; }
+  var old = document.getElementById('dx-modal'); if (old) old.remove();
+  var d = new Date(); d.setDate(1);
+  var chips = '';
+  for (var i = 0; i < 12; i++) {
+    d.setMonth(d.getMonth() + (i === 0 ? 0 : 1));
+    var k = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+    // Default: the next four months (skip the current one)
+    chips += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border:1px solid #ddd;border-radius:20px;padding:6px 12px;cursor:pointer"><input type="checkbox" value="' + k + '"' + (i >= 1 && i <= 4 ? ' checked' : '') + '> ' + dxMonthLabel(k) + '</label>';
+  }
+  var m = document.createElement('div');
+  m.id = 'dx-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:520px;width:100%">' +
+    '<div style="font-size:16px;font-weight:800;margin-bottom:4px">📦 Deliverables by shoot month</div>' +
+    '<div style="font-size:12.5px;color:#777;margin-bottom:14px">Pick the months. You get an Excel file with every deliverable of every project that has a shoot in those months, plus a summary by month and type for planning freelancers.</div>' +
+    '<div id="dx-months" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">' + chips + '</div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" onclick="document.getElementById(\'dx-modal\').remove()">Cancel</button>' +
+    '<button class="btn btn-primary" onclick="dxExport()">⬇️ Download Excel</button></div></div>';
+  document.body.appendChild(m);
+}
+function dxExport(){
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded.'); return; }
+  var months = Array.prototype.slice.call(document.querySelectorAll('#dx-months input:checked')).map(function(i){ return i.value; });
+  if (!months.length) { showToast('⚠️ Pick at least one month.'); return; }
+  var showPhone = can('canSeeContactDetails');
+  var ymd = /^\d{4}-\d{2}-\d{2}$/;
+  var head = ['Shoot month', 'Shoot date(s)', 'Client', 'Ref', 'City', 'Stage'];
+  if (showPhone) head.push('Phone');
+  head = head.concat(['Events', 'Deliverable', 'Category', 'Type', 'Qty', 'Specs', 'Assigned to', 'Deadline', 'Status']);
+  var rows = [], projs = [];
+  pl().forEach(function(p){
+    var days = (p.eventDays || []).filter(function(e){ return e && ymd.test(e.date || ''); });
+    if (!days.length && ymd.test(p.date || '')) days = [{ date: p.date, type: p.type || 'Event', venue: p.venue || '' }];
+    days = days.sort(function(a, b){ return a.date.localeCompare(b.date); });
+    var inR = days.filter(function(e){ return months.indexOf(e.date.slice(0, 7)) !== -1; });
+    if (inR.length) projs.push({ p: p, inR: inR });
+  });
+  projs.sort(function(a, b){ return a.inR[0].date.localeCompare(b.inR[0].date); });
+  var summary = {}, types = {};
+  projs.forEach(function(x){
+    var p = x.p, mk = x.inR[0].date.slice(0, 7);
+    var base = [dxMonthLabel(mk), x.inR.map(function(e){ return e.date; }).join(', '), coupleName(p.bride, p.groom), p.refcode || '', p.city || '', stageLabel(p.stage)];
+    if (showPhone) base.push(p.phone || '');
+    base.push(x.inR.map(function(e){ return (e.type || 'Event') + (e.venue ? ' @ ' + e.venue : ''); }).join(' | '));
+    var delivs = p.customDelivs || [];
+    if (!delivs.length) { rows.push(base.concat(['(no deliverables set up)', '', '', '', '', '', '', ''])); return; }
+    delivs.forEach(function(d){
+      var per = ppPerson(d.editorId), t = d.type || 'Other', qty = parseInt(d.qty) || 1;
+      var s = summary[mk] = summary[mk] || {};
+      var c = s[t] = s[t] || { n: 0, open: 0 };
+      c.n += qty; types[t] = true;
+      if (!d.editorId && !delivIsDone(d.status)) c.open += qty;
+      rows.push(base.concat([d.name || t, d.category || '', t, qty, d.specs || '', per ? (per.name || '').replace('🎯 ', '') : '', d.deadline || '', _delivStatusInfo(d.status || 'pending').label]));
+    });
+  });
+  if (!rows.length) { showToast('No projects with a shoot in those months.'); return; }
+  function fit(ws, aoa){ ws['!cols'] = aoa[0].map(function(h, i){ var w = String(h).length + 2; aoa.forEach(function(r){ var l = String(r[i] == null ? '' : r[i]).length + 2; if (l > w) w = l; }); return { wch: Math.min(w, 50) }; }); }
+  var aoa = [head].concat(rows), ws = XLSX.utils.aoa_to_sheet(aoa); fit(ws, aoa);
+  var tList = Object.keys(types).sort();
+  var sAoa = [['Shoot month', 'Projects'].concat(tList.map(function(t){ return t + ' (total)'; }), tList.map(function(t){ return t + ' (unassigned)'; }))];
+  months.forEach(function(mk){
+    var s = summary[mk] || {};
+    var n = projs.filter(function(x){ return x.inR[0].date.slice(0, 7) === mk; }).length;
+    sAoa.push([dxMonthLabel(mk), n].concat(tList.map(function(t){ return (s[t] || {}).n || 0; }), tList.map(function(t){ return (s[t] || {}).open || 0; })));
+  });
+  var ws2 = XLSX.utils.aoa_to_sheet(sAoa); fit(ws2, sAoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Deliverables');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Summary by month');
+  XLSX.writeFile(wb, 'KB_Deliverables_' + months.join('_') + '.xlsx');
+  var mo = document.getElementById('dx-modal'); if (mo) mo.remove();
+  showToast('✅ Exported ' + rows.length + ' deliverable row(s) from ' + projs.length + ' project(s).');
 }
 
 // Jump into Projects, filtered to a single lead source (used by Reports > Lead Sources drill-through)
