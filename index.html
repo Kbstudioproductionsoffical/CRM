@@ -24071,10 +24071,11 @@ function dxOpenModal(){
   m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
   m.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:520px;width:100%">' +
     '<div style="font-size:16px;font-weight:800;margin-bottom:4px">📦 Deliverables by shoot month</div>' +
-    '<div style="font-size:12.5px;color:#777;margin-bottom:14px">Pick the months. You get an Excel file with every deliverable of every project that has a shoot in those months, plus a summary by month and type for planning freelancers.</div>' +
+    '<div style="font-size:12.5px;color:#777;margin-bottom:14px">Pick the months. <b>Totals only</b> gives one table: events and the total number of each deliverable per month. <b>Full detail</b> lists every deliverable project by project.</div>' +
     '<div id="dx-months" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">' + chips + '</div>' +
     '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" onclick="document.getElementById(\'dx-modal\').remove()">Cancel</button>' +
-    '<button class="btn btn-primary" onclick="dxExport()">⬇️ Download Excel</button></div></div>';
+    '<button class="btn" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="dxExportTotals()">📊 Totals only</button>' +
+    '<button class="btn btn-primary" onclick="dxExport()">⬇️ Full detail</button></div></div>';
   document.body.appendChild(m);
 }
 function dxExport(){
@@ -24129,6 +24130,47 @@ function dxExport(){
   XLSX.writeFile(wb, 'KB_Deliverables_' + months.join('_') + '.xlsx');
   var mo = document.getElementById('dx-modal'); if (mo) mo.remove();
   showToast('✅ Exported ' + rows.length + ' deliverable row(s) from ' + projs.length + ' project(s).');
+}
+
+// Consolidated totals only: events and total deliverables per type, per month
+function dxExportTotals(){
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded.'); return; }
+  var months = Array.prototype.slice.call(document.querySelectorAll('#dx-months input:checked')).map(function(i){ return i.value; });
+  if (!months.length) { showToast('⚠️ Pick at least one month.'); return; }
+  var ymd = /^\d{4}-\d{2}-\d{2}$/, M = {}, types = {};
+  months.forEach(function(mk){ M[mk] = { events: 0, projects: 0, t: {} }; });
+  pl().forEach(function(p){
+    var days = (p.eventDays || []).filter(function(e){ return e && ymd.test(e.date || ''); });
+    if (!days.length && ymd.test(p.date || '')) days = [{ date: p.date }];
+    days = days.sort(function(a, b){ return a.date.localeCompare(b.date); });
+    var inR = days.filter(function(e){ return M[e.date.slice(0, 7)]; });
+    if (!inR.length) return;
+    inR.forEach(function(e){ M[e.date.slice(0, 7)].events++; });
+    var m = M[inR[0].date.slice(0, 7)];   // deliverables are counted in the project's first shoot month
+    m.projects++;
+    (p.customDelivs || []).forEach(function(d){
+      var t = d.type || 'Other'; types[t] = true;
+      m.t[t] = (m.t[t] || 0) + (parseInt(d.qty) || 1);
+    });
+  });
+  var tList = Object.keys(types).sort();
+  var aoa = [['Shoot month', 'Events (shoot days)', 'Projects'].concat(tList, ['All deliverables'])];
+  var tot = { events: 0, projects: 0, t: {} };
+  months.forEach(function(mk){
+    var m = M[mk], sum = 0;
+    tot.events += m.events; tot.projects += m.projects;
+    var cells = tList.map(function(t){ var n = m.t[t] || 0; sum += n; tot.t[t] = (tot.t[t] || 0) + n; return n; });
+    aoa.push([dxMonthLabel(mk), m.events, m.projects].concat(cells, [sum]));
+  });
+  var gsum = 0;
+  aoa.push(['TOTAL', tot.events, tot.projects].concat(tList.map(function(t){ gsum += tot.t[t] || 0; return tot.t[t] || 0; }), [gsum]));
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = aoa[0].map(function(h){ return { wch: Math.max(12, String(h).length + 2) }; });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Consolidated');
+  XLSX.writeFile(wb, 'KB_Consolidated_Deliverables_' + months.join('_') + '.xlsx');
+  var mo = document.getElementById('dx-modal'); if (mo) mo.remove();
+  showToast('✅ Consolidated statement downloaded.');
 }
 
 // Jump into Projects, filtered to a single lead source (used by Reports > Lead Sources drill-through)
