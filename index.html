@@ -5820,7 +5820,7 @@ var DELIV_ITEMS=[{key:'teaser',label:'Teaser',hasDuration:true},{key:'highlight'
 var DELIV_TYPE_REGISTRY = [
   { type:'Teaser',          icon:'🎞️', bucket:'video', reportKey:'teaser',     nameRegex:/\bteasers?\b/ },
   { type:'Highlight',       icon:'🎬', bucket:'video', reportKey:'highlight',  nameRegex:/\b(highlights?|wedding ?films?)\b/ },
-  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'longvideo',  nameRegex:/\b(long ?videos?|full ?films?|full[\s-]?lengths?|feature ?films?|main ?films?|cinematic ?films?)\b/ },
+  { type:'Long Video',      icon:'🎥', bucket:'video', reportKey:'longvideo',  nameRegex:/\b(long ?videos?|full ?films?|full[\s-]?lengths?|feature ?films?|main ?films?|cinematic ?films?|traditional ?videos?)\b/ },
   { type:'Reel',            icon:'📱', bucket:'video', reportKey:'reel',       nameRegex:/\breels?\b/ },
   { type:'Video',           icon:'🎬', bucket:'video', reportKey:null,         nameRegex:null },
   { type:'Album',           icon:'📔', bucket:'album', reportKey:null,         nameRegex:/\balbums?\b/ },
@@ -24050,11 +24050,89 @@ function renderPage(name) {
   else if (name === 'attendance') { renderAttendance(); }
 }
 
-// ═══ Deliverables by shoot month — Excel extract (Projects page) ═══
-// For planning who fulfils what: one row per deliverable for every project
-// that has a shoot day in the chosen months, plus a month × type summary.
+// ═══ Deliverables by shoot month — Excel extracts (Projects page) ═══
+// Counting rules:
+//  • Deliverables are counted in the month of the project's LAST shoot day (that is when editing starts).
+//    Events (shoot days) are counted in the month each shoot day falls in.
+//  • Pre-Wedding and Engagement items get their own columns (e.g. "Pre-Wedding Teaser").
+//  • A legacy "Video" is re-read by name the way the CRM does it (Wedding Film = Highlight,
+//    Traditional Video = Long Video). Unreadable ones show as "Video (unclassified)".
+//  • Save the Date is its own column. Raw Data is shown separately and is not in the total.
+//  • Units: Qty for Albums/Frames/etc.; a Reels line like "4 Reels" = 4. Edited Pictures = one job per
+//    line, with the photo volume in its own column.
+//  • Delivered / Approved items are not "still to create".
 var DX_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var DX_GROUPS = ['Wedding', 'Pre-Wedding', 'Engagement'];
 function dxMonthLabel(k){ var a = k.split('-'); return DX_MONTHS[parseInt(a[1], 10) - 1] + ' ' + a[0]; }
+function dxEffType(d){
+  var n = (d.name || '').toLowerCase();
+  if (/save[\s-]?the[\s-]?date/.test(n)) return 'Save the Date';
+  var t = d.type || 'Other';
+  if (t !== 'Video') return t;
+  for (var i = 0; i < DELIV_TYPE_REGISTRY.length; i++) {
+    var r = DELIV_TYPE_REGISTRY[i];
+    if (r.nameRegex && r.bucket === 'video' && r.nameRegex.test(n)) return r.type;
+  }
+  return 'Video';
+}
+function dxGroup(d){
+  var n = (d.name || '').toLowerCase();
+  if (/pre[\s-]?wed/.test(n)) return 'Pre-Wedding';
+  if (/engage/.test(n)) return 'Engagement';
+  if (d.category === 'Pre-Wedding' || d.category === 'Engagement') return d.category;
+  return 'Wedding';
+}
+function dxUnits(d, t){
+  if (t === 'Edited Pictures' || t === 'Raw Data' || t === 'Save the Date') return 1;
+  var q = parseInt(d.qty) || 1;
+  if (q > 20) q = 1;                                   // implausible for a countable item — treat as one
+  if (t === 'Reel' && q <= 1) {
+    var m = /(\d+)\s*reels?/i.exec((d.specs || '') + ' ' + (d.name || ''));
+    if (m) return Math.min(parseInt(m[1]), 20);
+  }
+  return q;
+}
+function dxPhotoCount(d){
+  var m = /(\d[\d,]*)\s*(photos?|pictures?|pics?)/i.exec((d.specs || '') + ' ' + (d.name || ''));
+  return m ? parseInt(m[1].replace(/,/g, '')) : 0;
+}
+function dxIsOpen(d){ return d.status !== 'approved' && d.status !== 'delivered'; }
+// Column identity for a deliverable: wedding items keep the plain type; others are prefixed
+function dxCol(d){
+  var t = dxEffType(d), g = t === 'Raw Data' ? 'Wedding' : dxGroup(d);
+  return { key: g + '|' + t, g: g, t: t };
+}
+function dxColLabel(c){
+  var base = c.t === 'Video' ? 'Video (unclassified)' : (c.t === 'Edited Pictures' ? 'Edited Pictures (jobs)' : c.t);
+  return c.g === 'Wedding' ? base : c.g + ' ' + base;
+}
+function dxColOrder(found){
+  var types = DELIV_TYPE_REGISTRY.map(function(r){ return r.type; }).filter(function(t){ return t !== 'Raw Data'; });
+  types.splice(types.indexOf('Edited Pictures') + 1, 0, 'Save the Date');
+  return Object.keys(found).map(function(k){ return found[k]; }).sort(function(a, b){
+    var ga = DX_GROUPS.indexOf(a.g), gb = DX_GROUPS.indexOf(b.g);
+    if (ga !== gb) return ga - gb;
+    var ta = types.indexOf(a.t), tb = types.indexOf(b.t);
+    return (ta === -1 ? 99 : ta) - (tb === -1 ? 99 : tb);
+  });
+}
+// Projects with at least one shoot day inside the chosen months. `last` = month of the last shoot day.
+function dxCollect(months){
+  var ymd = /^\d{4}-\d{2}-\d{2}$/, out = [];
+  pl().forEach(function(p){
+    var days = (p.eventDays || []).filter(function(e){ return e && ymd.test(e.date || ''); });
+    if (!days.length && ymd.test(p.date || '')) days = [{ date: p.date, type: p.type || 'Event', venue: p.venue || '' }];
+    days = days.sort(function(a, b){ return a.date.localeCompare(b.date); });
+    if (!days.length) return;
+    var inR = days.filter(function(e){ return months.indexOf(e.date.slice(0, 7)) !== -1; });
+    if (inR.length) out.push({ p: p, days: days, inR: inR, last: days[days.length - 1].date.slice(0, 7) });
+  });
+  out.sort(function(a, b){ return a.days[a.days.length - 1].date.localeCompare(b.days[b.days.length - 1].date); });
+  return out;
+}
+function dxPickedMonths(){
+  return Array.prototype.slice.call(document.querySelectorAll('#dx-months input:checked')).map(function(i){ return i.value; });
+}
 function dxOpenModal(){
   if (!can('canExport')) { showToast('⛔ You do not have export access.'); return; }
   var old = document.getElementById('dx-modal'); if (old) old.remove();
@@ -24063,114 +24141,107 @@ function dxOpenModal(){
   for (var i = 0; i < 12; i++) {
     d.setMonth(d.getMonth() + (i === 0 ? 0 : 1));
     var k = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
-    // Default: the next four months (skip the current one)
     chips += '<label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border:1px solid #ddd;border-radius:20px;padding:6px 12px;cursor:pointer"><input type="checkbox" value="' + k + '"' + (i >= 1 && i <= 4 ? ' checked' : '') + '> ' + dxMonthLabel(k) + '</label>';
   }
   var m = document.createElement('div');
   m.id = 'dx-modal';
   m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
-  m.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:520px;width:100%">' +
-    '<div style="font-size:16px;font-weight:800;margin-bottom:4px">📦 Deliverables by shoot month</div>' +
-    '<div style="font-size:12.5px;color:#777;margin-bottom:14px">Pick the months. <b>Totals only</b> gives one table: events and the total number of each deliverable per month. <b>Full detail</b> lists every deliverable project by project.</div>' +
+  m.innerHTML = '<div style="background:#fff;border-radius:14px;padding:22px;max-width:540px;width:100%">' +
+    '<div style="font-size:16px;font-weight:800;margin-bottom:4px">📦 Deliverables by month</div>' +
+    '<div style="font-size:12.5px;color:#777;margin-bottom:14px">Pick the months. <b>Totals only</b> gives one table: events per month and the deliverables still to create, counted in the month of each project\'s last shoot day. <b>Full detail</b> lists every deliverable project by project. Delivered and Approved items are left out of the totals.</div>' +
     '<div id="dx-months" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">' + chips + '</div>' +
     '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" onclick="document.getElementById(\'dx-modal\').remove()">Cancel</button>' +
     '<button class="btn" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="dxExportTotals()">📊 Totals only</button>' +
     '<button class="btn btn-primary" onclick="dxExport()">⬇️ Full detail</button></div></div>';
   document.body.appendChild(m);
 }
-function dxExport(){
-  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded.'); return; }
-  var months = Array.prototype.slice.call(document.querySelectorAll('#dx-months input:checked')).map(function(i){ return i.value; });
-  if (!months.length) { showToast('⚠️ Pick at least one month.'); return; }
-  var showPhone = can('canSeeContactDetails');
-  var ymd = /^\d{4}-\d{2}-\d{2}$/;
-  var head = ['Shoot month', 'Shoot date(s)', 'Client', 'Ref', 'City', 'Stage'];
-  if (showPhone) head.push('Phone');
-  head = head.concat(['Events', 'Deliverable', 'Category', 'Type', 'Qty', 'Specs', 'Assigned to', 'Deadline', 'Status']);
-  var rows = [], projs = [];
-  pl().forEach(function(p){
-    var days = (p.eventDays || []).filter(function(e){ return e && ymd.test(e.date || ''); });
-    if (!days.length && ymd.test(p.date || '')) days = [{ date: p.date, type: p.type || 'Event', venue: p.venue || '' }];
-    days = days.sort(function(a, b){ return a.date.localeCompare(b.date); });
-    var inR = days.filter(function(e){ return months.indexOf(e.date.slice(0, 7)) !== -1; });
-    if (inR.length) projs.push({ p: p, inR: inR });
+function dxFit(ws, aoa){
+  ws['!cols'] = aoa[0].map(function(h, i){
+    var w = String(h).length + 2;
+    aoa.forEach(function(r){ var l = String(r[i] == null ? '' : r[i]).length + 2; if (l > w) w = l; });
+    return { wch: Math.min(w, 50) };
   });
-  projs.sort(function(a, b){ return a.inR[0].date.localeCompare(b.inR[0].date); });
-  var summary = {}, types = {};
-  projs.forEach(function(x){
-    var p = x.p, mk = x.inR[0].date.slice(0, 7);
-    var base = [dxMonthLabel(mk), x.inR.map(function(e){ return e.date; }).join(', '), coupleName(p.bride, p.groom), p.refcode || '', p.city || '', stageLabel(p.stage)];
-    if (showPhone) base.push(p.phone || '');
-    base.push(x.inR.map(function(e){ return (e.type || 'Event') + (e.venue ? ' @ ' + e.venue : ''); }).join(' | '));
-    var delivs = p.customDelivs || [];
-    if (!delivs.length) { rows.push(base.concat(['(no deliverables set up)', '', '', '', '', '', '', ''])); return; }
-    delivs.forEach(function(d){
-      var per = ppPerson(d.editorId), t = d.type || 'Other', qty = parseInt(d.qty) || 1;
-      var s = summary[mk] = summary[mk] || {};
-      var c = s[t] = s[t] || { n: 0, open: 0 };
-      c.n += qty; types[t] = true;
-      if (!d.editorId && !delivIsDone(d.status)) c.open += qty;
-      rows.push(base.concat([d.name || t, d.category || '', t, qty, d.specs || '', per ? (per.name || '').replace('🎯 ', '') : '', d.deadline || '', _delivStatusInfo(d.status || 'pending').label]));
-    });
-  });
-  if (!rows.length) { showToast('No projects with a shoot in those months.'); return; }
-  function fit(ws, aoa){ ws['!cols'] = aoa[0].map(function(h, i){ var w = String(h).length + 2; aoa.forEach(function(r){ var l = String(r[i] == null ? '' : r[i]).length + 2; if (l > w) w = l; }); return { wch: Math.min(w, 50) }; }); }
-  var aoa = [head].concat(rows), ws = XLSX.utils.aoa_to_sheet(aoa); fit(ws, aoa);
-  var tList = Object.keys(types).sort();
-  var sAoa = [['Shoot month', 'Projects'].concat(tList.map(function(t){ return t + ' (total)'; }), tList.map(function(t){ return t + ' (unassigned)'; }))];
-  months.forEach(function(mk){
-    var s = summary[mk] || {};
-    var n = projs.filter(function(x){ return x.inR[0].date.slice(0, 7) === mk; }).length;
-    sAoa.push([dxMonthLabel(mk), n].concat(tList.map(function(t){ return (s[t] || {}).n || 0; }), tList.map(function(t){ return (s[t] || {}).open || 0; })));
-  });
-  var ws2 = XLSX.utils.aoa_to_sheet(sAoa); fit(ws2, sAoa);
-  var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Deliverables');
-  XLSX.utils.book_append_sheet(wb, ws2, 'Summary by month');
-  XLSX.writeFile(wb, 'KB_Deliverables_' + months.join('_') + '.xlsx');
-  var mo = document.getElementById('dx-modal'); if (mo) mo.remove();
-  showToast('✅ Exported ' + rows.length + ' deliverable row(s) from ' + projs.length + ' project(s).');
 }
-
-// Consolidated totals only: events and total deliverables per type, per month
 function dxExportTotals(){
   if (typeof XLSX === 'undefined') { showToast('Excel library not loaded.'); return; }
-  var months = Array.prototype.slice.call(document.querySelectorAll('#dx-months input:checked')).map(function(i){ return i.value; });
+  var months = dxPickedMonths();
   if (!months.length) { showToast('⚠️ Pick at least one month.'); return; }
-  var ymd = /^\d{4}-\d{2}-\d{2}$/, M = {}, types = {};
-  months.forEach(function(mk){ M[mk] = { events: 0, projects: 0, t: {} }; });
-  pl().forEach(function(p){
-    var days = (p.eventDays || []).filter(function(e){ return e && ymd.test(e.date || ''); });
-    if (!days.length && ymd.test(p.date || '')) days = [{ date: p.date }];
-    days = days.sort(function(a, b){ return a.date.localeCompare(b.date); });
-    var inR = days.filter(function(e){ return M[e.date.slice(0, 7)]; });
-    if (!inR.length) return;
-    inR.forEach(function(e){ M[e.date.slice(0, 7)].events++; });
-    var m = M[inR[0].date.slice(0, 7)];   // deliverables are counted in the project's first shoot month
+  var M = {}, found = {};
+  months.forEach(function(mk){ M[mk] = { events: 0, projects: 0, c: {}, photos: 0, raw: 0 }; });
+  dxCollect(months).forEach(function(x){
+    x.inR.forEach(function(e){ M[e.date.slice(0, 7)].events++; });          // events: by the month of each shoot day
+    if (months.indexOf(x.last) === -1) return;                               // deliverables: only if the LAST shoot day is in a chosen month
+    var m = M[x.last];
     m.projects++;
-    (p.customDelivs || []).forEach(function(d){
-      var t = d.type || 'Other'; types[t] = true;
-      m.t[t] = (m.t[t] || 0) + (parseInt(d.qty) || 1);
+    (x.p.customDelivs || []).forEach(function(d){
+      if (!dxIsOpen(d)) return;
+      var c = dxCol(d);
+      if (c.t === 'Raw Data') { m.raw += 1; return; }
+      found[c.key] = c;
+      m.c[c.key] = (m.c[c.key] || 0) + dxUnits(d, c.t);
+      if (c.t === 'Edited Pictures') m.photos += dxPhotoCount(d);
     });
   });
-  var tList = Object.keys(types).sort();
-  var aoa = [['Shoot month', 'Events (shoot days)', 'Projects'].concat(tList, ['All deliverables'])];
-  var tot = { events: 0, projects: 0, t: {} };
+  var cols = dxColOrder(found);
+  var head = ['Month', 'Events (shoot days)', 'Projects finishing shooting'].concat(cols.map(dxColLabel), ['All deliverables', 'Edited photos (total count)', 'Raw Data (not in total)']);
+  var aoa = [head], tot = { events: 0, projects: 0, photos: 0, raw: 0, c: {} };
+  function line(label, m){
+    var sum = 0;
+    var cells = cols.map(function(c){ var n = m.c[c.key] || 0; sum += n; return n; });
+    return [label, m.events, m.projects].concat(cells, [sum, m.photos, m.raw]);
+  }
   months.forEach(function(mk){
-    var m = M[mk], sum = 0;
-    tot.events += m.events; tot.projects += m.projects;
-    var cells = tList.map(function(t){ var n = m.t[t] || 0; sum += n; tot.t[t] = (tot.t[t] || 0) + n; return n; });
-    aoa.push([dxMonthLabel(mk), m.events, m.projects].concat(cells, [sum]));
+    var m = M[mk];
+    tot.events += m.events; tot.projects += m.projects; tot.photos += m.photos; tot.raw += m.raw;
+    cols.forEach(function(c){ tot.c[c.key] = (tot.c[c.key] || 0) + (m.c[c.key] || 0); });
+    aoa.push(line(dxMonthLabel(mk), m));
   });
-  var gsum = 0;
-  aoa.push(['TOTAL', tot.events, tot.projects].concat(tList.map(function(t){ gsum += tot.t[t] || 0; return tot.t[t] || 0; }), [gsum]));
-  var ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = aoa[0].map(function(h){ return { wch: Math.max(12, String(h).length + 2) }; });
+  aoa.push(line('TOTAL', tot));
+  var tableRows = aoa.length;
+  aoa.push([]);
+  aoa.push(['How to read this:']);
+  aoa.push(['• Events = shoot days in that month. Deliverables are counted in the month of each project\'s LAST shoot day, so a wedding that runs 30 Dec – 2 Jan is counted in January.']);
+  aoa.push(['• Only deliverables still to create are counted — anything marked Delivered or Approved is left out.']);
+  aoa.push(['• Pre-Wedding and Engagement items have their own columns. Wedding Film is counted as Highlight, Traditional Video as Long Video, Save the Date on its own.']);
+  aoa.push(['• Albums, Frames, Teasers etc. use the Qty on the deliverable. A Reel line written like "4 Reels" counts as 4.']);
+  aoa.push(['• Edited Pictures (jobs) = number of photo-editing jobs; the photo volume is in "Edited photos (total count)" and is not added to All deliverables. Raw Data is also kept out of the total.']);
+  aoa.push(['• "Video (unclassified)" = deliverables on the old generic Video type whose name could not be read. Fix their Type on the project.']);
+  var ws = XLSX.utils.aoa_to_sheet(aoa); dxFit(ws, aoa.slice(0, tableRows));
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Consolidated');
   XLSX.writeFile(wb, 'KB_Consolidated_Deliverables_' + months.join('_') + '.xlsx');
   var mo = document.getElementById('dx-modal'); if (mo) mo.remove();
   showToast('✅ Consolidated statement downloaded.');
+}
+function dxExport(){
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded.'); return; }
+  var months = dxPickedMonths();
+  if (!months.length) { showToast('⚠️ Pick at least one month.'); return; }
+  var showPhone = can('canSeeContactDetails');
+  var head = ['Counted in month', 'Shoot date(s)', 'Client', 'Ref', 'City', 'Stage'];
+  if (showPhone) head.push('Phone');
+  head = head.concat(['Events', 'Deliverable', 'Category', 'Counted as', 'Type saved in CRM', 'Qty saved', 'Units counted', 'Specs', 'Assigned to', 'Deadline', 'Status']);
+  var rows = [], projs = dxCollect(months).filter(function(x){ return months.indexOf(x.last) !== -1; });
+  projs.forEach(function(x){
+    var p = x.p;
+    var base = [dxMonthLabel(x.last), x.days.map(function(e){ return e.date; }).join(', '), coupleName(p.bride, p.groom), p.refcode || '', p.city || '', stageLabel(p.stage)];
+    if (showPhone) base.push(p.phone || '');
+    base.push(x.days.map(function(e){ return (e.type || 'Event') + (e.venue ? ' @ ' + e.venue : ''); }).join(' | '));
+    var delivs = p.customDelivs || [];
+    if (!delivs.length) { rows.push(base.concat(['(no deliverables set up)', '', '', '', '', '', '', '', '', ''])); return; }
+    delivs.forEach(function(d){
+      var per = ppPerson(d.editorId), c = dxCol(d);
+      rows.push(base.concat([d.name || c.t, d.category || '', dxColLabel(c), d.type || '(blank)', d.qty == null ? '' : d.qty,
+        (dxIsOpen(d) && c.t !== 'Raw Data') ? dxUnits(d, c.t) : 0, d.specs || '', per ? (per.name || '').replace('🎯 ', '') : '', d.deadline || '', _delivStatusInfo(d.status || 'pending').label]));
+    });
+  });
+  if (!rows.length) { showToast('No projects finishing their shoots in those months.'); return; }
+  var aoa = [head].concat(rows), ws = XLSX.utils.aoa_to_sheet(aoa); dxFit(ws, aoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Deliverables');
+  XLSX.writeFile(wb, 'KB_Deliverables_' + months.join('_') + '.xlsx');
+  var mo = document.getElementById('dx-modal'); if (mo) mo.remove();
+  showToast('✅ Exported ' + rows.length + ' deliverable row(s) from ' + projs.length + ' project(s).');
 }
 
 // Jump into Projects, filtered to a single lead source (used by Reports > Lead Sources drill-through)
@@ -31822,8 +31893,9 @@ function _kbInferDelivType(item) {
   if (s.indexOf('album') !== -1) return 'Album';
   if (s.indexOf('frame') !== -1) return 'Frame';
   if (s.indexOf('pic') !== -1 || s.indexOf('gallery') !== -1 || s.indexOf('photo') !== -1) return 'Edited Pictures';
+  if (/wedding[\s-]?film/.test(s) && !/(long|full)/.test(s)) return 'Highlight'; // studio rule: Wedding Film = Highlight (see DELIV_TYPE_REGISTRY note)
   if (s.indexOf('highlight') !== -1) return 'Highlight';
-  if (s.indexOf('long') !== -1 || s.indexOf('full film') !== -1 || s.indexOf('full-length') !== -1 || s.indexOf('feature film') !== -1 || s.indexOf('main film') !== -1) return 'Long Video';
+  if (s.indexOf('long') !== -1 || s.indexOf('full film') !== -1 || s.indexOf('full-length') !== -1 || s.indexOf('feature film') !== -1 || s.indexOf('main film') !== -1 || s.indexOf('traditional') !== -1) return 'Long Video';
   if (s.indexOf('film') !== -1 || s.indexOf('video') !== -1) return 'Video';
   return 'Other';
 }
