@@ -2090,6 +2090,7 @@ document.addEventListener('wheel', function(e) {
           <button id="fl-tab-dir" onclick="flGoTab('dir')" style="padding:9px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer">👥 Freelancers</button>
           <button id="fl-tab-work" onclick="flGoTab('work')" style="padding:9px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer">💼 Work &amp; Payouts</button>
           <button id="fl-tab-summary" onclick="flGoTab('summary')" style="padding:9px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer">📊 Post-production summary</button>
+          <button id="fl-tab-crew" onclick="flGoTab('crew')" style="padding:9px 18px;font-size:13px;font-weight:700;border:none;cursor:pointer">🎥 Crew Costs</button>
         </div>
         <button id="fl-add-btn" class="btn btn-primary" style="font-size:14px;padding:10px 20px" onclick="openAddFreelancer()">➕ Add Freelancer</button>
       </div>
@@ -20873,14 +20874,15 @@ function flRenderTab() {
   var d = document.getElementById('fld-content'), w = document.getElementById('flp-content'); if (!d || !w) return;
   d.style.display = _flTab === 'dir' ? '' : 'none';
   w.style.display = _flTab === 'dir' ? 'none' : '';
-  ['dir', 'work', 'summary'].forEach(function(t) {
+  ['dir', 'work', 'summary', 'crew'].forEach(function(t) {
     var b = document.getElementById('fl-tab-' + t); if (!b) return;
+    if (t === 'crew') b.style.display = (typeof ccCanSee === 'function' && ccCanSee()) ? '' : 'none';
     b.style.background = t === _flTab ? '#1a1a1a' : '#fff';
     b.style.color = t === _flTab ? '#fff' : '#64748b';
   });
   var add = document.getElementById('fl-add-btn');
-  if (add) add.style.display = (CU && ['superadmin','admin','videohead','postprod'].indexOf(CU.role) > -1) ? '' : 'none';
-  if (_flTab === 'dir') renderFlDirectory(); else renderFlPayouts();
+  if (add) add.style.display = (CU && ['superadmin','admin','videohead','postprod'].indexOf(CU.role) > -1 && _flTab !== 'crew') ? '' : 'none';
+  if (_flTab === 'dir') renderFlDirectory(); else if (_flTab === 'crew' && typeof renderCrewCosts === 'function') renderCrewCosts(); else renderFlPayouts();
 }
 
 // ═══ FREELANCER WORK & PAYOUTS PAGE ══════════════════════════════════
@@ -40294,5 +40296,396 @@ window.attFnf = function(){
 })();
 </script>
 
+<script>
+/* ═══ CREW COSTS (Google Sheet → CRM) ══════════════════════════════════
+   Reads the "Daily Log" tab of the Freelancer Season Tracker (published CSV
+   link, or an uploaded .xlsx/.csv), matches rows to CRM projects by couple
+   name, and saves them at crm_projects/{id}/crewCosts. Nothing is written
+   until the user clicks "Apply to CRM" on the preview. */
+var _ccPending = null;      // { byProject, unmatched, invalid, clear, total, rows }
+var _ccOpen = {};           // expanded project rows
+var _ccBusy = false;
+
+function ccEsc(t){ return String(t==null?'':t).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+function ccInr(n){ return (Math.round(n)||0).toLocaleString('en-IN'); }
+function ccNorm(s){ return String(s==null?'':s).toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,''); }
+function ccCanSee(){ return !!(typeof CU!=='undefined' && CU && (CU.role==='superadmin' || (typeof can==='function' && can('canSeeFinancials')))); }
+function ccCanWrite(){ return !!(typeof CU!=='undefined' && CU && (CU.role==='superadmin' || CU.role==='admin')); }
+function ccDateLabel(iso){
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); if(!m) return iso||'';
+  var mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m[2]-1];
+  return m[3]+' '+mon+' '+m[1];
+}
+
+/* ── CSV parser (handles quotes, commas, newlines inside quotes) ── */
+function ccParseCSV(text){
+  var rows=[],row=[],f='',q=false,i=0,c;
+  text=String(text||'').replace(/^\uFEFF/,'');
+  for(;i<text.length;i++){
+    c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; }
+      else f+=c;
+    } else if(c==='"') q=true;
+    else if(c===','){ row.push(f); f=''; }
+    else if(c==='\n'||c==='\r'){
+      if(c==='\r'&&text[i+1]==='\n') i++;
+      row.push(f); f=''; rows.push(row); row=[];
+    } else f+=c;
+  }
+  if(f!==''||row.length){ row.push(f); rows.push(row); }
+  return rows;
+}
+
+/* ── date / rate parsing ── */
+function ccParseDate(v){
+  if(v==null||v==='') return '';
+  if(v instanceof Date && !isNaN(v)){
+    return v.getFullYear()+'-'+('0'+(v.getMonth()+1)).slice(-2)+'-'+('0'+v.getDate()).slice(-2);
+  }
+  var s=String(v).trim(), m;
+  if((m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s))) return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  var mons={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  if((m=/^(\d{1,2})[\s\-\/\.]+([A-Za-z]{3,9})[\s\-\/\.,]+(\d{4})$/.exec(s)) && mons[m[2].slice(0,3).toLowerCase()])
+    return m[3]+'-'+('0'+mons[m[2].slice(0,3).toLowerCase()]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+  if((m=/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/.exec(s))) // dd/mm/yyyy (India)
+    return m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+  if(/^\d{5}$/.test(s)){ var d=new Date(Date.UTC(1899,11,30)+(+s)*86400000); return d.getUTCFullYear()+'-'+('0'+(d.getUTCMonth()+1)).slice(-2)+'-'+('0'+d.getUTCDate()).slice(-2); }
+  return '';
+}
+function ccParseRate(v){
+  if(v==null) return null;
+  if(typeof v==='number') return isFinite(v)&&v>=0?v:null;
+  var s=String(v).replace(/[₹,\s]/g,'').toLowerCase(); if(!s) return null;
+  var k=/k$/.test(s); s=s.replace(/k$/,'');
+  var n=parseFloat(s); if(!isFinite(n)||n<0) return null;
+  return k?n*1000:n;
+}
+
+/* ── turn a 2-D array (header row + data) into clean log rows ── */
+function ccRowsFromTable(table){
+  var hi=-1,i,col={date:0,project:1,name:2,rate:3,notes:4};
+  for(i=0;i<Math.min(table.length,15);i++){
+    var h=(table[i]||[]).map(function(x){return String(x==null?'':x).toLowerCase().trim();});
+    if(h.indexOf('date')>-1 && h.some(function(x){return x.indexOf('freelancer')>-1;})){
+      hi=i;
+      h.forEach(function(x,j){
+        if(x==='date') col.date=j;
+        else if(x.indexOf('project')>-1) col.project=j;
+        else if(x.indexOf('freelancer')>-1||x==='name') col.name=j;
+        else if(x.indexOf('rate')>-1||x.indexOf('price')>-1||x.indexOf('amount')>-1) col.rate=j;
+        else if(x.indexOf('note')>-1) col.notes=j;
+      });
+      break;
+    }
+  }
+  var out=[],invalid=[];
+  for(i=hi+1;i<table.length;i++){
+    var r=table[i]||[];
+    var name=String(r[col.name]==null?'':r[col.name]).trim();
+    var dateRaw=r[col.date], project=String(r[col.project]==null?'':r[col.project]).trim();
+    if(!name && (dateRaw===''||dateRaw==null) && !project) continue;   // empty row
+    if(!name) continue;
+    var iso=ccParseDate(dateRaw);
+    if(!iso){ invalid.push({line:i+1,name:name,why:'Date missing or unreadable'}); continue; }
+    out.push({date:iso,project:project,name:name,rate:ccParseRate(r[col.rate]),note:String(r[col.notes]==null?'':r[col.notes]).trim()});
+  }
+  return {rows:out,invalid:invalid};
+}
+
+/* ── match sheet project text to a CRM project ── */
+function ccProjectIndex(){
+  var idx=[];
+  Object.keys(projects||{}).forEach(function(id){
+    var p=projects[id]; if(!p) return;
+    var b=(p.bride||'').trim(), g=(p.groom||'').trim();
+    var keys={};
+    if(b||g){ keys[ccNorm(coupleName(b,g))]=1; keys[ccNorm(coupleName(g,b))]=1; keys[ccNorm(b+g)]=1; keys[ccNorm(g+b)]=1; }
+    if(p.refcode) keys[ccNorm(p.refcode)]=1;
+    delete keys['']; 
+    idx.push({id:id,label:coupleName(b,g)||p.refcode||id,keys:Object.keys(keys)});
+  });
+  return idx;
+}
+function ccMatchProject(text,idx){
+  var n=ccNorm(text); if(!n) return null;
+  var i,j,hits=[];
+  for(i=0;i<idx.length;i++) if(idx[i].keys.indexOf(n)>-1) return idx[i];
+  if(n.length<4) return null;
+  for(i=0;i<idx.length;i++){
+    for(j=0;j<idx[i].keys.length;j++){
+      var k=idx[i].keys[j]; if(k.length<4) continue;
+      if(k.indexOf(n)>-1||n.indexOf(k)>-1){ hits.push(idx[i]); break; }
+    }
+  }
+  return hits.length===1?hits[0]:null;   // only accept an unambiguous partial match
+}
+
+/* ── build the preview ── */
+function ccBuildPending(parsed,sourceLabel){
+  var idx=ccProjectIndex(), byProject={}, unmatched=[], flNames={};
+  Object.values(freelancerData||{}).forEach(function(f){ if(f&&f.name) flNames[ccNorm(f.name)]=f; });
+  var seen={};
+  parsed.rows.forEach(function(r){
+    if(!r.project){ unmatched.push({r:r,why:'No project selected in the sheet'}); return; }
+    var m=ccMatchProject(r.project,idx);
+    if(!m){ unmatched.push({r:r,why:'No CRM project matches “'+r.project+'”'}); return; }
+    var b=byProject[m.id]||(byProject[m.id]={id:m.id,label:m.label,entries:{},total:0,count:0});
+    var base=r.date+'_'+(ccNorm(r.name)||'x'); seen[m.id+base]=(seen[m.id+base]||0)+1;
+    var key=(base+'_'+seen[m.id+base]).replace(/[.$#\[\]\/]/g,'_');
+    var fl=flNames[ccNorm(r.name)];
+    var e={date:r.date,name:r.name,rate:r.rate==null?null:r.rate,note:r.note||''};
+    if(fl&&fl.id) e.freelancerId=fl.id;
+    b.entries[key]=e; b.count++; b.total+=(r.rate||0);
+  });
+  var clear=[];
+  Object.keys(projects||{}).forEach(function(id){
+    var cc=projects[id]&&projects[id].crewCosts;
+    if(cc&&cc.source==='sheet'&&!byProject[id]) clear.push({id:id,label:coupleName(projects[id].bride,projects[id].groom)||id});
+  });
+  var total=0,cnt=0; Object.keys(byProject).forEach(function(k){total+=byProject[k].total;cnt+=byProject[k].count;});
+  return {byProject:byProject,unmatched:unmatched,invalid:parsed.invalid,clear:clear,total:total,count:cnt,source:sourceLabel};
+}
+
+/* ── sources ── */
+function ccSaveUrl(){
+  var el=document.getElementById('cc-url'); if(!el) return;
+  var u=el.value.trim();
+  if(u && !/^https:\/\/docs\.google\.com\/spreadsheets\//.test(u)){ alert('Please paste the Google Sheets "Publish to web" CSV link (it starts with https://docs.google.com/spreadsheets/).'); return; }
+  if(!ccCanWrite()){ alert('Only an admin can change the sheet link.'); return; }
+  crmSettings=crmSettings||{}; crmSettings.crewSheetUrl=u;
+  db.ref('crm_settings/crewSheetUrl').set(u,function(err){ if(err) alert('Could not save link: '+err.message); else showToast('✅ Sheet link saved'); });
+}
+function ccFetchSheet(){
+  if(_ccBusy) return;
+  var u=((document.getElementById('cc-url')||{}).value||(crmSettings&&crmSettings.crewSheetUrl)||'').trim();
+  if(!u){ alert('Paste your published Google Sheet CSV link first.'); return; }
+  _ccBusy=true; ccStatus('⏳ Reading Google Sheet…');
+  fetch(u,{cache:'no-store'}).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+  .then(function(t){
+    if(/^\s*<(!doctype|html)/i.test(t)) throw new Error('The link returned a web page, not CSV. Use File → Share → Publish to web → choose the "Daily Log" tab and "Comma-separated values (.csv)".');
+    _ccPending=ccBuildPending(ccRowsFromTable(ccParseCSV(t)),'Google Sheet');
+    _ccBusy=false; renderCrewCosts();
+  }).catch(function(e){ _ccBusy=false; ccStatus('❌ '+(e&&e.message||e)); });
+}
+function ccUploadFile(inp){
+  var f=inp&&inp.files&&inp.files[0]; if(!f) return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    try{
+      var table;
+      if(/\.csv$/i.test(f.name)) table=ccParseCSV(rd.result);
+      else{
+        var wb=XLSX.read(rd.result,{type:'array',cellDates:true});
+        var sn=wb.SheetNames.filter(function(n){return /daily\s*log/i.test(n);})[0]||wb.SheetNames[0];
+        table=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+      }
+      _ccPending=ccBuildPending(ccRowsFromTable(table),f.name);
+      inp.value=''; renderCrewCosts();
+    }catch(e){ ccStatus('❌ Could not read file: '+(e&&e.message||e)); }
+  };
+  if(/\.csv$/i.test(f.name)) rd.readAsText(f); else rd.readAsArrayBuffer(f);
+}
+
+/* ── apply / cancel ── */
+function ccApply(){
+  if(!_ccPending||_ccBusy) return;
+  if(!ccCanWrite()){ alert('Only an admin can apply crew costs.'); return; }
+  var P=_ccPending, updates={}, now=Date.now(), who=(CU&&(CU.name||CU.username))||'';
+  Object.keys(P.byProject).forEach(function(id){
+    var b=P.byProject[id];
+    updates[id+'/crewCosts']={entries:b.entries,total:b.total,count:b.count,source:'sheet',syncedAt:now,syncedBy:who,from:P.source};
+  });
+  P.clear.forEach(function(c){ updates[c.id+'/crewCosts']=null; });
+  if(!Object.keys(updates).length){ alert('Nothing to apply.'); return; }
+  _ccBusy=true; ccStatus('⏳ Saving to CRM…');
+  db.ref('crm_projects').update(updates,function(err){
+    _ccBusy=false;
+    if(err){ ccStatus('❌ Save failed: '+err.message+(/permission/i.test(err.message)?' — your Firebase rules may block this.':'')); return; }
+    Object.keys(updates).forEach(function(k){
+      var id=k.split('/')[0]; if(projects[id]){ if(updates[k]===null) delete projects[id].crewCosts; else projects[id].crewCosts=updates[k]; }
+    });
+    _ccPending=null; showToast('✅ Crew costs updated'); renderCrewCosts();
+  });
+}
+function ccCancel(){ _ccPending=null; renderCrewCosts(); }
+function ccToggle(id){ _ccOpen[id]=!_ccOpen[id]; renderCrewCosts(); }
+function ccStatus(msg){ var el=document.getElementById('cc-status'); if(el) el.textContent=msg; }
+
+/* ── copy helpers (paste into the sheet's Projects / Freelancers tabs) ── */
+function ccCopy(lines,label){
+  var txt=lines.join('\n');
+  var done=function(){ showToast('📋 '+lines.length+' '+label+' copied'); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,function(){ prompt('Copy:',txt); });
+  else prompt('Copy:',txt);
+}
+function ccCopyProjects(){
+  var l=Object.keys(projects||{}).map(function(id){var p=projects[id];return p&&p.stage!=='complete'?coupleName(p.bride,p.groom):'';}).filter(Boolean).sort();
+  ccCopy(l,'project names');
+}
+function ccCopyFreelancers(){
+  var l=Object.values(freelancerData||{}).map(function(f){return f&&f.name;}).filter(Boolean).sort();
+  ccCopy(l,'freelancer names');
+}
+
+
+/* ═══ CRM → GOOGLE SHEET (one-click push) ═════════════════════════════
+   Sends: name, region, state, net value, paid, balance, stage, first & last
+   event date for every client to the "CRM Import" tab of the tracker sheet
+   via a small Google Apps Script web app. Phone numbers are NOT sent.
+   Link + secret key are kept in this browser only (localStorage). */
+function ccPushCfg(){ try{ return {url:localStorage.getItem('kb_sheet_push_url')||'',key:localStorage.getItem('kb_sheet_push_key')||''}; }catch(e){ return {url:'',key:''}; } }
+function ccPushStatus(msg){ var el=document.getElementById('cc-push-status'); if(el) el.textContent=msg; }
+function ccSavePushCfg(){
+  var u=((document.getElementById('cc-push-url')||{}).value||'').trim(), k=((document.getElementById('cc-push-key')||{}).value||'').trim();
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec$/.test(u)){ alert('The link must look like https://script.google.com/macros/s/…/exec (copy it from Deploy → Web app).'); return; }
+  if(k.length<8){ alert('Use a secret key of at least 8 characters (the same one written in the Google Sheet script).'); return; }
+  try{ localStorage.setItem('kb_sheet_push_url',u); localStorage.setItem('kb_sheet_push_key',k); }catch(e){ alert('Could not save in this browser.'); return; }
+  showToast('✅ Sheet link saved on this device'); ccPushStatus('Saved. Click “Send to Google Sheet”.');
+}
+function ccEventSpan(p){
+  var re=/^\d{4}-\d{2}-\d{2}$/, ds=(p.eventDays||[]).map(function(ed){return ed&&ed.date;}).filter(function(d){return d&&re.test(d);});
+  if(p.date&&re.test(p.date)) ds.push(p.date);
+  ds.sort(); return ds.length?[ds[0],ds[ds.length-1]]:['',''];
+}
+function ccSheetRows(){
+  var out=[];
+  (pl()||[]).forEach(function(p){
+    var nm=coupleName(p.bride||'',p.groom||''); if(!nm||!String(nm).trim()) return;
+    var sp=ccEventSpan(p);
+    out.push([nm,'',p.region||'',p.state||'',netVal(p),paidTotal(p),balDue(p),p.stage||'',sp[0],sp[1]]);
+  });
+  out.sort(function(a,b){return String(a[0]).localeCompare(String(b[0]));});
+  return out;
+}
+function ccSendToSheet(){
+  if(!ccCanWrite()){ alert('Only an admin can send data to the sheet.'); return; }
+  var cfg=ccPushCfg(); if(!cfg.url||!cfg.key){ alert('Save the web app link and secret key first.'); return; }
+  if(_ccBusy) return;
+  var rows=ccSheetRows(); if(!rows.length){ alert('No clients to send.'); return; }
+  _ccBusy=true; ccPushStatus('⏳ Sending '+rows.length+' clients…');
+  fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:cfg.key,rows:rows})})
+  .then(function(r){return r.text();})
+  .then(function(t){
+    _ccBusy=false; var j=null; try{ j=JSON.parse(t); }catch(e){}
+    if(j&&j.ok) ccPushStatus('✅ Sent '+j.count+' clients at '+new Date().toLocaleTimeString('en-IN')+'. Open the Google Sheet → Cash Flow tab.');
+    else ccPushStatus('❌ '+((j&&j.error)||'Unexpected reply – check that the link ends with /exec and the script is deployed for “Anyone”.'));
+  })
+  .catch(function(){
+    _ccBusy=false;
+    ccPushStatus('⚠️ Sent, but the browser could not read the reply. Open the Google Sheet → CRM Import tab to confirm it updated (see the last-sent time in O3). If not, re-check the link and key.');
+  });
+}
+function ccCopyForSheet(){
+  var rows=ccSheetRows(); if(!rows.length){ alert('No clients to copy.'); return; }
+  var head=['Name','Phone','Region','State','Net Value','Paid','Balance','Stage','First Event Date','Last Event Date'];
+  var txt=[head].concat(rows).map(function(r){return r.map(function(c){return String(c==null?'':c).replace(/[\t\r\n]+/g,' ');}).join('\t');}).join('\n');
+  var done=function(){ showToast('📋 '+rows.length+' clients copied – paste into CRM Import, cell A1'); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,function(){ prompt('Copy this:',txt); });
+  else prompt('Copy this:',txt);
+}
+
+/* ── render ── */
+function renderCrewCosts(){
+  var root=document.getElementById('flp-content'); if(!root) return;
+  if(!ccCanSee()){ root.innerHTML='<div class="empty">You do not have access to crew costs.</div>'; return; }
+  var url=(crmSettings&&crmSettings.crewSheetUrl)||'';
+  var th='padding:9px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#64748b;border-bottom:1px solid #e2e8f0;background:#f8fafc';
+  var td='padding:9px 10px;font-size:13px;border-bottom:1px solid #f1f5f9';
+  var h='';
+
+
+  // CRM -> Sheet push card
+  if(ccCanWrite()){
+    var pc=ccPushCfg();
+    h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px">';
+    h+='<div style="font-weight:700;margin-bottom:4px">📤 Send CRM data to the Google Sheet</div>';
+    h+='<div style="font-size:12px;color:#64748b;margin-bottom:10px">One click sends every client’s net value, paid, balance, stage and event dates to the <b>CRM Import</b> tab, so the sheet’s budgets and cash flow update. Phone numbers are not sent. The link and key stay in this browser only.</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
+    h+='<input id="cc-push-url" value="'+ccEsc(pc.url)+'" placeholder="Web app link: https://script.google.com/macros/s/…/exec" style="flex:2;min-width:240px;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">';
+    h+='<input id="cc-push-key" type="password" value="'+ccEsc(pc.key)+'" placeholder="Secret key" style="flex:1;min-width:140px;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">';
+    h+='<button class="btn" onclick="ccSavePushCfg()">💾 Save</button>';
+    h+='<button class="btn btn-primary" onclick="ccSendToSheet()">📤 Send to Google Sheet</button>';
+    h+='<button class="btn" onclick="ccCopyForSheet()" title="Backup: copy, then paste into CRM Import cell A1">📋 Copy for Sheet</button>';
+    h+='</div><div id="cc-push-status" style="margin-top:8px;font-size:12px;color:#64748b"></div></div>';
+  }
+
+  // connection card
+  h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px">';
+  h+='<div style="font-weight:700;margin-bottom:4px">🔗 Google Sheet connection</div>';
+  h+='<div style="font-size:12px;color:#64748b;margin-bottom:10px">In the sheet: File → Share → Publish to web → choose <b>Daily Log</b> and <b>Comma-separated values (.csv)</b> → Publish, then paste the link here.</div>';
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
+  h+='<input id="cc-url" value="'+ccEsc(url)+'" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?gid=…&output=csv" style="flex:1;min-width:240px;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px"'+(ccCanWrite()?'':' readonly')+'>';
+  if(ccCanWrite()) h+='<button class="btn" onclick="ccSaveUrl()">💾 Save link</button>';
+  h+='<button class="btn btn-primary" onclick="ccFetchSheet()">🔄 Sync from Google Sheet</button>';
+  h+='<label class="btn" style="cursor:pointer">📁 Upload Excel/CSV<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="ccUploadFile(this)"></label>';
+  h+='</div>';
+  h+='<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;font-size:12px"><span style="color:#64748b">Keep names identical to the CRM:</span>';
+  h+='<a href="#" onclick="ccCopyProjects();return false">📋 Copy project names</a><a href="#" onclick="ccCopyFreelancers();return false">📋 Copy freelancer names</a></div>';
+  h+='<div id="cc-status" style="margin-top:8px;font-size:12px;color:#64748b"></div></div>';
+
+  // preview
+  if(_ccPending){
+    var P=_ccPending, pk=Object.keys(P.byProject);
+    h+='<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:16px;margin-bottom:16px">';
+    h+='<div style="font-weight:700;margin-bottom:6px">👀 Preview — nothing is saved yet ('+ccEsc(P.source)+')</div>';
+    h+='<div style="font-size:13px;margin-bottom:8px"><b>'+P.count+'</b> bookings across <b>'+pk.length+'</b> project'+(pk.length===1?'':'s')+' · total <b>₹'+ccInr(P.total)+'</b></div>';
+    if(pk.length){
+      h+='<table style="width:100%;border-collapse:collapse;margin-bottom:8px"><tr><th style="'+th+'">Project</th><th style="'+th+';text-align:right">Bookings</th><th style="'+th+';text-align:right">Cost (₹)</th></tr>';
+      pk.forEach(function(id){ var b=P.byProject[id]; h+='<tr><td style="'+td+'">'+ccEsc(b.label)+'</td><td style="'+td+';text-align:right">'+b.count+'</td><td style="'+td+';text-align:right">'+ccInr(b.total)+'</td></tr>'; });
+      h+='</table>';
+    }
+    if(P.clear.length) h+='<div style="font-size:12px;color:#92400e;margin-bottom:6px">⚠️ Crew costs previously synced for '+P.clear.map(function(c){return ccEsc(c.label);}).join(', ')+' are not in this sheet and will be removed.</div>';
+    if(P.unmatched.length){
+      h+='<div style="font-size:12px;color:#b91c1c;margin:8px 0 4px"><b>'+P.unmatched.length+' row(s) not matched — they will NOT be saved:</b></div><div style="max-height:140px;overflow:auto;font-size:12px;color:#475569;background:#fff;border:1px solid #fee2e2;border-radius:8px;padding:6px 10px">';
+      P.unmatched.slice(0,60).forEach(function(u){ h+='<div>'+ccEsc(ccDateLabel(u.r.date))+' · '+ccEsc(u.r.name)+' · ₹'+ccInr(u.r.rate||0)+' — '+ccEsc(u.why)+'</div>'; });
+      if(P.unmatched.length>60) h+='<div>…and '+(P.unmatched.length-60)+' more</div>';
+      h+='</div>';
+    }
+    if(P.invalid.length) h+='<div style="font-size:12px;color:#b91c1c;margin-top:6px">'+P.invalid.length+' row(s) skipped (bad date): '+P.invalid.slice(0,8).map(function(x){return ccEsc(x.name)+' (line '+x.line+')';}).join(', ')+'</div>';
+    h+='<div style="display:flex;gap:8px;margin-top:12px">';
+    if(ccCanWrite()) h+='<button class="btn btn-primary" onclick="ccApply()"'+((pk.length||P.clear.length)?'':' disabled')+'>✅ Apply to CRM</button>';
+    else h+='<span style="font-size:12px;color:#64748b">Only an admin can apply.</span>';
+    h+='<button class="btn" onclick="ccCancel()">Cancel</button></div></div>';
+  }
+
+  // saved costs per project
+  var rows=[], grand=0, gcount=0;
+  Object.keys(projects||{}).forEach(function(id){
+    var p=projects[id], cc=p&&p.crewCosts; if(!cc||!cc.entries) return;
+    var es=Object.keys(cc.entries).map(function(k){return cc.entries[k];}).sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||(a.name||'').localeCompare(b.name||'');});
+    var tot=es.reduce(function(s,e){return s+(+e.rate||0);},0);
+    rows.push({id:id,label:coupleName(p.bride,p.groom)||p.refcode||id,entries:es,total:tot,count:es.length,syncedAt:cc.syncedAt});
+    grand+=tot; gcount+=es.length;
+  });
+  rows.sort(function(a,b){return b.total-a.total;});
+  h+='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">';
+  [['Total crew cost','₹'+ccInr(grand)],['Bookings',String(gcount)],['Projects',String(rows.length)]].forEach(function(s){
+    h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 18px;min-width:130px"><div style="font-size:11px;color:#64748b;text-transform:uppercase">'+s[0]+'</div><div style="font-size:20px;font-weight:800">'+s[1]+'</div></div>';
+  });
+  h+='</div>';
+  if(!rows.length){
+    h+='<div class="empty">No crew costs saved yet. Sync from the Google Sheet above.</div>';
+  } else {
+    h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:auto"><table style="width:100%;border-collapse:collapse"><tr><th style="'+th+'">Project</th><th style="'+th+';text-align:right">Bookings</th><th style="'+th+';text-align:right">Crew cost (₹)</th><th style="'+th+'">Last synced</th></tr>';
+    rows.forEach(function(r){
+      var open=!!_ccOpen[r.id];
+      h+='<tr style="cursor:pointer" onclick="ccToggle(\''+ccEsc(r.id)+'\')"><td style="'+td+';font-weight:600">'+(open?'▾ ':'▸ ')+ccEsc(r.label)+'</td><td style="'+td+';text-align:right">'+r.count+'</td><td style="'+td+';text-align:right;font-weight:700">'+ccInr(r.total)+'</td><td style="'+td+';color:#64748b">'+(r.syncedAt?ccEsc(new Date(r.syncedAt).toLocaleString('en-IN')):'')+'</td></tr>';
+      if(open){
+        h+='<tr><td colspan="4" style="padding:0 10px 10px 28px;background:#f8fafc"><table style="width:100%;border-collapse:collapse">';
+        var lastD='';
+        r.entries.forEach(function(e){
+          h+='<tr><td style="padding:5px 8px;font-size:12px;color:#64748b;width:110px">'+(e.date!==lastD?ccEsc(ccDateLabel(e.date)):'')+'</td><td style="padding:5px 8px;font-size:12px">'+ccEsc(e.name)+(e.note?' <span style="color:#94a3b8">· '+ccEsc(e.note)+'</span>':'')+'</td><td style="padding:5px 8px;font-size:12px;text-align:right">'+(e.rate==null?'<span style="color:#b45309">rate pending</span>':'₹'+ccInr(e.rate))+'</td></tr>';
+          lastD=e.date;
+        });
+        h+='</table></td></tr>';
+      }
+    });
+    h+='</table></div>';
+  }
+  root.innerHTML=h;
+}
+
+</script>
 </body>
 </html>
