@@ -1731,9 +1731,14 @@ document.addEventListener('wheel', function(e) {
           <span style="font-size:12px;font-weight:700;color:#334155">🗓️ Date-wise Payment Schedule</span>
           <select id="dws-range" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()">
             <option value="month">Single month</option>
+            <option value="range">Multiple months (From – To)</option>
+            <option value="year">Full year (Jan – Dec)</option>
+            <option value="fy">Financial year (Apr – Mar)</option>
             <option value="upcoming">All upcoming</option>
           </select>
           <input type="month" id="dws-month" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()">
+          <input type="number" id="dws-year" class="fi" min="2020" max="2100" style="display:none;width:90px;padding:6px 10px;font-size:12px" title="Year (for Financial year this is the starting year, e.g. 2026 = FY 2026-27)" onchange="dwsRangeChanged()">
+          <span id="dws-to-wrap" style="display:none;font-size:12px;color:#475569;align-items:center;gap:6px">to <input type="month" id="dws-month2" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()"></span>
           <label style="font-size:12px;color:#475569;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="dws-extra" onchange="dwsRangeChanged()"> Also show earlier overdue &amp; no-date payments (at the bottom)</label>
           <button class="btn btn-sm btn-primary" style="font-weight:700" onclick="dwsShow()">👁️ View here</button>
           <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="dwsExportExcel()">📊 Excel</button>
@@ -16443,7 +16448,15 @@ function dwsInit() {
 function dwsRangeChanged() {
   var r = (document.getElementById('dws-range') || {}).value;
   var m = document.getElementById('dws-month');
-  if (m) m.style.display = (r === 'month') ? '' : 'none';
+  if (m) m.style.display = (r === 'month' || r === 'range') ? '' : 'none';
+  var yr = document.getElementById('dws-year');
+  if (yr) { yr.style.display = (r === 'year' || r === 'fy') ? '' : 'none'; if (!yr.value) { var nd = new Date(); yr.value = (r === 'fy' && nd.getMonth() < 3) ? nd.getFullYear() - 1 : nd.getFullYear(); } }
+  var w = document.getElementById('dws-to-wrap'); if (w) w.style.display = (r === 'range') ? 'inline-flex' : 'none';
+  var m2 = document.getElementById('dws-month2');
+  if (r === 'range' && m2 && !m2.value && m && m.value) {
+    var q = m.value.split('-'), d2 = new Date(+q[0], +q[1] + 1, 1);   // default: From + 2 months
+    m2.value = d2.getFullYear() + '-' + ('0' + (d2.getMonth() + 1)).slice(-2);
+  }
   if (window._dwsOpen) dwsShow();
 }
 function _dwsMonthLabel(ym) {
@@ -16464,9 +16477,22 @@ function _dwsDateLabel(dateStr) {
 function dwsBuild() {
   var mode   = (document.getElementById('dws-range') || {}).value || 'month';
   var ym     = (document.getElementById('dws-month') || {}).value || '';
+  var ymTo   = mode === 'range' ? ((document.getElementById('dws-month2') || {}).value || '') : ym;
   var extras = !!(document.getElementById('dws-extra') || {}).checked;
   var today  = tod();
-  if (mode === 'month' && !ym) { showToast('Please pick a month'); return null; }
+  var yearLabel = '';
+  if (mode === 'year' || mode === 'fy') {
+    var yv = parseInt((document.getElementById('dws-year') || {}).value, 10);
+    if (!yv) { showToast('Please enter a year'); return null; }
+    if (mode === 'year') { ym = yv + '-01'; ymTo = yv + '-12'; yearLabel = 'Year ' + yv; }
+    else { ym = yv + '-04'; ymTo = (yv + 1) + '-03'; yearLabel = 'FY ' + yv + '-' + String(yv + 1).slice(-2); }
+  }
+  var byMonth = (mode === 'month' || mode === 'range' || mode === 'year' || mode === 'fy');
+  if ((mode === 'month' || mode === 'range') && !ym) { showToast('Please pick a month'); return null; }
+  if (mode === 'range') {
+    if (!ymTo) { showToast('Please pick the "to" month'); return null; }
+    if (ymTo < ym) { var t = ym; ym = ymTo; ymTo = t; }   // allow picking in either order
+  }
 
   // 1) One row per client + due date (several instalments on the same day are merged)
   var map = {};
@@ -16541,8 +16567,8 @@ function dwsBuild() {
     else if (r.date <= weekEnd) { r.status = 'Due within 7 days'; r.tone = 'yellow'; }
     else { r.status = 'Upcoming'; r.tone = ''; }
     var rowYm = r.date.slice(0, 7);
-    if (mode === 'month') {
-      if (rowYm === ym) { (monthRows[rowYm] = monthRows[rowYm] || []).push(r); }
+    if (byMonth) {
+      if (rowYm >= ym && rowYm <= ymTo) { (monthRows[rowYm] = monthRows[rowYm] || []).push(r); }
       else if (r.date < today && rowYm < ym) overdue.push(r);
     } else {
       if (r.date >= today) (monthRows[rowYm] = monthRows[rowYm] || []).push(r);
@@ -16555,7 +16581,7 @@ function dwsBuild() {
   var monthKeys = Object.keys(monthRows).sort();
   if (mode === 'month' && !monthRows[ym]) monthKeys = [ym];
   monthKeys.forEach(function (k) { var a = monthRows[k] || []; sortRows(a); sections.push({ label: _dwsMonthLabel(k), rows: a }); });
-  if (extras && overdue.length) { sortRows(overdue); sections.push({ label: 'Earlier overdue — before ' + (mode === 'month' ? _dwsMonthLabel(ym) : 'today'), rows: overdue }); }
+  if (extras && overdue.length) { sortRows(overdue); sections.push({ label: 'Earlier overdue — before ' + (byMonth ? _dwsMonthLabel(ym) : 'today'), rows: overdue }); }
   if (extras && undated.length) { sortRows(undated); sections.push({ label: 'Date not set / not confirmed', rows: undated }); }
 
   var grand = 0, count = 0, clients = {};
@@ -16566,8 +16592,11 @@ function dwsBuild() {
   });
   if (!count) { showToast('No pending payments found for this selection'); return null; }
   return {
-    title: mode === 'month' ? 'Payment Schedule — ' + _dwsMonthLabel(ym) : 'Payment Schedule — All Upcoming',
-    file: mode === 'month' ? 'KB_Payment_Schedule_' + ym : 'KB_Payment_Schedule_Upcoming',
+    title: mode === 'month' ? 'Payment Schedule — ' + _dwsMonthLabel(ym)
+         : (mode === 'year' || mode === 'fy') ? 'Payment Schedule — ' + yearLabel
+         : mode === 'range' ? 'Payment Schedule — ' + (ym === ymTo ? _dwsMonthLabel(ym) : _dwsMonthLabel(ym) + ' to ' + _dwsMonthLabel(ymTo))
+         : 'Payment Schedule — All Upcoming',
+    file: mode === 'month' ? 'KB_Payment_Schedule_' + ym : (mode === 'range' || mode === 'year' || mode === 'fy') ? 'KB_Payment_Schedule_' + ym + '_to_' + ymTo : 'KB_Payment_Schedule_Upcoming',
     sections: sections, grand: grand, count: count, clients: Object.keys(clients).length
   };
 }
