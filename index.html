@@ -1734,7 +1734,7 @@ document.addEventListener('wheel', function(e) {
             <option value="upcoming">All upcoming</option>
           </select>
           <input type="month" id="dws-month" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()">
-          <label style="font-size:12px;color:#475569;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="dws-extra" checked onchange="dwsRangeChanged()"> Include overdue &amp; date-not-set</label>
+          <label style="font-size:12px;color:#475569;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="dws-extra" onchange="dwsRangeChanged()"> Also show earlier overdue &amp; no-date payments (at the bottom)</label>
           <button class="btn btn-sm btn-primary" style="font-weight:700" onclick="dwsShow()">👁️ View here</button>
           <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="dwsExportExcel()">📊 Excel</button>
           <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="dwsExportPDF()">🧾 PDF</button>
@@ -16474,7 +16474,23 @@ function dwsBuild() {
     if (p.stage === 'complete') return;
     var bal = Math.max(0, balDue(p));
     if (bal <= 0) return;
-    var ins = _erpBuildInstalments(p).filter(function (i) { return i.balance > 0; });
+    var allIns = _erpBuildInstalments(p);
+    // Event payment stages (1st event payment, 2nd event payment...) in plan order
+    function isEvStage(i) {
+      return /^kb_(event\d*|prewed|mainevent|event_extra_\d+)$/.test(i.key || '') || isEventLinkedStage(p, i.key) ||
+             /event|shoot|wedding|sangeet|mehndi|haldi/i.test(i.label || '');
+    }
+    var evOrder = {}, evN = 0;
+    allIns.forEach(function (i) { if (isEvStage(i)) evOrder[i.key] = evN++; });
+    // The project's real event days (Production Plan), earliest first; fall back to the main date
+    var evDates = [];
+    (p.eventDays || []).forEach(function (ed) {
+      if (ed && /^\d{4}-\d{2}-\d{2}$/.test(ed.date || '') && evDates.indexOf(ed.date) < 0) evDates.push(ed.date);
+    });
+    evDates.sort();
+    if (!evDates.length && p.date) evDates = [p.date];
+    var firstEv = evDates[0] || '';
+    var ins = allIns.filter(function (i) { return i.balance > 0; });
     // Safety: never show more than the client's real outstanding balance
     var sum = ins.reduce(function (a, i) { return a + i.balance; }, 0);
     var over = sum - bal;
@@ -16483,21 +16499,25 @@ function dwsBuild() {
     }
     ins.forEach(function (i) {
       if (i.balance <= 0) return;
-      // Effective due date: 1) date typed on the stage, 2) date saved in the KB schedule,
-      // 3) for event/shoot-linked stages, the shoot date itself (auto-picked).
+      // Due date rules (same as the client's agreed plan in the CRM):
+      //  1) a date saved on the stage (typed on the stage / saved in the KB schedule) always wins
+      //  2) event payments with no saved date fall on the FIRST event; only a 2nd split event
+      //     payment goes to the 2nd event day
+      //  3) advance / raw data / teaser / final have no event date -> "not set"
       var effDate = i.dueDate || '', auto = false;
       if (!effDate) {
         var ks = (p.kbSchedule && p.kbSchedule.stages || []).find(function (s) { return s.key === i.key; });
         if (ks && ks.dueDate) effDate = ks.dueDate;
       }
-      if (!effDate && p.date && (isEventLinkedStage(p, i.key) || /event|shoot/i.test((i.label || '') + ' ' + (i.desc || '')))) {
-        effDate = p.date; auto = true;
+      if (!effDate && evOrder[i.key] !== undefined) {
+        effDate = (evOrder[i.key] > 0 ? (evDates[1] || evDates[0]) : evDates[0]) || '';
+        auto = !!effDate;
       }
       var key = p.id + '|' + (effDate || 'none');
       if (!map[key]) {
         var city = p.city || p.state || '';
         map[key] = { p: p, date: effDate, auto: auto, client: coupleName(p.bride, p.groom) + (city ? ' (' + city + ')' : ''),
-                     type: p.type || '', shoot: p.date || '', labels: [], notes: [], amount: 0 };
+                     type: p.type || '', shoot: firstEv, labels: [], notes: [], amount: 0 };
       }
       map[key].labels.push(i.label);
       if (i.dueNotes) map[key].notes.push(i.dueNotes);
@@ -16514,7 +16534,7 @@ function dwsBuild() {
     r.event = ev;
     if (!r.date) {
       r.status = 'Date not set'; r.tone = 'orange';
-      r.event = ev + (r.shoot ? ' [Shoot: ' + _dwsDateLabel(r.shoot) + ']' : '');
+      r.event = ev + (r.shoot ? ' [First event: ' + _dwsDateLabel(r.shoot) + ']' : '');
       undated.push(r); return;
     }
     if (r.date < today) { r.status = 'Overdue'; r.tone = 'red'; }
@@ -16532,10 +16552,10 @@ function dwsBuild() {
 
   var sections = [];
   function sortRows(a) { a.sort(function (x, y) { return (x.date || x.shoot || '9999-12-31').localeCompare(y.date || y.shoot || '9999-12-31') || x.client.localeCompare(y.client); }); }
-  if (extras && overdue.length) { sortRows(overdue); sections.push({ label: 'Overdue — earlier than ' + (mode === 'month' ? _dwsMonthLabel(ym) : 'today'), rows: overdue }); }
   var monthKeys = Object.keys(monthRows).sort();
   if (mode === 'month' && !monthRows[ym]) monthKeys = [ym];
   monthKeys.forEach(function (k) { var a = monthRows[k] || []; sortRows(a); sections.push({ label: _dwsMonthLabel(k), rows: a }); });
+  if (extras && overdue.length) { sortRows(overdue); sections.push({ label: 'Earlier overdue — before ' + (mode === 'month' ? _dwsMonthLabel(ym) : 'today'), rows: overdue }); }
   if (extras && undated.length) { sortRows(undated); sections.push({ label: 'Date not set / not confirmed', rows: undated }); }
 
   var grand = 0, count = 0, clients = {};
