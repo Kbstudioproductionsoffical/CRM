@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v74.14</title>
+<title>KB Studio CRM v74.15</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1727,15 +1727,6 @@ document.addEventListener('wheel', function(e) {
         <div style="margin-bottom:10px">
           <button type="button" id="pay-details-toggle" class="btn btn-sm" onclick="togglePayDetails()" style="font-size:11px;color:#888;border-color:#ddd">Show full breakdown ▾</button>
         </div>
-        <div class="metrics" id="pay-metrics" style="display:none"></div>
-        <div id="pay-due-alerts" style="margin-bottom:12px"></div>
-        <div id="pay-future-section" style="margin-bottom:16px"></div>
-        <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-primary" id="btn-record-pay">+ Record Payment</button>
-          <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="exportPaymentsReportExcel()">📊 Export Period Report (Excel)</button>
-          <button class="btn btn-sm" style="background:#2563eb;color:#fff;border:none;font-weight:700" onclick="exportPayProjectsCompleteExcel()">📑 Complete Statement (Excel)</button>
-          <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="exportPayProjectsCompletePDF()">🧾 Complete Statement (PDF)</button>
-        </div>
         <div id="dws-bar" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">
           <span style="font-size:12px;font-weight:700;color:#334155">🗓️ Date-wise Payment Schedule</span>
           <select id="dws-range" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()">
@@ -1749,6 +1740,15 @@ document.addEventListener('wheel', function(e) {
           <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="dwsExportPDF()">🧾 PDF</button>
         </div>
         <div id="dws-view" style="margin-bottom:16px"></div>
+        <div class="metrics" id="pay-metrics" style="display:none"></div>
+        <div id="pay-due-alerts" style="margin-bottom:12px"></div>
+        <div id="pay-future-section" style="margin-bottom:16px"></div>
+        <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="btn-record-pay">+ Record Payment</button>
+          <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="exportPaymentsReportExcel()">📊 Export Period Report (Excel)</button>
+          <button class="btn btn-sm" style="background:#2563eb;color:#fff;border:none;font-weight:700" onclick="exportPayProjectsCompleteExcel()">📑 Complete Statement (Excel)</button>
+          <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="exportPayProjectsCompletePDF()">🧾 Complete Statement (PDF)</button>
+        </div>
         <div id="pay-account-breakdown"></div>
         <div class="card" style="padding:0;overflow:hidden"><div id="pay-table"></div></div>
       </div>
@@ -16483,10 +16483,20 @@ function dwsBuild() {
     }
     ins.forEach(function (i) {
       if (i.balance <= 0) return;
-      var key = p.id + '|' + (i.dueDate || 'none');
+      // Effective due date: 1) date typed on the stage, 2) date saved in the KB schedule,
+      // 3) for event/shoot-linked stages, the shoot date itself (auto-picked).
+      var effDate = i.dueDate || '', auto = false;
+      if (!effDate) {
+        var ks = (p.kbSchedule && p.kbSchedule.stages || []).find(function (s) { return s.key === i.key; });
+        if (ks && ks.dueDate) effDate = ks.dueDate;
+      }
+      if (!effDate && p.date && (isEventLinkedStage(p, i.key) || /event|shoot/i.test((i.label || '') + ' ' + (i.desc || '')))) {
+        effDate = p.date; auto = true;
+      }
+      var key = p.id + '|' + (effDate || 'none');
       if (!map[key]) {
         var city = p.city || p.state || '';
-        map[key] = { p: p, date: i.dueDate || '', client: coupleName(p.bride, p.groom) + (city ? ' (' + city + ')' : ''),
+        map[key] = { p: p, date: effDate, auto: auto, client: coupleName(p.bride, p.groom) + (city ? ' (' + city + ')' : ''),
                      type: p.type || '', shoot: p.date || '', labels: [], notes: [], amount: 0 };
       }
       map[key].labels.push(i.label);
@@ -16521,7 +16531,7 @@ function dwsBuild() {
   });
 
   var sections = [];
-  function sortRows(a) { a.sort(function (x, y) { return (x.date || '9').localeCompare(y.date || '9') || x.client.localeCompare(y.client); }); }
+  function sortRows(a) { a.sort(function (x, y) { return (x.date || x.shoot || '9999-12-31').localeCompare(y.date || y.shoot || '9999-12-31') || x.client.localeCompare(y.client); }); }
   if (extras && overdue.length) { sortRows(overdue); sections.push({ label: 'Overdue — earlier than ' + (mode === 'month' ? _dwsMonthLabel(ym) : 'today'), rows: overdue }); }
   var monthKeys = Object.keys(monthRows).sort();
   if (mode === 'month' && !monthRows[ym]) monthKeys = [ym];
@@ -16566,7 +16576,7 @@ function dwsShow() {
     sec.rows.forEach(function (r) {
       h += '<tr style="background:' + bg[r.tone] + ';border-top:1px solid #e5e7eb">' +
         '<td style="padding:7px 8px">' + r.sno + '</td>' +
-        '<td style="padding:7px 8px;white-space:nowrap">' + (r.date ? _dwsDateLabel(r.date) : '—') + '</td>' +
+        '<td style="padding:7px 8px;white-space:nowrap">' + (r.date ? _dwsDateLabel(r.date) + (r.auto ? ' <span title="Auto-picked from shoot date" style="color:#7c3aed">*</span>' : '') : '—') + '</td>' +
         '<td style="padding:7px 8px">' + (r.day || '—') + '</td>' +
         '<td style="padding:7px 8px;font-weight:700"><a href="#" class="dws-open" data-pid="' + escHtml(String(r.p.id)) + '" style="color:inherit;text-decoration:none">' + escHtml(r.client) + '</a></td>' +
         '<td style="padding:7px 8px">' + escHtml(r.event) + '</td>' +
