@@ -16500,7 +16500,23 @@ function dwsBuild() {
     if (p.stage === 'complete') return;
     var bal = Math.max(0, balDue(p));
     if (bal <= 0) return;
-    var allIns = _erpBuildInstalments(p);
+    // Use the SAME calculation as the project's Payments tab (plan vs paid, with carry-forward),
+    // so this list can never disagree with what the project panel shows.
+    var _sch = (typeof getPaymentScheduleWithCarryForward === 'function') ? getPaymentScheduleWithCarryForward(p) : [];
+    var allIns;
+    if (_sch && _sch.length) {
+      allIns = _sch.map(function (st, idx) {
+        // A stage's unpaid amount that was carried into the next stage is shown there — don't count it twice
+        var carriedOut = (_sch[idx + 1] && _sch[idx + 1].carryIn) || 0;
+        return { key: st.key, label: st.label, desc: st.desc, dueDate: st.dueDate || '',
+                 balance: Math.max(0, (st.shortfall || 0) - carriedOut) };
+      });
+      // If the plan doesn't cover the whole outstanding balance, show the rest instead of hiding it
+      var _planSum = allIns.reduce(function (a, i) { return a + i.balance; }, 0);
+      if (bal - _planSum > 0) allIns.push({ key: '_unplanned', label: 'Balance not in payment plan', desc: '', dueDate: '', balance: bal - _planSum });
+    } else {
+      allIns = _erpBuildInstalments(p);
+    }
     // Event payment stages (1st event payment, 2nd event payment...) in plan order
     function isEvStage(i) {
       return /^kb_(event\d*|prewed|mainevent|event_extra_\d+)$/.test(i.key || '') || isEventLinkedStage(p, i.key) ||
