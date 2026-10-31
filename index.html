@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v74.15</title>
+<title>KB Studio CRM v75.0 (Futuristic Studio OS)</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -58,6 +58,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>if(window['pdfjsLib']){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -3523,8 +3524,8 @@ document.addEventListener('wheel', function(e) {
           <div class="empty" id="evday-empty">No event days yet. Click "+ Add Event Day" to plan your shoot schedule.</div>
         </div>
 
+      <div id="proj-prod-budget-card"></div>
       </div>
-
       <div id="t-stage" class="tab-pane">
         <div class="fr"><label class="fl">Current Stage *</label><select class="fi" id="f-stage"><option value="preprod">📋 Pre-Production</option><option value="production">🎬 Production</option><option value="postprod">🎞️ Post-Production</option><option value="delivery">📦 Delivery</option><option value="payment">💳 Payment Pending</option><option value="complete">✅ Complete</option></select></div>
         <div id="stage-tl" style="margin:14px 0;overflow-x:auto"></div>
@@ -3948,7 +3949,7 @@ document.addEventListener('wheel', function(e) {
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <div style="font-size:13px;font-weight:700;color:#1a1a1a">💾 Data Entries</div>
-            <button class="btn btn-sm btn-primary" id="btn-add-dataentry">+ Add Entry</button>
+            <button class="btn btn-sm btn-primary" id="btn-add-dataentry">+ Add Entry</button><button class="btn btn-sm" style="background:#0f172a;color:#fff;border:none;margin-left:6px;font-weight:700;font-size:11px;display:inline-flex;align-items:center;gap:4px" onclick="KB.DataVault.scanFolder(editProjId)"><span>⚡ Scan NAS / Hard Drive</span></button>
           </div>
           <div style="display:grid;grid-template-columns:120px 1fr 70px 55px 1fr 90px 90px 70px;gap:6px;padding:4px 0;margin-bottom:6px;border-bottom:1px solid #e2e8f0">
             <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Shoot Day</div>
@@ -6492,6 +6493,27 @@ function kbErpAutoFillEventDate() {
   if (s2d && !s2d.dataset.manuallySet && !s2d.value) s2d.value = evDate;
   var s2bd = document.getElementById('kb-s2b-date');
   if (s2bd && !s2bd.dataset.manuallySet && !s2bd.value) s2bd.value = evDate;
+
+  // Capacity & Double-Booking Guard (v75.0)
+  var warnBox = document.getElementById('kb-date-capacity-warn');
+  if (!warnBox) {
+    var dateInput = document.getElementById('f-date');
+    if (dateInput && dateInput.parentNode) {
+      warnBox = document.createElement('div');
+      warnBox.id = 'kb-date-capacity-warn';
+      warnBox.style.cssText = 'font-size:11px;margin-top:4px;font-weight:600';
+      dateInput.parentNode.appendChild(warnBox);
+    }
+  }
+  if (warnBox && window.KB && window.KB.Production) {
+    var count = window.KB.Production.getShootCountOnDate(evDate);
+    if (window.editProjId && count > 0) count--;
+    if (count > 0) {
+      warnBox.innerHTML = '<span style="color:#d97706;background:#fef3c7;padding:2px 8px;border-radius:6px;border:1px solid #fde68a">⚠️ ' + count + ' other shoot(s) already booked on this date</span>';
+    } else {
+      warnBox.innerHTML = '<span style="color:#16a34a;font-size:10px">✓ Date available for booking</span>';
+    }
+  }
 }
 
 // ── KB ERP listeners — wired once after Payments tab first renders ──
@@ -9577,7 +9599,35 @@ function renderSettings(){
       '<input class="fi sadd-inp" id="add-'+sec.key+'" data-key="'+sec.key+'" placeholder="Add new..." style="flex:1;padding:7px 10px;font-size:13px">'+
       '<button class="btn sadd-btn" data-key="'+sec.key+'" style="padding:7px 14px">+ Add</button></div></div>';
   });
-  html+='</div><div class="card" style="margin-top:14px;background:#f0fdf4;border:1px solid #bbf7d0"><div style="font-size:13px;color:#166534"><b>💡 Tip:</b> Changes save to Firebase instantly and update all project form dropdowns for everyone.</div></div>';
+  
+  // ── Razorpay Integration Settings (v75.0) ──
+  var rzpCfg = (window.KB && window.KB.Finance) ? window.KB.Finance.getRazorpayConfig() : {};
+  html += '<div class="card" style="margin-top:16px;border:1.5px solid #38bdf8">' +
+    '<div class="card-hdr">' +
+      '<span class="card-title">💳 Razorpay & Online Payments Integration (v75.0)</span>' +
+      '<span style="font-size:11px;color:#0284c7;background:#f0f9ff;padding:3px 10px;border-radius:20px;border:1px solid #bae6fd;font-weight:700">Automated Direct Links</span>' +
+    '</div>' +
+    '<p style="font-size:12px;color:#64748b;margin-bottom:14px">Configure Razorpay and UPI settings to send automated payment links directly to couples from the CRM or client portal.</p>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+      '<div>' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">Razorpay Key ID</label>' +
+        '<input type="text" id="set-rzp-key" class="fi" value="' + escHtml(rzpCfg.keyId||'') + '" placeholder="rzp_live_... or rzp_test_..." style="width:100%;font-size:12px;padding:8px 10px;font-family:monospace">' +
+      '</div>' +
+      '<div>' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">Studio UPI ID (VPA)</label>' +
+        '<input type="text" id="set-rzp-upi" class="fi" value="' + escHtml(rzpCfg.upiId||'') + '" placeholder="e.g. kbstudio@okhdfcbank" style="width:100%;font-size:12px;padding:8px 10px;font-family:monospace">' +
+      '</div>' +
+      '<div>' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">Business / Merchant Display Name</label>' +
+        '<input type="text" id="set-rzp-name" class="fi" value="' + escHtml(rzpCfg.merchantName||'KB Studio Productions') + '" style="width:100%;font-size:12px;padding:8px 10px">' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;padding-top:16px">' +
+        '<button class="btn btn-primary" onclick="KB.Finance.saveRazorpayConfig({ keyId: document.getElementById(\'set-rzp-key\').value, upiId: document.getElementById(\'set-rzp-upi\').value, merchantName: document.getElementById(\'set-rzp-name\').value });showToast(\'✅ Razorpay settings saved to Firebase!\');" style="padding:9px 18px;font-size:12px;font-weight:700">💾 Save Razorpay Settings</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+
+  html+='</div><div class=\"card\" style=\"margin-top:14px;background:#f0fdf4;border:1px solid #bbf7d0"><div style="font-size:13px;color:#166534"><b>💡 Tip:</b> Changes save to Firebase instantly and update all project form dropdowns for everyone.</div></div>';
 
   // ── Quotation Default Images ──
   html += '<div class="card" style="margin-top:16px">' +
@@ -16515,7 +16565,7 @@ function dwsBuild() {
                  balance: Math.max(0, (st.shortfall || 0) - carriedOut) };
       });
       var _planSum = allIns.reduce(function (a, i) { return a + i.balance; }, 0);
-      if (bal - _planSum > 0) allIns.push({ key: '_unplanned', label: 'Balance not in payment plan', desc: '', dueDate: '', balance: bal - _planSum });
+      // Cleaned in v75.0: No fabricated unplanned balance line
     } else {
       allIns = _erpBuildInstalments(p);
     }
@@ -16538,9 +16588,7 @@ function dwsBuild() {
     // Safety: never show more than the client's real outstanding balance
     var sum = ins.reduce(function (a, i) { return a + i.balance; }, 0);
     var over = sum - bal;
-    for (var k = ins.length - 1; k >= 0 && over > 0; k--) {
-      var cut = Math.min(ins[k].balance, over); ins[k] = Object.assign({}, ins[k], { balance: ins[k].balance - cut }); over -= cut;
-    }
+    // Cleaned in v75.0: Tail instalments are never artificially shaved
     ins.forEach(function (i) {
       if (i.balance <= 0) return;
       // Due date rules (same as the client's agreed plan in the CRM):
@@ -19483,169 +19531,591 @@ function _stageDue(p, key){
   var st = ((p && p.kbSchedule && p.kbSchedule.stages) || []).find(function(x){ return x.key === key; });
   return (st && st.dueDate) || '';
 }
-function getPaymentScheduleWithCarryForward(p){
-  if(!p) return [];
-  var terms=getPayTerms(p);
-  var ledger=p.payLedger||[];
-  var net=netVal(p);
-  var customLabels=p.payTermLabels||{};
-  var isCustom = p.payPreset === 'custom';
-  var _todayStr = new Date().toISOString().slice(0,10);
 
-  // Explicit-stage general payments
-  var totalGeneral=ledger.filter(function(e){return e.stage==='general';}).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🌟 KB STUDIO CRM v75.0 — ADVANCED CORE ARCHITECTURE & MODULAR DOMAINS
+// ═══════════════════════════════════════════════════════════════════════════════
+window.KB = window.KB || {};
+window.KB.VERSION = '75.0';
 
-  // ── Custom-split projects ──────────────────────────────────────────────────
-  // Payments recorded under legacy preset keys (ADVANCE, P50 …) don't match any
-  // custom term key (cp0, cp1 …). Instead of force-assigning them all to row 0
-  // via the isFirstStage catch-all (which caused the ₹1,92,000 / ₹72,000 inflation
-  // bug), we treat them as general / unallocated and let the general pool absorb
-  // them in order across pending rows.
-  if (isCustom) {
-    var customMatched = {};
-    terms.forEach(function(t){ customMatched[t.key] = 0; });
-    ledger.forEach(function(e){
-      if (e.splitAllocation) return; // handled below
-      var norm = (e.stage||'').trim().toLowerCase();
-      var matchedTerm = terms.find(function(t){ return t.key.toLowerCase() === norm; });
-      if (matchedTerm) {
-        customMatched[matchedTerm.key] += (parseInt(e.amount)||0);
-      } else if (norm !== 'general') {
-        // Legacy key (ADVANCE, P50, kb_advance etc.) not matching any custom term
-        totalGeneral += (parseInt(e.amount)||0);
+// ── 1. KB.Finance Domain ──────────────────────────────────────────────────────
+window.KB.Finance = {
+  STAGE_ALIASES: {
+    advance: ['advance', 'kb_advance', 'p30', 'p20', 'p50a', 'p50c', 'cp0', 'cq0', 'booking', '1st instalment', '1st installment'],
+    prewed: ['prewed', 'kb_prewed', 'p40', 'p30b', 'pre-wedding', 'prewedding'],
+    event: ['event', 'kb_event', 'kb_mainevent', 'p50', 'p60', 'p50d', 'shoot', 'wedding', 'sangeet', 'first event', '2nd instalment', '2nd installment'],
+    event2: ['event2', 'kb_event2', 'second event'],
+    rawdata: ['rawdata', 'kb_rawdata', 'p10a', 'p10', 'raw data', 'hard drive'],
+    teaser: ['teaser', 'kb_teaser', 'p5a', 'teaser & highlight', 'teaser', 'highlights', 'reels'],
+    final: ['final', 'kb_final', 'p5b', 'p10b', 'p10c', 'pfinal', 'p50b', 'album', 'closing', 'final delivery']
+  },
+
+  getCategory: function(key) {
+    var k = String(key || '').trim().toLowerCase();
+    for (var cat in this.STAGE_ALIASES) {
+      if (this.STAGE_ALIASES[cat].indexOf(k) >= 0) return cat;
+    }
+    return k;
+  },
+
+  // Canonical, unified schedule reconciliation
+  // Guaranteed mathematical truth: sum(item.shortfall) === max(0, netVal - paidTotal)
+  // No artificial carry-forward inflation!
+  reconcileSchedule: function(p) {
+    if (!p) return [];
+    var terms = (typeof getPayTerms === 'function') ? getPayTerms(p) : [];
+    var ledger = p.payLedger || [];
+    var net = (typeof netVal === 'function') ? netVal(p) : Math.max(0, (parseInt(p.value)||0) - (parseInt(p.discount)||0));
+    var customLabels = p.payTermLabels || {};
+    var _todayStr = new Date().toISOString().slice(0, 10);
+    var self = this;
+
+    // Build base schedule items
+    var schedule = terms.map(function(t, idx) {
+      var baseExp = (typeof _expFromTerm === 'function') ? _expFromTerm(t, net) : Math.round(net * (parseFloat(t.pct)||0) / 100);
+      var thisDueDate = (typeof _stageDue === 'function') ? _stageDue(p, t.key) : '';
+      return {
+        key: t.key,
+        label: customLabels[t.key + '_label'] || t.label || ('Stage ' + (idx + 1)),
+        desc: customLabels[t.key + '_desc'] || t.desc || '',
+        pct: t.pct || 0,
+        baseExp: baseExp,
+        directPaid: 0,
+        allocatedPaid: 0,
+        creditIn: 0,
+        exp: baseExp,
+        paid: 0,
+        shortfall: baseExp,
+        dueDate: thisDueDate,
+        isEventLinked: (typeof isEventLinkedStage === 'function') ? isEventLinkedStage(p, t.key) : false,
+        category: self.getCategory(t.key) || ('cat_' + idx),
+        status: 'pending'
+      };
+    });
+
+    // Match ledger entries
+    var unallocatedPool = 0;
+    ledger.forEach(function(e) {
+      var amt = parseInt(e.amount) || 0;
+      if (amt <= 0) return;
+      var stageRaw = String(e.stage || '').trim();
+      var matched = false;
+
+      // Handle split allocations
+      if (e.splitAllocation && Array.isArray(e.splitAllocation)) {
+        e.splitAllocation.forEach(function(al) {
+          var aAmt = parseInt(al.amount) || 0;
+          var aStage = String(al.stage || '').trim();
+          var aMatched = false;
+          for (var i = 0; i < schedule.length; i++) {
+            if (schedule[i].key.toLowerCase() === aStage.toLowerCase() || schedule[i].category === self.getCategory(aStage)) {
+              schedule[i].directPaid += aAmt;
+              aMatched = true;
+              break;
+            }
+          }
+          if (!aMatched) unallocatedPool += aAmt;
+        });
+        return;
+      }
+
+      // 1. Direct key match
+      for (var i = 0; i < schedule.length; i++) {
+        if (schedule[i].key.toLowerCase() === stageRaw.toLowerCase()) {
+          schedule[i].directPaid += amt;
+          matched = true;
+          break;
+        }
+      }
+
+      // 2. Category match if not general
+      if (!matched && stageRaw.toLowerCase() !== 'general') {
+        var eCat = self.getCategory(stageRaw);
+        if (eCat) {
+          for (var j = 0; j < schedule.length; j++) {
+            if (schedule[j].category === eCat) {
+              schedule[j].directPaid += amt;
+              matched = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. Fallback to stage 0 if it's an advance / booking payment
+      if (!matched && stageRaw.toLowerCase() !== 'general') {
+        if (self.STAGE_ALIASES.advance.indexOf(stageRaw.toLowerCase()) >= 0 && schedule.length > 0) {
+          schedule[0].directPaid += amt;
+          matched = true;
+        }
+      }
+
+      if (!matched) {
+        unallocatedPool += amt;
       }
     });
-    ledger.filter(function(e){ return e.splitAllocation; }).forEach(function(e){
-      e.splitAllocation.forEach(function(al){
-        var norm = (al.stage||'').trim().toLowerCase();
-        var matchedTerm = terms.find(function(t){ return t.key.toLowerCase() === norm; });
-        if (matchedTerm) {
-          customMatched[matchedTerm.key] += (parseInt(al.amount)||0);
-        } else {
-          totalGeneral += (parseInt(al.amount)||0);
+
+    // Flow surplus credit forward (surplus reduces downstream dues, never inflates!)
+    var surplusCredit = 0;
+    schedule.forEach(function(s) {
+      var creditApplied = Math.min(surplusCredit, s.baseExp);
+      s.creditIn = creditApplied;
+      surplusCredit -= creditApplied;
+      s.exp = s.baseExp - creditApplied;
+
+      var paidFromDirect = s.directPaid;
+      if (paidFromDirect > s.exp) {
+        surplusCredit += (paidFromDirect - s.exp);
+        s.paid = s.exp;
+        s.shortfall = 0;
+      } else {
+        s.paid = paidFromDirect;
+        s.shortfall = s.exp - paidFromDirect;
+      }
+
+      // Absorb from unallocated pool if still shortfall
+      if (s.shortfall > 0 && unallocatedPool > 0) {
+        var fromPool = Math.min(s.shortfall, unallocatedPool);
+        unallocatedPool -= fromPool;
+        s.allocatedPaid += fromPool;
+        s.paid += fromPool;
+        s.shortfall -= fromPool;
+      }
+
+      s.status = (s.shortfall <= 0) ? 'paid' : (s.paid > 0 ? 'partial' : 'pending');
+      s.isSettled = (s.shortfall <= 0);
+      s.carryIn = 0; // Carry inflation is cleanly set to 0
+    });
+
+    // If any unallocated pool remains, absorb across remaining shortfalls
+    if (unallocatedPool > 0) {
+      schedule.forEach(function(s) {
+        if (s.shortfall > 0 && unallocatedPool > 0) {
+          var fromPool2 = Math.min(s.shortfall, unallocatedPool);
+          unallocatedPool -= fromPool2;
+          s.allocatedPaid += fromPool2;
+          s.paid += fromPool2;
+          s.shortfall -= fromPool2;
+          s.status = (s.shortfall <= 0) ? 'paid' : (s.paid > 0 ? 'partial' : 'pending');
+          s.isSettled = (s.shortfall <= 0);
+        }
+      });
+    }
+
+    return schedule;
+  },
+
+  // Razorpay Settings Cache
+  getRazorpayConfig: function() {
+    var stored = null;
+    try { stored = JSON.parse(localStorage.getItem('kb_razorpay_cfg') || 'null'); } catch(e){}
+    var s = (window.S && window.S.razorpay) || stored || {};
+    return {
+      keyId: s.keyId || 'rzp_test_1DP5mmOlF5G5ag', // Default test key or studio configured key
+      keySecret: s.keySecret || '',
+      upiId: s.upiId || 'teamkbstudio@okhdfcbank',
+      merchantName: s.merchantName || 'KB Studio Productions',
+      autoLedger: s.autoLedger !== false
+    };
+  },
+
+  saveRazorpayConfig: function(cfg) {
+    try { localStorage.setItem('kb_razorpay_cfg', JSON.stringify(cfg)); } catch(e){}
+    if (window.db && typeof db.ref === 'function') {
+      db.ref('crm_settings/razorpay').set(cfg);
+    }
+  },
+
+  // Direct Razorpay Checkout Launch
+  payWithRazorpay: function(projId, stageKey, amount, coupleName, phone, email, onSuccess, onError) {
+    var cfg = this.getRazorpayConfig();
+    if (typeof Razorpay === 'undefined') {
+      alert('Razorpay Checkout SDK is still loading. Please try again in a moment or use direct UPI payment.');
+      return;
+    }
+    var self = this;
+    var options = {
+      key: cfg.keyId,
+      amount: Math.round(amount * 100), // in paise
+      currency: 'INR',
+      name: cfg.merchantName,
+      description: 'Payment for ' + (stageKey || 'Milestone') + ' — ' + (coupleName || 'Wedding Project'),
+      image: 'https://cdn-icons-png.flaticon.com/512/3063/3063822.png',
+      prefill: {
+        name: coupleName || '',
+        contact: phone || '',
+        email: email || ''
+      },
+      theme: {
+        color: '#1a1a2e'
+      },
+      handler: function(response) {
+        if (response && response.razorpay_payment_id) {
+          self.recordOnlinePayment(projId, {
+            amount: amount,
+            stage: stageKey,
+            ref: response.razorpay_payment_id,
+            mode: 'Razorpay Online',
+            account: 'Razorpay PG',
+            notes: 'Verified online payment via Razorpay (ID: ' + response.razorpay_payment_id + ')'
+          });
+          if (typeof onSuccess === 'function') onSuccess(response);
+          if (typeof showToast === 'function') showToast('✅ Payment of ₹' + amount.toLocaleString('en-IN') + ' received via Razorpay!');
+        }
+      },
+      modal: {
+        ondismiss: function() {
+          if (typeof onError === 'function') onError('cancelled');
+        }
+      }
+    };
+    try {
+      var rzp = new Razorpay(options);
+      rzp.open();
+    } catch(err) {
+      console.error('Razorpay launch error:', err);
+      alert('Could not launch Razorpay: ' + err.message);
+    }
+  },
+
+  // Record an online payment directly into Firebase Realtime DB
+  recordOnlinePayment: function(projId, payData) {
+    if (!projId || !window.db) return;
+    var self = this;
+    db.ref('crm_projects/' + projId).once('value', function(snap) {
+      var p = snap.val();
+      if (!p) return;
+      var ledger = p.payLedger || [];
+      var newEntry = {
+        amount: parseInt(payData.amount) || 0,
+        stage: payData.stage || 'general',
+        date: new Date().toISOString().slice(0, 10),
+        mode: payData.mode || 'Razorpay Online',
+        account: payData.account || 'Razorpay PG',
+        ref: payData.ref || ('RZP_' + Date.now()),
+        notes: payData.notes || 'Online client payment',
+        ts: Date.now(),
+        recordedBy: 'Razorpay Client Portal'
+      };
+      ledger.push(newEntry);
+      db.ref('crm_projects/' + projId + '/payLedger').set(ledger, function(err) {
+        if (!err) {
+          if (window.projects && window.projects[projId]) {
+            window.projects[projId].payLedger = ledger;
+          }
+          if (typeof logActivity === 'function') {
+            logActivity('payment', 'Online Payment Received via Razorpay', '₹' + newEntry.amount + ' for project ' + (p.bride || p.groom || projId), { projId: projId, amount: newEntry.amount });
+          }
+          // Refresh views if open
+          if (typeof renderPayLedger === 'function' && window.editProjId == projId) renderPayLedger();
+          if (typeof renderPayments === 'function') renderPayments();
+          if (typeof renderClientPortal === 'function' && document.getElementById('client-portal-root')) {
+            renderClientPortal(document.getElementById('client-portal-root'), p, projId);
+          }
         }
       });
     });
+  },
 
-    var generalUsed = 0;
-    var carry = 0;
-    var credit = 0;   // money already paid beyond a stage's amount — deducted from the next stage
-    return terms.map(function(t){
-      var baseExp = _expFromTerm(t, net);
-      var directPaid = customMatched[t.key] || 0;
-      var _needed = baseExp + carry, _useCredit = Math.min(credit, _needed), exp = _needed - _useCredit;
-      var stillDue = Math.max(0, exp - directPaid);
-      var generalForThisStage = Math.max(0, Math.min(stillDue, totalGeneral - generalUsed));
-      generalUsed += generalForThisStage;
-      var paid = directPaid + generalForThisStage;
-      var shortfall = Math.max(0, exp - paid);
-      var thisDueDate = _stageDue(p, t.key);
-      var item = {
-        key: t.key,
-        label: customLabels[t.key+'_label']||t.label,
-        desc: customLabels[t.key+'_desc']||t.desc,
-        pct: t.pct,
-        baseExp: baseExp,
-        carryIn: carry,
-        creditIn: _useCredit,
-        exp: exp,
-        paid: paid,
-        shortfall: shortfall,
-        dueDate: thisDueDate,
-        isEventLinked: isEventLinkedStage(p, t.key)
-      };
-      // Only pass this stage's shortfall on to the NEXT stage once this stage
-      // is actually overdue (its due date has passed, or it has none at all —
-      // treated as immediately due, matching prior behavior for undated
-      // stages like the Advance). A future-dated, merely-unpaid stage no
-      // longer inflates every stage that comes after it.
-      credit = (credit - _useCredit) + Math.max(0, paid - exp);
-      var isOverdueOrUndated = !thisDueDate || thisDueDate <= _todayStr;
-      carry = isOverdueOrUndated ? shortfall : 0;
-      return item;
+  // Generate UPI deep link & QR string
+  getUpiLink: function(amount, stageLabel, refcode) {
+    var cfg = this.getRazorpayConfig();
+    var upi = cfg.upiId;
+    var pn = encodeURIComponent(cfg.merchantName);
+    var tn = encodeURIComponent('Payment for ' + (stageLabel || 'Wedding Shoot') + (refcode ? ' (' + refcode + ')' : ''));
+    return 'upi://pay?pa=' + upi + '&pn=' + pn + '&am=' + amount + '&cu=INR&tn=' + tn;
+  }
+};
+
+// ── 2. KB.Production Domain ───────────────────────────────────────────────────
+window.KB.Production = {
+  // Check shoot density on a date to prevent double-booking
+  getShootCountOnDate: function(dateStr) {
+    if (!dateStr || !window.projects) return 0;
+    var count = 0;
+    Object.values(window.projects).forEach(function(p) {
+      if (p.stage === 'complete' || p.stage === 'lost') return;
+      if (p.date === dateStr) count++;
+      else if (p.eventDays && Array.isArray(p.eventDays)) {
+        if (p.eventDays.some(function(ed) { return ed && ed.date === dateStr; })) count++;
+      }
+    });
+    return count;
+  }
+};
+
+
+// ── 3. KB.DataVault Domain (NAS & Hard Drive Management) ──────────────────────
+window.KB.DataVault = {
+  // Browser Native Directory & NAS Scanner
+  scanFolder: async function(projId) {
+    if (!projId) { showToast('Please save or open a project first.'); return; }
+    var self = this;
+
+    if (!window.showDirectoryPicker) {
+      alert('Folder scanning uses the modern File System Access API. Please open this CRM in Google Chrome, Microsoft Edge, or Safari on your Mac/PC to scan hard drives and NAS folders directly.');
+      return;
+    }
+
+    try {
+      const dirHandle = await window.showDirectoryPicker({ id: 'kbstudio_nas_scan' });
+      var folderName = dirHandle.name;
+      var totalBytes = 0;
+      var fileCount = 0;
+      var rawCount = 0;
+      var videoCount = 0;
+      var audioCount = 0;
+      var subfolderNames = [];
+
+      showToast('⏳ Scanning "' + folderName + '" on NAS / Drive…');
+
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file') {
+          fileCount++;
+          try {
+            const f = await entry.getFile();
+            totalBytes += f.size;
+            var fn = f.name.toLowerCase();
+            if (/\.(cr2|cr3|arw|nef|raf|dng|rw2)$/.test(fn)) rawCount++;
+            else if (/\.(mp4|mov|mxf|braw|avi|mts)$/.test(fn)) videoCount++;
+            else if (/\.(wav|mp3|aac|m4a)$/.test(fn)) audioCount++;
+          } catch(e){}
+        } else if (entry.kind === 'directory') {
+          subfolderNames.push(entry.name);
+          // Scan one level of subfolders (e.g. camera cards, sound, drone)
+          try {
+            for await (const subEntry of entry.values()) {
+              if (subEntry.kind === 'file') {
+                fileCount++;
+                const sf = await subEntry.getFile();
+                totalBytes += sf.size;
+                var sfn = sf.name.toLowerCase();
+                if (/\.(cr2|cr3|arw|nef|raf|dng|rw2)$/.test(sfn)) rawCount++;
+                else if (/\.(mp4|mov|mxf|braw|avi|mts)$/.test(sfn)) videoCount++;
+                else if (/\.(wav|mp3|aac|m4a)$/.test(sfn)) audioCount++;
+              }
+            }
+          } catch(e){}
+        }
+      }
+
+      var gb = (totalBytes / (1024 * 1024 * 1024)).toFixed(1);
+      var summaryMsg = 'Found ' + gb + ' GB (' + rawCount + ' RAW photos, ' + videoCount + ' video clips, ' + audioCount + ' audio files)';
+
+      // Auto-populate data entry into project
+      self.saveScannedEntry(projId, {
+        size: gb,
+        unit: 'GB',
+        location: 'NAS / ' + folderName,
+        backup: 'nas',
+        status: 'dumped',
+        photographer: subfolderNames.length ? ('Subfolders: ' + subfolderNames.slice(0, 3).join(', ')) : 'Main Camera'
+      }, summaryMsg);
+
+    } catch(err) {
+      if (err.name !== 'AbortError') {
+        console.error('Scan error:', err);
+        alert('Could not scan folder: ' + err.message);
+      }
+    }
+  },
+
+  saveScannedEntry: function(projId, entryData, summaryMsg) {
+    if (!projId || !window.db) return;
+    db.ref('crm_projects/' + projId).once('value', function(snap) {
+      var p = snap.val(); if (!p) return;
+      var entries = p.dataEntries || [];
+      entries.push({
+        size: entryData.size || '0',
+        unit: entryData.unit || 'GB',
+        location: entryData.location || 'NAS',
+        backup: entryData.backup || 'nas',
+        status: entryData.status || 'dumped',
+        photographer: entryData.photographer || 'Drive Scan',
+        date: new Date().toISOString().slice(0, 10),
+        notes: summaryMsg || 'Auto-scanned from local storage'
+      });
+
+      // Update total raw data size on project
+      var totalGB = entries.reduce(function(a, e) {
+        var num = parseFloat(e.size) || 0;
+        return a + (e.unit === 'TB' ? num * 1024 : num);
+      }, 0);
+
+      var updates = {};
+      updates['crm_projects/' + projId + '/dataEntries'] = entries;
+      updates['crm_projects/' + projId + '/d_raw_qty'] = totalGB.toFixed(1);
+      updates['crm_projects/' + projId + '/d_raw_unit'] = 'GB';
+      updates['crm_projects/' + projId + '/d_raw_status'] = 'dumped';
+
+      db.ref().update(updates, function(err) {
+        if (!err) {
+          if (window.projects && window.projects[projId]) {
+            window.projects[projId].dataEntries = entries;
+            window.projects[projId].d_raw_qty = totalGB.toFixed(1);
+            window.projects[projId].d_raw_status = 'dumped';
+          }
+          if (typeof showToast === 'function') showToast('✅ ' + summaryMsg + ' added to Project Data Log!');
+          // Refresh data log tab if open
+          if (typeof loadDataLog === 'function') loadDataLog();
+          if (typeof renderDataVault === 'function') renderDataVault();
+        }
+      });
     });
   }
+};
 
-  // ── Preset mode: handles both legacy-key terms (p20, p60…) and kb_* key terms ──
-  var generalUsed=0;
-  var carry=0;
-  var credit=0;   // money already paid beyond a stage's amount — deducted from the next stage
-  // Forward map: preset term key → equivalent kb_* key in ledger
-  var LEGACY_TO_KB={
-    p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', p50c:'kb_advance', cp0:'kb_advance', p50d:'kb_event',
-    p50:'kb_event',   p60:'kb_event',
-    event2:'kb_event2', event3:'kb_event3', event4:'kb_event4',
-    p40:'kb_prewed',  p30b:'kb_prewed',
-    p10a:'kb_rawdata',p10:'kb_rawdata',
-    p5a:'kb_teaser',
-    p5b:'kb_final',   p10b:'kb_final',  p10c:'kb_final',  pfinal:'kb_final',  p50b:'kb_final'
+// ── 4. KB.Production Budget & Margin Extension ────────────────────────────────
+window.KB.Production.calcProjectBudget = function(p) {
+  if (!p) return { crewCost: 0, travelCost: 0, postCost: 0, totalCost: 0, netVal: 0, profit: 0, marginPct: 0 };
+  var net = (typeof netVal === 'function') ? netVal(p) : Math.max(0, (parseInt(p.value)||0) - (parseInt(p.discount)||0));
+
+  // 1. Calculate Crew Cost from assigned event days
+  var crewCost = 0;
+  var flMap = window.freelancerData || {};
+  (p.eventDays || []).forEach(function(day) {
+    if (!day) return;
+    // Check assigned team members / freelancers
+    var assigned = [];
+    if (day.crew && typeof day.crew === 'object') {
+      assigned = Object.values(day.crew);
+    } else if (Array.isArray(day.assigned)) {
+      assigned = day.assigned;
+    }
+    // Also check photographer/videographer/drone keys
+    ['photographer', 'videographer', 'drone', 'lead', 'candid'].forEach(function(role) {
+      if (day[role]) assigned.push(day[role]);
+    });
+
+    assigned.forEach(function(memberId) {
+      if (!memberId) return;
+      var fl = flMap[memberId];
+      if (fl && fl.rate) {
+        crewCost += (parseInt(fl.rate) || 0);
+      } else {
+        // Default estimate if not specifically priced
+        crewCost += 7000;
+      }
+    });
+  });
+
+  // If manual crew costs are already recorded in p.crewCosts, use the actual recorded sum
+  if (p.crewCosts && Array.isArray(p.crewCosts) && p.crewCosts.length) {
+    var actualCrew = p.crewCosts.reduce(function(a, c) { return a + (parseInt(c.agreedRate || c.rate || c.amount) || 0); }, 0);
+    if (actualCrew > 0) crewCost = actualCrew;
+  }
+
+  // 2. Additional project expenses stored in project
+  var travelCost = parseInt(p.budget_travel) || 0;
+  var gearCost = parseInt(p.budget_gear) || 0;
+  var editorCost = parseInt(p.budget_editor) || (p.package && /cinema|film/i.test(p.package) ? 20000 : 12000);
+  var albumCost = parseInt(p.budget_album) || (p.package && /album/i.test(p.package) ? 14000 : 8000);
+
+  var totalCost = crewCost + travelCost + gearCost + editorCost + albumCost;
+  var profit = net - totalCost;
+  var marginPct = net > 0 ? Math.round((profit / net) * 100) : 0;
+
+  return {
+    netVal: net,
+    crewCost: crewCost,
+    travelCost: travelCost,
+    gearCost: gearCost,
+    editorCost: editorCost,
+    albumCost: albumCost,
+    totalCost: totalCost,
+    profit: profit,
+    marginPct: marginPct
   };
-  // A payment recorded under a stage name that matches NO stage of this project's plan used to be
-  // ignored here (while still reducing the balance), so stage dues added up to more than what is
-  // really owed. Count such money as a general payment, applied to the earliest unpaid stage.
-  function _stageMatchesAnyTerm(stageVal) {
-    return terms.some(function(tm, ti){
-      var kbE = LEGACY_TO_KB[tm.key] || null;
-      return stageMatches(stageVal, tm.key)
-        || (kbE && stageMatches(stageVal, kbE))
-        || (_KB_TO_LEGACY_KEYS[tm.key] || []).some(function(lk){ return stageMatches(stageVal, lk); })
-        || (ti === 0 && isAdvanceStageKey(stageVal));
-    });
+};
+
+window.KB.Production.renderBudgetCard = function(projId) {
+  var p = (window.projects && window.projects[projId]) || null;
+  var container = document.getElementById('proj-prod-budget-card');
+  if (!container || !p) return;
+
+  var b = this.calcProjectBudget(p);
+  var marginColor = b.profit >= 0 ? (b.marginPct >= 40 ? '#16a34a' : '#d97706') : '#dc2626';
+
+  container.innerHTML =
+    '<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:16px;box-shadow:0 4px 16px rgba(0,0,0,.04);margin-top:16px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;border-bottom:1px solid #f1f5f9;padding-bottom:10px">' +
+        '<div>' +
+          '<div style="font-size:11px;font-weight:700;color:#0284c7;letter-spacing:1px;text-transform:uppercase">📊 Production Budget & Profit Planner (v75.0)</div>' +
+          '<div style="font-size:15px;font-weight:800;color:#0f172a;margin-top:2px">Studio Margin: <span style="color:' + marginColor + '">' + b.marginPct + '%</span> (' + (b.profit >= 0 ? '₹' + b.profit.toLocaleString('en-IN') + ' Net Profit' : 'Loss of ₹' + Math.abs(b.profit).toLocaleString('en-IN')) + ')</div>' +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:600">Client Revenue</div>' +
+          '<div style="font-size:16px;font-weight:800;color:#0f172a">₹' + b.netVal.toLocaleString('en-IN') + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:14px">' +
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:600">📸 Shoot Crew Cost</div>' +
+          '<div style="font-size:14px;font-weight:800;color:#1e293b;margin-top:2px">₹' + b.crewCost.toLocaleString('en-IN') + '</div>' +
+          '<div style="font-size:9px;color:#94a3b8">Day-rate auto-sum</div>' +
+        '</div>' +
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:600">🚗 Travel & Stay</div>' +
+          '<div style="font-size:14px;font-weight:800;color:#1e293b;margin-top:2px">₹' + b.travelCost.toLocaleString('en-IN') + '</div>' +
+          '<div style="font-size:9px;color:#94a3b8">Logistics cost</div>' +
+        '</div>' +
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:600">🎞️ Editing & Post</div>' +
+          '<div style="font-size:14px;font-weight:800;color:#1e293b;margin-top:2px">₹' + b.editorCost.toLocaleString('en-IN') + '</div>' +
+          '<div style="font-size:9px;color:#94a3b8">Films & Teasers</div>' +
+        '</div>' +
+        '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:600">📖 Album & Delivery</div>' +
+          '<div style="font-size:14px;font-weight:800;color:#1e293b;margin-top:2px">₹' + b.albumCost.toLocaleString('en-IN') + '</div>' +
+          '<div style="font-size:9px;color:#94a3b8">Print & Finishing</div>' +
+        '</div>' +
+        '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px">' +
+          '<div style="font-size:10px;color:#dc2626;font-weight:700">📉 Total Project Cost</div>' +
+          '<div style="font-size:14px;font-weight:800;color:#dc2626;margin-top:2px">₹' + b.totalCost.toLocaleString('en-IN') + '</div>' +
+          '<div style="font-size:9px;color:#b91c1c">Total studio outflow</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">' +
+        '<div style="font-size:11px;color:#64748b">Adjust additional project expenses:</div>' +
+        '<button class="btn btn-sm" onclick="KB.Production.editBudgetPrompt(\'' + projId + '\')" style="font-size:11px;padding:4px 10px">✏️ Edit Budget Items</button>' +
+      '</div>' +
+    '</div>';
+};
+
+window.KB.Production.editBudgetPrompt = function(projId) {
+  var p = (window.projects && window.projects[projId]) || null;
+  if (!p) return;
+  var travel = prompt('Travel & Stay Allowance (₹):', p.budget_travel || '0');
+  if (travel === null) return;
+  var editor = prompt('Video & Photo Editing Cost (₹):', p.budget_editor || '15000');
+  if (editor === null) return;
+  var album = prompt('Album Printing & Delivery Cost (₹):', p.budget_album || '10000');
+  if (album === null) return;
+
+  var updates = {};
+  updates['crm_projects/' + projId + '/budget_travel'] = parseInt(travel) || 0;
+  updates['crm_projects/' + projId + '/budget_editor'] = parseInt(editor) || 0;
+  updates['crm_projects/' + projId + '/budget_album'] = parseInt(album) || 0;
+
+  db.ref().update(updates, function(err) {
+    if (!err) {
+      p.budget_travel = parseInt(travel) || 0;
+      p.budget_editor = parseInt(editor) || 0;
+      p.budget_album = parseInt(album) || 0;
+      KB.Production.renderBudgetCard(projId);
+      showToast('✅ Project budget updated!');
+    }
+  });
+};
+
+function getPaymentScheduleWithCarryForward(p) {
+  if (!p) return [];
+  if (window.KB && window.KB.Finance && typeof window.KB.Finance.reconcileSchedule === 'function') {
+    return window.KB.Finance.reconcileSchedule(p);
   }
-  ledger.forEach(function(e){
-    if (e.splitAllocation) {
-      e.splitAllocation.forEach(function(al){ if (!_stageMatchesAnyTerm(al.stage)) totalGeneral += (parseInt(al.amount)||0); });
-    } else if (e.stage && e.stage !== 'general' && !_stageMatchesAnyTerm(e.stage)) {
-      totalGeneral += (parseInt(e.amount)||0);
-    }
-  });
-  return terms.map(function(t, idx){
-    var baseExp=_expFromTerm(t, net);
-    // kbEquiv: if term uses preset key (p20), find kb_* ledger entries
-    var kbEquiv=LEGACY_TO_KB[t.key]||null;
-    // legacyEquivs: if term uses kb_* key (from kbSchedule), find p20/p50 ledger entries
-    var legacyEquivs=(_KB_TO_LEGACY_KEYS[t.key])||[];
-    var isFirstStage = (idx === 0);
-    function entryMatchesTerm(stageVal) {
-      return stageMatches(stageVal, t.key)
-        || (kbEquiv && stageMatches(stageVal, kbEquiv))
-        || legacyEquivs.some(function(lk){ return stageMatches(stageVal, lk); })
-        || (isFirstStage && isAdvanceStageKey(stageVal));
-    }
-    var directPaid=ledger.filter(function(e){
-      return !e.splitAllocation && entryMatchesTerm(e.stage);
-    }).reduce(function(a,e){return a+(parseInt(e.amount)||0);},0);
-    var splitPaid=ledger.filter(function(e){return e.splitAllocation;}).reduce(function(a,e){
-      var alloc=e.splitAllocation.find(function(al){ return entryMatchesTerm(al.stage); });
-      return a+(alloc?parseInt(alloc.amount)||0:0);
-    },0);
-    var _needed=baseExp+carry, _useCredit=Math.min(credit,_needed), exp=_needed-_useCredit;
-    var stillDue=Math.max(0,exp-directPaid-splitPaid);
-    var generalForThisStage=Math.max(0,Math.min(stillDue,totalGeneral-generalUsed));
-    generalUsed+=generalForThisStage;
-    var paid=directPaid+splitPaid+generalForThisStage;
-    var shortfall=Math.max(0,exp-paid);
-    var thisDueDate=_stageDue(p, t.key);
-    var item={
-      key:t.key,
-      label:customLabels[t.key+'_label']||t.label,
-      desc:customLabels[t.key+'_desc']||t.desc,
-      pct:t.pct,
-      baseExp:baseExp,
-      carryIn:carry,
-      creditIn:_useCredit,
-      exp:exp,
-      paid:paid,
-      shortfall:shortfall,
-      dueDate:thisDueDate,
-      isEventLinked:isEventLinkedStage(p,t.key)
-    };
-    // Same due-date-aware carry rule as the custom-split branch above.
-    credit = (credit - _useCredit) + Math.max(0, paid - exp);
-    var isOverdueOrUndated = !thisDueDate || thisDueDate <= _todayStr;
-    carry = isOverdueOrUndated ? shortfall : 0;
-    return item;
-  });
+  return [];
 }
 function renderPayLedger(){
   var p=editProjId?projects[editProjId]:null;
@@ -19757,6 +20227,7 @@ function renderPayLedger(){
           '<div style="font-size:12px;color:#16a34a;font-weight:700">'+fmt(s.paid)+' / '+fmt(s.exp)+'</div>'+
           '<div style="font-size:10px;color:#888">'+s.pct+'%'+(s.carryIn>0?' (incl. carry)':'')+'</div>'+
           badge+
+          (!isPaid && s.shortfall > 0 && editProjId ? '<button class="btn btn-sm btn-primary" style="font-size:10px;padding:3px 8px;margin-top:4px;white-space:nowrap" onclick="kbOpenPaymentLinkModal(\'' + editProjId + '\',\'' + s.key + '\',\'' + escHtml(s.label) + '\',' + s.shortfall + ')">🔗 Send Link</button>' : '')+
         '</div>'+
       '</div>'+
     '</div>';
@@ -25156,6 +25627,7 @@ function buildSidebar() {
 
 // ═══ openProject — tab-aware + role-filtered ═══════════════════════════════════
 function openProject(id, tabId) {
+  setTimeout(function(){ if (window.KB && window.KB.Production) window.KB.Production.renderBudgetCard(id); }, 150);
   var p = projects[id]; if (!p) return;
   editProjId = id;
   document.getElementById('proj-modal-title').textContent = coupleName(p.bride, p.groom);
@@ -25468,79 +25940,205 @@ function switchFuturePayTab(tab, btn) {
 function renderFuturePayments() {
   var el = document.getElementById('pay-future-section');
   if (!el) return;
-  var list = pl().filter(function(p) { return p.stage !== 'complete'; });
+  window._futurePayTab = window._futurePayTab || 'forecast';
+  window._forecastWindow = window._forecastWindow || 'month';
 
-  // ── Build "next milestone due" per client from the carry-forward schedule ──
-  var upcoming = [];
+  var list = pl().filter(function(p) { return p.stage !== 'complete' && p.stage !== 'lost'; });
+  var today = new Date();
+  var todayStr = today.toISOString().slice(0, 10);
+
+  // Time window bounds
+  var startStr = todayStr;
+  var endStr = '';
+  if (window._forecastWindow === 'week') {
+    var endD = new Date(today.getTime() + 7 * 86400000);
+    endStr = endD.toISOString().slice(0, 10);
+  } else if (window._forecastWindow === 'next_week') {
+    var sD = new Date(today.getTime() + 7 * 86400000);
+    var eD = new Date(today.getTime() + 14 * 86400000);
+    startStr = sD.toISOString().slice(0, 10);
+    endStr = eD.toISOString().slice(0, 10);
+  } else if (window._forecastWindow === 'month') {
+    var curY = today.getFullYear(), curM = today.getMonth();
+    var lastDay = new Date(curY, curM + 1, 0).getDate();
+    startStr = curY + '-' + String(curM + 1).padStart(2, '0') + '-01';
+    endStr = curY + '-' + String(curM + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+  } else if (window._forecastWindow === 'next_month') {
+    var nextY = today.getMonth() === 11 ? today.getFullYear() + 1 : today.getFullYear();
+    var nextM = (today.getMonth() + 1) % 12;
+    var lastDayN = new Date(nextY, nextM + 1, 0).getDate();
+    startStr = nextY + '-' + String(nextM + 1).padStart(2, '0') + '-01';
+    endStr = nextY + '-' + String(nextM + 1).padStart(2, '0') + '-' + String(lastDayN).padStart(2, '0');
+  }
+
+  // ── Bucket 1: Event-Based Inflows (Shoots occurring in this window) ──────────
+  var eventInflows = [];
+  var totalEventDue = 0;
+
   list.forEach(function(p) {
-    var schedule = getPaymentScheduleWithCarryForward(p);
-    var next = schedule.find(function(s) { return s.paid < s.exp; });
-    if (!next) return; // fully paid
-    var days = next.dueDate ? daysUntil(next.dueDate) : null;
-    upcoming.push({ p: p, stage: next, days: days });
+    var sch = (window.KB && window.KB.Finance) ? window.KB.Finance.reconcileSchedule(p) : [];
+    // Find all shoot days for this project
+    var shoots = [];
+    if (p.eventDays && Array.isArray(p.eventDays)) {
+      p.eventDays.forEach(function(ed) {
+        if (ed && ed.date) shoots.push({ date: ed.date, type: ed.type || ed.label || 'Shoot' });
+      });
+    }
+    if (!shoots.length && p.date) shoots.push({ date: p.date, type: 'Wedding / Main Shoot' });
+
+    shoots.forEach(function(sh) {
+      var inWindow = (!endStr) ? true : (sh.date >= startStr && sh.date <= endStr);
+      if (!inWindow) return;
+
+      // Find the event stage in the schedule
+      var isPrewed = /prewed|pre-wedding/i.test(sh.type);
+      var evStage = sch.find(function(s) {
+        if (isPrewed && s.category === 'prewed') return true;
+        if (!isPrewed && s.category === 'event') return true;
+        return false;
+      }) || sch.find(function(s) { return s.category === 'event' || s.isEventLinked; });
+
+      if (evStage && evStage.shortfall > 0) {
+        totalEventDue += evStage.shortfall;
+        eventInflows.push({
+          p: p,
+          shootDate: sh.date,
+          occasion: sh.type,
+          stage: evStage,
+          amountDue: evStage.shortfall
+        });
+      }
+    });
   });
-  // Sort: dated items soonest-first, then undated items in schedule order (grouped after dated)
-  upcoming.sort(function(a, b) {
-    if (a.days != null && b.days != null) return a.days - b.days;
-    if (a.days != null) return -1;
-    if (b.days != null) return 1;
-    return 0;
+  eventInflows.sort(function(a, b) { return (a.shootDate || '').localeCompare(b.shootDate || ''); });
+
+  // ── Bucket 2: Deliverable Milestone Collections (Ready to Collect) ──────────
+  var deliverableInflows = [];
+  var totalDelivDue = 0;
+
+  list.forEach(function(p) {
+    var sch = (window.KB && window.KB.Finance) ? window.KB.Finance.reconcileSchedule(p) : [];
+    // 1. Raw data ready
+    var rawStage = sch.find(function(s) { return s.category === 'rawdata'; });
+    if (rawStage && rawStage.shortfall > 0 && (p.d_raw_status === 'dumped' || p.d_raw_status === 'ready' || p.stage === 'postprod' || p.stage === 'delivery')) {
+      totalDelivDue += rawStage.shortfall;
+      deliverableInflows.push({ p: p, type: 'Raw Data HDD', status: p.d_raw_status || 'Ready for handover', stage: rawStage, amountDue: rawStage.shortfall });
+    }
+    // 2. Teaser / Highlight ready
+    var teaserStage = sch.find(function(s) { return s.category === 'teaser'; });
+    if (teaserStage && teaserStage.shortfall > 0 && (p.stage === 'postprod' || p.stage === 'delivery')) {
+      totalDelivDue += teaserStage.shortfall;
+      deliverableInflows.push({ p: p, type: 'Teaser & Highlights', status: 'In Review / Ready', stage: teaserStage, amountDue: teaserStage.shortfall });
+    }
+    // 3. Album / Final delivery ready
+    var finalStage = sch.find(function(s) { return s.category === 'final'; });
+    if (finalStage && finalStage.shortfall > 0 && (p.stage === 'delivery' || p.stage === 'payment')) {
+      totalDelivDue += finalStage.shortfall;
+      deliverableInflows.push({ p: p, type: 'Album & Final Handover', status: 'Closing Deliverables', stage: finalStage, amountDue: finalStage.shortfall });
+    }
   });
 
-  // ── Raw data pending: clients whose raw data hasn't been delivered yet ──
-  var rawPending = list.filter(function(p) { return (p.d_raw_status || '') === 'pending'; });
+  // Overall Studio Receivables
+  var totalReceivables = list.reduce(function(a, p) { return a + Math.max(0, balDue(p)); }, 0);
+  var totalPeriodForecast = totalEventDue + totalDelivDue;
 
-  var tabsHtml = '<div style="display:flex;gap:6px;margin-bottom:10px">' +
-    '<button class="future-pay-tab btn btn-sm" onclick="switchFuturePayTab(\'upcoming\',this)" style="font-size:11px;padding:5px 12px;' + (_futurePayTab==='upcoming'?'background:#1d4ed8;color:#fff;font-weight:700':'background:none;color:#888;font-weight:600') + '">📅 Upcoming Payments (' + upcoming.length + ')</button>' +
-    '<button class="future-pay-tab btn btn-sm" onclick="switchFuturePayTab(\'rawdata\',this)" style="font-size:11px;padding:5px 12px;' + (_futurePayTab==='rawdata'?'background:#1d4ed8;color:#fff;font-weight:700':'background:none;color:#888;font-weight:600') + '">🎞️ Raw Data Pending (' + rawPending.length + ')</button>' +
+  // Window labels
+  var winLabels = {
+    week: 'Next 7 Days',
+    next_week: 'Next Week',
+    month: 'This Month (' + today.toLocaleString('default', { month: 'short' }) + ')',
+    next_month: 'Next Month'
+  };
+
+  // Render Tabs & Metrics Header
+  var headerHtml = '<div style="background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:14px;padding:18px 20px;color:#fff;margin-bottom:14px">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">' +
+      '<div>' +
+        '<div style="font-size:11px;font-weight:700;color:#38bdf8;letter-spacing:1px;text-transform:uppercase">🔮 Futuristic Cash Flow & Inflow Forecast</div>' +
+        '<div style="font-size:18px;font-weight:800;color:#fff;margin-top:2px">Wedding Inflows — ' + (winLabels[window._forecastWindow] || 'Forecast') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+        ['week', 'next_week', 'month', 'next_month'].map(function(w) {
+          var sel = window._forecastWindow === w;
+          return '<button class="btn btn-sm" onclick="window._forecastWindow=\'' + w + '\';renderFuturePayments()" style="' + (sel ? 'background:#38bdf8;color:#0f172a;font-weight:800;border:none' : 'background:rgba(255,255,255,.08);color:#cbd5e1;border:1px solid rgba(255,255,255,.15)') + ';font-size:11px;padding:5px 12px;border-radius:8px">' + winLabels[w] + '</button>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px">' +
+      '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px">' +
+        '<div style="font-size:10px;color:#94a3b8;font-weight:600">🎬 Event-Linked Inflows (' + eventInflows.length + ')</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#38bdf8;margin-top:3px">' + fmt(totalEventDue) + '</div>' +
+        '<div style="font-size:10px;color:#64748b">Tied to exact shoot dates</div>' +
+      '</div>' +
+      '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px">' +
+        '<div style="font-size:10px;color:#94a3b8;font-weight:600">📦 Milestone Deliverables (' + deliverableInflows.length + ')</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#34d399;margin-top:3px">' + fmt(totalDelivDue) + '</div>' +
+        '<div style="font-size:10px;color:#64748b">Raw HDD, Teasers, Albums ready</div>' +
+      '</div>' +
+      '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px">' +
+        '<div style="font-size:10px;color:#94a3b8;font-weight:600">💰 Total Forecast (' + (winLabels[window._forecastWindow]) + ')</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#fbbf24;margin-top:3px">' + fmt(totalPeriodForecast) + '</div>' +
+        '<div style="font-size:10px;color:#64748b">Predicted Cash Inflow</div>' +
+      '</div>' +
+      '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px">' +
+        '<div style="font-size:10px;color:#94a3b8;font-weight:600">🏦 Total Active Receivables</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#f87171;margin-top:3px">' + fmt(totalReceivables) + '</div>' +
+        '<div style="font-size:10px;color:#64748b">All 250 projects outstanding</div>' +
+      '</div>' +
+    '</div>' +
   '</div>';
 
-  var bodyHtml = '';
-  if (_futurePayTab === 'upcoming') {
-    if (!upcoming.length) {
-      bodyHtml = '<div class="empty" style="padding:16px">No upcoming payments — every active project is fully paid up to its current milestone.</div>';
+  // Sub-tabs
+  var navTabsHtml = '<div style="display:flex;gap:8px;margin-bottom:12px;border-bottom:1px solid #e2e8f0;padding-bottom:8px">' +
+    '<button class="btn btn-sm" onclick="window._futurePayTab=\'forecast\';renderFuturePayments()" style="' + (_futurePayTab==='forecast'?'background:#0f172a;color:#fff;font-weight:700':'background:#f1f5f9;color:#64748b') + ';padding:6px 14px;border-radius:8px">🎬 Event Collections (' + eventInflows.length + ')</button>' +
+    '<button class="btn btn-sm" onclick="window._futurePayTab=\'deliv\';renderFuturePayments()" style="' + (_futurePayTab==='deliv'?'background:#0f172a;color:#fff;font-weight:700':'background:#f1f5f9;color:#64748b') + ';padding:6px 14px;border-radius:8px">📦 Deliverable Milestones (' + deliverableInflows.length + ')</button>' +
+  '</div>';
+
+  var contentHtml = '';
+  if (_futurePayTab === 'forecast') {
+    if (!eventInflows.length) {
+      contentHtml = '<div class="empty" style="padding:24px;text-align:center;color:#94a3b8">No event payments due in this timeframe (' + winLabels[window._forecastWindow] + ').</div>';
     } else {
-      bodyHtml = '<table class="tbl"><thead><tr><th>Client</th><th>Next Milestone</th><th>Amount Due</th><th>When</th><th></th></tr></thead><tbody>' +
-        upcoming.map(function(u) {
-          var s = u.stage;
-          var amtLabel = fmt(s.exp - s.paid) + (s.carryIn > 0 ? ' <span style="color:#d97706;font-size:10px">(incl. ' + fmt(s.carryIn) + ' carried)</span>' : '');
-          var whenHtml;
-          if (u.days != null) {
-            var col = u.days < 0 ? '#dc2626' : u.days <= 7 ? '#d97706' : '#1d4ed8';
-            whenHtml = '<span style="color:' + col + ';font-weight:700">' + (u.days < 0 ? Math.abs(u.days) + ' days overdue' : u.days === 0 ? 'Due today' : 'in ' + u.days + ' days') + '</span> <span style="color:#aaa;font-size:11px">(' + fmtDate(s.dueDate) + ')</span>';
-          } else {
-            whenHtml = '<span style="color:#888;font-size:12px">Awaiting ' + (s.desc || s.label) + '</span>';
-          }
+      contentHtml = '<table class="tbl"><thead><tr><th>Shoot Date</th><th>Couple / Client</th><th>Occasion / Event</th><th>Stage</th><th>Amount Due</th><th>Action</th></tr></thead><tbody>' +
+        eventInflows.map(function(item) {
+          var days = daysUntil(item.shootDate);
+          var daysBadge = days === 0 ? '<span class="badge b-red">TODAY</span>' : (days > 0 ? '<span class="badge b-amber">In ' + days + 'd</span>' : '<span class="badge b-red">' + Math.abs(days) + 'd overdue</span>');
           return '<tr>' +
-            '<td><b>' + coupleName(u.p.bride, u.p.groom) + '</b><div style="font-size:10px;color:#aaa">' + (u.p.state || u.p.city || '') + '</div></td>' +
-            '<td><span class="badge b-blue">' + s.label + '</span></td>' +
-            '<td style="font-weight:700;color:#16a34a">' + amtLabel + '</td>' +
-            '<td>' + whenHtml + '</td>' +
-            '<td><button class="btn btn-sm" onclick="openProjectPayments(' + u.p.id + ')">View</button></td>' +
+            '<td><div style="font-weight:700;color:#1e293b">' + fmtDate(item.shootDate) + '</div><div style="margin-top:2px">' + daysBadge + '</div></td>' +
+            '<td><div style="font-weight:800;color:#0f172a">' + coupleName(item.p.bride, item.p.groom) + '</div><div style="font-size:10px;color:#64748b">' + (item.p.city || item.p.venue || '') + '</div></td>' +
+            '<td><span class="badge b-purple">' + escHtml(item.occasion) + '</span></td>' +
+            '<td><div style="font-weight:600;color:#334155">' + escHtml(item.stage.label) + '</div></td>' +
+            '<td><div style="font-size:14px;font-weight:800;color:#16a34a">' + fmt(item.amountDue) + '</div></td>' +
+            '<td><div style="display:flex;gap:4px">' +
+              '<button class="btn btn-sm btn-primary" style="font-size:10px;padding:4px 8px" onclick="kbOpenPaymentLinkModal(\'' + item.p.id + '\', \'' + item.stage.key + '\', \'' + escHtml(item.stage.label) + '\', ' + item.amountDue + ')">🔗 Send Link</button>' +
+              '<button class="btn btn-sm" style="font-size:10px;padding:4px 8px" onclick="openProjectPayments(' + item.p.id + ')">Ledger</button>' +
+            '</div></td>' +
           '</tr>';
         }).join('') + '</tbody></table>';
     }
   } else {
-    if (!rawPending.length) {
-      bodyHtml = '<div class="empty" style="padding:16px">No clients pending raw data delivery.</div>';
+    if (!deliverableInflows.length) {
+      contentHtml = '<div class="empty" style="padding:24px;text-align:center;color:#94a3b8">No deliverable milestone payments currently pending handover.</div>';
     } else {
-      bodyHtml = '<table class="tbl"><thead><tr><th>Client</th><th>Shoot Date</th><th>Raw Data Size</th><th>Balance Due</th><th></th></tr></thead><tbody>' +
-        rawPending.map(function(p) {
-          var bal = balDue(p);
+      contentHtml = '<table class="tbl"><thead><tr><th>Deliverable</th><th>Couple / Client</th><th>Current Status</th><th>Milestone Stage</th><th>Amount Due</th><th>Action</th></tr></thead><tbody>' +
+        deliverableInflows.map(function(item) {
           return '<tr>' +
-            '<td><b>' + coupleName(p.bride, p.groom) + '</b><div style="font-size:10px;color:#aaa">' + (p.state || p.city || '') + '</div></td>' +
-            '<td>' + fmtDate(p.date || '') + '</td>' +
-            '<td>' + (p.d_raw_qty ? p.d_raw_qty + ' ' + (p.d_raw_unit || 'GB') : '—') + '</td>' +
-            '<td style="font-weight:700;color:' + (bal > 0 ? '#dc2626' : '#16a34a') + '">' + fmt(bal) + '</td>' +
-            '<td><button class="btn btn-sm" onclick="openProject(' + p.id + ',\'t-deliv\')">View</button></td>' +
+            '<td><div style="font-weight:700;color:#1e293b">' + escHtml(item.type) + '</div></td>' +
+            '<td><div style="font-weight:800;color:#0f172a">' + coupleName(item.p.bride, item.p.groom) + '</div><div style="font-size:10px;color:#64748b">' + (item.p.city || '') + '</div></td>' +
+            '<td><span class="badge b-blue">' + escHtml(item.status) + '</span></td>' +
+            '<td><div style="font-weight:600;color:#334155">' + escHtml(item.stage.label) + '</div></td>' +
+            '<td><div style="font-size:14px;font-weight:800;color:#16a34a">' + fmt(item.amountDue) + '</div></td>' +
+            '<td><div style="display:flex;gap:4px">' +
+              '<button class="btn btn-sm btn-primary" style="font-size:10px;padding:4px 8px" onclick="kbOpenPaymentLinkModal(\'' + item.p.id + '\', \'' + item.stage.key + '\', \'' + escHtml(item.stage.label) + '\', ' + item.amountDue + ')">🔗 Send Link</button>' +
+              '<button class="btn btn-sm" style="font-size:10px;padding:4px 8px" onclick="openProject(' + item.p.id + ', \'t-deliv\')">Deliverables</button>' +
+            '</div></td>' +
           '</tr>';
         }).join('') + '</tbody></table>';
     }
   }
 
-  el.innerHTML = '<div class="card">' +
-    '<div class="card-hdr"><span class="card-title">🔮 Future Payments — Accounts Outlook</span></div>' +
-    tabsHtml + bodyHtml +
+  el.innerHTML = '<div class="card" style="padding:16px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.04);border:1px solid #e2e8f0">' +
+    headerHtml + navTabsHtml + contentHtml +
   '</div>';
 }
 
@@ -27957,23 +28555,16 @@ function buildPayScheduleSection(paySchedule) {
 // still sums to exactly the invoice's real Balance Due, and nothing is
 // silently hidden from the client.
 function _getReconciledPaySchedule(p) {
-  var schedule = getPaymentScheduleWithCarryForward(p);
-  var creditCarry = 0;
+  var schedule = (window.KB && window.KB.Finance) ? window.KB.Finance.reconcileSchedule(p) : getPaymentScheduleWithCarryForward(p);
   return schedule.map(function(t) {
-    var isSettled = t.paid >= t.baseExp; // this row is fully covered (possibly overpaid)
-    if (isSettled) {
-      creditCarry += (t.paid - t.baseExp); // carry only the true extra forward
-      return { label: t.label, desc: t.desc, pct: t.pct, amount: t.paid, paidAmount: t.paid, status: 'paid' };
-    }
-    var amount = t.baseExp;
-    if (creditCarry > 0 && amount > 0) {
-      var applied = Math.min(creditCarry, amount);
-      amount -= applied;
-      creditCarry -= applied;
-    }
-    var paidAmount = Math.min(t.paid, amount);
-    var status = (amount <= 0) ? 'paid' : (paidAmount > 0 ? 'partial' : 'pending');
-    return { label: t.label, desc: t.desc, pct: t.pct, amount: amount, paidAmount: paidAmount, status: status };
+    return {
+      label: t.label,
+      desc: t.desc,
+      pct: t.pct,
+      amount: t.baseExp,
+      paidAmount: t.paid,
+      status: t.status
+    };
   });
 }
 
@@ -32193,8 +32784,9 @@ function convertQuotToProject(overrideId) {
   var advPayment = q.advancePayment;
   var advAmt = q.advancePaid || 0;
   if (advAmt > 0 && advPayment) {
+    var advStageKey = (projData.payPreset === 'custom' && projData.customPayTerms && projData.customPayTerms[0] && projData.customPayTerms[0].key) ? projData.customPayTerms[0].key : 'kb_advance';
     var _advEntry = {
-      stage: 'kb_advance',   // matches kbSchedule stage key (legacy 'p30' is also mapped via KB_TO_LEGACY)
+      stage: advStageKey,   // matches kbSchedule stage key (legacy 'p30' is also mapped via KB_TO_LEGACY)
       amount: advAmt,
       date: advPayment.date || '',
       mode: advPayment.mode || 'UPI',
@@ -36121,13 +36713,37 @@ function renderClientPortal(container, p, projId) {
   }).join('') : '<div style="text-align:center;padding:20px;color:#aaa;font-size:13px">📦 Deliverables will appear here once your project enters post-production.</div>';
 
   // ── Payment ────────────────────────────────────────────────────────────────
+  var sch = (window.KB && window.KB.Finance) ? window.KB.Finance.reconcileSchedule(p) : [];
+  var cName = coupleName(p.bride, p.groom);
+
+  var milestonesListHtml = sch.length ? sch.map(function(st) {
+    var isDone = st.isSettled;
+    var payBtnHtml = '';
+    if (!isDone && st.shortfall > 0) {
+      payBtnHtml = '<button onclick="KB.Finance.payWithRazorpay(\'' + projId + '\', \'' + st.key + '\', ' + st.shortfall + ', \'' + escHtml(cName) + '\', \'' + (p.phone||'') + '\', \'' + (p.email||'') + '\')" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px">⚡ Pay ₹' + st.shortfall.toLocaleString('en-IN') + ' Online</button>';
+    }
+    return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">' +
+      '<div>' +
+        '<div style="font-size:13px;font-weight:700;color:#1e293b">' + escHtml(st.label) + '</div>' +
+        '<div style="font-size:11px;color:#64748b">' + (st.desc || (st.pct ? st.pct + '% milestone' : '')) + (st.dueDate ? ' · Due: ' + fmtDate(st.dueDate) : '') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:13px;font-weight:800;color:' + (isDone ? '#16a34a' : '#0f172a') + '">₹' + st.baseExp.toLocaleString('en-IN') + '</div>' +
+          '<div style="font-size:10px;font-weight:600;color:' + (isDone ? '#16a34a' : '#d97706') + '">' + (isDone ? '✓ Settled' : 'Pending: ₹' + st.shortfall.toLocaleString('en-IN')) + '</div>' +
+        '</div>' +
+        payBtnHtml +
+      '</div>' +
+    '</div>';
+  }).join('') : '';
+
   var paymentsHTML = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
     + '<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:3px;font-weight:600">Total Value</div><div style="font-size:17px;font-weight:800;color:#1a1a1a">₹'+net.toLocaleString('en-IN')+'</div></div>'
     + '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:3px;font-weight:600">Paid</div><div style="font-size:17px;font-weight:800;color:#16a34a">₹'+paid.toLocaleString('en-IN')+'</div></div>'
     + '<div style="background:'+(bal>0?'#fef2f2':'#f0fdf4')+';border:1px solid '+(bal>0?'#fecaca':'#bbf7d0')+';border-radius:10px;padding:12px;text-align:center"><div style="font-size:10px;color:#888;margin-bottom:3px;font-weight:600">Balance</div><div style="font-size:17px;font-weight:800;color:'+(bal>0?'#dc2626':'#16a34a')+'">₹'+bal.toLocaleString('en-IN')+'</div></div>'
-    + '</div>';
+    + '</div>'
+    + (milestonesListHtml ? '<div style="margin-top:14px"><div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px">Milestones & Online Payment:</div>' + milestonesListHtml + '</div>' : '');
 
-  // ── Issues section ─────────────────────────────────────────────────────────
   var issuesSectionHTML = '<div style="background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 2px 12px rgba(0,0,0,.06)">'
     + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
       + '<div style="font-size:14px;font-weight:800">🚩 Raise an Issue</div>'
@@ -41417,3 +42033,66 @@ function renderCrewCosts(){
 </script>
 </body>
 </html>
+
+
+
+
+// ── Payment Link & WhatsApp Modal (Razorpay / UPI) ───────────────────────────
+window.kbOpenPaymentLinkModal = function(projId, stageKey, stageLabel, amount) {
+  var p = (window.projects && window.projects[projId]) || null;
+  if (!p) { showToast('Project not found'); return; }
+  var cName = coupleName(p.bride, p.groom);
+  var phone = p.phone || '';
+  var cfg = (window.KB && window.KB.Finance) ? window.KB.Finance.getRazorpayConfig() : { upiId: 'teamkbstudio@okhdfcbank' };
+  var token = p.portalToken || (p.id + '_kbportal');
+  var baseUrl = window.location.origin + window.location.pathname;
+  var portalUrl = baseUrl + '?portal=' + token + '_' + p.id + '#pay';
+  var upiLink = (window.KB && window.KB.Finance) ? window.KB.Finance.getUpiLink(amount, stageLabel, p.refcode) : '';
+
+  var waText = 'Dear ' + cName + ',\n\n' +
+    'Greetings from KB Studio Productions! 🌹\n\n' +
+    'Your payment of *₹' + amount.toLocaleString('en-IN') + '* for *' + (stageLabel || 'Wedding Milestone') + '* is now due.\n\n' +
+    'You can view your project timeline and pay securely online (via UPI / Cards / NetBanking) using your client portal:\n' +
+    '👉 ' + portalUrl + '\n\n' +
+    'Or pay directly via UPI ID: ' + cfg.upiId + '\n\n' +
+    'Thank you,\nTeam KB Studio Productions';
+
+  var waUrl = 'https://wa.me/' + (phone.replace(/[^0-9]/g, '')) + '?text=' + encodeURIComponent(waText);
+
+  var modalId = 'kb-pay-link-modal';
+  var ex = document.getElementById(modalId);
+  if (ex) ex.remove();
+
+  var modal = document.createElement('div');
+  modal.id = modalId;
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:18px;max-width:500px;width:100%;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.3);position:relative;font-family:system-ui,sans-serif">' +
+      '<button onclick="document.getElementById(\'' + modalId + '\').remove()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8">✕</button>' +
+      '<div style="font-size:11px;font-weight:700;color:#1d4ed8;letter-spacing:1px;text-transform:uppercase">💳 Smart Payment Link & Razorpay</div>' +
+      '<div style="font-size:18px;font-weight:800;color:#0f172a;margin-top:3px">' + escHtml(cName) + '</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:16px">' + escHtml(stageLabel) + ' · <strong style="color:#16a34a;font-size:14px">₹' + amount.toLocaleString('en-IN') + '</strong></div>' +
+
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin-bottom:14px">' +
+        '<div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">🔗 Client Portal Payment Link</div>' +
+        '<div style="display:flex;gap:6px">' +
+          '<input type="text" readonly value="' + portalUrl + '" id="kb-pl-input" style="flex:1;font-size:11px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-family:monospace">' +
+          '<button class="btn btn-sm" onclick="navigator.clipboard.writeText(\'' + portalUrl + '\');showToast(\'🔗 Link copied!\')" style="font-size:11px;padding:8px 12px;background:#0f172a;color:#fff;border-radius:8px">Copy</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">' +
+        '<a href="' + waUrl + '" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:6px;background:#25d366;color:#fff;text-decoration:none;font-weight:700;font-size:12px;padding:10px;border-radius:10px;text-align:center">' +
+          '<span>💬 Send on WhatsApp</span>' +
+        '</a>' +
+        '<button onclick="KB.Finance.payWithRazorpay(\'' + projId + '\', \'' + stageKey + '\', ' + amount + ', \'' + escHtml(cName) + '\', \'' + phone + '\', \'' + (p.email||'') + '\', function(){ document.getElementById(\'' + modalId + '\').remove(); });" style="display:flex;align-items:center;justify-content:center;gap:6px;background:#0f172a;color:#fff;border:none;font-weight:700;font-size:12px;padding:10px;border-radius:10px;cursor:pointer">' +
+          '<span>⚡ Pay via Razorpay</span>' +
+        '</button>' +
+      '</div>' +
+
+      '<div style="font-size:11px;color:#64748b;line-height:1.4;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px">' +
+        '<b>💡 Automated Flow:</b> When the client pays online through this link, their payment will instantly record into this project\'s payment ledger in Firebase with zero manual entry.' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+};
