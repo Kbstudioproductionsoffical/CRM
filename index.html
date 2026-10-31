@@ -1743,6 +1743,11 @@ document.addEventListener('wheel', function(e) {
           <button class="btn btn-sm btn-primary" style="font-weight:700" onclick="dwsShow()">👁️ View here</button>
           <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="dwsExportExcel()">📊 Excel</button>
           <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="dwsExportPDF()">🧾 PDF</button>
+          <span style="display:inline-flex;gap:6px;align-items:center;margin-left:auto">
+            <input id="dws-find" list="dws-find-list" class="fi" autocomplete="off" placeholder="🔎 Check any client — type a name" style="width:240px;padding:6px 10px;font-size:12px" onfocus="dwsFindFill()" onkeydown="if(event.key==='Enter')dwsFindClient()">
+            <datalist id="dws-find-list"></datalist>
+            <button class="btn btn-sm" style="font-weight:700" onclick="dwsFindClient()">🔍 Why this amount?</button>
+          </span>
         </div>
         <div id="dws-view" style="margin-bottom:16px"></div>
         <div class="metrics" id="pay-metrics" style="display:none"></div>
@@ -16691,11 +16696,33 @@ function _dwsAuditData(p) {
   });
   sch.forEach(function (st) {
     if (st.carryIn > 0) flags.push('"' + st.label + '" includes ' + inr(st.carryIn) + ' carried forward from an earlier stage that is unpaid and already due.');
-    if (st.paid > st.exp + 1) flags.push('"' + st.label + '" is overpaid by ' + inr(st.paid - st.exp) + '.');
+    if (st.paid > st.exp + 1) flags.push('"' + st.label + '" is overpaid by ' + inr(st.paid - st.exp) + ' — this credit is deducted from the next stage.');
+    if (st.creditIn > 0) flags.push('"' + st.label + '" is reduced by ' + inr(st.creditIn) + ' already paid beyond an earlier stage.');
     if (st.shortfall > 0 && st.shortfall % 500 !== 0) flags.push('"' + st.label + '" has an unusual due amount (' + inr(st.shortfall) + ') — usually means a part-payment or a payment recorded against the wrong stage.');
     if (st.shortfall > 0 && !st.dueDate && st.isEventLinked) flags.push('"' + st.label + '" is tied to the event but has no due date saved.');
   });
   return { terms: terms, net: net, ledger: ledger, sch: sch, flags: flags, matchTerm: matchTerm, inr: inr };
+}
+
+// Look up ANY client (even one missing from the schedule) and explain their payment numbers
+function _dwsClientLabel(p) { return coupleName(p.bride, p.groom) + ' (' + (p.city || p.state || '—') + ') · ' + (p.refcode || p.id); }
+function dwsFindFill() {
+  var dl = document.getElementById('dws-find-list'); if (!dl) return;
+  dl.innerHTML = pl().map(function (p) { return '<option value="' + escHtml(_dwsClientLabel(p)) + '">'; }).join('');
+}
+function dwsFindClient() {
+  var el = document.getElementById('dws-find'); var q = ((el && el.value) || '').trim().toLowerCase();
+  if (!q) { showToast('Type a client name first'); return; }
+  var list = pl();
+  var hit = list.find(function (p) { return _dwsClientLabel(p).toLowerCase() === q; });
+  if (!hit) {
+    var m = list.filter(function (p) { return _dwsClientLabel(p).toLowerCase().indexOf(q) >= 0; });
+    if (m.length === 1) hit = m[0];
+    else if (m.length > 1) { showToast(m.length + ' clients match — pick one from the list'); dwsFindFill(); return; }
+  }
+  if (!hit) { showToast('No client found for "' + el.value + '"'); return; }
+  var pid = hit.id != null ? hit.id : Object.keys(projects).find(function (k) { return projects[k] === hit; });
+  dwsExplain(pid);
 }
 function dwsExplainClose() { var o = document.getElementById('dws-explain'); if (o) o.remove(); }
 function dwsExplain(pid) {
@@ -16704,12 +16731,16 @@ function dwsExplain(pid) {
   var A = _dwsAuditData(p), inr = A.inr;
   var th = 'padding:7px 9px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#475569;background:#f1f5f9';
   var td = 'padding:8px 9px;border-bottom:1px solid #f1f5f9;font-size:12.5px';
+  var _why = [];
+  if (p.stage === 'complete') _why.push('This project is marked COMPLETE, so it is left out of the payment schedule.');
+  if (balDue(p) <= 0) _why.push('Nothing is outstanding (paid in full), so there is nothing to schedule.');
   var h = '<div id="dws-explain" style="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)dwsExplainClose()">' +
     '<div style="background:#fff;border-radius:16px;max-width:860px;width:100%;max-height:90vh;overflow:auto;padding:20px 22px">' +
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div>' +
       '<div style="font-size:17px;font-weight:800">' + escHtml(coupleName(p.bride, p.groom)) + ' — why these amounts?</div>' +
       '<div style="font-size:12px;color:#64748b;margin-top:3px">Project value ' + inr(parseInt(p.value) || 0) + ' − discount ' + inr(parseInt(p.discount) || 0) + ' = <b>net ' + inr(A.net) + '</b> · Paid ' + inr(paidTotal(p)) + ' · <b style="color:#dc2626">Balance ' + inr(balDue(p)) + '</b></div></div>' +
       '<button class="btn btn-sm" onclick="dwsExplainClose()">✕ Close</button></div>';
+  if (_why.length) h += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin:14px 0 0;font-size:12.5px;color:#1e3a8a">ℹ️ ' + _why.map(escHtml).join('<br>ℹ️ ') + '</div>';
   if (A.flags.length) {
     h += '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin:14px 0"><div style="font-weight:800;color:#c2410c;margin-bottom:5px">⚠️ What can make this wrong</div>' +
       A.flags.map(function (f) { return '<div style="font-size:12.5px;color:#7c2d12;margin:3px 0">• ' + escHtml(f) + '</div>'; }).join('') + '</div>';
@@ -16717,11 +16748,11 @@ function dwsExplain(pid) {
     h += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin:14px 0;color:#166534;font-size:12.5px;font-weight:600">✓ Nothing unusual found — the amounts follow the plan and the recorded payments.</div>';
   }
   h += '<div style="font-weight:800;margin:6px 0">Stage by stage</div><div style="overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr>' +
-    ['Stage', 'Plan %', 'Planned', '+ Carried in', 'Paid', 'Due now', 'Due date'].map(function (x, i) { return '<th style="' + th + (i ? ';text-align:right' : '') + '">' + x + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    ['Stage', 'Plan %', 'Planned', '± Carried in', 'Paid', 'Due now', 'Due date'].map(function (x, i) { return '<th style="' + th + (i ? ';text-align:right' : '') + '">' + x + '</th>'; }).join('') + '</tr></thead><tbody>' +
     A.sch.map(function (st) {
       var sc = '<td style="' + td + ';text-align:right">';
       return '<tr><td style="' + td + ';font-weight:700">' + escHtml(st.label) + '</td>' + sc + (st.pct != null ? st.pct + '%' : '—') + '</td>' + sc + inr(st.baseExp) + '</td>' +
-        sc + (st.carryIn ? '<span style="color:#c2410c">+' + inr(st.carryIn) + '</span>' : '—') + '</td>' + sc + inr(st.paid) + '</td>' +
+        sc + (st.carryIn ? '<span style="color:#c2410c">+' + inr(st.carryIn) + '</span>' : '') + (st.creditIn ? '<span style="color:#16a34a">−' + inr(st.creditIn) + ' credit</span>' : '') + ((!st.carryIn && !st.creditIn) ? '—' : '') + '</td>' + sc + inr(st.paid) + '</td>' +
         sc + '<b style="color:' + (st.shortfall ? '#dc2626' : '#16a34a') + '">' + (st.shortfall ? inr(st.shortfall) : 'Paid ✓') + '</b></td>' + sc + (st.dueDate ? _dwsDateLabel(st.dueDate) : '—') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
   h += '<div style="font-weight:800;margin:16px 0 6px">Payments received (and which stage each one counted toward)</div>';
@@ -17074,7 +17105,27 @@ function _erpFilteredProjects() {
 // Each instalment is independent: its expected amount = net × pct/100 exactly.
 // Paid is the SUM of all ledger entries tagged to that stage (direct + split allocations).
 // Balance = max(0, expected − paid). Surplus on one stage does NOT reduce another's due.
+// ONE payment calculation for the whole CRM. Every screen (Payments list, KPIs, aging, reminders,
+// client statement, schedule) reads stage dues through here, and this reads the same carry-forward
+// schedule the project's Payments tab shows — so the numbers can never disagree between screens.
 function _erpBuildInstalments(p) {
+  var sch = null;
+  try { sch = getPaymentScheduleWithCarryForward(p); } catch (e) { sch = null; }
+  if (!sch || !sch.length) return _erpBuildInstalmentsLegacy(p);
+  return sch.map(function (st, idx) {
+    // money carried into the next stage is shown there — don't count it twice
+    var carriedOut = (sch[idx + 1] && sch[idx + 1].carryIn) || 0;
+    var balance = Math.max(0, (st.shortfall || 0) - carriedOut);
+    return {
+      key: st.key, label: st.label, desc: st.desc || '', pct: st.pct,
+      expected: st.baseExp, paid: st.paid, balance: balance,
+      surplus: Math.max(0, (st.paid || 0) - (st.exp || 0)),
+      status: (st.shortfall || 0) === 0 ? 'paid' : (st.paid || 0) === 0 ? 'pending' : 'partial',
+      dueDate: st.dueDate || '', dueNotes: p['pay_' + st.key + '_due_notes'] || ''
+    };
+  });
+}
+function _erpBuildInstalmentsLegacy(p) {
   var terms  = getPayTerms(p);
   var ledger = p.payLedger || [];
   var net    = netVal(p);
@@ -19478,10 +19529,11 @@ function getPaymentScheduleWithCarryForward(p){
 
     var generalUsed = 0;
     var carry = 0;
+    var credit = 0;   // money already paid beyond a stage's amount — deducted from the next stage
     return terms.map(function(t){
       var baseExp = _expFromTerm(t, net);
       var directPaid = customMatched[t.key] || 0;
-      var exp = baseExp + carry;
+      var _needed = baseExp + carry, _useCredit = Math.min(credit, _needed), exp = _needed - _useCredit;
       var stillDue = Math.max(0, exp - directPaid);
       var generalForThisStage = Math.max(0, Math.min(stillDue, totalGeneral - generalUsed));
       generalUsed += generalForThisStage;
@@ -19495,6 +19547,7 @@ function getPaymentScheduleWithCarryForward(p){
         pct: t.pct,
         baseExp: baseExp,
         carryIn: carry,
+        creditIn: _useCredit,
         exp: exp,
         paid: paid,
         shortfall: shortfall,
@@ -19506,6 +19559,7 @@ function getPaymentScheduleWithCarryForward(p){
       // treated as immediately due, matching prior behavior for undated
       // stages like the Advance). A future-dated, merely-unpaid stage no
       // longer inflates every stage that comes after it.
+      credit = (credit - _useCredit) + Math.max(0, paid - exp);
       var isOverdueOrUndated = !thisDueDate || thisDueDate <= _todayStr;
       carry = isOverdueOrUndated ? shortfall : 0;
       return item;
@@ -19515,6 +19569,7 @@ function getPaymentScheduleWithCarryForward(p){
   // ── Preset mode: handles both legacy-key terms (p20, p60…) and kb_* key terms ──
   var generalUsed=0;
   var carry=0;
+  var credit=0;   // money already paid beyond a stage's amount — deducted from the next stage
   // Forward map: preset term key → equivalent kb_* key in ledger
   var LEGACY_TO_KB={
     p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', p50c:'kb_advance', cp0:'kb_advance', p50d:'kb_event',
@@ -19564,7 +19619,7 @@ function getPaymentScheduleWithCarryForward(p){
       var alloc=e.splitAllocation.find(function(al){ return entryMatchesTerm(al.stage); });
       return a+(alloc?parseInt(alloc.amount)||0:0);
     },0);
-    var exp=baseExp+carry;
+    var _needed=baseExp+carry, _useCredit=Math.min(credit,_needed), exp=_needed-_useCredit;
     var stillDue=Math.max(0,exp-directPaid-splitPaid);
     var generalForThisStage=Math.max(0,Math.min(stillDue,totalGeneral-generalUsed));
     generalUsed+=generalForThisStage;
@@ -19578,6 +19633,7 @@ function getPaymentScheduleWithCarryForward(p){
       pct:t.pct,
       baseExp:baseExp,
       carryIn:carry,
+      creditIn:_useCredit,
       exp:exp,
       paid:paid,
       shortfall:shortfall,
@@ -19585,6 +19641,7 @@ function getPaymentScheduleWithCarryForward(p){
       isEventLinked:isEventLinkedStage(p,t.key)
     };
     // Same due-date-aware carry rule as the custom-split branch above.
+    credit = (credit - _useCredit) + Math.max(0, paid - exp);
     var isOverdueOrUndated = !thisDueDate || thisDueDate <= _todayStr;
     carry = isOverdueOrUndated ? shortfall : 0;
     return item;
