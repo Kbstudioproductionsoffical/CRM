@@ -1732,6 +1732,35 @@ document.addEventListener('wheel', function(e) {
         <div style="margin-bottom:10px">
           <button type="button" id="pay-details-toggle" class="btn btn-sm" onclick="togglePayDetails()" style="font-size:11px;color:#888;border-color:#ddd">Show full breakdown ▾</button>
         </div>
+        <div id="dws-bar" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">
+          <span style="font-size:12px;font-weight:700;color:#334155">🗓️ Date-wise Payment Schedule</span>
+          <select id="dws-range" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()">
+            <option value="month">Single month</option>
+            <option value="range">Multiple months (From – To)</option>
+            <option value="year">Full year (Jan – Dec)</option>
+            <option value="fy">Financial year (Apr – Mar)</option>
+            <option value="upcoming">All upcoming</option>
+          </select>
+          <input type="month" id="dws-month" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()">
+          <input type="number" id="dws-year" class="fi" min="2020" max="2100" style="display:none;width:90px;padding:6px 10px;font-size:12px" title="Year (for Financial year this is the starting year, e.g. 2026 = FY 2026-27)" onchange="dwsRangeChanged()">
+          <span id="dws-to-wrap" style="display:none;font-size:12px;color:#475569;align-items:center;gap:6px">to <input type="month" id="dws-month2" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()"></span>
+          <label style="font-size:12px;color:#475569;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="dws-extra" onchange="dwsRangeChanged()"> Also show earlier overdue &amp; no-date payments (at the bottom)</label>
+          <button class="btn btn-sm btn-primary" style="font-weight:700" onclick="dwsShow()">👁️ View here</button>
+          <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="dwsExportExcel()">📊 Excel</button>
+          <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="dwsExportPDF()">🧾 PDF</button>
+          <span style="display:inline-flex;gap:6px;align-items:center;margin-left:auto">
+            <input id="dws-find" list="dws-find-list" class="fi" autocomplete="off" placeholder="🔎 Check any client — type a name" style="width:240px;padding:6px 10px;font-size:12px" onfocus="dwsFindFill()" onkeydown="if(event.key==='Enter')dwsFindClient()">
+            <datalist id="dws-find-list"></datalist>
+            <button class="btn btn-sm" style="font-weight:700" onclick="dwsFindClient()">🔍 Why this amount?</button>
+          </span>
+        </div>
+        
+        <!-- Quick Monthly Cash Inflow Chips -->
+        <div id="dws-quick-months" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:8px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:10px">
+          <span style="font-size:11px;font-weight:700;color:#475569;text-transform:uppercase">📅 Quick Month Check:</span>
+          <div id="dws-month-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        </div>
+<div id="dws-view" style="margin-bottom:16px"></div>
         <div class="metrics" id="pay-metrics" style="display:none"></div>
         <div id="pay-due-alerts" style="margin-bottom:12px"></div>
         <div id="pay-future-section" style="margin-bottom:16px"></div>
@@ -15115,6 +15144,7 @@ function renderPayments(){
     '<div class="metric red"><div class="ml">'+(hasPeriodFilter?'Pending Balance (Period)':'Pending Balance')+'</div><div class="mv">'+fmt(pPen)+'</div>'+(hasPeriodFilter?'<div class="ms">All-time: '+fmt(tPen)+'</div>':'')+'</div>'+
     '<div class="metric red"><div class="ml">'+(hasPeriodFilter?'Overdue Events (Period)':'Overdue Events')+'</div><div class="mv">'+pOv+'</div>'+(hasPeriodFilter?'<div class="ms">All-time: '+ov+'</div>':'')+'</div>';
 
+  dwsInit();
   renderPayDueAlerts();
   renderFuturePayments();
 
@@ -41243,6 +41273,623 @@ window.kbScanClientDriveFolder = async function() {
     }
   }
 };
+
+
+
+// ═══ DATE-WISE PAYMENT SCHEDULE & EXTRACTION ENGINE ═══
+function _payEventDays(p) {
+  var d = [];
+  ((p && p.eventDays) || []).forEach(function (ed) {
+    if (ed && /^\d{4}-\d{2}-\d{2}$/.test(ed.date || '') && d.indexOf(ed.date) < 0) d.push(ed.date);
+  });
+  d.sort();
+  if (!d.length && p && p.date) d = [p.date];
+  return d;
+}
+// Per-stage dues built on getPaymentScheduleWithCarryForward() (plan vs paid, overpayment credit,
+// unknown-stage payments counted as general money). On top of that:
+//  • an event payment with no saved date falls on the FIRST event day (a 2nd split event payment → 2nd event day)
+//  • an unpaid stage with NO date (e.g. Advance) is shown inside the next stage, never twice
+// The stage balances always add up to the client's real outstanding balance.
+
+
+// ── Quick Month Forecast Chips Builder ─────────────────────────────
+function dwsRenderQuickMonthChips() {
+  var chipContainer = document.getElementById('dws-month-chips');
+  if (!chipContainer) return;
+
+  var monthsMap = {};
+  var mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Scan next 8 months
+  var now = new Date();
+  for (var i = 0; i < 8; i++) {
+    var d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    var ym = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+    monthsMap[ym] = { ym: ym, label: mn[d.getMonth()] + ' ' + d.getFullYear(), total: 0, count: 0 };
+  }
+
+  pl().forEach(function(p) {
+    if (p.stage === 'complete') return;
+    var schedule = getPaymentScheduleWithCarryForward(p);
+    schedule.forEach(function(s) {
+      if (s.isSettled) return;
+      var amt = s.collectibleTotal || s.shortfall || 0;
+      if (amt <= 0) return;
+      var due = s.dueDate || p.date || '';
+      var ym = due.substring(0, 7);
+      if (monthsMap[ym]) {
+        monthsMap[ym].total += amt;
+        monthsMap[ym].count++;
+      }
+    });
+  });
+
+  var curSel = (document.getElementById('dws-month') || {}).value || '';
+
+  chipContainer.innerHTML = Object.values(monthsMap).map(function(m) {
+    var isSel = (m.ym === curSel);
+    var bg = isSel ? '#0f172a' : (m.total > 0 ? '#eff6ff' : '#f8fafc');
+    var tc = isSel ? '#fff' : (m.total > 0 ? '#1d4ed8' : '#94a3b8');
+    var bc = isSel ? '#0f172a' : (m.total > 0 ? '#bfdbfe' : '#e2e8f0');
+    return '<button onclick="dwsSelectQuickMonth(\'' + m.ym + '\')" style="background:' + bg + ';color:' + tc + ';border:1px solid ' + bc + ';border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">' +
+      '<span>' + m.label + '</span>' +
+      (m.total > 0 ? '<strong style="color:' + (isSel ? '#38bdf8' : '#16a34a') + '">' + fmt(m.total) + '</strong>' : '<span style="color:#aaa;font-size:10px">₹0</span>') +
+    '</button>';
+  }).join('');
+}
+
+window.dwsSelectQuickMonth = function(ym) {
+  var sel = document.getElementById('dws-range'); if (sel) sel.value = 'month';
+  var minp = document.getElementById('dws-month'); if (minp) minp.value = ym;
+  dwsRangeChanged();
+  dwsShow();
+  dwsRenderQuickMonthChips();
+};
+
+
+function _payEffectiveDues(p) {
+  var sch; try { sch = getPaymentScheduleWithCarryForward(p) || []; } catch (e) { sch = []; }
+  var ev = _payEventDays(p), evIdx = 0, carry = 0;
+  return sch.map(function (st, i) {
+    var isEv = !!st.isEventLinked || /^kb_(event\d*|prewed|mainevent|event_extra_\d+)$/.test(st.key || '') ||
+               /event|shoot|wedding|sangeet|mehndi|haldi/i.test(st.label || '');
+    var date = st.dueDate || '', auto = false;
+    if (!date && isEv) { date = (evIdx > 0 ? (ev[1] || ev[0]) : ev[0]) || ''; auto = !!date; }
+    if (isEv) evIdx++;
+    var total = (st.shortfall || 0) + carry;
+    var passOn = !date && i < sch.length - 1;
+    var row = { st: st, date: date, auto: auto, carryIn: carry, total: total, balance: passOn ? 0 : total };
+    carry = passOn ? total : 0;
+    return row;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DATE-WISE PAYMENT SCHEDULE EXPORT (Excel + PDF)
+// Month-wise, date-wise list of every pending instalment, built live from
+// the CRM (same balance engine as Reminders/Aging) — nothing typed by hand.
+// ═══════════════════════════════════════════════════════════════════
+function dwsInit() {
+  dwsRenderQuickMonthChips();
+  var m = document.getElementById('dws-month');
+  if (m && !m.value) {
+    var d = new Date(); d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    m.value = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+  }
+  dwsRangeChanged();
+}
+function dwsRangeChanged() {
+  var r = (document.getElementById('dws-range') || {}).value;
+  var m = document.getElementById('dws-month');
+  if (m) m.style.display = (r === 'month' || r === 'range') ? '' : 'none';
+  var yr = document.getElementById('dws-year');
+  if (yr) { yr.style.display = (r === 'year' || r === 'fy') ? '' : 'none'; if (!yr.value) { var nd = new Date(); yr.value = (r === 'fy' && nd.getMonth() < 3) ? nd.getFullYear() - 1 : nd.getFullYear(); } }
+  var w = document.getElementById('dws-to-wrap'); if (w) w.style.display = (r === 'range') ? 'inline-flex' : 'none';
+  var m2 = document.getElementById('dws-month2');
+  if (r === 'range' && m2 && !m2.value && m && m.value) {
+    var q = m.value.split('-'), d2 = new Date(+q[0], +q[1] + 1, 1);   // default: From + 2 months
+    m2.value = d2.getFullYear() + '-' + ('0' + (d2.getMonth() + 1)).slice(-2);
+  }
+  if (window._dwsOpen) dwsShow();
+}
+function _dwsMonthLabel(ym) {
+  var p = ym.split('-');
+  return ['January','February','March','April','May','June','July','August','September','October','November','December'][parseInt(p[1], 10) - 1] + ' ' + p[0];
+}
+function _dwsDay(dateStr) {
+  var d = new Date(dateStr + 'T00:00:00');
+  return isNaN(d) ? '' : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+}
+function _dwsDateLabel(dateStr) {
+  var p = (dateStr || '').split('-');
+  if (p.length !== 3) return '';
+  return p[2] + '/' + p[1] + '/' + p[0];
+}
+
+// Returns { title, sections:[{label, rows:[...], total}], grand, count, clients }
+function dwsBuild() {
+  var mode   = (document.getElementById('dws-range') || {}).value || 'month';
+  var ym     = (document.getElementById('dws-month') || {}).value || '';
+  var ymTo   = mode === 'range' ? ((document.getElementById('dws-month2') || {}).value || '') : ym;
+  var extras = !!(document.getElementById('dws-extra') || {}).checked;
+  var today  = tod();
+  var yearLabel = '';
+  if (mode === 'year' || mode === 'fy') {
+    var yv = parseInt((document.getElementById('dws-year') || {}).value, 10);
+    if (!yv) { showToast('Please enter a year'); return null; }
+    if (mode === 'year') { ym = yv + '-01'; ymTo = yv + '-12'; yearLabel = 'Year ' + yv; }
+    else { ym = yv + '-04'; ymTo = (yv + 1) + '-03'; yearLabel = 'FY ' + yv + '-' + String(yv + 1).slice(-2); }
+  }
+  var byMonth = (mode === 'month' || mode === 'range' || mode === 'year' || mode === 'fy');
+  if ((mode === 'month' || mode === 'range') && !ym) { showToast('Please pick a month'); return null; }
+  if (mode === 'range') {
+    if (!ymTo) { showToast('Please pick the "to" month'); return null; }
+    if (ymTo < ym) { var t = ym; ym = ymTo; ymTo = t; }   // allow picking in either order
+  }
+
+  // 1) One row per client + due date (several instalments on the same day are merged)
+  var map = {};
+  pl().forEach(function (p) {
+    if (p.stage === 'complete') return;
+    var bal = Math.max(0, balDue(p));
+    if (bal <= 0) return;
+    // ONE calculation for every screen (see _payEffectiveDues): plan vs paid, overpayment credit,
+    // unknown-stage payments as general money, undated unpaid amounts moving to the next stage,
+    // and event payments falling on the first event (a split 2nd event payment on the 2nd event day).
+    var firstEv = _payEventDays(p)[0] || '';
+    var allIns = _payEffectiveDues(p).map(function (r) {
+      return { key: r.st.key, label: r.st.label, desc: r.st.desc || '', dueDate: r.date, auto: r.auto, balance: r.balance };
+    });
+    if (!allIns.length) allIns = _erpBuildInstalmentsLegacy(p);
+    // If the plan doesn't cover the whole outstanding balance, show the rest instead of hiding it
+    var _planSum = allIns.reduce(function (a, i) { return a + i.balance; }, 0);
+    if (allIns.length && bal - _planSum > 0) allIns.push({ key: '_unplanned', label: 'Balance not in payment plan', desc: '', dueDate: '', balance: bal - _planSum });
+    var ins = allIns.filter(function (i) { return i.balance > 0; });
+    // Safety: never show more than the client's real outstanding balance
+    var sum = ins.reduce(function (a, i) { return a + i.balance; }, 0);
+    var over = sum - bal;
+    for (var k = ins.length - 1; k >= 0 && over > 0; k--) {
+      var cut = Math.min(ins[k].balance, over); ins[k] = Object.assign({}, ins[k], { balance: ins[k].balance - cut }); over -= cut;
+    }
+    ins.forEach(function (i) {
+      if (i.balance <= 0) return;
+      var effDate = i.dueDate || '', auto = !!i.auto;
+      var key = p.id + '|' + (effDate || 'none');
+      if (!map[key]) {
+        var city = p.city || p.state || '';
+        map[key] = { p: p, date: effDate, auto: auto, client: coupleName(p.bride, p.groom) + (city ? ' (' + city + ')' : ''),
+                     type: p.type || '', shoot: firstEv, labels: [], notes: [], amount: 0 };
+      }
+      map[key].labels.push(i.label);
+      if (i.dueNotes) map[key].notes.push(i.dueNotes);
+      map[key].amount += i.balance;
+    });
+  });
+
+  // 2) Classify + choose what to include
+  var wk = new Date(); wk.setDate(wk.getDate() + 7); var weekEnd = localDateStr(wk);
+  var rows = Object.keys(map).map(function (k) { return map[k]; });
+  var monthRows = {}, overdue = [], undated = [];
+  rows.forEach(function (r) {
+    var ev = (r.type ? r.type + ' — ' : '') + r.labels.join(' + ') + (r.notes.length ? ' (' + r.notes.join('; ') + ')' : '');
+    r.event = ev;
+    if (!r.date) {
+      r.status = 'Date not set'; r.tone = 'orange';
+      r.event = ev + (r.shoot ? ' [First event: ' + _dwsDateLabel(r.shoot) + ']' : '');
+      undated.push(r); return;
+    }
+    if (r.date < today) { r.status = 'Overdue'; r.tone = 'red'; }
+    else if (r.date <= weekEnd) { r.status = 'Due within 7 days'; r.tone = 'yellow'; }
+    else { r.status = 'Upcoming'; r.tone = ''; }
+    var rowYm = r.date.slice(0, 7);
+    if (byMonth) {
+      if (rowYm >= ym && rowYm <= ymTo) { (monthRows[rowYm] = monthRows[rowYm] || []).push(r); }
+      else if (r.date < today && rowYm < ym) overdue.push(r);
+    } else {
+      if (r.date >= today) (monthRows[rowYm] = monthRows[rowYm] || []).push(r);
+      else overdue.push(r);
+    }
+  });
+
+  var sections = [];
+  function sortRows(a) { a.sort(function (x, y) { return (x.date || x.shoot || '9999-12-31').localeCompare(y.date || y.shoot || '9999-12-31') || x.client.localeCompare(y.client); }); }
+  var monthKeys = Object.keys(monthRows).sort();
+  if (mode === 'month' && !monthRows[ym]) monthKeys = [ym];
+  monthKeys.forEach(function (k) { var a = monthRows[k] || []; sortRows(a); sections.push({ label: _dwsMonthLabel(k), rows: a }); });
+  if (extras && overdue.length) { sortRows(overdue); sections.push({ label: 'Earlier overdue — before ' + (byMonth ? _dwsMonthLabel(ym) : 'today'), rows: overdue }); }
+  if (extras && undated.length) { sortRows(undated); sections.push({ label: 'Date not set / not confirmed', rows: undated }); }
+
+  var grand = 0, count = 0, clients = {};
+  sections.forEach(function (s) {
+    s.total = s.rows.reduce(function (a, r) { return a + r.amount; }, 0);
+    s.rows.forEach(function (r, i) { r.sno = i + 1; r.day = r.date ? _dwsDay(r.date) : ''; clients[r.p.id] = 1; });
+    grand += s.total; count += s.rows.length;
+  });
+  if (!count) { showToast('No pending payments found for this selection'); return null; }
+  return {
+    title: mode === 'month' ? 'Payment Schedule — ' + _dwsMonthLabel(ym)
+         : (mode === 'year' || mode === 'fy') ? 'Payment Schedule — ' + yearLabel
+         : mode === 'range' ? 'Payment Schedule — ' + (ym === ymTo ? _dwsMonthLabel(ym) : _dwsMonthLabel(ym) + ' to ' + _dwsMonthLabel(ymTo))
+         : 'Payment Schedule — All Upcoming',
+    file: mode === 'month' ? 'KB_Payment_Schedule_' + ym : (mode === 'range' || mode === 'year' || mode === 'fy') ? 'KB_Payment_Schedule_' + ym + '_to_' + ymTo : 'KB_Payment_Schedule_Upcoming',
+    sections: sections, grand: grand, count: count, clients: Object.keys(clients).length
+  };
+}
+
+
+// ── On-screen view of the same schedule (no download needed) ─────────
+function dwsShow() {
+  var box = document.getElementById('dws-view'); if (!box) return;
+  window._dwsOpen = true;
+  var D = dwsBuild();
+  if (!D) { box.innerHTML = '<div class="empty" style="padding:18px">No pending payments found for this selection.</div>'; return; }
+  var bg = { red: '#fecaca', yellow: '#fef9c3', orange: '#fdd7a0', '': '#fff' };
+  var h = '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">' +
+      '<div><div style="font-size:15px;font-weight:800">' + escHtml(D.title) + '</div>' +
+      '<div style="font-size:12px;color:#64748b">' + D.count + ' entries · ' + D.clients + ' client(s) · Total pending <b style="color:#dc2626">₹' + D.grand.toLocaleString('en-IN') + '</b></div></div>' +
+      '<button class="btn btn-sm" onclick="dwsHide()">✕ Close</button></div>' +
+    '<div style="display:flex;gap:12px;font-size:11px;color:#475569;margin-bottom:10px;flex-wrap:wrap">' +
+      '<span><span style="display:inline-block;width:11px;height:11px;background:#fecaca;border-radius:2px;vertical-align:-1px"></span> Overdue</span>' +
+      '<span><span style="display:inline-block;width:11px;height:11px;background:#fef9c3;border:1px solid #e5e7eb;border-radius:2px;vertical-align:-1px"></span> Due within 7 days</span>' +
+      '<span><span style="display:inline-block;width:11px;height:11px;background:#fdd7a0;border-radius:2px;vertical-align:-1px"></span> Date not set</span></div>';
+  D.sections.forEach(function (sec) {
+    h += '<div style="background:#e2e8f0;text-align:center;font-weight:800;padding:7px;border-radius:8px 8px 0 0;margin-top:10px">' + escHtml(sec.label) + '</div>' +
+      '<div style="overflow:auto;border:1px solid #e2e8f0;border-top:none"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:640px">' +
+      '<thead><tr style="background:#cbd5e1;text-align:left"><th style="padding:7px 8px;width:46px">S.No</th><th style="padding:7px 8px">Date</th><th style="padding:7px 8px">Day</th><th style="padding:7px 8px">Client Name</th><th style="padding:7px 8px">Event / Payment Stage</th><th style="padding:7px 8px;text-align:right">Amount</th><th style="padding:7px 8px">Status</th><th style="padding:7px 8px">Action</th></tr></thead><tbody>';
+    sec.rows.forEach(function (r) {
+      h += '<tr style="background:' + bg[r.tone] + ';border-top:1px solid #e5e7eb">' +
+        '<td style="padding:7px 8px">' + r.sno + '</td>' +
+        '<td style="padding:7px 8px;white-space:nowrap">' + (r.date ? _dwsDateLabel(r.date) + (r.auto ? ' <span title="Auto-picked from shoot date" style="color:#7c3aed">*</span>' : '') : '—') + '</td>' +
+        '<td style="padding:7px 8px">' + (r.day || '—') + '</td>' +
+        '<td style="padding:7px 8px;font-weight:700"><a href="#" class="dws-open" data-pid="' + escHtml(String(r.p.id)) + '" style="color:inherit;text-decoration:none">' + escHtml(r.client) + '</a>' +
+          (_dwsAuditData(r.p).flags.length ? ' <span title="Possible issue — click 🔍" style="color:#d97706">⚠️</span>' : '') +
+          ' <a href="#" class="dws-why" data-pid="' + escHtml(String(r.p.id)) + '" title="Why this amount?" style="text-decoration:none;font-size:12px">🔍</a></td>' +
+        '<td style="padding:7px 8px">' + escHtml(r.event) + '</td>' +
+        '<td style="padding:7px 8px;text-align:right;font-weight:800">₹' + r.amount.toLocaleString('en-IN') + '</td>' +
+        '<td style="padding:7px 8px;font-size:11px">' + escHtml(r.status) + '</td>' +
+        '<td style="padding:7px 8px;white-space:nowrap">' +
+          '<div style="display:flex;gap:4px">' +
+            '<a href="https://wa.me/' + ((r.p.phone||'').replace(/[^0-9]/g, '')) + '?text=' + encodeURIComponent('Dear ' + r.client + ', greetings from KB Studio Productions! A gentle reminder that payment of ₹' + r.amount.toLocaleString('en-IN') + ' for ' + r.event + ' is due.') + '" target="_blank" class="btn btn-sm" style="font-size:10px;padding:3px 7px;background:#25d366;color:#fff;border-color:#22c55e;text-decoration:none" title="Send WhatsApp Reminder">💬</a>' +
+            '<button class="btn btn-sm btn-primary" style="font-size:10px;padding:3px 7px" onclick="kbOpenPaymentLinkModal(' + r.p.id + ',\'stage\',\'' + escHtml(r.event).replace(/'/g,'') + '\',' + r.amount + ')" title="Collect via Razorpay / UPI">⚡</button>' +
+          '</div>' +
+        '</td></tr>';
+    });
+    h += '<tr style="background:#1a1a1a;color:#fff;font-weight:800"><td colspan="5" style="padding:8px;text-align:right">Total — ' + escHtml(sec.label) + '</td><td style="padding:8px;text-align:right">₹' + sec.total.toLocaleString('en-IN') + '</td><td></td></tr></tbody></table></div>';
+  });
+  if (D.sections.length > 1) h += '<div style="background:#166534;color:#fff;font-weight:800;padding:9px 10px;border-radius:8px;margin-top:10px;display:flex;justify-content:space-between"><span>GRAND TOTAL</span><span>₹' + D.grand.toLocaleString('en-IN') + '</span></div>';
+  h += '</div>';
+  box.innerHTML = h;
+  box.querySelectorAll('.dws-why').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); dwsExplain(a.getAttribute('data-pid')); });
+  });
+  box.querySelectorAll('.dws-open').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (typeof clientPayOpen === 'function') clientPayOpen(a.getAttribute('data-pid')); else dwsExplain(a.getAttribute('data-pid'));
+    });
+  });
+}
+
+// ═══ "WHY THIS AMOUNT?" — explains every number in the schedule and flags what can make it wrong ═══
+function _dwsAuditData(p) {
+  var terms = getPayTerms(p), net = netVal(p), ledger = p.payLedger || [];
+  var eff = _payEffectiveDues(p);
+  var inr = function (n) { return '₹' + (Math.round(n) || 0).toLocaleString('en-IN'); };
+  var flags = [];
+  var pctSum = terms.reduce(function (a, t) { return a + (parseFloat(t.pct) || 0); }, 0);
+  if (terms.length && Math.abs(pctSum - 100) > 0.5)
+    flags.push('The payment plan adds up to ' + (Math.round(pctSum * 10) / 10) + '% of the project value, not 100%. Stage amounts will not add up to the contract.');
+  if ((parseInt(p.discount) || 0) > 0)
+    flags.push('A discount of ' + inr(parseInt(p.discount)) + ' is applied — every stage is a % of the NET value ' + inr(net) + ', not the quoted value ' + inr(parseInt(p.value) || 0) + '.');
+  var gen = ledger.filter(function (e) { return e.stage === 'general'; }).reduce(function (a, e) { return a + (parseInt(e.amount) || 0); }, 0);
+  if (gen > 0) flags.push(inr(gen) + ' was recorded as a "general" payment (no stage chosen). It is applied to the earliest unpaid stages first, which can shrink a later stage.');
+  var matchTerm = function (stage) {
+    return terms.find(function (t) {
+      return stageMatches(stage, t.key) || (_KB_TO_LEGACY_KEYS[t.key] || []).some(function (k) { return stageMatches(stage, k); });
+    });
+  };
+  ledger.filter(function (e) {
+    if (!e.stage || e.stage === 'general' || e.splitAllocation) return false;
+    if (typeof isAdvanceStageKey === 'function' && isAdvanceStageKey(e.stage)) return false;
+    return !matchTerm(e.stage);
+  }).forEach(function (e) {
+    flags.push('Payment of ' + inr(parseInt(e.amount) || 0) + ' (' + (e.date || 'no date') + ') is recorded under stage "' + e.stage + '", which is not in this project\'s plan — it is counted as a general payment and applied to the earliest unpaid stage. Re-record it under the right stage to keep the plan clean.');
+  });
+  eff.forEach(function (r) {
+    var st = r.st;
+    if (r.carryIn > 0 && r.date) flags.push('"' + st.label + '" includes ' + inr(r.carryIn) + ' from earlier stage(s) that have no due date and are still unpaid.');
+    if ((st.surplusOut || 0) > 0) flags.push('"' + st.label + '" is overpaid by ' + inr(st.surplusOut) + ' — this credit is deducted from the next stage(s).');
+    if ((st.creditIn || 0) > 0) flags.push('"' + st.label + '" is reduced by ' + inr(st.creditIn) + ' already paid beyond an earlier stage.');
+    if (st.shortfall > 0 && (st.paid || 0) > 0) flags.push('"' + st.label + '" is part-paid: ' + inr(st.paid) + ' received of ' + inr(st.exp) + ' — check the payment was recorded against the right stage.');
+    if (st.shortfall > 0 && !r.date && st.isEventLinked) flags.push('"' + st.label + '" is tied to the event but has no due date and the project has no event day.');
+  });
+  return { terms: terms, net: net, ledger: ledger, eff: eff, flags: flags, matchTerm: matchTerm, inr: inr };
+}
+
+// Look up ANY client (even one missing from the schedule) and explain their payment numbers
+function _dwsClientLabel(p) { return coupleName(p.bride, p.groom) + ' (' + (p.city || p.state || '—') + ') · ' + (p.refcode || p.id); }
+function dwsFindFill() {
+  var dl = document.getElementById('dws-find-list'); if (!dl) return;
+  dl.innerHTML = pl().map(function (p) { return '<option value="' + escHtml(_dwsClientLabel(p)) + '">'; }).join('');
+}
+function dwsFindClient() {
+  var el = document.getElementById('dws-find'); var q = ((el && el.value) || '').trim().toLowerCase();
+  if (!q) { showToast('Type a client name first'); return; }
+  var list = pl();
+  var hit = list.find(function (p) { return _dwsClientLabel(p).toLowerCase() === q; });
+  if (!hit) {
+    var m = list.filter(function (p) { return _dwsClientLabel(p).toLowerCase().indexOf(q) >= 0; });
+    if (m.length === 1) hit = m[0];
+    else if (m.length > 1) { showToast(m.length + ' clients match — pick one from the list'); dwsFindFill(); return; }
+  }
+  if (!hit) { showToast('No client found for "' + el.value + '"'); return; }
+  var pid = hit.id != null ? hit.id : Object.keys(projects).find(function (k) { return projects[k] === hit; });
+  dwsExplain(pid);
+}
+function dwsExplainClose() { var o = document.getElementById('dws-explain'); if (o) o.remove(); }
+function dwsExplain(pid) {
+  var p = projects[pid]; if (!p) { showToast('Client not found'); return; }
+  dwsExplainClose();
+  var A = _dwsAuditData(p), inr = A.inr;
+  var th = 'padding:7px 9px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#475569;background:#f1f5f9';
+  var td = 'padding:8px 9px;border-bottom:1px solid #f1f5f9;font-size:12.5px';
+  var _why = [];
+  if (p.stage === 'complete') _why.push('This project is marked COMPLETE, so it is left out of the payment schedule.');
+  if (balDue(p) <= 0) _why.push('Nothing is outstanding (paid in full), so there is nothing to schedule.');
+  var h = '<div id="dws-explain" style="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)dwsExplainClose()">' +
+    '<div style="background:#fff;border-radius:16px;max-width:860px;width:100%;max-height:90vh;overflow:auto;padding:20px 22px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div>' +
+      '<div style="font-size:17px;font-weight:800">' + escHtml(coupleName(p.bride, p.groom)) + ' — why these amounts?</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-top:3px">Project value ' + inr(parseInt(p.value) || 0) + ' − discount ' + inr(parseInt(p.discount) || 0) + ' = <b>net ' + inr(A.net) + '</b> · Paid ' + inr(paidTotal(p)) + ' · <b style="color:#dc2626">Balance ' + inr(balDue(p)) + '</b></div></div>' +
+      '<button class="btn btn-sm" onclick="dwsExplainClose()">✕ Close</button></div>';
+  if (_why.length) h += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin:14px 0 0;font-size:12.5px;color:#1e3a8a">ℹ️ ' + _why.map(escHtml).join('<br>ℹ️ ') + '</div>';
+  if (A.flags.length) {
+    h += '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin:14px 0"><div style="font-weight:800;color:#c2410c;margin-bottom:5px">⚠️ What can make this wrong</div>' +
+      A.flags.map(function (f) { return '<div style="font-size:12.5px;color:#7c2d12;margin:3px 0">• ' + escHtml(f) + '</div>'; }).join('') + '</div>';
+  } else {
+    h += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin:14px 0;color:#166534;font-size:12.5px;font-weight:600">✓ Nothing unusual found — the amounts follow the plan and the recorded payments.</div>';
+  }
+  h += '<div style="font-weight:800;margin:6px 0">Stage by stage</div><div style="overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr>' +
+    ['Stage', 'Plan %', 'Planned', '± Carried in', 'Paid', 'Due now', 'Due date'].map(function (x, i) { return '<th style="' + th + (i ? ';text-align:right' : '') + '">' + x + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    A.eff.map(function (r) {
+      var st = r.st, sc = '<td style="' + td + ';text-align:right">';
+      var adj = (r.carryIn ? '<span style="color:#c2410c">+' + inr(r.carryIn) + '</span>' : '') + (st.creditIn ? '<span style="color:#16a34a">−' + inr(st.creditIn) + ' credit</span>' : '');
+      return '<tr><td style="' + td + ';font-weight:700">' + escHtml(st.label) + '</td>' + sc + (st.pct != null ? st.pct + '%' : '—') + '</td>' + sc + inr(st.baseExp) + '</td>' +
+        sc + (adj || '—') + '</td>' + sc + inr(st.paid) + '</td>' +
+        sc + '<b style="color:' + (r.balance ? '#dc2626' : '#16a34a') + '">' + (r.balance ? inr(r.balance) : (st.shortfall ? 'in next stage' : 'Paid ✓')) + '</b></td>' +
+        sc + (r.date ? _dwsDateLabel(r.date) + (r.auto ? ' <span title="From the first event day" style="color:#7c3aed">*</span>' : '') : '—') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  h += '<div style="font-weight:800;margin:16px 0 6px">Payments received (and which stage each one counted toward)</div>';
+  if (!A.ledger.length) h += '<div style="font-size:12.5px;color:#64748b">No payments recorded yet.</div>';
+  else h += '<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:520px"><thead><tr><th style="' + th + '">Date</th><th style="' + th + '">Stage as recorded</th><th style="' + th + ';text-align:right">Amount</th><th style="' + th + '">Counted toward</th></tr></thead><tbody>' +
+    A.ledger.map(function (e) {
+      var tm = (e.stage && e.stage !== 'general' && !e.splitAllocation) ? A.matchTerm(e.stage) : null;
+      var where = e.splitAllocation ? 'Split across stages' : (e.stage === 'general' || !e.stage) ? 'General pool (earliest unpaid stage)' : tm ? tm.label : ((typeof isAdvanceStageKey === 'function' && isAdvanceStageKey(e.stage)) ? 'Advance' : '<span style="color:#dc2626;font-weight:700">Not in plan → general pool</span>');
+      return '<tr><td style="' + td + '">' + escHtml(e.date || '—') + '</td><td style="' + td + '">' + escHtml(e.stage || 'general') + '</td><td style="' + td + ';text-align:right;font-weight:700">' + inr(parseInt(e.amount) || 0) + '</td><td style="' + td + '">' + where + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+  h += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+
+function dwsHide() { window._dwsOpen = false; var b = document.getElementById('dws-view'); if (b) b.innerHTML = ''; }
+
+
+// ═══ CLIENT PAYMENT STATEMENT — clean page: received (serial-wise) + yet to receive ═══
+function clientPayClose() {
+  var o = document.getElementById('cp-overlay'); if (o) o.remove();
+  document.removeEventListener('keydown', _cpEsc);
+}
+function _cpEsc(e) { if (e.key === 'Escape') clientPayClose(); }
+
+function clientPayOpen(pid) {
+  var p = projects[pid]; if (!p) { showToast('Client not found'); return; }
+  clientPayClose();
+  var today = tod();
+  var ins = _erpBuildInstalments(p);
+  function stageName(e) {
+    if (e.label) return e.label;
+    var hit = ins.find(function (i) { return e.stage && stageMatches(e.stage, i.key); });
+    if (hit) return hit.label;
+    return (e.stage && e.stage !== 'general') ? e.stage : 'Payment';
+  }
+  // Received
+  var recv = (p.payLedger || []).slice().sort(function (a, b) { return (a.date || '').localeCompare(b.date || '') || (a.ts || 0) - (b.ts || 0); });
+  var totalRecv = 0;
+  // To receive (capped to the real outstanding balance)
+  var due = ins.filter(function (i) { return i.balance > 0; }).map(function (i) { return Object.assign({}, i); });
+  var outstanding = Math.max(0, balDue(p));
+  var over = due.reduce(function (a, i) { return a + i.balance; }, 0) - outstanding;
+  for (var k = due.length - 1; k >= 0 && over > 0; k--) { var cut = Math.min(due[k].balance, over); due[k].balance -= cut; over -= cut; }
+  due = due.filter(function (i) { return i.balance > 0; });
+  due.sort(function (a, b) { return (a.dueDate || '9999').localeCompare(b.dueDate || '9999'); });
+
+  var th = 'padding:9px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#475569;background:#f1f5f9;border-bottom:1px solid #e2e8f0';
+  var td = 'padding:10px;border-bottom:1px solid #f1f5f9;font-size:13px';
+  function card(label, val, col) { return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px"><div style="font-size:11px;color:#64748b;text-transform:uppercase">' + label + '</div><div style="font-size:22px;font-weight:800;color:' + col + '">₹' + val.toLocaleString('en-IN') + '</div></div>'; }
+
+  var h = '<div style="max-width:980px;margin:0 auto;padding:18px 16px 40px">' +
+    '<div class="cp-noprint" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"><button class="btn" id="cp-back">← Back</button><button class="btn btn-primary" id="cp-print" style="margin-left:auto">🖨️ Print / Save PDF</button></div>' +
+    '<div style="font-size:22px;font-weight:800">' + escHtml(coupleName(p.bride, p.groom)) + (p.refcode ? ' <span class="refcode" style="font-size:11px">' + escHtml(p.refcode) + '</span>' : '') + '</div>' +
+    '<div style="font-size:12px;color:#64748b;margin:3px 0 14px">' + [p.phone ? '📞 ' + escHtml(p.phone) : '', p.city ? '📍 ' + escHtml(p.city) : '', p.type ? escHtml(p.type) : '', p.date ? '📅 Event: ' + fmtDate(p.date) : ''].filter(Boolean).join(' · ') + '</div>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">' + card('Total Value', netVal(p), '#1a1a1a') + card('Received', paidTotal(p), '#16a34a') + card('Yet to Receive', outstanding, outstanding > 0 ? '#dc2626' : '#16a34a') + '</div>';
+
+  // Received table
+  h += '<div style="font-size:15px;font-weight:800;margin-bottom:8px">✅ Received</div>';
+  if (!recv.length) h += '<div class="empty" style="padding:16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">No payment received yet.</div>';
+  else {
+    h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th style="' + th + '">S.No</th><th style="' + th + '">Date</th><th style="' + th + '">Payment For</th><th style="' + th + '">Mode</th><th style="' + th + '">Account / Ref</th><th style="' + th + ';text-align:right">Amount</th><th style="' + th + ';text-align:right">Total So Far</th></tr></thead><tbody>';
+    recv.forEach(function (e, i) {
+      var amt = parseInt(e.amount) || 0; totalRecv += amt;
+      h += '<tr><td style="' + td + '">' + (i + 1) + '</td><td style="' + td + ';white-space:nowrap">' + (e.date ? fmtDate(e.date) : '—') + '</td><td style="' + td + ';font-weight:600">' + escHtml(stageName(e)) + '</td><td style="' + td + '">' + escHtml(e.mode || '—') + '</td><td style="' + td + ';color:#64748b;font-size:12px">' + escHtml([e.account, e.ref].filter(Boolean).join(' · ') || '—') + '</td><td style="' + td + ';text-align:right;font-weight:800;color:#16a34a">₹' + amt.toLocaleString('en-IN') + '</td><td style="' + td + ';text-align:right;color:#64748b">₹' + totalRecv.toLocaleString('en-IN') + '</td></tr>';
+    });
+    h += '<tr style="background:#f0fdf4"><td colspan="5" style="padding:10px;text-align:right;font-weight:800">Total Received</td><td style="padding:10px;text-align:right;font-weight:800;color:#16a34a">₹' + totalRecv.toLocaleString('en-IN') + '</td><td></td></tr></tbody></table></div>';
+  }
+
+  // To receive table
+  h += '<div style="font-size:15px;font-weight:800;margin:22px 0 8px">⏳ Yet to Receive</div>';
+  if (!due.length) h += '<div style="padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;color:#166534;font-weight:700">✓ Nothing pending — this client is fully paid.</div>';
+  else {
+    var totDue = 0;
+    h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th style="' + th + '">S.No</th><th style="' + th + '">Payment For</th><th style="' + th + '">Due Date</th><th style="' + th + '">Status</th><th style="' + th + ';text-align:right">Expected</th><th style="' + th + ';text-align:right">Paid</th><th style="' + th + ';text-align:right">To Receive</th></tr></thead><tbody>';
+    due.forEach(function (i, n) {
+      totDue += i.balance;
+      var st, col;
+      if (!i.dueDate) { st = 'Date not set'; col = '#b45309'; }
+      else {
+        var days = Math.round((new Date(i.dueDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
+        if (days < 0) { st = Math.abs(days) + ' day(s) overdue'; col = '#dc2626'; }
+        else if (days === 0) { st = 'Due today'; col = '#dc2626'; }
+        else { st = 'In ' + days + ' day(s)'; col = days <= 7 ? '#d97706' : '#1d4ed8'; }
+      }
+      h += '<tr><td style="' + td + '">' + (n + 1) + '</td><td style="' + td + ';font-weight:600">' + escHtml(i.label) + (i.dueNotes ? '<div style="font-size:11px;color:#94a3b8;font-weight:400">' + escHtml(i.dueNotes) + '</div>' : '') + '</td><td style="' + td + ';white-space:nowrap">' + (i.dueDate ? fmtDate(i.dueDate) : '—') + '</td><td style="' + td + ';font-weight:700;color:' + col + '">' + st + '</td><td style="' + td + ';text-align:right">₹' + (i.expected || 0).toLocaleString('en-IN') + '</td><td style="' + td + ';text-align:right;color:#16a34a">₹' + (i.paid || 0).toLocaleString('en-IN') + '</td><td style="' + td + ';text-align:right;font-weight:800;color:#dc2626">₹' + i.balance.toLocaleString('en-IN') + '</td></tr>';
+    });
+    h += '<tr style="background:#fef2f2"><td colspan="6" style="padding:10px;text-align:right;font-weight:800">Total Yet to Receive</td><td style="padding:10px;text-align:right;font-weight:800;color:#dc2626">₹' + totDue.toLocaleString('en-IN') + '</td></tr></tbody></table></div>';
+  }
+  h += '<div style="font-size:11px;color:#94a3b8;margin-top:14px">Generated ' + new Date().toLocaleString('en-IN') + ' · KB Studio Productions</div></div>';
+
+  if (!document.getElementById('cp-print-css')) {
+    var st2 = document.createElement('style'); st2.id = 'cp-print-css';
+    st2.textContent = '@media print{body>*:not(#cp-overlay){display:none!important}html,body{height:auto!important;overflow:visible!important}#cp-overlay{position:static!important;overflow:visible!important}.cp-noprint{display:none!important}}';
+    document.head.appendChild(st2);
+  }
+  var ov = document.createElement('div');
+  ov.id = 'cp-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#f4f4f6;overflow:auto;padding-top:env(safe-area-inset-top)';
+  ov.innerHTML = h;
+  document.body.appendChild(ov);
+  document.getElementById('cp-back').onclick = clientPayClose;
+  document.getElementById('cp-print').onclick = function () { window.print(); };
+  document.addEventListener('keydown', _cpEsc);
+}
+
+function dwsExportExcel() {
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded'); return; }
+  var D = dwsBuild(); if (!D) return;
+  var aoa = [], merges = [], amtCells = [], boldRows = [];
+  aoa.push(['KB Studio Productions — ' + D.title]); merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } });
+  aoa.push(['Generated: ' + new Date().toLocaleString('en-IN') + '   |   ' + D.count + ' entries   |   ' + D.clients + ' client(s)   |   Total pending: ' + D.grand.toLocaleString('en-IN')]);
+  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: 6 } });
+  aoa.push([]);
+  D.sections.forEach(function (s) {
+    boldRows.push(aoa.length); merges.push({ s: { r: aoa.length, c: 0 }, e: { r: aoa.length, c: 6 } });
+    aoa.push([s.label]);
+    boldRows.push(aoa.length);
+    aoa.push(['S.No', 'Date', 'Day', 'Client Name', 'Event / Payment Stage', 'Amount (₹)', 'Status']);
+    s.rows.forEach(function (r) {
+      amtCells.push(aoa.length);
+      aoa.push([r.sno, r.date ? _dwsDateLabel(r.date) : '—', r.day || '—', r.client, r.event, r.amount, r.status]);
+    });
+    boldRows.push(aoa.length); amtCells.push(aoa.length);
+    aoa.push(['', '', '', '', 'Total — ' + s.label, s.total, '']);
+    aoa.push([]);
+  });
+  boldRows.push(aoa.length); amtCells.push(aoa.length);
+  aoa.push(['', '', '', '', 'GRAND TOTAL', D.grand, '']);
+
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 7 }, { wch: 12 }, { wch: 7 }, { wch: 38 }, { wch: 58 }, { wch: 14 }, { wch: 18 }];
+  ws['!merges'] = merges;
+  amtCells.forEach(function (r) { var c = ws[XLSX.utils.encode_cell({ r: r, c: 5 })]; if (c && typeof c.v === 'number') c.z = '#,##0'; });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Payment Schedule');
+  XLSX.writeFile(wb, D.file + '_' + tod() + '.xlsx');
+  showToast('📊 Payment schedule (Excel) exported!');
+}
+
+function dwsExportPDF() {
+  var jsPDFLib = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDFLib) { showToast('PDF library not loaded'); return; }
+  var D = dwsBuild(); if (!D) return;
+  var doc = new jsPDFLib({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
+  var X = 10, W = pageW - 20;
+  var wts = [9, 21, 12, 62, 92, 26, 28]; var tw = wts.reduce(function (a, b) { return a + b; }, 0);
+  var cw = wts.map(function (w) { return w / tw * W; });
+  var heads = ['S.No', 'Date', 'Day', 'Client Name', 'Event / Payment Stage', 'Amount (Rs.)', 'Status'];
+  var tones = { red: [254, 202, 202], yellow: [254, 249, 195], orange: [253, 207, 160], '': null };
+  var y = 0;
+
+  function pageHeader(first) {
+    doc.setFillColor(26, 26, 26); doc.rect(0, 0, pageW, 16, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+    doc.text('KB Studio Productions — ' + D.title, X, 10.5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    doc.text('Generated: ' + new Date().toLocaleString('en-IN'), pageW - X, 10.5, { align: 'right' });
+    y = 21;
+    if (first) {
+      doc.setTextColor(60, 60, 60); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+      doc.text(D.count + ' entries  |  ' + D.clients + ' client(s)  |  Total pending: Rs. ' + D.grand.toLocaleString('en-IN'), X, y);
+      y += 4;
+      var lg = [['Overdue', tones.red], ['Due within 7 days', tones.yellow], ['Date not set', tones.orange]], lx = X;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+      lg.forEach(function (l) {
+        doc.setFillColor(l[1][0], l[1][1], l[1][2]); doc.rect(lx, y, 4, 3, 'F');
+        doc.setTextColor(60, 60, 60); doc.text(l[0], lx + 5.5, y + 2.4); lx += 8 + doc.getTextWidth(l[0]) + 6;
+      });
+      y += 7;
+    }
+  }
+  function tableHead() {
+    doc.setFillColor(203, 213, 225); doc.rect(X, y, W, 7, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(20, 20, 20);
+    var cx = X;
+    heads.forEach(function (h, i) { doc.text(h, i === 5 ? cx + cw[i] - 2 : cx + 2, y + 4.8, { align: i === 5 ? 'right' : 'left' }); cx += cw[i]; });
+    y += 7;
+  }
+  function need(h) { if (y + h > pageH - 12) { doc.addPage(); pageHeader(false); tableHead(); } }
+
+  pageHeader(true);
+  D.sections.forEach(function (s) {
+    need(36);
+    doc.setFillColor(226, 232, 240); doc.rect(X, y, W, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(20, 20, 20);
+    doc.text(s.label, X + W / 2, y + 5.6, { align: 'center' });
+    y += 8; tableHead();
+    s.rows.forEach(function (r) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+      var cl = doc.splitTextToSize(r.client, cw[3] - 4), ev = doc.splitTextToSize(r.event, cw[4] - 4);
+      var lines = Math.max(cl.length, ev.length, 1), h = lines * 3.7 + 3.2;
+      need(h);
+      var t = tones[r.tone];
+      if (t) { doc.setFillColor(t[0], t[1], t[2]); doc.rect(X, y, W, h, 'F'); }
+      doc.setDrawColor(210, 214, 220); doc.line(X, y + h, X + W, y + h);
+      doc.setTextColor(25, 25, 25);
+      var cx = X, ty = y + 4.6;
+      doc.text(String(r.sno), cx + 2, ty); cx += cw[0];
+      doc.text(r.date ? _dwsDateLabel(r.date) : '-', cx + 2, ty); cx += cw[1];
+      doc.text(r.day || '-', cx + 2, ty); cx += cw[2];
+      doc.setFont('helvetica', 'bold'); doc.text(cl, cx + 2, ty); cx += cw[3];
+      doc.setFont('helvetica', 'normal'); doc.text(ev, cx + 2, ty); cx += cw[4];
+      doc.setFont('helvetica', 'bold'); doc.text(r.amount.toLocaleString('en-IN'), cx + cw[5] - 2, ty, { align: 'right' }); cx += cw[5];
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text(r.status, cx + 2, ty);
+      y += h;
+    });
+    need(8);
+    doc.setFillColor(26, 26, 26); doc.rect(X, y, W, 7, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+    doc.text('Total — ' + s.label, X + cw[0] + cw[1] + cw[2] + 2, y + 4.9);
+    doc.text('Rs. ' + s.total.toLocaleString('en-IN'), X + W - cw[6] - 2, y + 4.9, { align: 'right' });
+    y += 12;
+  });
+  if (D.sections.length > 1) {
+    need(9);
+    doc.setFillColor(22, 101, 52); doc.rect(X, y, W, 8, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+    doc.text('GRAND TOTAL', X + cw[0] + cw[1] + cw[2] + 2, y + 5.5);
+    doc.text('Rs. ' + D.grand.toLocaleString('en-IN'), X + W - cw[6] - 2, y + 5.5, { align: 'right' });
+  }
+  var n = doc.internal.getNumberOfPages();
+  for (var i = 1; i <= n; i++) {
+    doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(150, 150, 150);
+    doc.text('KB Studio CRM — Confidential', X, pageH - 5);
+    doc.text('Page ' + i + ' of ' + n, pageW - X, pageH - 5, { align: 'right' });
+  }
+  doc.save(D.file + '_' + tod() + '.pdf');
+  showToast('✅ Payment schedule (PDF) exported!');
+}
+document.addEventListener('DOMContentLoaded', function () { if (typeof dwsInit === 'function') dwsInit(); });
 
 </script>
 </body>
