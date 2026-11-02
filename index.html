@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v74.15</title>
+<title>KB Studio CRM v74.17</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2908,6 +2908,7 @@ document.addEventListener('wheel', function(e) {
     '<div class="page-sub">Central repository — locate any client data across all storage locations.</div>' +
     '<div style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;margin-bottom:16px">' +
       '<button class="dv-main-tab" data-dvtab="vault" onclick="switchDVTab(\'vault\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:700;color:#1d4ed8;border-bottom:2px solid #1d4ed8;margin-bottom:-2px;cursor:pointer;font-family:inherit">🗄️ Data Vault</button>' +
+      '<button class="dv-main-tab" data-dvtab="locator" onclick="switchDVTab(\'locator\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">📍 Data Locator (Drives &amp; Servers)</button>' +
       '<button class="dv-main-tab" data-dvtab="archive-queue" onclick="switchDVTab(\'archive-queue\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">📦 Ready to Archive</button>' +
       '<button class="dv-main-tab" data-dvtab="archives" onclick="switchDVTab(\'archives\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">🗃️ Archives</button>' +
     '</div>' +
@@ -2921,6 +2922,7 @@ document.addEventListener('wheel', function(e) {
       '<div id="dv-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>' +
       '<div class="card" style="padding:0;overflow:hidden"><div id="dv-table"></div></div>' +
     '</div>' +
+    '<div id="dv-tab-locator" style="display:none"></div>' +
     '<div id="dv-tab-archive-queue" style="display:none"><div id="dv-archive-queue"></div></div>' +
     '<div id="dv-tab-archives" style="display:none"><div id="dv-archives-list"></div></div>';
   mainDiv.appendChild(vaultPage);
@@ -7755,6 +7757,383 @@ function renderRawApprovalStatus(){
 }
 
 // ═══ DATA VAULT — searchable data location panel ════════════════════════════
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   📍 DATA LOCATOR — where is every client's data? (hard drives, servers, NAS)
+   • Entries live in Firebase at crm_settings/dataLocator/<id>
+   • Google Sheet link:  Sheet "Data Entry" tab → CRM (published CSV, upsert, no duplicates)
+                         CRM → Sheet "CRM Export" tab (Apps Script web app)
+   ═══════════════════════════════════════════════════════════════════════ */
+var DL_TYPES   = ['Raw Photos','Raw Videos','Edited Photos','Edited Video','Album Design','Drone','Reels / Social','Other'];
+var DL_STORES  = ['Hard Drive','Server / NAS','SSD / Card','Cloud'];
+var DL_STATUS  = ['Stored','Verified','With Editor','Archived','Delivered to Client','Missing / Check'];
+var DL_SHEET_HEAD = ['Client','Event Date','Data Type','Drive / Server','Folder Path','Size','Backup Drive','Notes'];
+var DL_HEAD    = DL_SHEET_HEAD.concat(['Status','Ref Code']);   // CRM → Sheet export has 2 extra read-only columns
+var _dlBusy = false;
+
+function dlCanEdit(){ return !!(typeof CU !== 'undefined' && CU && (CU.role === 'superadmin' || CU.role === 'admin' || CU.role === 'datamanager')); }
+function dlList(){
+  var o = (crmSettings && crmSettings.dataLocator) || {};
+  return Object.keys(o).map(function(k){ var e = o[k] || {}; e.id = e.id || k; return e; });
+}
+function dlNorm(s){ return String(s == null ? '' : s).toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,''); }
+function dlGB(e){ var n = parseFloat(e.size) || 0; return e.unit === 'TB' ? n * 1024 : e.unit === 'MB' ? n / 1024 : n; }
+function dlFmtSize(gb){ return gb >= 1024 ? (gb / 1024).toFixed(2) + ' TB' : gb.toFixed(1) + ' GB'; }
+function dlIsoDate(v){
+  v = String(v == null ? '' : v).trim(); if (!v) return '';
+  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(v); if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec(v);
+  if (m) { var y = m[3].length === 2 ? '20' + m[3] : m[3]; return y + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2); }
+  return '';
+}
+function dlHash(s){ var h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return Math.abs(h).toString(36); }
+function dlSafeId(s){ return String(s).replace(/[^A-Za-z0-9_\-]/g, '_').slice(0, 60); }
+function dlFindProject(name, ref){
+  var list = pl(), i, p;
+  if (ref) { for (i = 0; i < list.length; i++) if (list[i].refcode && dlNorm(list[i].refcode) === dlNorm(ref)) return list[i]; }
+  if (name) { var n = dlNorm(name); for (i = 0; i < list.length; i++) { p = list[i]; if (dlNorm(coupleName(p.bride, p.groom)) === n) return p; } }
+  return null;
+}
+
+/* ── main render ── */
+function renderLocator(){
+  var host = document.getElementById('dv-tab-locator'); if (!host) return;
+  if (!host.getAttribute('data-built')) {
+    host.setAttribute('data-built', '1');
+    host.innerHTML =
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">' +
+        '<input type="text" class="fi" id="dl-q" placeholder="🔍 Search client, drive, folder, ref code, notes…" style="flex:1;min-width:240px;max-width:460px" oninput="kbSearchDebounce(dlRenderList,200)">' +
+        '<select class="fi" id="dl-f-dev" style="flex:0;width:auto" onchange="dlRenderList()"><option value="">All Drives / Servers</option></select>' +
+        '<select class="fi" id="dl-f-store" style="flex:0;width:auto" onchange="dlRenderList()"><option value="">All Storage</option>' + DL_STORES.map(function(x){ return '<option>' + x + '</option>'; }).join('') + '</select>' +
+        '<select class="fi" id="dl-f-type" style="flex:0;width:auto" onchange="dlRenderList()"><option value="">All Data Types</option>' + DL_TYPES.map(function(x){ return '<option>' + x + '</option>'; }).join('') + '</select>' +
+        '<select class="fi" id="dl-f-status" style="flex:0;width:auto" onchange="dlRenderList()"><option value="">All Status</option>' + DL_STATUS.map(function(x){ return '<option>' + x + '</option>'; }).join('') + '</select>' +
+        '<button class="btn btn-primary" id="dl-add" style="margin-left:auto">+ Add Data Entry</button>' +
+      '</div>' +
+      '<div id="dl-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px"></div>' +
+      '<div id="dl-devchips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>' +
+      '<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px"><div id="dl-table" style="overflow:auto"></div></div>' +
+      '<div id="dl-sheet"></div>';
+    document.getElementById('dl-add').onclick = function(){ dlOpenForm(''); };
+  }
+  dlRenderList(); dlRenderSheetPanel();
+}
+
+function dlRenderList(){
+  var all = dlList();
+  var q = ((document.getElementById('dl-q') || {}).value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  var fd = (document.getElementById('dl-f-dev') || {}).value || '', fs = (document.getElementById('dl-f-store') || {}).value || '',
+      ft = (document.getElementById('dl-f-type') || {}).value || '', fst = (document.getElementById('dl-f-status') || {}).value || '';
+  // device dropdown + chips (from all entries)
+  var devCount = {}; all.forEach(function(e){ if (e.device) devCount[e.device] = (devCount[e.device] || 0) + 1; });
+  var devs = Object.keys(devCount).sort();
+  var sel = document.getElementById('dl-f-dev');
+  if (sel) sel.innerHTML = '<option value="">All Drives / Servers</option>' + devs.map(function(d){ return '<option value="' + escHtml(d) + '"' + (d === fd ? ' selected' : '') + '>' + escHtml(d) + ' (' + devCount[d] + ')</option>'; }).join('');
+  var chips = document.getElementById('dl-devchips');
+  if (chips) {
+    chips.innerHTML = devs.map(function(d){ return '<button class="btn btn-sm dl-chip" data-dev="' + escHtml(d) + '" style="' + (d === fd ? 'background:#1d4ed8;color:#fff;border-color:#1d4ed8' : '') + '">💽 ' + escHtml(d) + ' · ' + devCount[d] + '</button>'; }).join('');
+    chips.querySelectorAll('.dl-chip').forEach(function(b){ b.onclick = function(){ var s = document.getElementById('dl-f-dev'); s.value = (s.value === b.getAttribute('data-dev')) ? '' : b.getAttribute('data-dev'); dlRenderList(); }; });
+  }
+  var rows = all.filter(function(e){
+    if (fd && e.device !== fd) return false; if (fs && e.storageType !== fs) return false;
+    if (ft && e.dataType !== ft) return false; if (fst && e.status !== fst) return false;
+    if (q.length) { var hay = [e.client, e.refcode, e.eventDate, e.dataType, e.storageType, e.device, e.path, e.backup, e.source, e.status, e.notes].join(' ').toLowerCase(); if (!q.every(function(t){ return hay.indexOf(t) !== -1; })) return false; }
+    return true;
+  }).sort(function(a, b){ return (b.eventDate || '').localeCompare(a.eventDate || '') || String(a.client).localeCompare(String(b.client)); });
+
+  var gb = rows.reduce(function(a, e){ return a + dlGB(e); }, 0);
+  var noBk = rows.filter(function(e){ return !e.backup; }).length;
+  var miss = rows.filter(function(e){ return e.status === 'Missing / Check'; }).length;
+  var sum = document.getElementById('dl-summary');
+  if (sum) sum.innerHTML =
+    '<div class="metric blue"><div class="ml">Entries</div><div class="mv">' + rows.length + '</div></div>' +
+    '<div class="metric blue"><div class="ml">Total Data</div><div class="mv" style="font-size:18px">' + dlFmtSize(gb) + '</div></div>' +
+    '<div class="metric amber"><div class="ml">No Backup Copy</div><div class="mv">' + noBk + '</div></div>' +
+    '<div class="metric ' + (miss ? 'red' : 'green') + '"><div class="ml">Missing / Check</div><div class="mv">' + miss + '</div></div>';
+
+  var tbl = document.getElementById('dl-table'); if (!tbl) return;
+  if (!rows.length) { tbl.innerHTML = '<div class="empty" style="padding:30px">' + (all.length ? 'No entries match your search.' : 'No data entries yet. Click “+ Add Data Entry”, or import from your Google Sheet below.') + '</div>'; return; }
+  var can = dlCanEdit();
+  var stCol = { 'Stored': '#1d4ed8', 'Verified': '#16a34a', 'With Editor': '#d97706', 'Archived': '#64748b', 'Delivered to Client': '#7c3aed', 'Missing / Check': '#dc2626' };
+  tbl.innerHTML = '<table class="tbl" style="min-width:900px"><thead><tr><th>Client</th><th>Event</th><th>Data</th><th>Where (Drive / Server)</th><th>Folder Path</th><th>Size</th><th>Backup Copy</th><th>Status</th><th></th></tr></thead><tbody>' +
+    rows.map(function(e){
+      return '<tr>' +
+        '<td style="font-weight:700">' + escHtml(e.client || '—') + (e.refcode ? '<div><span class="refcode" style="font-size:10px">' + escHtml(e.refcode) + '</span></div>' : '') + '</td>' +
+        '<td style="font-size:12px;white-space:nowrap">' + (e.eventDate ? fmtDate(e.eventDate) : '—') + '</td>' +
+        '<td style="font-size:12px">' + escHtml(e.dataType || '—') + (e.source ? '<div style="color:#94a3b8;font-size:11px">' + escHtml(e.source) + '</div>' : '') + '</td>' +
+        '<td><div style="font-weight:700">' + escHtml(e.device || '—') + '</div><div style="font-size:11px;color:#64748b">' + escHtml(e.storageType || '') + '</div></td>' +
+        '<td>' + (e.path ? '<span style="background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:12px;font-family:monospace;word-break:break-all">' + escHtml(e.path) + '</span> <button class="btn btn-sm dl-copy" data-id="' + escHtml(e.id) + '" title="Copy path">📋</button>' : '—') + '</td>' +
+        '<td style="font-weight:700;color:#1d4ed8;white-space:nowrap">' + (e.size ? escHtml(e.size) + ' ' + escHtml(e.unit || 'GB') : '—') + '</td>' +
+        '<td style="font-size:12px">' + (e.backup ? '✅ ' + escHtml(e.backup) : '<span style="color:#dc2626">❌ None</span>') + '</td>' +
+        '<td><span style="font-size:11px;font-weight:700;color:' + (stCol[e.status] || '#475569') + '">' + escHtml(e.status || '—') + '</span></td>' +
+        '<td style="white-space:nowrap">' + (can ? '<button class="btn btn-sm dl-edit" data-id="' + escHtml(e.id) + '">✏️</button> <button class="btn btn-sm dl-del" data-id="' + escHtml(e.id) + '">🗑️</button>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table>';
+  tbl.querySelectorAll('.dl-edit').forEach(function(b){ b.onclick = function(){ dlOpenForm(b.getAttribute('data-id')); }; });
+  tbl.querySelectorAll('.dl-del').forEach(function(b){ b.onclick = function(){ dlDelete(b.getAttribute('data-id')); }; });
+  tbl.querySelectorAll('.dl-copy').forEach(function(b){ b.onclick = function(){
+    var e = dlList().find(function(x){ return x.id === b.getAttribute('data-id'); }); if (!e) return;
+    var t = (e.device ? e.device + ' → ' : '') + e.path;
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){ showToast('📋 Path copied'); }); else prompt('Copy:', t);
+  }; });
+}
+
+/* ── add / edit form ── */
+function dlCloseForm(){ var o = document.getElementById('dl-form-ov'); if (o) o.remove(); }
+function dlOpenForm(id){
+  if (!dlCanEdit()) { alert('Only Admin / Data Manager can add or edit entries.'); return; }
+  dlCloseForm();
+  var e = id ? (dlList().find(function(x){ return x.id === id; }) || {}) : { storageType: 'Hard Drive', unit: 'GB', status: 'Stored', storedOn: tod() };
+  function opt(list, v){ return list.map(function(x){ return '<option' + (x === v ? ' selected' : '') + '>' + escHtml(x) + '</option>'; }).join(''); }
+  function fld(label, inner, w){ return '<label style="flex:1 1 ' + (w || 200) + 'px;font-size:12px;font-weight:600;color:#475569">' + label + '<div style="margin-top:3px">' + inner + '</div></label>'; }
+  var inp = function(i, v, ph, extra){ return '<input class="fi" id="dlf-' + i + '" value="' + escHtml(v || '') + '" placeholder="' + escHtml(ph || '') + '" style="width:100%" ' + (extra || '') + '>'; };
+  var names = pl().map(function(p){ return coupleName(p.bride, p.groom); }).filter(Boolean);
+  var devs = [...new Set(dlList().map(function(x){ return x.device; }).filter(Boolean))];
+  var ov = document.createElement('div'); ov.id = 'dl-form-ov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 12px';
+  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:720px;width:100%;padding:20px 22px">' +
+    '<div style="font-size:17px;font-weight:800;margin-bottom:14px">' + (id ? '✏️ Edit' : '➕ Add') + ' Data Entry</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:12px">' +
+      fld('Client *', inp('client', e.client, 'Start typing a client name…', 'list="dlf-clients"') + '<datalist id="dlf-clients">' + names.map(function(n){ return '<option value="' + escHtml(n) + '">'; }).join('') + '</datalist>', 260) +
+      fld('Ref Code', inp('refcode', e.refcode, 'auto-filled'), 140) +
+      fld('Event Date', '<input type="date" class="fi" id="dlf-eventDate" value="' + escHtml(e.eventDate || '') + '" style="width:100%">', 150) +
+      fld('Data Type', '<select class="fi" id="dlf-dataType" style="width:100%">' + opt(DL_TYPES, e.dataType) + '</select>', 170) +
+      fld('Storage Type', '<select class="fi" id="dlf-storageType" style="width:100%">' + opt(DL_STORES, e.storageType) + '</select>', 170) +
+      fld('Drive / Server Name *', inp('device', e.device, 'e.g. HDD-07, NAS-1', 'list="dlf-devs"') + '<datalist id="dlf-devs">' + devs.map(function(n){ return '<option value="' + escHtml(n) + '">'; }).join('') + '</datalist>', 200) +
+      fld('Folder Path', inp('path', e.path, 'e.g. /2026/Nov/Akash-Akshita/RAW'), 420) +
+      fld('Size', inp('size', e.size, '250', 'type="number" min="0" step="any"'), 100) +
+      fld('Unit', '<select class="fi" id="dlf-unit" style="width:100%">' + opt(['GB', 'TB', 'MB'], e.unit) + '</select>', 90) +
+      fld('Backup Copy Location', inp('backup', e.backup, 'e.g. HDD-12 / NAS-2 (leave blank if none)'), 260) +
+      fld('Source / Photographer', inp('source', e.source, 'optional'), 200) +
+      fld('Status', '<select class="fi" id="dlf-status" style="width:100%">' + opt(DL_STATUS, e.status) + '</select>', 170) +
+      fld('Date Stored', '<input type="date" class="fi" id="dlf-storedOn" value="' + escHtml(e.storedOn || '') + '" style="width:100%">', 150) +
+      fld('Notes', '<textarea class="fi" id="dlf-notes" rows="2" style="width:100%">' + escHtml(e.notes || '') + '</textarea>', 420) +
+    '</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn" id="dlf-cancel">Cancel</button><button class="btn btn-primary" id="dlf-save">💾 Save</button></div></div>';
+  document.body.appendChild(ov);
+  document.getElementById('dlf-cancel').onclick = dlCloseForm;
+  document.getElementById('dlf-client').addEventListener('change', function(){
+    var p = dlFindProject(this.value, ''); if (!p) return;
+    this.value = coupleName(p.bride, p.groom);
+    if (!document.getElementById('dlf-refcode').value) document.getElementById('dlf-refcode').value = p.refcode || '';
+    if (!document.getElementById('dlf-eventDate').value) document.getElementById('dlf-eventDate').value = p.date || '';
+  });
+  document.getElementById('dlf-save').onclick = function(){ dlSaveForm(id); };
+}
+function dlSaveForm(id){
+  var g = function(k){ return (document.getElementById('dlf-' + k) || {}).value || ''; };
+  var client = g('client').trim(), device = g('device').trim();
+  if (!client) { alert('Please enter the client name.'); return; }
+  if (!device) { alert('Please enter the Drive / Server name — that is how you will find the data later.'); return; }
+  var p = dlFindProject(client, g('refcode'));
+  var e = { id: id || ('dl' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)),
+    client: client, refcode: g('refcode').trim() || (p && p.refcode) || '', projId: p ? String(p.id) : '',
+    eventDate: g('eventDate'), dataType: g('dataType'), storageType: g('storageType'), device: device, path: g('path').trim(),
+    size: g('size'), unit: g('unit'), backup: g('backup').trim(), source: g('source').trim(), status: g('status'),
+    storedOn: g('storedOn'), notes: g('notes').trim(), enteredBy: (CU && (CU.name || CU.email)) || '', updatedAt: Date.now() };
+  db.ref('crm_settings/dataLocator/' + e.id).set(e, function(err){
+    if (err) { alert('Could not save: ' + err.message + '\n\nIf this says “permission denied”, ask your admin to allow writes on crm_settings/dataLocator in Firebase rules.'); return; }
+    crmSettings.dataLocator = crmSettings.dataLocator || {}; crmSettings.dataLocator[e.id] = e;
+    dlCloseForm(); dlRenderList(); showToast('✅ Data entry saved');
+  });
+}
+function dlDelete(id){
+  if (!dlCanEdit()) return;
+  var e = dlList().find(function(x){ return x.id === id; }); if (!e) return;
+  if (!confirm('Delete this entry?\n\n' + e.client + ' — ' + (e.device || '') + ' ' + (e.path || ''))) return;
+  db.ref('crm_settings/dataLocator/' + id).remove(function(err){
+    if (err) { alert('Could not delete: ' + err.message); return; }
+    if (crmSettings.dataLocator) delete crmSettings.dataLocator[id];
+    dlRenderList(); showToast('🗑️ Entry deleted');
+  });
+}
+
+/* ── Google Sheet link ── */
+function dlScriptText(){
+  return ["// KB Studio — Data Locator sheet.   Paste this in: Extensions → Apps Script → Save → Run 'setupSheet' once.",
+"var SECRET = 'CHANGE-THIS-KEY';   // any secret word (8+ letters). Save the SAME word in the CRM.",
+"var HEAD = " + JSON.stringify(DL_SHEET_HEAD) + ";",
+"var DATA_TYPES = " + JSON.stringify(DL_TYPES) + ";",
+"",
+"// ▶ RUN THIS ONCE — builds the simple entry sheet",
+"function setupSheet() {",
+"  var ss = SpreadsheetApp.getActiveSpreadsheet();",
+"  var sh = ss.getSheetByName('Data Entry') || ss.insertSheet('Data Entry', 0);",
+"  var lists = ss.getSheetByName('Lists') || ss.insertSheet('Lists');",
+"  lists.getRange('A1:B1').setValues([['Clients (from CRM)', 'Drives & Servers']]).setFontWeight('bold');",
+"  sh.clear();",
+"  sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]).setFontWeight('bold').setFontSize(11).setBackground('#1d4ed8').setFontColor('#ffffff');",
+"  sh.setFrozenRows(1);",
+"  sh.setColumnWidths(1, 1, 220); sh.setColumnWidths(2, 1, 100); sh.setColumnWidths(3, 1, 130); sh.setColumnWidths(4, 1, 130);",
+"  sh.setColumnWidths(5, 1, 330); sh.setColumnWidths(6, 1, 80); sh.setColumnWidths(7, 1, 130); sh.setColumnWidths(8, 1, 260);",
+"  sh.getRange(2, 2, 3000, 1).setNumberFormat('yyyy-mm-dd');",
+"  sh.getRange(2, 6, 3000, 1).setNumberFormat('@');",
+"  function dd(col, rule) { sh.getRange(2, col, 3000, 1).setDataValidation(rule); }",
+"  dd(1, SpreadsheetApp.newDataValidation().requireValueInRange(lists.getRange('A2:A3000'), true).setAllowInvalid(true).build());",
+"  dd(3, SpreadsheetApp.newDataValidation().requireValueInList(DATA_TYPES, true).setAllowInvalid(true).build());",
+"  dd(4, SpreadsheetApp.newDataValidation().requireValueInRange(lists.getRange('B2:B3000'), true).setAllowInvalid(true).build());",
+"  dd(7, SpreadsheetApp.newDataValidation().requireValueInRange(lists.getRange('B2:B3000'), true).setAllowInvalid(true).build());",
+"  // Drive filled but no backup drive -> light red reminder",
+"  var rule = SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND($D2<>\"\",$G2=\"\")').setBackground('#fee2e2').setRanges([sh.getRange('G2:G3000')]).build();",
+"  sh.setConditionalFormatRules([rule]);",
+"  var help = ss.getSheetByName('Start Here') || ss.insertSheet('Start Here', 1);",
+"  help.clear();",
+"  help.getRange(1, 1, 7, 1).setValues([['HOW TO USE'], ['1. Go to the \"Data Entry\" tab. One row = one folder of data.'], ['2. Client: pick from the list (or type). Drive / Server: pick or type, e.g. HDD-07 or NAS-1.'], ['3. Folder Path: where the folder is inside that drive. Size: like 250 GB or 2 TB.'], ['4. Backup Drive: where the second copy is. A red box means no backup yet.'], ['5. Open the CRM → Data Vault → Data Locator → press \"Import from Sheet\". Done.'], ['Tip: never delete the heading row. To fix a mistake, edit the row and import again.']]);",
+"  help.getRange('A1').setFontWeight('bold').setFontSize(14); help.setColumnWidth(1, 700);",
+"}",
+"",
+"// Receives data from the CRM: refreshes the dropdown lists + a read-only 'CRM Export' copy",
+"function doPost(e) {",
+"  try {",
+"    var d = JSON.parse(e.postData.contents);",
+"    if (d.key !== SECRET) return out({ ok: false, error: 'Wrong secret key' });",
+"    var ss = SpreadsheetApp.getActiveSpreadsheet();",
+"    var lists = ss.getSheetByName('Lists') || ss.insertSheet('Lists');",
+"    lists.getRange('A2:B3000').clearContent();",
+"    if (d.clients && d.clients.length) lists.getRange(2, 1, d.clients.length, 1).setValues(d.clients.map(function (c) { return [c]; }));",
+"    if (d.drives && d.drives.length) lists.getRange(2, 2, d.drives.length, 1).setValues(d.drives.map(function (c) { return [c]; }));",
+"    var sh = ss.getSheetByName('CRM Export') || ss.insertSheet('CRM Export');",
+"    sh.clear();",
+"    var all = [d.head].concat(d.rows);",
+"    var rg = sh.getRange(1, 1, all.length, d.head.length);",
+"    rg.setNumberFormat('@'); rg.setValues(all);",
+"    sh.getRange(1, 1, 1, d.head.length).setFontWeight('bold').setBackground('#e2e8f0');",
+"    sh.setFrozenRows(1);",
+"    sh.getRange(all.length + 2, 1).setValue('Last sent from CRM: ' + new Date());",
+"    return out({ ok: true, count: d.rows.length });",
+"  } catch (err) { return out({ ok: false, error: String(err) }); }",
+"}",
+"function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }"].join('\n');
+}
+function dlPushCfg(){ try { return { url: localStorage.getItem('kb_dl_push_url') || '', key: localStorage.getItem('kb_dl_push_key') || '' }; } catch (e) { return { url: '', key: '' }; } }
+function dlStatus(msg){ var el = document.getElementById('dl-status'); if (el) el.innerHTML = msg; }
+
+function dlRenderSheetPanel(){
+  var el = document.getElementById('dl-sheet'); if (!el) return;
+  var isOpen = el.getAttribute('data-open') === '1';
+  var url = (crmSettings && crmSettings.dataLocatorSheetUrl) || '', pc = dlPushCfg(), can = dlCanEdit();
+  el.innerHTML = '<details id="dl-sheet-d" ' + (isOpen ? 'open' : '') + ' style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px">' +
+    '<summary style="cursor:pointer;font-weight:800;font-size:14px">📊 Google Sheet link — enter data in a sheet, see it here' + (url ? ' <span style="font-size:11px;color:#16a34a;font-weight:700">● connected</span>' : '') + '</summary>' +
+    '<div style="font-size:12px;color:#475569;line-height:1.6;margin:10px 0">' +
+      '<b>Set up once (about 5 minutes):</b><br>' +
+      '① Make a new Google Sheet → <b>Extensions → Apps Script</b> → press <b>“📋 Copy script”</b> below → paste it → change <code>CHANGE-THIS-KEY</code> to your own secret word → Save → choose <b>setupSheet</b> and press <b>Run</b>. Your simple <b>Data Entry</b> sheet is ready.<br>' +
+      '② <b>File → Share → Publish to web</b> → pick the <b>Data Entry</b> tab and <b>CSV</b> → Publish → paste the link in the first box below → <b>Save link</b>.<br>' +
+      '③ <i>(Recommended — gives you client &amp; drive dropdowns)</i> Apps Script → <b>Deploy → New deployment → Web app</b> (Execute as <i>Me</i>, access <i>Anyone</i>) → paste the link ending <b>/exec</b> and your secret word in the second row → <b>Save</b> → <b>⬆️ Send to Google Sheet</b>.<br>' +
+      '<b>Every day:</b> add rows in the Data Entry sheet (8 simple columns) → come here and press <b>⬇️ Import from Sheet</b>. That’s all.</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><input class="fi" id="dl-url" value="' + escHtml(url) + '" placeholder="Published CSV link: https://docs.google.com/spreadsheets/d/e/…/pub?gid=…&output=csv" style="flex:1;min-width:260px">' +
+      (can ? '<button class="btn btn-sm" id="dl-save-url">💾 Save link</button>' : '') + '<button class="btn btn-sm btn-primary" id="dl-import">⬇️ Import from Sheet</button></div>' +
+    (can ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><input class="fi" id="dl-push-url" value="' + escHtml(pc.url) + '" placeholder="Web app link: https://script.google.com/macros/s/…/exec" style="flex:2;min-width:240px"><input class="fi" id="dl-push-key" type="password" value="' + escHtml(pc.key) + '" placeholder="Secret key" style="flex:1;min-width:140px"><button class="btn btn-sm" id="dl-save-push">💾 Save</button><button class="btn btn-sm" id="dl-send" style="background:#16a34a;color:#fff;border:none;font-weight:700">⬆️ Send to Google Sheet</button></div>' : '') +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px"><button class="btn btn-sm" id="dl-copy-script">📋 Copy script</button><button class="btn btn-sm" id="dl-dl-csv">📥 Download all as CSV</button></div>' +
+    '<div id="dl-status" style="font-size:12px;color:#475569;margin-top:6px"></div></details>';
+  document.getElementById('dl-sheet-d').addEventListener('toggle', function(){ el.setAttribute('data-open', this.open ? '1' : '0'); });
+  var $ = function(i){ return document.getElementById(i); };
+  if ($('dl-save-url')) $('dl-save-url').onclick = dlSaveUrl;
+  $('dl-import').onclick = dlImport;
+  if ($('dl-save-push')) $('dl-save-push').onclick = dlSavePush;
+  if ($('dl-send')) $('dl-send').onclick = dlSend;
+  $('dl-copy-script').onclick = function(){ var t = dlScriptText(); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){ showToast('📋 Script copied — paste it in Apps Script'); }); else prompt('Copy this script:', t); };
+  $('dl-dl-csv').onclick = dlDownloadCsv;
+}
+function dlSaveUrl(){
+  var u = ((document.getElementById('dl-url') || {}).value || '').trim();
+  if (u && !/^https:\/\/docs\.google\.com\/spreadsheets\//.test(u)) { alert('Paste the Google Sheets “Publish to web” CSV link (starts with https://docs.google.com/spreadsheets/).'); return; }
+  db.ref('crm_settings/dataLocatorSheetUrl').set(u, function(err){ if (err) alert('Could not save link: ' + err.message); else { crmSettings.dataLocatorSheetUrl = u; showToast('✅ Sheet link saved'); } });
+}
+function dlSavePush(){
+  var u = ((document.getElementById('dl-push-url') || {}).value || '').trim(), k = ((document.getElementById('dl-push-key') || {}).value || '').trim();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec$/.test(u)) { alert('The link must look like https://script.google.com/macros/s/…/exec (copy it from Deploy → Web app).'); return; }
+  if (k.length < 8) { alert('Use a secret key of at least 8 characters (the same one written in the script).'); return; }
+  try { localStorage.setItem('kb_dl_push_url', u); localStorage.setItem('kb_dl_push_key', k); } catch (e) { alert('Could not save in this browser.'); return; }
+  showToast('✅ Saved on this device');
+}
+function dlParseSize(v){
+  var m = /^\s*([\d.,]+)\s*(tb|gb|mb)?/i.exec(String(v == null ? '' : v)); if (!m) return { size: '', unit: 'GB' };
+  var n = m[1].replace(/,/g, ''); return { size: n, unit: (m[2] || 'GB').toUpperCase() };
+}
+function dlGuessStorage(dev){ return /nas|server|synology|qnap|san\b/i.test(dev) ? 'Server / NAS' : /cloud|dropbox|gdrive|google|onedrive/i.test(dev) ? 'Cloud' : /ssd|card|sd\b/i.test(dev) ? 'SSD / Card' : 'Hard Drive'; }
+var DL_ALIASES = {
+  id: ['entryid', 'id'], client: ['client', 'clientname', 'couple', 'name'], refcode: ['refcode', 'ref'],
+  eventDate: ['eventdate', 'date', 'shootdate'], dataType: ['datatype', 'data', 'type'],
+  storageType: ['storagetype'], device: ['driveserver', 'devicedrive', 'drive', 'device', 'server', 'harddrive'],
+  path: ['folderpath', 'folder', 'path'], size: ['size', 'sizegb'], unit: ['unit'],
+  backup: ['backupdrive', 'backuplocation', 'backup'], source: ['sourcephotographer', 'photographer', 'source'],
+  status: ['status'], storedOn: ['datestored'], notes: ['notes', 'note', 'remarks']
+};
+function dlImport(){
+  if (_dlBusy) return;
+  var u = ((document.getElementById('dl-url') || {}).value || (crmSettings && crmSettings.dataLocatorSheetUrl) || '').trim();
+  if (!u) { alert('Paste your published Google Sheet CSV link first.'); return; }
+  _dlBusy = true; dlStatus('⏳ Reading Google Sheet…');
+  fetch(u, { cache: 'no-store' }).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }).then(function(t){
+    _dlBusy = false;
+    if (/^\s*<(!doctype|html)/i.test(t)) throw new Error('The link returned a web page, not CSV. In the sheet: File → Share → Publish to web → choose the “Data Entry” tab and “Comma-separated values (.csv)”.');
+    var table = ccParseCSV(t), hi = -1, i, col = {};
+    for (i = 0; i < Math.min(table.length, 10); i++) {
+      var h = (table[i] || []).map(dlNorm), c = {};
+      Object.keys(DL_ALIASES).forEach(function(k){ for (var a = 0; a < DL_ALIASES[k].length; a++) { var x = h.indexOf(DL_ALIASES[k][a]); if (x > -1) { c[k] = x; break; } } });
+      if (c.client != null && c.device != null) { hi = i; col = c; break; }
+    }
+    if (hi < 0) throw new Error('Could not find the heading row — it needs “Client” and “Drive / Server” columns. Run setupSheet in the script to create the correct sheet.');
+    var existing = (crmSettings && crmSettings.dataLocator) || {}, upd = {}, nNew = 0, nUpd = 0, nSame = 0, nSkip = 0;
+    for (i = hi + 1; i < table.length; i++) {
+      var r = table[i] || [], g = function(k){ return col[k] != null ? String(r[col[k]] == null ? '' : r[col[k]]).trim() : ''; };
+      var o = { client: g('client'), device: g('device'), path: g('path'), dataType: g('dataType'), refcode: g('refcode'), backup: g('backup'), notes: g('notes') };
+      if (!o.client && !o.device && !o.path) continue;               // blank row
+      if (!o.client || !o.device) { nSkip++; continue; }
+      var sz = dlParseSize(g('size')); o.size = sz.size; o.unit = g('unit') ? g('unit').toUpperCase() : sz.unit;
+      o.eventDate = dlIsoDate(g('eventDate'));
+      var pr = dlFindProject(o.client, o.refcode);
+      if (pr) { o.refcode = o.refcode || pr.refcode || ''; o.eventDate = o.eventDate || pr.date || ''; o.projId = String(pr.id); } else o.projId = '';
+      o.id = g('id') ? dlSafeId(g('id')) : 'sh' + dlHash([dlNorm(o.client), dlNorm(o.dataType), dlNorm(o.device), dlNorm(o.path)].join('|'));
+      var old = existing[o.id] || null;
+      // columns the simple sheet doesn't have → keep what the CRM already knows, else sensible defaults
+      o.storageType = g('storageType') || (old && old.storageType) || dlGuessStorage(o.device);
+      o.status      = g('status')      || (old && old.status)      || 'Stored';
+      o.source      = g('source')      || (old && old.source)      || '';
+      o.storedOn    = dlIsoDate(g('storedOn')) || (old && old.storedOn) || tod();
+      o.dataType    = o.dataType || (old && old.dataType) || 'Other';
+      if (old) {
+        var keys = ['client', 'refcode', 'eventDate', 'dataType', 'storageType', 'device', 'path', 'size', 'unit', 'backup', 'source', 'status', 'notes'];
+        if (keys.every(function(k){ return String(old[k] == null ? '' : old[k]) === String(o[k] == null ? '' : o[k]); })) { nSame++; continue; }
+        nUpd++;
+      } else nNew++;
+      o.updatedAt = Date.now(); o.enteredBy = 'Google Sheet';
+      upd[o.id] = o;
+    }
+    var total = nNew + nUpd;
+    if (!total) { dlStatus('✅ Sheet read — nothing new to import (' + nSame + ' already up to date' + (nSkip ? '; ' + nSkip + ' row(s) skipped because Client or Drive / Server is empty' : '') + ').'); return; }
+    if (!confirm('Import from Google Sheet?\n\n• ' + nNew + ' new entries\n• ' + nUpd + ' updated entries\n• ' + nSame + ' unchanged' + (nSkip ? '\n• ' + nSkip + ' skipped (Client or Drive / Server empty)' : '') + '\n\nNothing is deleted.')) { dlStatus('Import cancelled.'); return; }
+    db.ref('crm_settings/dataLocator').update(upd, function(err){
+      if (err) { dlStatus('❌ ' + escHtml(err.message)); return; }
+      crmSettings.dataLocator = Object.assign(crmSettings.dataLocator || {}, upd);
+      dlRenderList(); dlStatus('✅ Imported ' + nNew + ' new and ' + nUpd + ' updated entries at ' + new Date().toLocaleTimeString('en-IN') + '.'); showToast('✅ Imported from Google Sheet');
+    });
+  }).catch(function(e){ _dlBusy = false; dlStatus('❌ ' + escHtml(e && e.message || e)); });
+}
+function dlExportRows(){
+  return dlList().sort(function(a, b){ return String(a.client).localeCompare(String(b.client)); }).map(function(e){
+    return [e.client, e.eventDate, e.dataType, e.device, e.path, e.size ? e.size + ' ' + (e.unit || 'GB') : '', e.backup, e.notes, e.status, e.refcode].map(function(v){ return String(v == null ? '' : v); });
+  });
+}
+function dlClientNames(){ var seen = {}; return pl().map(function(p){ return coupleName(p.bride, p.groom); }).filter(function(n){ if (!n || !String(n).trim() || seen[n]) return false; seen[n] = 1; return true; }).sort(); }
+function dlDriveNames(){ return [...new Set(dlList().map(function(e){ return e.device; }).concat(dlList().map(function(e){ return e.backup; })).filter(Boolean))].sort(); }
+function dlSend(){
+  if (!dlCanEdit()) return; var cfg = dlPushCfg();
+  if (!cfg.url || !cfg.key) { alert('Save the web app link and secret key first.'); return; }
+  var rows = dlExportRows();
+  if (_dlBusy) return; _dlBusy = true; dlStatus('⏳ Sending…');
+  fetch(cfg.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ key: cfg.key, head: DL_HEAD, rows: rows, clients: dlClientNames(), drives: dlDriveNames() }) })
+  .then(function(r){ return r.text(); }).then(function(t){
+    _dlBusy = false; var j = null; try { j = JSON.parse(t); } catch (e) {}
+    if (j && j.ok) dlStatus('✅ Sent ' + j.count + ' entries at ' + new Date().toLocaleTimeString('en-IN') + '. Your sheet dropdowns are updated.');
+    else dlStatus('❌ ' + escHtml((j && j.error) || 'Unexpected reply — check the link ends with /exec and the script is deployed for “Anyone”.'));
+  }).catch(function(){ _dlBusy = false; dlStatus('⚠️ Sent, but the browser could not read the reply. Open the Google Sheet → CRM Export tab to confirm it updated.'); });
+}
+function dlDownloadCsv(){
+  var rows = [DL_HEAD].concat(dlExportRows());
+  var csv = '\uFEFF' + rows.map(function(r){ return r.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'KB_Data_Locator_' + tod() + '.csv'; document.body.appendChild(a); a.click(); a.remove(); showToast('📥 CSV downloaded');
+}
+
 function renderDataVault() {
   var q = ((document.getElementById('dv-search') || {}).value || '').toLowerCase();
   var locF = ((document.getElementById('dv-location-f') || {}).value || '');
@@ -8141,10 +8520,11 @@ function switchDVTab(tab, btn) {
     b.style.color = '#888'; b.style.borderBottomColor = 'transparent'; b.style.fontWeight = '500';
   });
   btn.style.color = '#1d4ed8'; btn.style.borderBottomColor = '#1d4ed8'; btn.style.fontWeight = '700';
-  ['vault','archive-queue','archives'].forEach(function(t) {
+  ['vault','locator','archive-queue','archives'].forEach(function(t) {
     var el = document.getElementById('dv-tab-' + t);
     if (el) el.style.display = (t === tab) ? '' : 'none';
   });
+  if (tab === 'locator') renderLocator();
   if (tab === 'archive-queue') renderArchiveQueue();
   if (tab === 'archives') renderArchives();
 }
