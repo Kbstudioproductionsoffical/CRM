@@ -15144,9 +15144,9 @@ function renderPayments(){
     '<div class="metric red"><div class="ml">'+(hasPeriodFilter?'Pending Balance (Period)':'Pending Balance')+'</div><div class="mv">'+fmt(pPen)+'</div>'+(hasPeriodFilter?'<div class="ms">All-time: '+fmt(tPen)+'</div>':'')+'</div>'+
     '<div class="metric red"><div class="ml">'+(hasPeriodFilter?'Overdue Events (Period)':'Overdue Events')+'</div><div class="mv">'+pOv+'</div>'+(hasPeriodFilter?'<div class="ms">All-time: '+ov+'</div>':'')+'</div>';
 
-  dwsInit();
-  renderPayDueAlerts();
-  renderFuturePayments();
+  try { dwsInit(); } catch(e){ console.error('dwsInit err:', e); }
+  try { renderPayDueAlerts(); } catch(e){ console.error('alerts err:', e); }
+  try { renderFuturePayments(); } catch(e){ console.error('rfp err:', e); }
 
   // Account breakdown teaser (filtered) — full breakdown now lives on its own tab
   var accBDHtml = '';
@@ -41301,24 +41301,49 @@ function dwsRenderQuickMonthChips() {
   var monthsMap = {};
   var mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // Scan next 8 months
-  var now = new Date();
-  for (var i = 0; i < 8; i++) {
-    var d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    var ym = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
-    monthsMap[ym] = { ym: ym, label: mn[d.getMonth()] + ' ' + d.getFullYear(), total: 0, count: 0 };
+  function parseYM(str) {
+    if (!str) return '';
+    str = String(str).trim();
+    if (/^\d{4}-\d{2}/.test(str)) return str.slice(0, 7);
+    if (/^\d{2}[\/-]\d{2}[\/-]\d{4}/.test(str)) {
+      var pts = str.split(/[\/-]/);
+      return pts[2] + '-' + pts[1];
+    }
+    return '';
   }
+
+  // Scan all active projects with pending balance
+  var totalAllUpcoming = 0;
+  var totalOverdue = 0;
+  var todayStr = new Date().toISOString().substring(0, 10);
+  var currentYM = todayStr.substring(0, 7);
 
   pl().forEach(function(p) {
     if (p.stage === 'complete') return;
+    var bal = Math.max(0, balDue(p));
+    if (bal <= 0) return;
+
     var schedule = getPaymentScheduleWithCarryForward(p);
     schedule.forEach(function(s) {
       if (s.isSettled) return;
       var amt = s.collectibleTotal || s.shortfall || 0;
       if (amt <= 0) return;
+
+      totalAllUpcoming += amt;
       var due = s.dueDate || p.date || '';
-      var ym = due.substring(0, 7);
-      if (monthsMap[ym]) {
+      var ym = parseYM(due);
+
+      if (due && due < todayStr) {
+        totalOverdue += amt;
+      }
+
+      if (ym) {
+        if (!monthsMap[ym]) {
+          var y = parseInt(ym.substring(0, 4));
+          var m = parseInt(ym.substring(5, 7));
+          var lbl = (mn[m - 1] || 'M') + ' ' + y;
+          monthsMap[ym] = { ym: ym, label: lbl, total: 0, count: 0 };
+        }
         monthsMap[ym].total += amt;
         monthsMap[ym].count++;
       }
@@ -41326,19 +41351,59 @@ function dwsRenderQuickMonthChips() {
   });
 
   var curSel = (document.getElementById('dws-month') || {}).value || '';
+  var curRange = (document.getElementById('dws-range') || {}).value || 'month';
 
-  chipContainer.innerHTML = Object.values(monthsMap).map(function(m) {
-    var isSel = (m.ym === curSel);
-    var bg = isSel ? '#0f172a' : (m.total > 0 ? '#eff6ff' : '#f8fafc');
-    var tc = isSel ? '#fff' : (m.total > 0 ? '#1d4ed8' : '#94a3b8');
-    var bc = isSel ? '#0f172a' : (m.total > 0 ? '#bfdbfe' : '#e2e8f0');
-    return '<button onclick="dwsSelectQuickMonth(\'' + m.ym + '\')" style="background:' + bg + ';color:' + tc + ';border:1px solid ' + bc + ';border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">' +
-      '<span>' + m.label + '</span>' +
-      (m.total > 0 ? '<strong style="color:' + (isSel ? '#38bdf8' : '#16a34a') + '">' + fmt(m.total) + '</strong>' : '<span style="color:#aaa;font-size:10px">₹0</span>') +
+  // Sort months chronologically
+  var sortedYMs = Object.keys(monthsMap).sort();
+
+  // Summary quick chips
+  var chipsHtml = '';
+
+  // 1. All Upcoming Chip
+  var isAllSel = (curRange === 'upcoming');
+  chipsHtml += '<button onclick="dwsSelectSpecialRange(\'upcoming\')" style="background:' + (isAllSel ? '#0f172a' : '#f0fdf4') + ';color:' + (isAllSel ? '#fff' : '#166534') + ';border:1px solid ' + (isAllSel ? '#0f172a' : '#bbf7d0') + ';border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">' +
+    '<span>💰 All Upcoming</span>' +
+    '<strong style="color:' + (isAllSel ? '#4ade80' : '#16a34a') + '">' + fmt(totalAllUpcoming) + '</strong>' +
+  '</button>';
+
+  // 2. Overdue Chip
+  if (totalOverdue > 0) {
+    chipsHtml += '<button onclick="dwsSelectSpecialRange(\'overdue\')" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">' +
+      '<span>🔴 Overdue</span>' +
+      '<strong style="color:#dc2626">' + fmt(totalOverdue) + '</strong>' +
     '</button>';
-  }).join('');
+  }
+
+  // 3. Chronological Month Chips
+  sortedYMs.forEach(function(ym) {
+    var m = monthsMap[ym];
+    var isSel = (m.ym === curSel && curRange === 'month');
+    var isPast = (m.ym < currentYM);
+    var bg = isSel ? '#0f172a' : (isPast ? '#fef2f2' : '#eff6ff');
+    var tc = isSel ? '#fff' : (isPast ? '#991b1b' : '#1d4ed8');
+    var bc = isSel ? '#0f172a' : (isPast ? '#fecaca' : '#bfdbfe');
+    chipsHtml += '<button onclick="dwsSelectQuickMonth(\'' + m.ym + '\')" style="background:' + bg + ';color:' + tc + ';border:1px solid ' + bc + ';border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">' +
+      '<span>' + m.label + '</span>' +
+      '<strong style="color:' + (isSel ? '#38bdf8' : (isPast ? '#dc2626' : '#16a34a')) + '">' + fmt(m.total) + '</strong>' +
+    '</button>';
+  });
+
+  chipContainer.innerHTML = chipsHtml || '<span style="font-size:11px;color:#888">No pending dues found in active projects.</span>';
 }
 
+window.dwsSelectSpecialRange = function(type) {
+  var sel = document.getElementById('dws-range');
+  if (sel) {
+    sel.value = type === 'upcoming' ? 'upcoming' : 'month';
+  }
+  var minp = document.getElementById('dws-month');
+  if (minp && type !== 'upcoming') {
+    minp.value = new Date().toISOString().substring(0, 7);
+  }
+  dwsRangeChanged();
+  dwsShow();
+  dwsRenderQuickMonthChips();
+};
 window.dwsSelectQuickMonth = function(ym) {
   var sel = document.getElementById('dws-range'); if (sel) sel.value = 'month';
   var minp = document.getElementById('dws-month'); if (minp) minp.value = ym;
@@ -41408,6 +41473,59 @@ function _dwsDateLabel(dateStr) {
 }
 
 // Returns { title, sections:[{label, rows:[...], total}], grand, count, clients }
+
+function _erpBuildInstalmentsLegacy(p) {
+  if (!p) return [];
+  var terms  = getPayTerms(p);
+  var ledger = p.payLedger || [];
+  var net    = netVal(p);
+  var customLabels = p.payTermLabels || {};
+
+  var generalPool = ledger
+    .filter(function(e){ return e.stage === 'general'; })
+    .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+  var generalUsed = 0;
+
+  return terms.map(function(t) {
+    var expected = _expFromTerm(t, net);
+    var directPaid = ledger
+      .filter(function(e){ return stageMatches(e.stage, t.key); })
+      .reduce(function(a,e){ return a + (parseInt(e.amount)||0); }, 0);
+    var splitPaid = ledger
+      .filter(function(e){ return e.splitAllocation; })
+      .reduce(function(a,e){
+        var alloc = e.splitAllocation.find(function(al){ return stageMatches(al.stage, t.key); });
+        return a + (alloc ? (parseInt(alloc.amount)||0) : 0);
+      }, 0);
+
+    var rawPaid = directPaid + splitPaid;
+    var remaining = Math.max(0, expected - rawPaid);
+    var genApplied = Math.max(0, Math.min(remaining, generalPool - generalUsed));
+    generalUsed += genApplied;
+    var paid = rawPaid + genApplied;
+
+    var balance  = Math.max(expected - paid, 0);
+    var surplus  = Math.max(paid - expected, 0);
+    var dueKey   = 'pay_' + t.key + '_due';
+    var dueNKey  = 'pay_' + t.key + '_due_notes';
+    var status   = paid === 0 ? 'pending' : balance === 0 ? 'paid' : 'partial';
+
+    return {
+      key:      t.key,
+      label:    customLabels[t.key + '_label'] || t.label,
+      desc:     t.desc || '',
+      pct:      t.pct,
+      expected: expected,
+      paid:     paid,
+      balance:  balance,
+      surplus:  surplus,
+      status:   status,
+      dueDate:  p[dueKey]  || '',
+      dueNotes: p[dueNKey] || ''
+    };
+  });
+}
+
 function dwsBuild() {
   var mode   = (document.getElementById('dws-range') || {}).value || 'month';
   var ym     = (document.getElementById('dws-month') || {}).value || '';
