@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
 <!-- FILE:// PROTOCOL GUARD REMOVED — opens directly as a file -->
-<title>KB Studio CRM v74.17</title>
+<title>KB Studio CRM v74.11</title>
 <meta name="application-name" content="KB Studio CRM">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1727,29 +1727,6 @@ document.addEventListener('wheel', function(e) {
         <div style="margin-bottom:10px">
           <button type="button" id="pay-details-toggle" class="btn btn-sm" onclick="togglePayDetails()" style="font-size:11px;color:#888;border-color:#ddd">Show full breakdown ▾</button>
         </div>
-        <div id="dws-bar" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">
-          <span style="font-size:12px;font-weight:700;color:#334155">🗓️ Date-wise Payment Schedule</span>
-          <select id="dws-range" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()">
-            <option value="month">Single month</option>
-            <option value="range">Multiple months (From – To)</option>
-            <option value="year">Full year (Jan – Dec)</option>
-            <option value="fy">Financial year (Apr – Mar)</option>
-            <option value="upcoming">All upcoming</option>
-          </select>
-          <input type="month" id="dws-month" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()">
-          <input type="number" id="dws-year" class="fi" min="2020" max="2100" style="display:none;width:90px;padding:6px 10px;font-size:12px" title="Year (for Financial year this is the starting year, e.g. 2026 = FY 2026-27)" onchange="dwsRangeChanged()">
-          <span id="dws-to-wrap" style="display:none;font-size:12px;color:#475569;align-items:center;gap:6px">to <input type="month" id="dws-month2" class="fi" style="width:auto;padding:6px 10px;font-size:12px" onchange="dwsRangeChanged()"></span>
-          <label style="font-size:12px;color:#475569;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="dws-extra" onchange="dwsRangeChanged()"> Also show earlier overdue &amp; no-date payments (at the bottom)</label>
-          <button class="btn btn-sm btn-primary" style="font-weight:700" onclick="dwsShow()">👁️ View here</button>
-          <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="dwsExportExcel()">📊 Excel</button>
-          <button class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;font-weight:700" onclick="dwsExportPDF()">🧾 PDF</button>
-          <span style="display:inline-flex;gap:6px;align-items:center;margin-left:auto">
-            <input id="dws-find" list="dws-find-list" class="fi" autocomplete="off" placeholder="🔎 Check any client — type a name" style="width:240px;padding:6px 10px;font-size:12px" onfocus="dwsFindFill()" onkeydown="if(event.key==='Enter')dwsFindClient()">
-            <datalist id="dws-find-list"></datalist>
-            <button class="btn btn-sm" style="font-weight:700" onclick="dwsFindClient()">🔍 Why this amount?</button>
-          </span>
-        </div>
-        <div id="dws-view" style="margin-bottom:16px"></div>
         <div class="metrics" id="pay-metrics" style="display:none"></div>
         <div id="pay-due-alerts" style="margin-bottom:12px"></div>
         <div id="pay-future-section" style="margin-bottom:16px"></div>
@@ -2527,15 +2504,6 @@ document.addEventListener('wheel', function(e) {
     <div id="page-invoice" class="page">
       <div class="page-title">🧾 Invoices</div>
       <div class="page-sub">Generate, save, print, and retrieve all client invoices.</div>
-      <!-- Client finder: search any client → see their current & past invoices -->
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:14px">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input type="text" class="fi" id="inv-cf-input" placeholder="🔍 Search any client — name, phone, ref code, invoice no, city…" style="flex:1;min-width:240px;max-width:520px" oninput="kbSearchDebounce(invFindClient,250)" onkeydown="if(event.key==='Enter'){invFindClient();}">
-          <button class="btn btn-primary" onclick="invFindClient()">🔍 Search</button>
-          <button class="btn" onclick="invClearFind()">✕ Clear</button>
-        </div>
-        <div id="inv-cf-results" style="margin-top:10px"></div>
-      </div>
       <!-- Invoice page tabs -->
       <div style="display:flex;gap:2px;border-bottom:2px solid #e5e5e5;margin-bottom:16px">
         <button class="tab-btn active" id="inv-tab-gen-btn" onclick="switchInvoiceTab('generate')">✏️ Generate Invoice</button>
@@ -2908,7 +2876,6 @@ document.addEventListener('wheel', function(e) {
     '<div class="page-sub">Central repository — locate any client data across all storage locations.</div>' +
     '<div style="display:flex;gap:0;border-bottom:2px solid #e5e7eb;margin-bottom:16px">' +
       '<button class="dv-main-tab" data-dvtab="vault" onclick="switchDVTab(\'vault\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:700;color:#1d4ed8;border-bottom:2px solid #1d4ed8;margin-bottom:-2px;cursor:pointer;font-family:inherit">🗄️ Data Vault</button>' +
-      '<button class="dv-main-tab" data-dvtab="locator" onclick="switchDVTab(\'locator\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">📍 Data Locator (Drives &amp; Servers)</button>' +
       '<button class="dv-main-tab" data-dvtab="archive-queue" onclick="switchDVTab(\'archive-queue\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">📦 Ready to Archive</button>' +
       '<button class="dv-main-tab" data-dvtab="archives" onclick="switchDVTab(\'archives\',this)" style="background:none;border:none;padding:9px 16px;font-size:13px;font-weight:600;color:#888;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;font-family:inherit">🗃️ Archives</button>' +
     '</div>' +
@@ -2922,7 +2889,6 @@ document.addEventListener('wheel', function(e) {
       '<div id="dv-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px"></div>' +
       '<div class="card" style="padding:0;overflow:hidden"><div id="dv-table"></div></div>' +
     '</div>' +
-    '<div id="dv-tab-locator" style="display:none"></div>' +
     '<div id="dv-tab-archive-queue" style="display:none"><div id="dv-archive-queue"></div></div>' +
     '<div id="dv-tab-archives" style="display:none"><div id="dv-archives-list"></div></div>';
   mainDiv.appendChild(vaultPage);
@@ -6899,7 +6865,6 @@ function getPayTerms(p){
 // Used to detect stale cached copies on mobile (installed PWA / homescreen).
 // ══════════════════════════════════════════════════════════════════
 var CRM_BUILD_VERSION = 'v87-2026-08-12-custom-event-tagging';
-document.addEventListener('DOMContentLoaded',function(){ if(typeof dwsInit==='function') dwsInit(); });
 
 var CU=null,projects={},teamData={},freelancerData={},users={},referral={},accounts={},crmSettings={},dupeConfirmed={},checklistTemplates={},followupTemplates={};
 var editProjId=null,editUserId=null,editAccId=null,editTeamId=null,rawRowCount=0;
@@ -7757,383 +7722,6 @@ function renderRawApprovalStatus(){
 }
 
 // ═══ DATA VAULT — searchable data location panel ════════════════════════════
-
-
-/* ═══════════════════════════════════════════════════════════════════════
-   📍 DATA LOCATOR — where is every client's data? (hard drives, servers, NAS)
-   • Entries live in Firebase at crm_settings/dataLocator/<id>
-   • Google Sheet link:  Sheet "Data Entry" tab → CRM (published CSV, upsert, no duplicates)
-                         CRM → Sheet "CRM Export" tab (Apps Script web app)
-   ═══════════════════════════════════════════════════════════════════════ */
-var DL_TYPES   = ['Raw Photos','Raw Videos','Edited Photos','Edited Video','Album Design','Drone','Reels / Social','Other'];
-var DL_STORES  = ['Hard Drive','Server / NAS','SSD / Card','Cloud'];
-var DL_STATUS  = ['Stored','Verified','With Editor','Archived','Delivered to Client','Missing / Check'];
-var DL_SHEET_HEAD = ['Client','Event Date','Data Type','Drive / Server','Folder Path','Size','Backup Drive','Notes'];
-var DL_HEAD    = DL_SHEET_HEAD.concat(['Status','Ref Code']);   // CRM → Sheet export has 2 extra read-only columns
-var _dlBusy = false;
-
-function dlCanEdit(){ return !!(typeof CU !== 'undefined' && CU && (CU.role === 'superadmin' || CU.role === 'admin' || CU.role === 'datamanager')); }
-function dlList(){
-  var o = (crmSettings && crmSettings.dataLocator) || {};
-  return Object.keys(o).map(function(k){ var e = o[k] || {}; e.id = e.id || k; return e; });
-}
-function dlNorm(s){ return String(s == null ? '' : s).toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,''); }
-function dlGB(e){ var n = parseFloat(e.size) || 0; return e.unit === 'TB' ? n * 1024 : e.unit === 'MB' ? n / 1024 : n; }
-function dlFmtSize(gb){ return gb >= 1024 ? (gb / 1024).toFixed(2) + ' TB' : gb.toFixed(1) + ' GB'; }
-function dlIsoDate(v){
-  v = String(v == null ? '' : v).trim(); if (!v) return '';
-  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(v); if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
-  m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec(v);
-  if (m) { var y = m[3].length === 2 ? '20' + m[3] : m[3]; return y + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2); }
-  return '';
-}
-function dlHash(s){ var h = 5381, i; for (i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return Math.abs(h).toString(36); }
-function dlSafeId(s){ return String(s).replace(/[^A-Za-z0-9_\-]/g, '_').slice(0, 60); }
-function dlFindProject(name, ref){
-  var list = pl(), i, p;
-  if (ref) { for (i = 0; i < list.length; i++) if (list[i].refcode && dlNorm(list[i].refcode) === dlNorm(ref)) return list[i]; }
-  if (name) { var n = dlNorm(name); for (i = 0; i < list.length; i++) { p = list[i]; if (dlNorm(coupleName(p.bride, p.groom)) === n) return p; } }
-  return null;
-}
-
-/* ── main render ── */
-function renderLocator(){
-  var host = document.getElementById('dv-tab-locator'); if (!host) return;
-  if (!host.getAttribute('data-built')) {
-    host.setAttribute('data-built', '1');
-    host.innerHTML =
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">' +
-        '<input type="text" class="fi" id="dl-q" placeholder="🔍 Search client, drive, folder, ref code, notes…" style="flex:1;min-width:240px;max-width:460px" oninput="kbSearchDebounce(dlRenderList,200)">' +
-        '<select class="fi" id="dl-f-dev" style="flex:0;width:auto" onchange="dlRenderList()"><option value="">All Drives / Servers</option></select>' +
-        '<select class="fi" id="dl-f-store" style="flex:0;width:auto" onchange="dlRenderList()"><option value="">All Storage</option>' + DL_STORES.map(function(x){ return '<option>' + x + '</option>'; }).join('') + '</select>' +
-        '<select class="fi" id="dl-f-type" style="flex:0;width:auto" onchange="dlRenderList()"><option value="">All Data Types</option>' + DL_TYPES.map(function(x){ return '<option>' + x + '</option>'; }).join('') + '</select>' +
-        '<select class="fi" id="dl-f-status" style="flex:0;width:auto" onchange="dlRenderList()"><option value="">All Status</option>' + DL_STATUS.map(function(x){ return '<option>' + x + '</option>'; }).join('') + '</select>' +
-        '<button class="btn btn-primary" id="dl-add" style="margin-left:auto">+ Add Data Entry</button>' +
-      '</div>' +
-      '<div id="dl-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:12px"></div>' +
-      '<div id="dl-devchips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>' +
-      '<div class="card" style="padding:0;overflow:hidden;margin-bottom:16px"><div id="dl-table" style="overflow:auto"></div></div>' +
-      '<div id="dl-sheet"></div>';
-    document.getElementById('dl-add').onclick = function(){ dlOpenForm(''); };
-  }
-  dlRenderList(); dlRenderSheetPanel();
-}
-
-function dlRenderList(){
-  var all = dlList();
-  var q = ((document.getElementById('dl-q') || {}).value || '').toLowerCase().trim().split(/\s+/).filter(Boolean);
-  var fd = (document.getElementById('dl-f-dev') || {}).value || '', fs = (document.getElementById('dl-f-store') || {}).value || '',
-      ft = (document.getElementById('dl-f-type') || {}).value || '', fst = (document.getElementById('dl-f-status') || {}).value || '';
-  // device dropdown + chips (from all entries)
-  var devCount = {}; all.forEach(function(e){ if (e.device) devCount[e.device] = (devCount[e.device] || 0) + 1; });
-  var devs = Object.keys(devCount).sort();
-  var sel = document.getElementById('dl-f-dev');
-  if (sel) sel.innerHTML = '<option value="">All Drives / Servers</option>' + devs.map(function(d){ return '<option value="' + escHtml(d) + '"' + (d === fd ? ' selected' : '') + '>' + escHtml(d) + ' (' + devCount[d] + ')</option>'; }).join('');
-  var chips = document.getElementById('dl-devchips');
-  if (chips) {
-    chips.innerHTML = devs.map(function(d){ return '<button class="btn btn-sm dl-chip" data-dev="' + escHtml(d) + '" style="' + (d === fd ? 'background:#1d4ed8;color:#fff;border-color:#1d4ed8' : '') + '">💽 ' + escHtml(d) + ' · ' + devCount[d] + '</button>'; }).join('');
-    chips.querySelectorAll('.dl-chip').forEach(function(b){ b.onclick = function(){ var s = document.getElementById('dl-f-dev'); s.value = (s.value === b.getAttribute('data-dev')) ? '' : b.getAttribute('data-dev'); dlRenderList(); }; });
-  }
-  var rows = all.filter(function(e){
-    if (fd && e.device !== fd) return false; if (fs && e.storageType !== fs) return false;
-    if (ft && e.dataType !== ft) return false; if (fst && e.status !== fst) return false;
-    if (q.length) { var hay = [e.client, e.refcode, e.eventDate, e.dataType, e.storageType, e.device, e.path, e.backup, e.source, e.status, e.notes].join(' ').toLowerCase(); if (!q.every(function(t){ return hay.indexOf(t) !== -1; })) return false; }
-    return true;
-  }).sort(function(a, b){ return (b.eventDate || '').localeCompare(a.eventDate || '') || String(a.client).localeCompare(String(b.client)); });
-
-  var gb = rows.reduce(function(a, e){ return a + dlGB(e); }, 0);
-  var noBk = rows.filter(function(e){ return !e.backup; }).length;
-  var miss = rows.filter(function(e){ return e.status === 'Missing / Check'; }).length;
-  var sum = document.getElementById('dl-summary');
-  if (sum) sum.innerHTML =
-    '<div class="metric blue"><div class="ml">Entries</div><div class="mv">' + rows.length + '</div></div>' +
-    '<div class="metric blue"><div class="ml">Total Data</div><div class="mv" style="font-size:18px">' + dlFmtSize(gb) + '</div></div>' +
-    '<div class="metric amber"><div class="ml">No Backup Copy</div><div class="mv">' + noBk + '</div></div>' +
-    '<div class="metric ' + (miss ? 'red' : 'green') + '"><div class="ml">Missing / Check</div><div class="mv">' + miss + '</div></div>';
-
-  var tbl = document.getElementById('dl-table'); if (!tbl) return;
-  if (!rows.length) { tbl.innerHTML = '<div class="empty" style="padding:30px">' + (all.length ? 'No entries match your search.' : 'No data entries yet. Click “+ Add Data Entry”, or import from your Google Sheet below.') + '</div>'; return; }
-  var can = dlCanEdit();
-  var stCol = { 'Stored': '#1d4ed8', 'Verified': '#16a34a', 'With Editor': '#d97706', 'Archived': '#64748b', 'Delivered to Client': '#7c3aed', 'Missing / Check': '#dc2626' };
-  tbl.innerHTML = '<table class="tbl" style="min-width:900px"><thead><tr><th>Client</th><th>Event</th><th>Data</th><th>Where (Drive / Server)</th><th>Folder Path</th><th>Size</th><th>Backup Copy</th><th>Status</th><th></th></tr></thead><tbody>' +
-    rows.map(function(e){
-      return '<tr>' +
-        '<td style="font-weight:700">' + escHtml(e.client || '—') + (e.refcode ? '<div><span class="refcode" style="font-size:10px">' + escHtml(e.refcode) + '</span></div>' : '') + '</td>' +
-        '<td style="font-size:12px;white-space:nowrap">' + (e.eventDate ? fmtDate(e.eventDate) : '—') + '</td>' +
-        '<td style="font-size:12px">' + escHtml(e.dataType || '—') + (e.source ? '<div style="color:#94a3b8;font-size:11px">' + escHtml(e.source) + '</div>' : '') + '</td>' +
-        '<td><div style="font-weight:700">' + escHtml(e.device || '—') + '</div><div style="font-size:11px;color:#64748b">' + escHtml(e.storageType || '') + '</div></td>' +
-        '<td>' + (e.path ? '<span style="background:#f1f5f9;padding:3px 8px;border-radius:6px;font-size:12px;font-family:monospace;word-break:break-all">' + escHtml(e.path) + '</span> <button class="btn btn-sm dl-copy" data-id="' + escHtml(e.id) + '" title="Copy path">📋</button>' : '—') + '</td>' +
-        '<td style="font-weight:700;color:#1d4ed8;white-space:nowrap">' + (e.size ? escHtml(e.size) + ' ' + escHtml(e.unit || 'GB') : '—') + '</td>' +
-        '<td style="font-size:12px">' + (e.backup ? '✅ ' + escHtml(e.backup) : '<span style="color:#dc2626">❌ None</span>') + '</td>' +
-        '<td><span style="font-size:11px;font-weight:700;color:' + (stCol[e.status] || '#475569') + '">' + escHtml(e.status || '—') + '</span></td>' +
-        '<td style="white-space:nowrap">' + (can ? '<button class="btn btn-sm dl-edit" data-id="' + escHtml(e.id) + '">✏️</button> <button class="btn btn-sm dl-del" data-id="' + escHtml(e.id) + '">🗑️</button>' : '') + '</td></tr>';
-    }).join('') + '</tbody></table>';
-  tbl.querySelectorAll('.dl-edit').forEach(function(b){ b.onclick = function(){ dlOpenForm(b.getAttribute('data-id')); }; });
-  tbl.querySelectorAll('.dl-del').forEach(function(b){ b.onclick = function(){ dlDelete(b.getAttribute('data-id')); }; });
-  tbl.querySelectorAll('.dl-copy').forEach(function(b){ b.onclick = function(){
-    var e = dlList().find(function(x){ return x.id === b.getAttribute('data-id'); }); if (!e) return;
-    var t = (e.device ? e.device + ' → ' : '') + e.path;
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){ showToast('📋 Path copied'); }); else prompt('Copy:', t);
-  }; });
-}
-
-/* ── add / edit form ── */
-function dlCloseForm(){ var o = document.getElementById('dl-form-ov'); if (o) o.remove(); }
-function dlOpenForm(id){
-  if (!dlCanEdit()) { alert('Only Admin / Data Manager can add or edit entries.'); return; }
-  dlCloseForm();
-  var e = id ? (dlList().find(function(x){ return x.id === id; }) || {}) : { storageType: 'Hard Drive', unit: 'GB', status: 'Stored', storedOn: tod() };
-  function opt(list, v){ return list.map(function(x){ return '<option' + (x === v ? ' selected' : '') + '>' + escHtml(x) + '</option>'; }).join(''); }
-  function fld(label, inner, w){ return '<label style="flex:1 1 ' + (w || 200) + 'px;font-size:12px;font-weight:600;color:#475569">' + label + '<div style="margin-top:3px">' + inner + '</div></label>'; }
-  var inp = function(i, v, ph, extra){ return '<input class="fi" id="dlf-' + i + '" value="' + escHtml(v || '') + '" placeholder="' + escHtml(ph || '') + '" style="width:100%" ' + (extra || '') + '>'; };
-  var names = pl().map(function(p){ return coupleName(p.bride, p.groom); }).filter(Boolean);
-  var devs = [...new Set(dlList().map(function(x){ return x.device; }).filter(Boolean))];
-  var ov = document.createElement('div'); ov.id = 'dl-form-ov';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 12px';
-  ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:720px;width:100%;padding:20px 22px">' +
-    '<div style="font-size:17px;font-weight:800;margin-bottom:14px">' + (id ? '✏️ Edit' : '➕ Add') + ' Data Entry</div>' +
-    '<div style="display:flex;flex-wrap:wrap;gap:12px">' +
-      fld('Client *', inp('client', e.client, 'Start typing a client name…', 'list="dlf-clients"') + '<datalist id="dlf-clients">' + names.map(function(n){ return '<option value="' + escHtml(n) + '">'; }).join('') + '</datalist>', 260) +
-      fld('Ref Code', inp('refcode', e.refcode, 'auto-filled'), 140) +
-      fld('Event Date', '<input type="date" class="fi" id="dlf-eventDate" value="' + escHtml(e.eventDate || '') + '" style="width:100%">', 150) +
-      fld('Data Type', '<select class="fi" id="dlf-dataType" style="width:100%">' + opt(DL_TYPES, e.dataType) + '</select>', 170) +
-      fld('Storage Type', '<select class="fi" id="dlf-storageType" style="width:100%">' + opt(DL_STORES, e.storageType) + '</select>', 170) +
-      fld('Drive / Server Name *', inp('device', e.device, 'e.g. HDD-07, NAS-1', 'list="dlf-devs"') + '<datalist id="dlf-devs">' + devs.map(function(n){ return '<option value="' + escHtml(n) + '">'; }).join('') + '</datalist>', 200) +
-      fld('Folder Path', inp('path', e.path, 'e.g. /2026/Nov/Akash-Akshita/RAW'), 420) +
-      fld('Size', inp('size', e.size, '250', 'type="number" min="0" step="any"'), 100) +
-      fld('Unit', '<select class="fi" id="dlf-unit" style="width:100%">' + opt(['GB', 'TB', 'MB'], e.unit) + '</select>', 90) +
-      fld('Backup Copy Location', inp('backup', e.backup, 'e.g. HDD-12 / NAS-2 (leave blank if none)'), 260) +
-      fld('Source / Photographer', inp('source', e.source, 'optional'), 200) +
-      fld('Status', '<select class="fi" id="dlf-status" style="width:100%">' + opt(DL_STATUS, e.status) + '</select>', 170) +
-      fld('Date Stored', '<input type="date" class="fi" id="dlf-storedOn" value="' + escHtml(e.storedOn || '') + '" style="width:100%">', 150) +
-      fld('Notes', '<textarea class="fi" id="dlf-notes" rows="2" style="width:100%">' + escHtml(e.notes || '') + '</textarea>', 420) +
-    '</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn" id="dlf-cancel">Cancel</button><button class="btn btn-primary" id="dlf-save">💾 Save</button></div></div>';
-  document.body.appendChild(ov);
-  document.getElementById('dlf-cancel').onclick = dlCloseForm;
-  document.getElementById('dlf-client').addEventListener('change', function(){
-    var p = dlFindProject(this.value, ''); if (!p) return;
-    this.value = coupleName(p.bride, p.groom);
-    if (!document.getElementById('dlf-refcode').value) document.getElementById('dlf-refcode').value = p.refcode || '';
-    if (!document.getElementById('dlf-eventDate').value) document.getElementById('dlf-eventDate').value = p.date || '';
-  });
-  document.getElementById('dlf-save').onclick = function(){ dlSaveForm(id); };
-}
-function dlSaveForm(id){
-  var g = function(k){ return (document.getElementById('dlf-' + k) || {}).value || ''; };
-  var client = g('client').trim(), device = g('device').trim();
-  if (!client) { alert('Please enter the client name.'); return; }
-  if (!device) { alert('Please enter the Drive / Server name — that is how you will find the data later.'); return; }
-  var p = dlFindProject(client, g('refcode'));
-  var e = { id: id || ('dl' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)),
-    client: client, refcode: g('refcode').trim() || (p && p.refcode) || '', projId: p ? String(p.id) : '',
-    eventDate: g('eventDate'), dataType: g('dataType'), storageType: g('storageType'), device: device, path: g('path').trim(),
-    size: g('size'), unit: g('unit'), backup: g('backup').trim(), source: g('source').trim(), status: g('status'),
-    storedOn: g('storedOn'), notes: g('notes').trim(), enteredBy: (CU && (CU.name || CU.email)) || '', updatedAt: Date.now() };
-  db.ref('crm_settings/dataLocator/' + e.id).set(e, function(err){
-    if (err) { alert('Could not save: ' + err.message + '\n\nIf this says “permission denied”, ask your admin to allow writes on crm_settings/dataLocator in Firebase rules.'); return; }
-    crmSettings.dataLocator = crmSettings.dataLocator || {}; crmSettings.dataLocator[e.id] = e;
-    dlCloseForm(); dlRenderList(); showToast('✅ Data entry saved');
-  });
-}
-function dlDelete(id){
-  if (!dlCanEdit()) return;
-  var e = dlList().find(function(x){ return x.id === id; }); if (!e) return;
-  if (!confirm('Delete this entry?\n\n' + e.client + ' — ' + (e.device || '') + ' ' + (e.path || ''))) return;
-  db.ref('crm_settings/dataLocator/' + id).remove(function(err){
-    if (err) { alert('Could not delete: ' + err.message); return; }
-    if (crmSettings.dataLocator) delete crmSettings.dataLocator[id];
-    dlRenderList(); showToast('🗑️ Entry deleted');
-  });
-}
-
-/* ── Google Sheet link ── */
-function dlScriptText(){
-  return ["// KB Studio — Data Locator sheet.   Paste this in: Extensions → Apps Script → Save → Run 'setupSheet' once.",
-"var SECRET = 'CHANGE-THIS-KEY';   // any secret word (8+ letters). Save the SAME word in the CRM.",
-"var HEAD = " + JSON.stringify(DL_SHEET_HEAD) + ";",
-"var DATA_TYPES = " + JSON.stringify(DL_TYPES) + ";",
-"",
-"// ▶ RUN THIS ONCE — builds the simple entry sheet",
-"function setupSheet() {",
-"  var ss = SpreadsheetApp.getActiveSpreadsheet();",
-"  var sh = ss.getSheetByName('Data Entry') || ss.insertSheet('Data Entry', 0);",
-"  var lists = ss.getSheetByName('Lists') || ss.insertSheet('Lists');",
-"  lists.getRange('A1:B1').setValues([['Clients (from CRM)', 'Drives & Servers']]).setFontWeight('bold');",
-"  sh.clear();",
-"  sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]).setFontWeight('bold').setFontSize(11).setBackground('#1d4ed8').setFontColor('#ffffff');",
-"  sh.setFrozenRows(1);",
-"  sh.setColumnWidths(1, 1, 220); sh.setColumnWidths(2, 1, 100); sh.setColumnWidths(3, 1, 130); sh.setColumnWidths(4, 1, 130);",
-"  sh.setColumnWidths(5, 1, 330); sh.setColumnWidths(6, 1, 80); sh.setColumnWidths(7, 1, 130); sh.setColumnWidths(8, 1, 260);",
-"  sh.getRange(2, 2, 3000, 1).setNumberFormat('yyyy-mm-dd');",
-"  sh.getRange(2, 6, 3000, 1).setNumberFormat('@');",
-"  function dd(col, rule) { sh.getRange(2, col, 3000, 1).setDataValidation(rule); }",
-"  dd(1, SpreadsheetApp.newDataValidation().requireValueInRange(lists.getRange('A2:A3000'), true).setAllowInvalid(true).build());",
-"  dd(3, SpreadsheetApp.newDataValidation().requireValueInList(DATA_TYPES, true).setAllowInvalid(true).build());",
-"  dd(4, SpreadsheetApp.newDataValidation().requireValueInRange(lists.getRange('B2:B3000'), true).setAllowInvalid(true).build());",
-"  dd(7, SpreadsheetApp.newDataValidation().requireValueInRange(lists.getRange('B2:B3000'), true).setAllowInvalid(true).build());",
-"  // Drive filled but no backup drive -> light red reminder",
-"  var rule = SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=AND($D2<>\"\",$G2=\"\")').setBackground('#fee2e2').setRanges([sh.getRange('G2:G3000')]).build();",
-"  sh.setConditionalFormatRules([rule]);",
-"  var help = ss.getSheetByName('Start Here') || ss.insertSheet('Start Here', 1);",
-"  help.clear();",
-"  help.getRange(1, 1, 7, 1).setValues([['HOW TO USE'], ['1. Go to the \"Data Entry\" tab. One row = one folder of data.'], ['2. Client: pick from the list (or type). Drive / Server: pick or type, e.g. HDD-07 or NAS-1.'], ['3. Folder Path: where the folder is inside that drive. Size: like 250 GB or 2 TB.'], ['4. Backup Drive: where the second copy is. A red box means no backup yet.'], ['5. Open the CRM → Data Vault → Data Locator → press \"Import from Sheet\". Done.'], ['Tip: never delete the heading row. To fix a mistake, edit the row and import again.']]);",
-"  help.getRange('A1').setFontWeight('bold').setFontSize(14); help.setColumnWidth(1, 700);",
-"}",
-"",
-"// Receives data from the CRM: refreshes the dropdown lists + a read-only 'CRM Export' copy",
-"function doPost(e) {",
-"  try {",
-"    var d = JSON.parse(e.postData.contents);",
-"    if (d.key !== SECRET) return out({ ok: false, error: 'Wrong secret key' });",
-"    var ss = SpreadsheetApp.getActiveSpreadsheet();",
-"    var lists = ss.getSheetByName('Lists') || ss.insertSheet('Lists');",
-"    lists.getRange('A2:B3000').clearContent();",
-"    if (d.clients && d.clients.length) lists.getRange(2, 1, d.clients.length, 1).setValues(d.clients.map(function (c) { return [c]; }));",
-"    if (d.drives && d.drives.length) lists.getRange(2, 2, d.drives.length, 1).setValues(d.drives.map(function (c) { return [c]; }));",
-"    var sh = ss.getSheetByName('CRM Export') || ss.insertSheet('CRM Export');",
-"    sh.clear();",
-"    var all = [d.head].concat(d.rows);",
-"    var rg = sh.getRange(1, 1, all.length, d.head.length);",
-"    rg.setNumberFormat('@'); rg.setValues(all);",
-"    sh.getRange(1, 1, 1, d.head.length).setFontWeight('bold').setBackground('#e2e8f0');",
-"    sh.setFrozenRows(1);",
-"    sh.getRange(all.length + 2, 1).setValue('Last sent from CRM: ' + new Date());",
-"    return out({ ok: true, count: d.rows.length });",
-"  } catch (err) { return out({ ok: false, error: String(err) }); }",
-"}",
-"function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }"].join('\n');
-}
-function dlPushCfg(){ try { return { url: localStorage.getItem('kb_dl_push_url') || '', key: localStorage.getItem('kb_dl_push_key') || '' }; } catch (e) { return { url: '', key: '' }; } }
-function dlStatus(msg){ var el = document.getElementById('dl-status'); if (el) el.innerHTML = msg; }
-
-function dlRenderSheetPanel(){
-  var el = document.getElementById('dl-sheet'); if (!el) return;
-  var isOpen = el.getAttribute('data-open') === '1';
-  var url = (crmSettings && crmSettings.dataLocatorSheetUrl) || '', pc = dlPushCfg(), can = dlCanEdit();
-  el.innerHTML = '<details id="dl-sheet-d" ' + (isOpen ? 'open' : '') + ' style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px">' +
-    '<summary style="cursor:pointer;font-weight:800;font-size:14px">📊 Google Sheet link — enter data in a sheet, see it here' + (url ? ' <span style="font-size:11px;color:#16a34a;font-weight:700">● connected</span>' : '') + '</summary>' +
-    '<div style="font-size:12px;color:#475569;line-height:1.6;margin:10px 0">' +
-      '<b>Set up once (about 5 minutes):</b><br>' +
-      '① Make a new Google Sheet → <b>Extensions → Apps Script</b> → press <b>“📋 Copy script”</b> below → paste it → change <code>CHANGE-THIS-KEY</code> to your own secret word → Save → choose <b>setupSheet</b> and press <b>Run</b>. Your simple <b>Data Entry</b> sheet is ready.<br>' +
-      '② <b>File → Share → Publish to web</b> → pick the <b>Data Entry</b> tab and <b>CSV</b> → Publish → paste the link in the first box below → <b>Save link</b>.<br>' +
-      '③ <i>(Recommended — gives you client &amp; drive dropdowns)</i> Apps Script → <b>Deploy → New deployment → Web app</b> (Execute as <i>Me</i>, access <i>Anyone</i>) → paste the link ending <b>/exec</b> and your secret word in the second row → <b>Save</b> → <b>⬆️ Send to Google Sheet</b>.<br>' +
-      '<b>Every day:</b> add rows in the Data Entry sheet (8 simple columns) → come here and press <b>⬇️ Import from Sheet</b>. That’s all.</div>' +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><input class="fi" id="dl-url" value="' + escHtml(url) + '" placeholder="Published CSV link: https://docs.google.com/spreadsheets/d/e/…/pub?gid=…&output=csv" style="flex:1;min-width:260px">' +
-      (can ? '<button class="btn btn-sm" id="dl-save-url">💾 Save link</button>' : '') + '<button class="btn btn-sm btn-primary" id="dl-import">⬇️ Import from Sheet</button></div>' +
-    (can ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><input class="fi" id="dl-push-url" value="' + escHtml(pc.url) + '" placeholder="Web app link: https://script.google.com/macros/s/…/exec" style="flex:2;min-width:240px"><input class="fi" id="dl-push-key" type="password" value="' + escHtml(pc.key) + '" placeholder="Secret key" style="flex:1;min-width:140px"><button class="btn btn-sm" id="dl-save-push">💾 Save</button><button class="btn btn-sm" id="dl-send" style="background:#16a34a;color:#fff;border:none;font-weight:700">⬆️ Send to Google Sheet</button></div>' : '') +
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px"><button class="btn btn-sm" id="dl-copy-script">📋 Copy script</button><button class="btn btn-sm" id="dl-dl-csv">📥 Download all as CSV</button></div>' +
-    '<div id="dl-status" style="font-size:12px;color:#475569;margin-top:6px"></div></details>';
-  document.getElementById('dl-sheet-d').addEventListener('toggle', function(){ el.setAttribute('data-open', this.open ? '1' : '0'); });
-  var $ = function(i){ return document.getElementById(i); };
-  if ($('dl-save-url')) $('dl-save-url').onclick = dlSaveUrl;
-  $('dl-import').onclick = dlImport;
-  if ($('dl-save-push')) $('dl-save-push').onclick = dlSavePush;
-  if ($('dl-send')) $('dl-send').onclick = dlSend;
-  $('dl-copy-script').onclick = function(){ var t = dlScriptText(); if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){ showToast('📋 Script copied — paste it in Apps Script'); }); else prompt('Copy this script:', t); };
-  $('dl-dl-csv').onclick = dlDownloadCsv;
-}
-function dlSaveUrl(){
-  var u = ((document.getElementById('dl-url') || {}).value || '').trim();
-  if (u && !/^https:\/\/docs\.google\.com\/spreadsheets\//.test(u)) { alert('Paste the Google Sheets “Publish to web” CSV link (starts with https://docs.google.com/spreadsheets/).'); return; }
-  db.ref('crm_settings/dataLocatorSheetUrl').set(u, function(err){ if (err) alert('Could not save link: ' + err.message); else { crmSettings.dataLocatorSheetUrl = u; showToast('✅ Sheet link saved'); } });
-}
-function dlSavePush(){
-  var u = ((document.getElementById('dl-push-url') || {}).value || '').trim(), k = ((document.getElementById('dl-push-key') || {}).value || '').trim();
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^\s]+\/exec$/.test(u)) { alert('The link must look like https://script.google.com/macros/s/…/exec (copy it from Deploy → Web app).'); return; }
-  if (k.length < 8) { alert('Use a secret key of at least 8 characters (the same one written in the script).'); return; }
-  try { localStorage.setItem('kb_dl_push_url', u); localStorage.setItem('kb_dl_push_key', k); } catch (e) { alert('Could not save in this browser.'); return; }
-  showToast('✅ Saved on this device');
-}
-function dlParseSize(v){
-  var m = /^\s*([\d.,]+)\s*(tb|gb|mb)?/i.exec(String(v == null ? '' : v)); if (!m) return { size: '', unit: 'GB' };
-  var n = m[1].replace(/,/g, ''); return { size: n, unit: (m[2] || 'GB').toUpperCase() };
-}
-function dlGuessStorage(dev){ return /nas|server|synology|qnap|san\b/i.test(dev) ? 'Server / NAS' : /cloud|dropbox|gdrive|google|onedrive/i.test(dev) ? 'Cloud' : /ssd|card|sd\b/i.test(dev) ? 'SSD / Card' : 'Hard Drive'; }
-var DL_ALIASES = {
-  id: ['entryid', 'id'], client: ['client', 'clientname', 'couple', 'name'], refcode: ['refcode', 'ref'],
-  eventDate: ['eventdate', 'date', 'shootdate'], dataType: ['datatype', 'data', 'type'],
-  storageType: ['storagetype'], device: ['driveserver', 'devicedrive', 'drive', 'device', 'server', 'harddrive'],
-  path: ['folderpath', 'folder', 'path'], size: ['size', 'sizegb'], unit: ['unit'],
-  backup: ['backupdrive', 'backuplocation', 'backup'], source: ['sourcephotographer', 'photographer', 'source'],
-  status: ['status'], storedOn: ['datestored'], notes: ['notes', 'note', 'remarks']
-};
-function dlImport(){
-  if (_dlBusy) return;
-  var u = ((document.getElementById('dl-url') || {}).value || (crmSettings && crmSettings.dataLocatorSheetUrl) || '').trim();
-  if (!u) { alert('Paste your published Google Sheet CSV link first.'); return; }
-  _dlBusy = true; dlStatus('⏳ Reading Google Sheet…');
-  fetch(u, { cache: 'no-store' }).then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }).then(function(t){
-    _dlBusy = false;
-    if (/^\s*<(!doctype|html)/i.test(t)) throw new Error('The link returned a web page, not CSV. In the sheet: File → Share → Publish to web → choose the “Data Entry” tab and “Comma-separated values (.csv)”.');
-    var table = ccParseCSV(t), hi = -1, i, col = {};
-    for (i = 0; i < Math.min(table.length, 10); i++) {
-      var h = (table[i] || []).map(dlNorm), c = {};
-      Object.keys(DL_ALIASES).forEach(function(k){ for (var a = 0; a < DL_ALIASES[k].length; a++) { var x = h.indexOf(DL_ALIASES[k][a]); if (x > -1) { c[k] = x; break; } } });
-      if (c.client != null && c.device != null) { hi = i; col = c; break; }
-    }
-    if (hi < 0) throw new Error('Could not find the heading row — it needs “Client” and “Drive / Server” columns. Run setupSheet in the script to create the correct sheet.');
-    var existing = (crmSettings && crmSettings.dataLocator) || {}, upd = {}, nNew = 0, nUpd = 0, nSame = 0, nSkip = 0;
-    for (i = hi + 1; i < table.length; i++) {
-      var r = table[i] || [], g = function(k){ return col[k] != null ? String(r[col[k]] == null ? '' : r[col[k]]).trim() : ''; };
-      var o = { client: g('client'), device: g('device'), path: g('path'), dataType: g('dataType'), refcode: g('refcode'), backup: g('backup'), notes: g('notes') };
-      if (!o.client && !o.device && !o.path) continue;               // blank row
-      if (!o.client || !o.device) { nSkip++; continue; }
-      var sz = dlParseSize(g('size')); o.size = sz.size; o.unit = g('unit') ? g('unit').toUpperCase() : sz.unit;
-      o.eventDate = dlIsoDate(g('eventDate'));
-      var pr = dlFindProject(o.client, o.refcode);
-      if (pr) { o.refcode = o.refcode || pr.refcode || ''; o.eventDate = o.eventDate || pr.date || ''; o.projId = String(pr.id); } else o.projId = '';
-      o.id = g('id') ? dlSafeId(g('id')) : 'sh' + dlHash([dlNorm(o.client), dlNorm(o.dataType), dlNorm(o.device), dlNorm(o.path)].join('|'));
-      var old = existing[o.id] || null;
-      // columns the simple sheet doesn't have → keep what the CRM already knows, else sensible defaults
-      o.storageType = g('storageType') || (old && old.storageType) || dlGuessStorage(o.device);
-      o.status      = g('status')      || (old && old.status)      || 'Stored';
-      o.source      = g('source')      || (old && old.source)      || '';
-      o.storedOn    = dlIsoDate(g('storedOn')) || (old && old.storedOn) || tod();
-      o.dataType    = o.dataType || (old && old.dataType) || 'Other';
-      if (old) {
-        var keys = ['client', 'refcode', 'eventDate', 'dataType', 'storageType', 'device', 'path', 'size', 'unit', 'backup', 'source', 'status', 'notes'];
-        if (keys.every(function(k){ return String(old[k] == null ? '' : old[k]) === String(o[k] == null ? '' : o[k]); })) { nSame++; continue; }
-        nUpd++;
-      } else nNew++;
-      o.updatedAt = Date.now(); o.enteredBy = 'Google Sheet';
-      upd[o.id] = o;
-    }
-    var total = nNew + nUpd;
-    if (!total) { dlStatus('✅ Sheet read — nothing new to import (' + nSame + ' already up to date' + (nSkip ? '; ' + nSkip + ' row(s) skipped because Client or Drive / Server is empty' : '') + ').'); return; }
-    if (!confirm('Import from Google Sheet?\n\n• ' + nNew + ' new entries\n• ' + nUpd + ' updated entries\n• ' + nSame + ' unchanged' + (nSkip ? '\n• ' + nSkip + ' skipped (Client or Drive / Server empty)' : '') + '\n\nNothing is deleted.')) { dlStatus('Import cancelled.'); return; }
-    db.ref('crm_settings/dataLocator').update(upd, function(err){
-      if (err) { dlStatus('❌ ' + escHtml(err.message)); return; }
-      crmSettings.dataLocator = Object.assign(crmSettings.dataLocator || {}, upd);
-      dlRenderList(); dlStatus('✅ Imported ' + nNew + ' new and ' + nUpd + ' updated entries at ' + new Date().toLocaleTimeString('en-IN') + '.'); showToast('✅ Imported from Google Sheet');
-    });
-  }).catch(function(e){ _dlBusy = false; dlStatus('❌ ' + escHtml(e && e.message || e)); });
-}
-function dlExportRows(){
-  return dlList().sort(function(a, b){ return String(a.client).localeCompare(String(b.client)); }).map(function(e){
-    return [e.client, e.eventDate, e.dataType, e.device, e.path, e.size ? e.size + ' ' + (e.unit || 'GB') : '', e.backup, e.notes, e.status, e.refcode].map(function(v){ return String(v == null ? '' : v); });
-  });
-}
-function dlClientNames(){ var seen = {}; return pl().map(function(p){ return coupleName(p.bride, p.groom); }).filter(function(n){ if (!n || !String(n).trim() || seen[n]) return false; seen[n] = 1; return true; }).sort(); }
-function dlDriveNames(){ return [...new Set(dlList().map(function(e){ return e.device; }).concat(dlList().map(function(e){ return e.backup; })).filter(Boolean))].sort(); }
-function dlSend(){
-  if (!dlCanEdit()) return; var cfg = dlPushCfg();
-  if (!cfg.url || !cfg.key) { alert('Save the web app link and secret key first.'); return; }
-  var rows = dlExportRows();
-  if (_dlBusy) return; _dlBusy = true; dlStatus('⏳ Sending…');
-  fetch(cfg.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ key: cfg.key, head: DL_HEAD, rows: rows, clients: dlClientNames(), drives: dlDriveNames() }) })
-  .then(function(r){ return r.text(); }).then(function(t){
-    _dlBusy = false; var j = null; try { j = JSON.parse(t); } catch (e) {}
-    if (j && j.ok) dlStatus('✅ Sent ' + j.count + ' entries at ' + new Date().toLocaleTimeString('en-IN') + '. Your sheet dropdowns are updated.');
-    else dlStatus('❌ ' + escHtml((j && j.error) || 'Unexpected reply — check the link ends with /exec and the script is deployed for “Anyone”.'));
-  }).catch(function(){ _dlBusy = false; dlStatus('⚠️ Sent, but the browser could not read the reply. Open the Google Sheet → CRM Export tab to confirm it updated.'); });
-}
-function dlDownloadCsv(){
-  var rows = [DL_HEAD].concat(dlExportRows());
-  var csv = '\uFEFF' + rows.map(function(r){ return r.map(function(c){ return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
-  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = 'KB_Data_Locator_' + tod() + '.csv'; document.body.appendChild(a); a.click(); a.remove(); showToast('📥 CSV downloaded');
-}
-
 function renderDataVault() {
   var q = ((document.getElementById('dv-search') || {}).value || '').toLowerCase();
   var locF = ((document.getElementById('dv-location-f') || {}).value || '');
@@ -8520,11 +8108,10 @@ function switchDVTab(tab, btn) {
     b.style.color = '#888'; b.style.borderBottomColor = 'transparent'; b.style.fontWeight = '500';
   });
   btn.style.color = '#1d4ed8'; btn.style.borderBottomColor = '#1d4ed8'; btn.style.fontWeight = '700';
-  ['vault','locator','archive-queue','archives'].forEach(function(t) {
+  ['vault','archive-queue','archives'].forEach(function(t) {
     var el = document.getElementById('dv-tab-' + t);
     if (el) el.style.display = (t === tab) ? '' : 'none';
   });
-  if (tab === 'locator') renderLocator();
   if (tab === 'archive-queue') renderArchiveQueue();
   if (tab === 'archives') renderArchives();
 }
@@ -16817,553 +16404,6 @@ function exportPayProjectsCompletePDF() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// DATE-WISE PAYMENT SCHEDULE EXPORT (Excel + PDF)
-// Month-wise, date-wise list of every pending instalment, built live from
-// the CRM (same balance engine as Reminders/Aging) — nothing typed by hand.
-// ═══════════════════════════════════════════════════════════════════
-function dwsInit() {
-  var m = document.getElementById('dws-month');
-  if (m && !m.value) {
-    var d = new Date(); d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-    m.value = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
-  }
-  dwsRangeChanged();
-}
-function dwsRangeChanged() {
-  var r = (document.getElementById('dws-range') || {}).value;
-  var m = document.getElementById('dws-month');
-  if (m) m.style.display = (r === 'month' || r === 'range') ? '' : 'none';
-  var yr = document.getElementById('dws-year');
-  if (yr) { yr.style.display = (r === 'year' || r === 'fy') ? '' : 'none'; if (!yr.value) { var nd = new Date(); yr.value = (r === 'fy' && nd.getMonth() < 3) ? nd.getFullYear() - 1 : nd.getFullYear(); } }
-  var w = document.getElementById('dws-to-wrap'); if (w) w.style.display = (r === 'range') ? 'inline-flex' : 'none';
-  var m2 = document.getElementById('dws-month2');
-  if (r === 'range' && m2 && !m2.value && m && m.value) {
-    var q = m.value.split('-'), d2 = new Date(+q[0], +q[1] + 1, 1);   // default: From + 2 months
-    m2.value = d2.getFullYear() + '-' + ('0' + (d2.getMonth() + 1)).slice(-2);
-  }
-  if (window._dwsOpen) dwsShow();
-}
-function _dwsMonthLabel(ym) {
-  var p = ym.split('-');
-  return ['January','February','March','April','May','June','July','August','September','October','November','December'][parseInt(p[1], 10) - 1] + ' ' + p[0];
-}
-function _dwsDay(dateStr) {
-  var d = new Date(dateStr + 'T00:00:00');
-  return isNaN(d) ? '' : ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
-}
-function _dwsDateLabel(dateStr) {
-  var p = (dateStr || '').split('-');
-  if (p.length !== 3) return '';
-  return p[2] + '/' + p[1] + '/' + p[0];
-}
-
-// Returns { title, sections:[{label, rows:[...], total}], grand, count, clients }
-function dwsBuild() {
-  var mode   = (document.getElementById('dws-range') || {}).value || 'month';
-  var ym     = (document.getElementById('dws-month') || {}).value || '';
-  var ymTo   = mode === 'range' ? ((document.getElementById('dws-month2') || {}).value || '') : ym;
-  var extras = !!(document.getElementById('dws-extra') || {}).checked;
-  var today  = tod();
-  var yearLabel = '';
-  if (mode === 'year' || mode === 'fy') {
-    var yv = parseInt((document.getElementById('dws-year') || {}).value, 10);
-    if (!yv) { showToast('Please enter a year'); return null; }
-    if (mode === 'year') { ym = yv + '-01'; ymTo = yv + '-12'; yearLabel = 'Year ' + yv; }
-    else { ym = yv + '-04'; ymTo = (yv + 1) + '-03'; yearLabel = 'FY ' + yv + '-' + String(yv + 1).slice(-2); }
-  }
-  var byMonth = (mode === 'month' || mode === 'range' || mode === 'year' || mode === 'fy');
-  if ((mode === 'month' || mode === 'range') && !ym) { showToast('Please pick a month'); return null; }
-  if (mode === 'range') {
-    if (!ymTo) { showToast('Please pick the "to" month'); return null; }
-    if (ymTo < ym) { var t = ym; ym = ymTo; ymTo = t; }   // allow picking in either order
-  }
-
-  // 1) One row per client + due date (several instalments on the same day are merged)
-  var map = {};
-  pl().forEach(function (p) {
-    if (p.stage === 'complete') return;
-    var bal = Math.max(0, balDue(p));
-    if (bal <= 0) return;
-    // Same calculation as the project's Payments tab (plan vs paid, with carry-forward)
-    var _sch = (typeof getPaymentScheduleWithCarryForward === 'function') ? getPaymentScheduleWithCarryForward(p) : [];
-    var allIns;
-    if (_sch && _sch.length) {
-      allIns = _sch.map(function (st, idx) {
-        var carriedOut = (_sch[idx + 1] && _sch[idx + 1].carryIn) || 0;   // shown in the next stage — don't count twice
-        return { key: st.key, label: st.label, desc: st.desc, dueDate: st.dueDate || '',
-                 balance: Math.max(0, (st.shortfall || 0) - carriedOut) };
-      });
-      var _planSum = allIns.reduce(function (a, i) { return a + i.balance; }, 0);
-      if (bal - _planSum > 0) allIns.push({ key: '_unplanned', label: 'Balance not in payment plan', desc: '', dueDate: '', balance: bal - _planSum });
-    } else {
-      allIns = _erpBuildInstalments(p);
-    }
-    // Event payment stages (1st event payment, 2nd event payment...) in plan order
-    function isEvStage(i) {
-      return /^kb_(event\d*|prewed|mainevent|event_extra_\d+)$/.test(i.key || '') || isEventLinkedStage(p, i.key) ||
-             /event|shoot|wedding|sangeet|mehndi|haldi/i.test(i.label || '');
-    }
-    var evOrder = {}, evN = 0;
-    allIns.forEach(function (i) { if (isEvStage(i)) evOrder[i.key] = evN++; });
-    // The project's real event days (Production Plan), earliest first; fall back to the main date
-    var evDates = [];
-    (p.eventDays || []).forEach(function (ed) {
-      if (ed && /^\d{4}-\d{2}-\d{2}$/.test(ed.date || '') && evDates.indexOf(ed.date) < 0) evDates.push(ed.date);
-    });
-    evDates.sort();
-    if (!evDates.length && p.date) evDates = [p.date];
-    var firstEv = evDates[0] || '';
-    var ins = allIns.filter(function (i) { return i.balance > 0; });
-    // Safety: never show more than the client's real outstanding balance
-    var sum = ins.reduce(function (a, i) { return a + i.balance; }, 0);
-    var over = sum - bal;
-    for (var k = ins.length - 1; k >= 0 && over > 0; k--) {
-      var cut = Math.min(ins[k].balance, over); ins[k] = Object.assign({}, ins[k], { balance: ins[k].balance - cut }); over -= cut;
-    }
-    ins.forEach(function (i) {
-      if (i.balance <= 0) return;
-      // Due date rules (same as the client's agreed plan in the CRM):
-      //  1) a date saved on the stage (typed on the stage / saved in the KB schedule) always wins
-      //  2) event payments with no saved date fall on the FIRST event; only a 2nd split event
-      //     payment goes to the 2nd event day
-      //  3) advance / raw data / teaser / final have no event date -> "not set"
-      var effDate = i.dueDate || '', auto = false;
-      if (!effDate) {
-        var ks = (p.kbSchedule && p.kbSchedule.stages || []).find(function (s) { return s.key === i.key; });
-        if (ks && ks.dueDate) effDate = ks.dueDate;
-      }
-      if (!effDate && evOrder[i.key] !== undefined) {
-        effDate = (evOrder[i.key] > 0 ? (evDates[1] || evDates[0]) : evDates[0]) || '';
-        auto = !!effDate;
-      }
-      var key = p.id + '|' + (effDate || 'none');
-      if (!map[key]) {
-        var city = p.city || p.state || '';
-        map[key] = { p: p, date: effDate, auto: auto, client: coupleName(p.bride, p.groom) + (city ? ' (' + city + ')' : ''),
-                     type: p.type || '', shoot: firstEv, labels: [], notes: [], amount: 0 };
-      }
-      map[key].labels.push(i.label);
-      if (i.dueNotes) map[key].notes.push(i.dueNotes);
-      map[key].amount += i.balance;
-    });
-  });
-
-  // 2) Classify + choose what to include
-  var wk = new Date(); wk.setDate(wk.getDate() + 7); var weekEnd = localDateStr(wk);
-  var rows = Object.keys(map).map(function (k) { return map[k]; });
-  var monthRows = {}, overdue = [], undated = [];
-  rows.forEach(function (r) {
-    var ev = (r.type ? r.type + ' — ' : '') + r.labels.join(' + ') + (r.notes.length ? ' (' + r.notes.join('; ') + ')' : '');
-    r.event = ev;
-    if (!r.date) {
-      r.status = 'Date not set'; r.tone = 'orange';
-      r.event = ev + (r.shoot ? ' [First event: ' + _dwsDateLabel(r.shoot) + ']' : '');
-      undated.push(r); return;
-    }
-    if (r.date < today) { r.status = 'Overdue'; r.tone = 'red'; }
-    else if (r.date <= weekEnd) { r.status = 'Due within 7 days'; r.tone = 'yellow'; }
-    else { r.status = 'Upcoming'; r.tone = ''; }
-    var rowYm = r.date.slice(0, 7);
-    if (byMonth) {
-      if (rowYm >= ym && rowYm <= ymTo) { (monthRows[rowYm] = monthRows[rowYm] || []).push(r); }
-      else if (r.date < today && rowYm < ym) overdue.push(r);
-    } else {
-      if (r.date >= today) (monthRows[rowYm] = monthRows[rowYm] || []).push(r);
-      else overdue.push(r);
-    }
-  });
-
-  var sections = [];
-  function sortRows(a) { a.sort(function (x, y) { return (x.date || x.shoot || '9999-12-31').localeCompare(y.date || y.shoot || '9999-12-31') || x.client.localeCompare(y.client); }); }
-  var monthKeys = Object.keys(monthRows).sort();
-  if (mode === 'month' && !monthRows[ym]) monthKeys = [ym];
-  monthKeys.forEach(function (k) { var a = monthRows[k] || []; sortRows(a); sections.push({ label: _dwsMonthLabel(k), rows: a }); });
-  if (extras && overdue.length) { sortRows(overdue); sections.push({ label: 'Earlier overdue — before ' + (byMonth ? _dwsMonthLabel(ym) : 'today'), rows: overdue }); }
-  if (extras && undated.length) { sortRows(undated); sections.push({ label: 'Date not set / not confirmed', rows: undated }); }
-
-  var grand = 0, count = 0, clients = {};
-  sections.forEach(function (s) {
-    s.total = s.rows.reduce(function (a, r) { return a + r.amount; }, 0);
-    s.rows.forEach(function (r, i) { r.sno = i + 1; r.day = r.date ? _dwsDay(r.date) : ''; clients[r.p.id] = 1; });
-    grand += s.total; count += s.rows.length;
-  });
-  if (!count) { showToast('No pending payments found for this selection'); return null; }
-  return {
-    title: mode === 'month' ? 'Payment Schedule — ' + _dwsMonthLabel(ym)
-         : (mode === 'year' || mode === 'fy') ? 'Payment Schedule — ' + yearLabel
-         : mode === 'range' ? 'Payment Schedule — ' + (ym === ymTo ? _dwsMonthLabel(ym) : _dwsMonthLabel(ym) + ' to ' + _dwsMonthLabel(ymTo))
-         : 'Payment Schedule — All Upcoming',
-    file: mode === 'month' ? 'KB_Payment_Schedule_' + ym : (mode === 'range' || mode === 'year' || mode === 'fy') ? 'KB_Payment_Schedule_' + ym + '_to_' + ymTo : 'KB_Payment_Schedule_Upcoming',
-    sections: sections, grand: grand, count: count, clients: Object.keys(clients).length
-  };
-}
-
-
-// ── On-screen view of the same schedule (no download needed) ─────────
-function dwsShow() {
-  var box = document.getElementById('dws-view'); if (!box) return;
-  window._dwsOpen = true;
-  var D = dwsBuild();
-  if (!D) { box.innerHTML = '<div class="empty" style="padding:18px">No pending payments found for this selection.</div>'; return; }
-  var bg = { red: '#fecaca', yellow: '#fef9c3', orange: '#fdd7a0', '': '#fff' };
-  var h = '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">' +
-      '<div><div style="font-size:15px;font-weight:800">' + escHtml(D.title) + '</div>' +
-      '<div style="font-size:12px;color:#64748b">' + D.count + ' entries · ' + D.clients + ' client(s) · Total pending <b style="color:#dc2626">₹' + D.grand.toLocaleString('en-IN') + '</b></div></div>' +
-      '<button class="btn btn-sm" onclick="dwsHide()">✕ Close</button></div>' +
-    '<div style="display:flex;gap:12px;font-size:11px;color:#475569;margin-bottom:10px;flex-wrap:wrap">' +
-      '<span><span style="display:inline-block;width:11px;height:11px;background:#fecaca;border-radius:2px;vertical-align:-1px"></span> Overdue</span>' +
-      '<span><span style="display:inline-block;width:11px;height:11px;background:#fef9c3;border:1px solid #e5e7eb;border-radius:2px;vertical-align:-1px"></span> Due within 7 days</span>' +
-      '<span><span style="display:inline-block;width:11px;height:11px;background:#fdd7a0;border-radius:2px;vertical-align:-1px"></span> Date not set</span></div>';
-  D.sections.forEach(function (sec) {
-    h += '<div style="background:#e2e8f0;text-align:center;font-weight:800;padding:7px;border-radius:8px 8px 0 0;margin-top:10px">' + escHtml(sec.label) + '</div>' +
-      '<div style="overflow:auto;border:1px solid #e2e8f0;border-top:none"><table style="width:100%;border-collapse:collapse;font-size:13px;min-width:640px">' +
-      '<thead><tr style="background:#cbd5e1;text-align:left"><th style="padding:7px 8px;width:46px">S.No</th><th style="padding:7px 8px">Date</th><th style="padding:7px 8px">Day</th><th style="padding:7px 8px">Client Name</th><th style="padding:7px 8px">Event / Payment Stage</th><th style="padding:7px 8px;text-align:right">Amount</th><th style="padding:7px 8px">Status</th></tr></thead><tbody>';
-    sec.rows.forEach(function (r) {
-      h += '<tr style="background:' + bg[r.tone] + ';border-top:1px solid #e5e7eb">' +
-        '<td style="padding:7px 8px">' + r.sno + '</td>' +
-        '<td style="padding:7px 8px;white-space:nowrap">' + (r.date ? _dwsDateLabel(r.date) + (r.auto ? ' <span title="Auto-picked from shoot date" style="color:#7c3aed">*</span>' : '') : '—') + '</td>' +
-        '<td style="padding:7px 8px">' + (r.day || '—') + '</td>' +
-        '<td style="padding:7px 8px;font-weight:700"><a href="#" class="dws-open" data-pid="' + escHtml(String(r.p.id)) + '" style="color:inherit;text-decoration:none">' + escHtml(r.client) + '</a>' +
-          (_dwsAuditData(r.p).flags.length ? ' <span title="Possible issue — click 🔍" style="color:#d97706">⚠️</span>' : '') +
-          ' <a href="#" class="dws-why" data-pid="' + escHtml(String(r.p.id)) + '" title="Why this amount?" style="text-decoration:none;font-size:12px">🔍</a></td>' +
-        '<td style="padding:7px 8px">' + escHtml(r.event) + '</td>' +
-        '<td style="padding:7px 8px;text-align:right;font-weight:800">₹' + r.amount.toLocaleString('en-IN') + '</td>' +
-        '<td style="padding:7px 8px;font-size:11px">' + escHtml(r.status) + '</td></tr>';
-    });
-    h += '<tr style="background:#1a1a1a;color:#fff;font-weight:800"><td colspan="5" style="padding:8px;text-align:right">Total — ' + escHtml(sec.label) + '</td><td style="padding:8px;text-align:right">₹' + sec.total.toLocaleString('en-IN') + '</td><td></td></tr></tbody></table></div>';
-  });
-  if (D.sections.length > 1) h += '<div style="background:#166534;color:#fff;font-weight:800;padding:9px 10px;border-radius:8px;margin-top:10px;display:flex;justify-content:space-between"><span>GRAND TOTAL</span><span>₹' + D.grand.toLocaleString('en-IN') + '</span></div>';
-  h += '</div>';
-  box.innerHTML = h;
-  box.querySelectorAll('.dws-why').forEach(function (a) {
-    a.addEventListener('click', function (e) { e.preventDefault(); dwsExplain(a.getAttribute('data-pid')); });
-  });
-  box.querySelectorAll('.dws-open').forEach(function (a) {
-    a.addEventListener('click', function (e) {
-      e.preventDefault();
-      clientPayOpen(a.getAttribute('data-pid'));
-    });
-  });
-}
-
-// ═══ "WHY THIS AMOUNT?" — explains every number in the schedule and flags what can make it wrong ═══
-function _dwsAuditData(p) {
-  var terms = getPayTerms(p), net = netVal(p), ledger = p.payLedger || [];
-  var sch = getPaymentScheduleWithCarryForward(p) || [];
-  var inr = function (n) { return '₹' + (Math.round(n) || 0).toLocaleString('en-IN'); };
-  var flags = [];
-  var pctSum = terms.reduce(function (a, t) { return a + (parseFloat(t.pct) || 0); }, 0);
-  if (terms.length && Math.abs(pctSum - 100) > 0.5)
-    flags.push('The payment plan adds up to ' + (Math.round(pctSum * 10) / 10) + '% of the project value, not 100%. Stage amounts will not add up to the contract.');
-  if ((parseInt(p.discount) || 0) > 0)
-    flags.push('A discount of ' + inr(parseInt(p.discount)) + ' is applied — every stage is a % of the NET value ' + inr(net) + ', not the quoted value ' + inr(parseInt(p.value) || 0) + '.');
-  var gen = ledger.filter(function (e) { return e.stage === 'general'; }).reduce(function (a, e) { return a + (parseInt(e.amount) || 0); }, 0);
-  if (gen > 0) flags.push(inr(gen) + ' was recorded as a "general" payment (no stage chosen). It is applied to the earliest unpaid stages first, which can shrink a later stage.');
-  var matchTerm = function (stage) {
-    return terms.find(function (t) {
-      return stageMatches(stage, t.key) || (_KB_TO_LEGACY_KEYS[t.key] || []).some(function (k) { return stageMatches(stage, k); });
-    });
-  };
-  var unmatched = ledger.filter(function (e) {
-    if (!e.stage || e.stage === 'general' || e.splitAllocation) return false;
-    if (typeof isAdvanceStageKey === 'function' && isAdvanceStageKey(e.stage)) return false;
-    return !matchTerm(e.stage);
-  });
-  unmatched.forEach(function (e) {
-    flags.push('Payment of ' + inr(parseInt(e.amount) || 0) + ' (' + (e.date || 'no date') + ') is recorded under stage "' + e.stage + '", which is not in this project\'s plan — it is counted as a general payment and applied to the earliest unpaid stage. Re-record it under the right stage to keep the plan clean.');
-  });
-  sch.forEach(function (st) {
-    if (st.carryIn > 0) flags.push('"' + st.label + '" includes ' + inr(st.carryIn) + ' carried forward from an earlier stage that is unpaid and already due.');
-    if (st.paid > st.exp + 1) flags.push('"' + st.label + '" is overpaid by ' + inr(st.paid - st.exp) + ' — this credit is deducted from the next stage.');
-    if (st.creditIn > 0) flags.push('"' + st.label + '" is reduced by ' + inr(st.creditIn) + ' already paid beyond an earlier stage.');
-    if (st.shortfall > 0 && st.shortfall % 500 !== 0) flags.push('"' + st.label + '" has an unusual due amount (' + inr(st.shortfall) + ') — usually means a part-payment or a payment recorded against the wrong stage.');
-    if (st.shortfall > 0 && !st.dueDate && st.isEventLinked) flags.push('"' + st.label + '" is tied to the event but has no due date saved.');
-  });
-  return { terms: terms, net: net, ledger: ledger, sch: sch, flags: flags, matchTerm: matchTerm, inr: inr };
-}
-
-// Look up ANY client (even one missing from the schedule) and explain their payment numbers
-function _dwsClientLabel(p) { return coupleName(p.bride, p.groom) + ' (' + (p.city || p.state || '—') + ') · ' + (p.refcode || p.id); }
-function dwsFindFill() {
-  var dl = document.getElementById('dws-find-list'); if (!dl) return;
-  dl.innerHTML = pl().map(function (p) { return '<option value="' + escHtml(_dwsClientLabel(p)) + '">'; }).join('');
-}
-function dwsFindClient() {
-  var el = document.getElementById('dws-find'); var q = ((el && el.value) || '').trim().toLowerCase();
-  if (!q) { showToast('Type a client name first'); return; }
-  var list = pl();
-  var hit = list.find(function (p) { return _dwsClientLabel(p).toLowerCase() === q; });
-  if (!hit) {
-    var m = list.filter(function (p) { return _dwsClientLabel(p).toLowerCase().indexOf(q) >= 0; });
-    if (m.length === 1) hit = m[0];
-    else if (m.length > 1) { showToast(m.length + ' clients match — pick one from the list'); dwsFindFill(); return; }
-  }
-  if (!hit) { showToast('No client found for "' + el.value + '"'); return; }
-  var pid = hit.id != null ? hit.id : Object.keys(projects).find(function (k) { return projects[k] === hit; });
-  dwsExplain(pid);
-}
-function dwsExplainClose() { var o = document.getElementById('dws-explain'); if (o) o.remove(); }
-function dwsExplain(pid) {
-  var p = projects[pid]; if (!p) { showToast('Client not found'); return; }
-  dwsExplainClose();
-  var A = _dwsAuditData(p), inr = A.inr;
-  var th = 'padding:7px 9px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:#475569;background:#f1f5f9';
-  var td = 'padding:8px 9px;border-bottom:1px solid #f1f5f9;font-size:12.5px';
-  var _why = [];
-  if (p.stage === 'complete') _why.push('This project is marked COMPLETE, so it is left out of the payment schedule.');
-  if (balDue(p) <= 0) _why.push('Nothing is outstanding (paid in full), so there is nothing to schedule.');
-  var h = '<div id="dws-explain" style="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)dwsExplainClose()">' +
-    '<div style="background:#fff;border-radius:16px;max-width:860px;width:100%;max-height:90vh;overflow:auto;padding:20px 22px">' +
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><div>' +
-      '<div style="font-size:17px;font-weight:800">' + escHtml(coupleName(p.bride, p.groom)) + ' — why these amounts?</div>' +
-      '<div style="font-size:12px;color:#64748b;margin-top:3px">Project value ' + inr(parseInt(p.value) || 0) + ' − discount ' + inr(parseInt(p.discount) || 0) + ' = <b>net ' + inr(A.net) + '</b> · Paid ' + inr(paidTotal(p)) + ' · <b style="color:#dc2626">Balance ' + inr(balDue(p)) + '</b></div></div>' +
-      '<button class="btn btn-sm" onclick="dwsExplainClose()">✕ Close</button></div>';
-  if (_why.length) h += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin:14px 0 0;font-size:12.5px;color:#1e3a8a">ℹ️ ' + _why.map(escHtml).join('<br>ℹ️ ') + '</div>';
-  if (A.flags.length) {
-    h += '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin:14px 0"><div style="font-weight:800;color:#c2410c;margin-bottom:5px">⚠️ What can make this wrong</div>' +
-      A.flags.map(function (f) { return '<div style="font-size:12.5px;color:#7c2d12;margin:3px 0">• ' + escHtml(f) + '</div>'; }).join('') + '</div>';
-  } else {
-    h += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin:14px 0;color:#166534;font-size:12.5px;font-weight:600">✓ Nothing unusual found — the amounts follow the plan and the recorded payments.</div>';
-  }
-  h += '<div style="font-weight:800;margin:6px 0">Stage by stage</div><div style="overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr>' +
-    ['Stage', 'Plan %', 'Planned', '± Carried in', 'Paid', 'Due now', 'Due date'].map(function (x, i) { return '<th style="' + th + (i ? ';text-align:right' : '') + '">' + x + '</th>'; }).join('') + '</tr></thead><tbody>' +
-    A.sch.map(function (st) {
-      var sc = '<td style="' + td + ';text-align:right">';
-      return '<tr><td style="' + td + ';font-weight:700">' + escHtml(st.label) + '</td>' + sc + (st.pct != null ? st.pct + '%' : '—') + '</td>' + sc + inr(st.baseExp) + '</td>' +
-        sc + (st.carryIn ? '<span style="color:#c2410c">+' + inr(st.carryIn) + '</span>' : '') + (st.creditIn ? '<span style="color:#16a34a">−' + inr(st.creditIn) + ' credit</span>' : '') + ((!st.carryIn && !st.creditIn) ? '—' : '') + '</td>' + sc + inr(st.paid) + '</td>' +
-        sc + '<b style="color:' + (st.shortfall ? '#dc2626' : '#16a34a') + '">' + (st.shortfall ? inr(st.shortfall) : 'Paid ✓') + '</b></td>' + sc + (st.dueDate ? _dwsDateLabel(st.dueDate) : '—') + '</td></tr>';
-    }).join('') + '</tbody></table></div>';
-  h += '<div style="font-weight:800;margin:16px 0 6px">Payments received (and which stage each one counted toward)</div>';
-  if (!A.ledger.length) h += '<div style="font-size:12.5px;color:#64748b">No payments recorded yet.</div>';
-  else h += '<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:520px"><thead><tr><th style="' + th + '">Date</th><th style="' + th + '">Stage as recorded</th><th style="' + th + ';text-align:right">Amount</th><th style="' + th + '">Counted toward</th></tr></thead><tbody>' +
-    A.ledger.map(function (e) {
-      var tm = (e.stage && e.stage !== 'general' && !e.splitAllocation) ? A.matchTerm(e.stage) : null;
-      var where = e.splitAllocation ? 'Split across stages' : (e.stage === 'general' || !e.stage) ? 'General pool (earliest unpaid stage)' : tm ? tm.label : ((typeof isAdvanceStageKey === 'function' && isAdvanceStageKey(e.stage)) ? 'Advance' : '<span style="color:#dc2626;font-weight:700">Not in plan → general pool</span>');
-      return '<tr><td style="' + td + '">' + escHtml(e.date || '—') + '</td><td style="' + td + '">' + escHtml(e.stage || 'general') + '</td><td style="' + td + ';text-align:right;font-weight:700">' + inr(parseInt(e.amount) || 0) + '</td><td style="' + td + '">' + where + '</td></tr>';
-    }).join('') + '</tbody></table></div>';
-  h += '</div></div>';
-  document.body.insertAdjacentHTML('beforeend', h);
-}
-
-function dwsHide() { window._dwsOpen = false; var b = document.getElementById('dws-view'); if (b) b.innerHTML = ''; }
-
-
-// ═══ CLIENT PAYMENT STATEMENT — clean page: received (serial-wise) + yet to receive ═══
-function clientPayClose() {
-  var o = document.getElementById('cp-overlay'); if (o) o.remove();
-  document.removeEventListener('keydown', _cpEsc);
-}
-function _cpEsc(e) { if (e.key === 'Escape') clientPayClose(); }
-
-function clientPayOpen(pid) {
-  var p = projects[pid]; if (!p) { showToast('Client not found'); return; }
-  clientPayClose();
-  var today = tod();
-  var ins = _erpBuildInstalments(p);
-  function stageName(e) {
-    if (e.label) return e.label;
-    var hit = ins.find(function (i) { return e.stage && stageMatches(e.stage, i.key); });
-    if (hit) return hit.label;
-    return (e.stage && e.stage !== 'general') ? e.stage : 'Payment';
-  }
-  // Received
-  var recv = (p.payLedger || []).slice().sort(function (a, b) { return (a.date || '').localeCompare(b.date || '') || (a.ts || 0) - (b.ts || 0); });
-  var totalRecv = 0;
-  // To receive (capped to the real outstanding balance)
-  var due = ins.filter(function (i) { return i.balance > 0; }).map(function (i) { return Object.assign({}, i); });
-  var outstanding = Math.max(0, balDue(p));
-  var over = due.reduce(function (a, i) { return a + i.balance; }, 0) - outstanding;
-  for (var k = due.length - 1; k >= 0 && over > 0; k--) { var cut = Math.min(due[k].balance, over); due[k].balance -= cut; over -= cut; }
-  due = due.filter(function (i) { return i.balance > 0; });
-  due.sort(function (a, b) { return (a.dueDate || '9999').localeCompare(b.dueDate || '9999'); });
-
-  var th = 'padding:9px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#475569;background:#f1f5f9;border-bottom:1px solid #e2e8f0';
-  var td = 'padding:10px;border-bottom:1px solid #f1f5f9;font-size:13px';
-  function card(label, val, col) { return '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px 16px"><div style="font-size:11px;color:#64748b;text-transform:uppercase">' + label + '</div><div style="font-size:22px;font-weight:800;color:' + col + '">₹' + val.toLocaleString('en-IN') + '</div></div>'; }
-
-  var h = '<div style="max-width:980px;margin:0 auto;padding:18px 16px 40px">' +
-    '<div class="cp-noprint" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"><button class="btn" id="cp-back">← Back</button><button class="btn btn-primary" id="cp-print" style="margin-left:auto">🖨️ Print / Save PDF</button></div>' +
-    '<div style="font-size:22px;font-weight:800">' + escHtml(coupleName(p.bride, p.groom)) + (p.refcode ? ' <span class="refcode" style="font-size:11px">' + escHtml(p.refcode) + '</span>' : '') + '</div>' +
-    '<div style="font-size:12px;color:#64748b;margin:3px 0 14px">' + [p.phone ? '📞 ' + escHtml(p.phone) : '', p.city ? '📍 ' + escHtml(p.city) : '', p.type ? escHtml(p.type) : '', p.date ? '📅 Event: ' + fmtDate(p.date) : ''].filter(Boolean).join(' · ') + '</div>' +
-    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">' + card('Total Value', netVal(p), '#1a1a1a') + card('Received', paidTotal(p), '#16a34a') + card('Yet to Receive', outstanding, outstanding > 0 ? '#dc2626' : '#16a34a') + '</div>';
-
-  // Received table
-  h += '<div style="font-size:15px;font-weight:800;margin-bottom:8px">✅ Received</div>';
-  if (!recv.length) h += '<div class="empty" style="padding:16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px">No payment received yet.</div>';
-  else {
-    h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th style="' + th + '">S.No</th><th style="' + th + '">Date</th><th style="' + th + '">Payment For</th><th style="' + th + '">Mode</th><th style="' + th + '">Account / Ref</th><th style="' + th + ';text-align:right">Amount</th><th style="' + th + ';text-align:right">Total So Far</th></tr></thead><tbody>';
-    recv.forEach(function (e, i) {
-      var amt = parseInt(e.amount) || 0; totalRecv += amt;
-      h += '<tr><td style="' + td + '">' + (i + 1) + '</td><td style="' + td + ';white-space:nowrap">' + (e.date ? fmtDate(e.date) : '—') + '</td><td style="' + td + ';font-weight:600">' + escHtml(stageName(e)) + '</td><td style="' + td + '">' + escHtml(e.mode || '—') + '</td><td style="' + td + ';color:#64748b;font-size:12px">' + escHtml([e.account, e.ref].filter(Boolean).join(' · ') || '—') + '</td><td style="' + td + ';text-align:right;font-weight:800;color:#16a34a">₹' + amt.toLocaleString('en-IN') + '</td><td style="' + td + ';text-align:right;color:#64748b">₹' + totalRecv.toLocaleString('en-IN') + '</td></tr>';
-    });
-    h += '<tr style="background:#f0fdf4"><td colspan="5" style="padding:10px;text-align:right;font-weight:800">Total Received</td><td style="padding:10px;text-align:right;font-weight:800;color:#16a34a">₹' + totalRecv.toLocaleString('en-IN') + '</td><td></td></tr></tbody></table></div>';
-  }
-
-  // To receive table
-  h += '<div style="font-size:15px;font-weight:800;margin:22px 0 8px">⏳ Yet to Receive</div>';
-  if (!due.length) h += '<div style="padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;color:#166534;font-weight:700">✓ Nothing pending — this client is fully paid.</div>';
-  else {
-    var totDue = 0;
-    h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:auto"><table style="width:100%;border-collapse:collapse;min-width:620px"><thead><tr><th style="' + th + '">S.No</th><th style="' + th + '">Payment For</th><th style="' + th + '">Due Date</th><th style="' + th + '">Status</th><th style="' + th + ';text-align:right">Expected</th><th style="' + th + ';text-align:right">Paid</th><th style="' + th + ';text-align:right">To Receive</th></tr></thead><tbody>';
-    due.forEach(function (i, n) {
-      totDue += i.balance;
-      var st, col;
-      if (!i.dueDate) { st = 'Date not set'; col = '#b45309'; }
-      else {
-        var days = Math.round((new Date(i.dueDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000);
-        if (days < 0) { st = Math.abs(days) + ' day(s) overdue'; col = '#dc2626'; }
-        else if (days === 0) { st = 'Due today'; col = '#dc2626'; }
-        else { st = 'In ' + days + ' day(s)'; col = days <= 7 ? '#d97706' : '#1d4ed8'; }
-      }
-      h += '<tr><td style="' + td + '">' + (n + 1) + '</td><td style="' + td + ';font-weight:600">' + escHtml(i.label) + (i.dueNotes ? '<div style="font-size:11px;color:#94a3b8;font-weight:400">' + escHtml(i.dueNotes) + '</div>' : '') + '</td><td style="' + td + ';white-space:nowrap">' + (i.dueDate ? fmtDate(i.dueDate) : '—') + '</td><td style="' + td + ';font-weight:700;color:' + col + '">' + st + '</td><td style="' + td + ';text-align:right">₹' + (i.expected || 0).toLocaleString('en-IN') + '</td><td style="' + td + ';text-align:right;color:#16a34a">₹' + (i.paid || 0).toLocaleString('en-IN') + '</td><td style="' + td + ';text-align:right;font-weight:800;color:#dc2626">₹' + i.balance.toLocaleString('en-IN') + '</td></tr>';
-    });
-    h += '<tr style="background:#fef2f2"><td colspan="6" style="padding:10px;text-align:right;font-weight:800">Total Yet to Receive</td><td style="padding:10px;text-align:right;font-weight:800;color:#dc2626">₹' + totDue.toLocaleString('en-IN') + '</td></tr></tbody></table></div>';
-  }
-  h += '<div style="font-size:11px;color:#94a3b8;margin-top:14px">Generated ' + new Date().toLocaleString('en-IN') + ' · KB Studio Productions</div></div>';
-
-  if (!document.getElementById('cp-print-css')) {
-    var st2 = document.createElement('style'); st2.id = 'cp-print-css';
-    st2.textContent = '@media print{body>*:not(#cp-overlay){display:none!important}html,body{height:auto!important;overflow:visible!important}#cp-overlay{position:static!important;overflow:visible!important}.cp-noprint{display:none!important}}';
-    document.head.appendChild(st2);
-  }
-  var ov = document.createElement('div');
-  ov.id = 'cp-overlay';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#f4f4f6;overflow:auto;padding-top:env(safe-area-inset-top)';
-  ov.innerHTML = h;
-  document.body.appendChild(ov);
-  document.getElementById('cp-back').onclick = clientPayClose;
-  document.getElementById('cp-print').onclick = function () { window.print(); };
-  document.addEventListener('keydown', _cpEsc);
-}
-
-function dwsExportExcel() {
-  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded'); return; }
-  var D = dwsBuild(); if (!D) return;
-  var aoa = [], merges = [], amtCells = [], boldRows = [];
-  aoa.push(['KB Studio Productions — ' + D.title]); merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } });
-  aoa.push(['Generated: ' + new Date().toLocaleString('en-IN') + '   |   ' + D.count + ' entries   |   ' + D.clients + ' client(s)   |   Total pending: ' + D.grand.toLocaleString('en-IN')]);
-  merges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: 6 } });
-  aoa.push([]);
-  D.sections.forEach(function (s) {
-    boldRows.push(aoa.length); merges.push({ s: { r: aoa.length, c: 0 }, e: { r: aoa.length, c: 6 } });
-    aoa.push([s.label]);
-    boldRows.push(aoa.length);
-    aoa.push(['S.No', 'Date', 'Day', 'Client Name', 'Event / Payment Stage', 'Amount (₹)', 'Status']);
-    s.rows.forEach(function (r) {
-      amtCells.push(aoa.length);
-      aoa.push([r.sno, r.date ? _dwsDateLabel(r.date) : '—', r.day || '—', r.client, r.event, r.amount, r.status]);
-    });
-    boldRows.push(aoa.length); amtCells.push(aoa.length);
-    aoa.push(['', '', '', '', 'Total — ' + s.label, s.total, '']);
-    aoa.push([]);
-  });
-  boldRows.push(aoa.length); amtCells.push(aoa.length);
-  aoa.push(['', '', '', '', 'GRAND TOTAL', D.grand, '']);
-
-  var ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch: 7 }, { wch: 12 }, { wch: 7 }, { wch: 38 }, { wch: 58 }, { wch: 14 }, { wch: 18 }];
-  ws['!merges'] = merges;
-  amtCells.forEach(function (r) { var c = ws[XLSX.utils.encode_cell({ r: r, c: 5 })]; if (c && typeof c.v === 'number') c.z = '#,##0'; });
-  var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Payment Schedule');
-  XLSX.writeFile(wb, D.file + '_' + tod() + '.xlsx');
-  showToast('📊 Payment schedule (Excel) exported!');
-}
-
-function dwsExportPDF() {
-  var jsPDFLib = window.jspdf && window.jspdf.jsPDF;
-  if (!jsPDFLib) { showToast('PDF library not loaded'); return; }
-  var D = dwsBuild(); if (!D) return;
-  var doc = new jsPDFLib({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
-  var X = 10, W = pageW - 20;
-  var wts = [9, 21, 12, 62, 92, 26, 28]; var tw = wts.reduce(function (a, b) { return a + b; }, 0);
-  var cw = wts.map(function (w) { return w / tw * W; });
-  var heads = ['S.No', 'Date', 'Day', 'Client Name', 'Event / Payment Stage', 'Amount (Rs.)', 'Status'];
-  var tones = { red: [254, 202, 202], yellow: [254, 249, 195], orange: [253, 207, 160], '': null };
-  var y = 0;
-
-  function pageHeader(first) {
-    doc.setFillColor(26, 26, 26); doc.rect(0, 0, pageW, 16, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-    doc.text('KB Studio Productions — ' + D.title, X, 10.5);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-    doc.text('Generated: ' + new Date().toLocaleString('en-IN'), pageW - X, 10.5, { align: 'right' });
-    y = 21;
-    if (first) {
-      doc.setTextColor(60, 60, 60); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
-      doc.text(D.count + ' entries  |  ' + D.clients + ' client(s)  |  Total pending: Rs. ' + D.grand.toLocaleString('en-IN'), X, y);
-      y += 4;
-      var lg = [['Overdue', tones.red], ['Due within 7 days', tones.yellow], ['Date not set', tones.orange]], lx = X;
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
-      lg.forEach(function (l) {
-        doc.setFillColor(l[1][0], l[1][1], l[1][2]); doc.rect(lx, y, 4, 3, 'F');
-        doc.setTextColor(60, 60, 60); doc.text(l[0], lx + 5.5, y + 2.4); lx += 8 + doc.getTextWidth(l[0]) + 6;
-      });
-      y += 7;
-    }
-  }
-  function tableHead() {
-    doc.setFillColor(203, 213, 225); doc.rect(X, y, W, 7, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(20, 20, 20);
-    var cx = X;
-    heads.forEach(function (h, i) { doc.text(h, i === 5 ? cx + cw[i] - 2 : cx + 2, y + 4.8, { align: i === 5 ? 'right' : 'left' }); cx += cw[i]; });
-    y += 7;
-  }
-  function need(h) { if (y + h > pageH - 12) { doc.addPage(); pageHeader(false); tableHead(); } }
-
-  pageHeader(true);
-  D.sections.forEach(function (s) {
-    need(36);
-    doc.setFillColor(226, 232, 240); doc.rect(X, y, W, 8, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(20, 20, 20);
-    doc.text(s.label, X + W / 2, y + 5.6, { align: 'center' });
-    y += 8; tableHead();
-    s.rows.forEach(function (r) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-      var cl = doc.splitTextToSize(r.client, cw[3] - 4), ev = doc.splitTextToSize(r.event, cw[4] - 4);
-      var lines = Math.max(cl.length, ev.length, 1), h = lines * 3.7 + 3.2;
-      need(h);
-      var t = tones[r.tone];
-      if (t) { doc.setFillColor(t[0], t[1], t[2]); doc.rect(X, y, W, h, 'F'); }
-      doc.setDrawColor(210, 214, 220); doc.line(X, y + h, X + W, y + h);
-      doc.setTextColor(25, 25, 25);
-      var cx = X, ty = y + 4.6;
-      doc.text(String(r.sno), cx + 2, ty); cx += cw[0];
-      doc.text(r.date ? _dwsDateLabel(r.date) : '-', cx + 2, ty); cx += cw[1];
-      doc.text(r.day || '-', cx + 2, ty); cx += cw[2];
-      doc.setFont('helvetica', 'bold'); doc.text(cl, cx + 2, ty); cx += cw[3];
-      doc.setFont('helvetica', 'normal'); doc.text(ev, cx + 2, ty); cx += cw[4];
-      doc.setFont('helvetica', 'bold'); doc.text(r.amount.toLocaleString('en-IN'), cx + cw[5] - 2, ty, { align: 'right' }); cx += cw[5];
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text(r.status, cx + 2, ty);
-      y += h;
-    });
-    need(8);
-    doc.setFillColor(26, 26, 26); doc.rect(X, y, W, 7, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
-    doc.text('Total — ' + s.label, X + cw[0] + cw[1] + cw[2] + 2, y + 4.9);
-    doc.text('Rs. ' + s.total.toLocaleString('en-IN'), X + W - cw[6] - 2, y + 4.9, { align: 'right' });
-    y += 12;
-  });
-  if (D.sections.length > 1) {
-    need(9);
-    doc.setFillColor(22, 101, 52); doc.rect(X, y, W, 8, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
-    doc.text('GRAND TOTAL', X + cw[0] + cw[1] + cw[2] + 2, y + 5.5);
-    doc.text('Rs. ' + D.grand.toLocaleString('en-IN'), X + W - cw[6] - 2, y + 5.5, { align: 'right' });
-  }
-  var n = doc.internal.getNumberOfPages();
-  for (var i = 1; i <= n; i++) {
-    doc.setPage(i); doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(150, 150, 150);
-    doc.text('KB Studio CRM — Confidential', X, pageH - 5);
-    doc.text('Page ' + i + ' of ' + n, pageW - X, pageH - 5, { align: 'right' });
-  }
-  doc.save(D.file + '_' + tod() + '.pdf');
-  showToast('✅ Payment schedule (PDF) exported!');
-}
-
 function renderPayClosedAlerts() {
   var el = document.getElementById('pay-closed-alerts');
   if (!el) return;
@@ -17485,27 +16525,7 @@ function _erpFilteredProjects() {
 // Each instalment is independent: its expected amount = net × pct/100 exactly.
 // Paid is the SUM of all ledger entries tagged to that stage (direct + split allocations).
 // Balance = max(0, expected − paid). Surplus on one stage does NOT reduce another's due.
-// ONE payment calculation for the whole CRM. Every screen (Payments list, KPIs, aging, reminders,
-// client statement, schedule) reads stage dues through here, and this reads the same carry-forward
-// schedule the project's Payments tab shows — so the numbers can never disagree between screens.
 function _erpBuildInstalments(p) {
-  var sch = null;
-  try { sch = getPaymentScheduleWithCarryForward(p); } catch (e) { sch = null; }
-  if (!sch || !sch.length) return _erpBuildInstalmentsLegacy(p);
-  return sch.map(function (st, idx) {
-    // money carried into the next stage is shown there — don't count it twice
-    var carriedOut = (sch[idx + 1] && sch[idx + 1].carryIn) || 0;
-    var balance = Math.max(0, (st.shortfall || 0) - carriedOut);
-    return {
-      key: st.key, label: st.label, desc: st.desc || '', pct: st.pct,
-      expected: st.baseExp, paid: st.paid, balance: balance,
-      surplus: Math.max(0, (st.paid || 0) - (st.exp || 0)),
-      status: (st.shortfall || 0) === 0 ? 'paid' : (st.paid || 0) === 0 ? 'pending' : 'partial',
-      dueDate: st.dueDate || '', dueNotes: p['pay_' + st.key + '_due_notes'] || ''
-    };
-  });
-}
-function _erpBuildInstalmentsLegacy(p) {
   var terms  = getPayTerms(p);
   var ledger = p.payLedger || [];
   var net    = netVal(p);
@@ -19854,15 +18874,6 @@ var _KB_TO_LEGACY_KEYS = {
   kb_teaser:    ['p5a'],
   kb_final:     ['p5b','p10b','p10c','pfinal','p50b']
 };
-// A stage's due date: the per-project override, else the date saved in the KB schedule.
-// (Dates are usually saved on the KB schedule; reading only the override made every stage look
-// "undated", so each unpaid stage was wrongly carried into the next and inflated it.)
-function _stageDue(p, key){
-  var v = p && p['pay_'+key+'_due'];
-  if (v) return v;
-  var st = ((p && p.kbSchedule && p.kbSchedule.stages) || []).find(function(x){ return x.key === key; });
-  return (st && st.dueDate) || '';
-}
 function getPaymentScheduleWithCarryForward(p){
   if(!p) return [];
   var terms=getPayTerms(p);
@@ -19909,17 +18920,16 @@ function getPaymentScheduleWithCarryForward(p){
 
     var generalUsed = 0;
     var carry = 0;
-    var credit = 0;   // money already paid beyond a stage's amount — deducted from the next stage
     return terms.map(function(t){
       var baseExp = _expFromTerm(t, net);
       var directPaid = customMatched[t.key] || 0;
-      var _needed = baseExp + carry, _useCredit = Math.min(credit, _needed), exp = _needed - _useCredit;
+      var exp = baseExp + carry;
       var stillDue = Math.max(0, exp - directPaid);
       var generalForThisStage = Math.max(0, Math.min(stillDue, totalGeneral - generalUsed));
       generalUsed += generalForThisStage;
       var paid = directPaid + generalForThisStage;
       var shortfall = Math.max(0, exp - paid);
-      var thisDueDate = _stageDue(p, t.key);
+      var thisDueDate = p['pay_'+t.key+'_due']||'';
       var item = {
         key: t.key,
         label: customLabels[t.key+'_label']||t.label,
@@ -19927,7 +18937,6 @@ function getPaymentScheduleWithCarryForward(p){
         pct: t.pct,
         baseExp: baseExp,
         carryIn: carry,
-        creditIn: _useCredit,
         exp: exp,
         paid: paid,
         shortfall: shortfall,
@@ -19939,7 +18948,6 @@ function getPaymentScheduleWithCarryForward(p){
       // treated as immediately due, matching prior behavior for undated
       // stages like the Advance). A future-dated, merely-unpaid stage no
       // longer inflates every stage that comes after it.
-      credit = (credit - _useCredit) + Math.max(0, paid - exp);
       var isOverdueOrUndated = !thisDueDate || thisDueDate <= _todayStr;
       carry = isOverdueOrUndated ? shortfall : 0;
       return item;
@@ -19949,7 +18957,6 @@ function getPaymentScheduleWithCarryForward(p){
   // ── Preset mode: handles both legacy-key terms (p20, p60…) and kb_* key terms ──
   var generalUsed=0;
   var carry=0;
-  var credit=0;   // money already paid beyond a stage's amount — deducted from the next stage
   // Forward map: preset term key → equivalent kb_* key in ledger
   var LEGACY_TO_KB={
     p30:'kb_advance', p20:'kb_advance', p50a:'kb_advance', p50c:'kb_advance', cp0:'kb_advance', p50d:'kb_event',
@@ -19960,25 +18967,6 @@ function getPaymentScheduleWithCarryForward(p){
     p5a:'kb_teaser',
     p5b:'kb_final',   p10b:'kb_final',  p10c:'kb_final',  pfinal:'kb_final',  p50b:'kb_final'
   };
-  // A payment recorded under a stage name that matches NO stage of this project's plan used to be
-  // ignored here (while still reducing the balance), so stage dues added up to more than what is
-  // really owed. Count such money as a general payment, applied to the earliest unpaid stage.
-  function _stageMatchesAnyTerm(stageVal) {
-    return terms.some(function(tm, ti){
-      var kbE = LEGACY_TO_KB[tm.key] || null;
-      return stageMatches(stageVal, tm.key)
-        || (kbE && stageMatches(stageVal, kbE))
-        || (_KB_TO_LEGACY_KEYS[tm.key] || []).some(function(lk){ return stageMatches(stageVal, lk); })
-        || (ti === 0 && isAdvanceStageKey(stageVal));
-    });
-  }
-  ledger.forEach(function(e){
-    if (e.splitAllocation) {
-      e.splitAllocation.forEach(function(al){ if (!_stageMatchesAnyTerm(al.stage)) totalGeneral += (parseInt(al.amount)||0); });
-    } else if (e.stage && e.stage !== 'general' && !_stageMatchesAnyTerm(e.stage)) {
-      totalGeneral += (parseInt(e.amount)||0);
-    }
-  });
   return terms.map(function(t, idx){
     var baseExp=_expFromTerm(t, net);
     // kbEquiv: if term uses preset key (p20), find kb_* ledger entries
@@ -19999,13 +18987,13 @@ function getPaymentScheduleWithCarryForward(p){
       var alloc=e.splitAllocation.find(function(al){ return entryMatchesTerm(al.stage); });
       return a+(alloc?parseInt(alloc.amount)||0:0);
     },0);
-    var _needed=baseExp+carry, _useCredit=Math.min(credit,_needed), exp=_needed-_useCredit;
+    var exp=baseExp+carry;
     var stillDue=Math.max(0,exp-directPaid-splitPaid);
     var generalForThisStage=Math.max(0,Math.min(stillDue,totalGeneral-generalUsed));
     generalUsed+=generalForThisStage;
     var paid=directPaid+splitPaid+generalForThisStage;
     var shortfall=Math.max(0,exp-paid);
-    var thisDueDate=_stageDue(p, t.key);
+    var thisDueDate=p['pay_'+t.key+'_due']||'';
     var item={
       key:t.key,
       label:customLabels[t.key+'_label']||t.label,
@@ -20013,7 +19001,6 @@ function getPaymentScheduleWithCarryForward(p){
       pct:t.pct,
       baseExp:baseExp,
       carryIn:carry,
-      creditIn:_useCredit,
       exp:exp,
       paid:paid,
       shortfall:shortfall,
@@ -20021,7 +19008,6 @@ function getPaymentScheduleWithCarryForward(p){
       isEventLinked:isEventLinkedStage(p,t.key)
     };
     // Same due-date-aware carry rule as the custom-split branch above.
-    credit = (credit - _useCredit) + Math.max(0, paid - exp);
     var isOverdueOrUndated = !thisDueDate || thisDueDate <= _todayStr;
     carry = isOverdueOrUndated ? shortfall : 0;
     return item;
@@ -28479,100 +27465,6 @@ function loadPastInvoices(cb) {
   });
 }
 
-
-// ═══ INVOICE CLIENT FINDER ═══════════════════════════════════════════
-function _invMatchAll(hay, tokens) {
-  hay = (hay || '').toLowerCase();
-  return tokens.every(function (t) { return hay.indexOf(t) !== -1; });
-}
-function _invSubtotal(inv) { return (inv.items || []).reduce(function (a, it) { return a + (parseFloat(it.qty) || 0) * (parseFloat(it.rate) || 0); }, 0); }
-function _invSortKey(inv) { return inv.date ? new Date(inv.date).getTime() : (inv.savedAt || 0); }
-function invClearFind() { var i = document.getElementById('inv-cf-input'); if (i) i.value = ''; var r = document.getElementById('inv-cf-results'); if (r) r.innerHTML = ''; }
-
-function invFindClient() {
-  var box = document.getElementById('inv-cf-results'); if (!box) return;
-  var q = ((document.getElementById('inv-cf-input') || {}).value || '').trim().toLowerCase();
-  var tokens = q.split(/\s+/).filter(Boolean);
-  if (!tokens.length) { box.innerHTML = ''; return; }
-  box.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:6px">⏳ Searching…</div>';
-  loadPastInvoices(function () {
-    var invs = Object.keys(_pastInvoices || {}).map(function (k) { return _pastInvoices[k]; });
-    var plist = Object.keys(projects || {}).map(function (k) { return projects[k]; });
-    function invsOf(p) {
-      return invs.filter(function (i) { return (i.projectId != null && String(i.projectId) === String(p.id)) || (p.refcode && i.refcode === p.refcode); });
-    }
-    var groups = {}, used = {}, orphans = {};
-    // 1) clients (projects) matching by their own details or by any of their invoices
-    plist.forEach(function (p) {
-      var mine = invsOf(p);
-      var hay = [p.bride, p.groom, p.refcode, p.phone, p.whatsapp, p.email, p.city, p.state, p.venue].join(' ') + ' ' +
-                mine.map(function (i) { return [i.invoiceNo, i.bride, i.groom, i.phone].join(' '); }).join(' ');
-      if (!_invMatchAll(hay, tokens)) return;
-      groups['p' + p.id] = { p: p, invs: mine };
-      mine.forEach(function (i) { used[i.invoiceNo] = 1; });
-    });
-    // 2) invoices not tied to any matched project (manual invoices / removed projects)
-    invs.forEach(function (i) {
-      if (used[i.invoiceNo]) return;
-      var hay = [i.invoiceNo, i.bride, i.groom, i.refcode, i.phone, i.email, i.city].join(' ');
-      if (!_invMatchAll(hay, tokens)) return;
-      var key = ((i.bride || '') + '|' + (i.groom || '') + '|' + (i.refcode || '')).toLowerCase();
-      (orphans[key] = orphans[key] || { p: null, name: coupleName(i.bride || '', i.groom) || 'Unknown client', invs: [] }).invs.push(i);
-    });
-    var list = Object.keys(groups).map(function (k) { return groups[k]; })
-      .concat(Object.keys(orphans).map(function (k) { return orphans[k]; }));
-    list.sort(function (a, b) {
-      var la = a.invs.length ? Math.max.apply(null, a.invs.map(_invSortKey)) : 0;
-      var lb = b.invs.length ? Math.max.apply(null, b.invs.map(_invSortKey)) : 0;
-      return lb - la;
-    });
-    if (!list.length) { box.innerHTML = '<div class="empty" style="padding:16px;font-size:13px">No client or invoice found for “' + escHtml(q) + '”.</div>'; return; }
-    var MAX = 8, shown = list.slice(0, MAX), h = '<div style="font-size:12px;color:#64748b;margin-bottom:8px">' + list.length + ' client(s) found' + (list.length > MAX ? ' — showing first ' + MAX + ', refine your search to narrow down' : '') + '</div>';
-    shown.forEach(function (g) {
-      var p = g.p, name = p ? coupleName(p.bride, p.groom) : g.name;
-      var sorted = g.invs.slice().sort(function (a, b) { return _invSortKey(b) - _invSortKey(a); });
-      h += '<div style="border:1px solid #e2e8f0;border-radius:12px;margin-bottom:10px;overflow:hidden">' +
-        '<div style="background:#f8fafc;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
-          '<div><div style="font-weight:800;font-size:14px">' + escHtml(name) +
-            (p && p.refcode ? ' <span class="refcode" style="font-size:10px">' + escHtml(p.refcode) + '</span>' : '') +
-            (p && p.archived ? ' <span style="font-size:10px;background:#e5e7eb;border-radius:4px;padding:1px 6px">Archived</span>' : '') + '</div>' +
-          '<div style="font-size:11px;color:#64748b">' +
-            (p ? [p.phone ? '📞 ' + escHtml(p.phone) : '', p.city ? '📍 ' + escHtml(p.city) : '', p.date ? '📅 Event: ' + fmtDate(p.date) : ''].filter(Boolean).join(' · ') : 'Not linked to a project') + '</div></div>' +
-          (p ? '<div style="text-align:right;font-size:12px"><span style="color:#64748b">Net</span> <b>₹' + netVal(p).toLocaleString('en-IN') + '</b> · <span style="color:#64748b">Paid</span> <b style="color:#16a34a">₹' + paidTotal(p).toLocaleString('en-IN') + '</b> · <span style="color:#64748b">Balance</span> <b style="color:' + (balDue(p) > 0 ? '#dc2626' : '#16a34a') + '">₹' + Math.max(0, balDue(p)).toLocaleString('en-IN') + '</b></div>' : '') +
-        '</div><div style="padding:8px 14px">';
-      if (!sorted.length) {
-        h += '<div style="font-size:12px;color:#94a3b8;padding:6px 0">No invoices saved for this client yet.</div>';
-      } else {
-        sorted.forEach(function (inv, idx) {
-          var sub = _invSubtotal(inv), bal = sub - (parseFloat(inv.paid) || 0);
-          h += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 0;' + (idx ? 'border-top:1px solid #f1f5f9' : '') + '">' +
-            '<div><span style="font-weight:800;font-size:13px">' + escHtml(inv.invoiceNo || '—') + '</span> ' +
-              (idx === 0 ? '<span style="font-size:10px;font-weight:700;background:#dcfce7;color:#166534;border-radius:10px;padding:2px 8px">Current / Latest</span>' : '<span style="font-size:10px;font-weight:700;background:#f1f5f9;color:#475569;border-radius:10px;padding:2px 8px">Past</span>') +
-              '<div style="font-size:11px;color:#64748b">' + (inv.date ? '📅 ' + fmtDate(inv.date) : '') + (inv.package ? ' · 📦 ' + escHtml(inv.package) : '') + '</div></div>' +
-            '<div style="text-align:right"><div style="font-weight:800">₹' + sub.toLocaleString('en-IN') + '</div>' +
-              '<div style="font-size:11px;font-weight:700;color:' + (bal <= 0 ? '#16a34a' : '#dc2626') + '">' + (bal <= 0 ? '✓ Paid' : 'Balance ₹' + bal.toLocaleString('en-IN')) + '</div></div>' +
-            '<div style="display:flex;gap:6px"><button class="btn btn-sm btn-primary inv-cf-view" data-invno="' + escHtml(inv.invoiceNo || '') + '">👁️ View / Print</button>' +
-              '<button class="btn btn-sm inv-cf-edit" data-invno="' + escHtml(inv.invoiceNo || '') + '">✏️ Edit</button></div></div>';
-        });
-      }
-      if (p) h += '<div style="padding:6px 0 4px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn btn-sm" onclick="clientPayOpen(\'' + escHtml(String(p.id)) + '\')">💳 Payments statement</button><button class="btn btn-sm inv-cf-new" data-pid="' + escHtml(String(p.id)) + '" style="background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8">➕ New invoice for this client</button></div>';
-      h += '</div></div>';
-    });
-    box.innerHTML = h;
-    box.querySelectorAll('.inv-cf-view').forEach(function (b) { b.addEventListener('click', function () { viewPastInvoice(b.getAttribute('data-invno')); }); });
-    box.querySelectorAll('.inv-cf-edit').forEach(function (b) { b.addEventListener('click', function () { loadPastInvoiceToEditor(b.getAttribute('data-invno')); }); });
-    box.querySelectorAll('.inv-cf-new').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var pr = projects[b.getAttribute('data-pid')]; if (!pr) return;
-        switchInvoiceTab('generate');
-        var sel = document.getElementById('inv-page-proj-sel'); if (sel) sel.value = pr.id;
-        loadInvoiceFromProject(pr.id);
-        window.scrollTo(0, 0);
-      });
-    });
-  });
-}
-
 function renderPastInvoices() {
   var container = document.getElementById('past-invoices-table');
   if (!container) return;
@@ -28587,8 +27479,8 @@ function renderPastInvoices() {
       return db_ - da;
     });
     list = list.filter(function(inv) {
-      var hay = [inv.invoiceNo,inv.bride,inv.groom,inv.refcode,inv.city,inv.phone,inv.email].join(' ');
-      if (q && !_invMatchAll(hay, q.split(/\s+/).filter(Boolean))) return false;
+      var hay = ((inv.invoiceNo||'')+(inv.bride||'')+(inv.groom||'')+(inv.refcode||'')+(inv.city||'')).toLowerCase();
+      if (q && !hay.includes(q)) return false;
       if (regF && inv.region !== regF) return false;
       return true;
     });
@@ -28671,8 +27563,8 @@ function getInvoicesStatementRows() {
   var q = ((document.getElementById('past-inv-search') || {}).value || '').toLowerCase();
   var regF = ((document.getElementById('past-inv-region') || {}).value || '');
   var list = Object.values(_pastInvoices || {}).filter(function(inv) {
-    var hay = [inv.invoiceNo,inv.bride,inv.groom,inv.refcode,inv.city,inv.phone,inv.email].join(' ');
-    if (q && !_invMatchAll(hay, q.split(/\s+/).filter(Boolean))) return false;
+    var hay = ((inv.invoiceNo||'')+(inv.bride||'')+(inv.groom||'')+(inv.refcode||'')+(inv.city||'')).toLowerCase();
+    if (q && !hay.includes(q)) return false;
     if (regF && inv.region !== regF) return false;
     return true;
   }).sort(function(a,b) {
@@ -41666,23 +40558,69 @@ function ccSheetRows(){
   out.sort(function(a,b){return String(a[0]).localeCompare(String(b[0]));});
   return out;
 }
+function ccEventRows(){
+  var re=/^\d{4}-\d{2}-\d{2}$/, out=[];
+  (pl()||[]).forEach(function(p){
+    var nm=coupleName(p.bride||'',p.groom||''); if(!nm||!String(nm).trim()) return;
+    (p.eventDays||[]).forEach(function(ed){
+      if(!ed||!ed.date||!re.test(ed.date)) return;
+      var n=0; try{ n=crewNamesForDay(ed).length; }catch(e){}
+      out.push([nm,ed.date,String(ed.type||'').trim(),n]);
+    });
+  });
+  out.sort(function(a,b){return String(a[1]).localeCompare(String(b[1]))||String(a[0]).localeCompare(String(b[0]));});
+  return out;
+}
 function ccSendToSheet(){
   if(!ccCanWrite()){ alert('Only an admin can send data to the sheet.'); return; }
   var cfg=ccPushCfg(); if(!cfg.url||!cfg.key){ alert('Save the web app link and secret key first.'); return; }
   if(_ccBusy) return;
   var rows=ccSheetRows(); if(!rows.length){ alert('No clients to send.'); return; }
+  var id='s'+Date.now();
   _ccBusy=true; ccPushStatus('⏳ Sending '+rows.length+' clients…');
-  fetch(cfg.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({key:cfg.key,rows:rows})})
-  .then(function(r){return r.text();})
-  .then(function(t){
-    _ccBusy=false; var j=null; try{ j=JSON.parse(t); }catch(e){}
-    if(j&&j.ok) ccPushStatus('✅ Sent '+j.count+' clients at '+new Date().toLocaleTimeString('en-IN')+'. Open the Google Sheet → Cash Flow tab.');
-    else ccPushStatus('❌ '+((j&&j.error)||'Unexpected reply – check that the link ends with /exec and the script is deployed for “Anyone”.'));
-  })
-  .catch(function(){
+  try{
+    // A plain form POST into a hidden frame is always delivered (no browser CORS rules apply).
+    var ifr=document.createElement('iframe'); ifr.name='cc-push-frame-'+id; ifr.style.display='none'; document.body.appendChild(ifr);
+    var f=document.createElement('form'); f.method='POST'; f.action=cfg.url; f.target=ifr.name; f.style.display='none';
+    var inp=document.createElement('input'); inp.type='hidden'; inp.name='payload'; inp.value=JSON.stringify({key:cfg.key,id:id,rows:rows,events:ccEventRows()});
+    f.appendChild(inp); document.body.appendChild(f); f.submit();
+    setTimeout(function(){ try{ document.body.removeChild(f); }catch(e){} },1500);
+    setTimeout(function(){ try{ document.body.removeChild(ifr); }catch(e){} },90000);
+  }catch(e){ _ccBusy=false; ccPushStatus('❌ Could not send: '+(e&&e.message||e)); return; }
+  ccPollStatus(cfg.url,id,0,rows.length);
+}
+// Ask the sheet what happened (loaded as a script, so the browser allows reading it).
+function ccPollStatus(url,id,n,count){
+  if(n>12){
     _ccBusy=false;
-    ccPushStatus('⚠️ Sent, but the browser could not read the reply. Open the Google Sheet → CRM Import tab to confirm it updated (see the last-sent time in O3). If not, re-check the link and key.');
-  });
+    ccPushStatus('⚠️ No confirmation from the sheet after ~35 seconds. Check: (1) you pasted the NEW script and saved it, (2) Deploy → Manage deployments → pencil → Version: New version → Deploy, (3) the link ends with /exec. Then try again.');
+    return;
+  }
+  setTimeout(function(){
+    var cb='ccCb'+Date.now()+'_'+n, s=document.createElement('script'), done=false;
+    function cleanup(){ try{ delete window[cb]; }catch(e){ window[cb]=undefined; } try{ if(s.parentNode) s.parentNode.removeChild(s); }catch(e){} }
+    window[cb]=function(r){
+      if(done) return; done=true; cleanup();
+      var mine=r&&(r.id===id||(r.t&&Date.now()-r.t<60000&&!r.ok));
+      if(mine){
+        _ccBusy=false;
+        if(r.ok) ccPushStatus('✅ Sheet updated: '+r.count+' clients and '+(r.events||0)+' event days at '+new Date().toLocaleTimeString('en-IN')+'. Open the Google Sheet → Cash Flow tab.');
+        else ccPushStatus('❌ '+(r.error||'The sheet rejected the data.'));
+      } else ccPollStatus(url,id,n+1,count);
+    };
+    s.onerror=function(){ if(done) return; done=true; cleanup(); ccPollStatus(url,id,n+1,count); };
+    s.src=url+(url.indexOf('?')>-1?'&':'?')+'action=status&callback='+cb+'&_='+Date.now();
+    document.body.appendChild(s);
+    setTimeout(function(){ if(!done){ done=true; cleanup(); ccPollStatus(url,id,n+1,count); } },3000);
+  },2500);
+}
+function ccCopyEventsForSheet(){
+  var rows=ccEventRows(); if(!rows.length){ alert('No event days found.'); return; }
+  var head=['Name','Event Date','Event Type','Crew in CRM'];
+  var txt=[head].concat(rows).map(function(r){return r.map(function(c){return String(c==null?'':c).replace(/[\t\r\n]+/g,' ');}).join('\t');}).join('\n');
+  var done=function(){ showToast('📋 '+rows.length+' event days copied – paste into CRM Events, cell A1'); };
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,function(){ prompt('Copy this:',txt); });
+  else prompt('Copy this:',txt);
 }
 function ccCopyForSheet(){
   var rows=ccSheetRows(); if(!rows.length){ alert('No clients to copy.'); return; }
@@ -41708,13 +40646,14 @@ function renderCrewCosts(){
     var pc=ccPushCfg();
     h+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:16px">';
     h+='<div style="font-weight:700;margin-bottom:4px">📤 Send CRM data to the Google Sheet</div>';
-    h+='<div style="font-size:12px;color:#64748b;margin-bottom:10px">One click sends every client’s net value, paid, balance, stage and event dates to the <b>CRM Import</b> tab, so the sheet’s budgets and cash flow update. Phone numbers are not sent. The link and key stay in this browser only.</div>';
+    h+='<div style="font-size:12px;color:#64748b;margin-bottom:10px">One click sends every client’s net value, paid, balance, stage and event dates to the <b>CRM Import</b> tab, and every event day to the <b>CRM Events</b> tab, so budgets, cash flow and event coverage update. Phone numbers are not sent. The link and key stay in this browser only.</div>';
     h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
     h+='<input id="cc-push-url" value="'+ccEsc(pc.url)+'" placeholder="Web app link: https://script.google.com/macros/s/…/exec" style="flex:2;min-width:240px;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">';
     h+='<input id="cc-push-key" type="password" value="'+ccEsc(pc.key)+'" placeholder="Secret key" style="flex:1;min-width:140px;padding:9px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">';
     h+='<button class="btn" onclick="ccSavePushCfg()">💾 Save</button>';
     h+='<button class="btn btn-primary" onclick="ccSendToSheet()">📤 Send to Google Sheet</button>';
-    h+='<button class="btn" onclick="ccCopyForSheet()" title="Backup: copy, then paste into CRM Import cell A1">📋 Copy for Sheet</button>';
+    h+='<button class="btn" onclick="ccCopyForSheet()" title="Backup: copy, then paste into CRM Import cell A1">📋 Copy clients</button>';
+    h+='<button class="btn" onclick="ccCopyEventsForSheet()" title="Backup: copy, then paste into CRM Events cell A1">📋 Copy events</button>';
     h+='</div><div id="cc-push-status" style="margin-top:8px;font-size:12px;color:#64748b"></div></div>';
   }
 
@@ -41797,5 +40736,3 @@ function renderCrewCosts(){
 </script>
 </body>
 </html>
-
-
