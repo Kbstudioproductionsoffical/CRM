@@ -6223,14 +6223,23 @@ function kbErpUpdateAll() {
     s2total = s2;
     var p2 = document.getElementById('kb-s2-preview');
     // Auto-fill date from project event date
-    var evDate = (document.getElementById('f-date')||{}).value || '';
+    var pObj = editProjId ? (projects[editProjId] || null) : null;
+    var evDate = (document.getElementById('f-date')||{}).value || (pObj ? (_payEventDays(pObj)[0] || pObj.date || '') : '');
     var s2dateEl = document.getElementById('kb-s2-date');
-    if (s2dateEl && !s2dateEl.value && evDate) s2dateEl.value = evDate;
+    if (s2dateEl && evDate) s2dateEl.value = evDate;
     if (p2) p2.textContent = s2 > 0 ? ('= ' + _kbFmt(s2) + (evDate ? ' · due on event day ' + evDate : ' · set due date')) : '';
   } else {
     var s2a = fmtAmt('kb-s2a-type','kb-s2a-val');
     var s2b = fmtAmt('kb-s2b-type','kb-s2b-val');
     s2total = s2a + s2b;
+    var pObj = editProjId ? (projects[editProjId] || null) : null;
+    var evs = pObj ? _payEventDays(pObj) : [];
+    var evDate1 = evs[0] || (document.getElementById('f-date')||{}).value || '';
+    var evDate2 = evs[1] || evDate1;
+    var s2aDate = document.getElementById('kb-s2a-date');
+    var s2bDate = document.getElementById('kb-s2b-date');
+    if (s2aDate && evDate1) s2aDate.value = evDate1;
+    if (s2bDate && evDate2) s2bDate.value = evDate2;
     var p2s = document.getElementById('kb-s2-split-preview');
     if (p2s) p2s.textContent = (s2a > 0 || s2b > 0) ? ('Pre-wedding: ' + _kbFmt(s2a) + ' · Main event: ' + _kbFmt(s2b) + ' · Total: ' + _kbFmt(s2total)) : '';
   }
@@ -6449,7 +6458,17 @@ function kbErpLoadSchedule(kbSchedule) {
     var dEl = date_id ? document.getElementById(date_id) : null;
     if (tEl) { tEl.value = s.type || 'pct'; }
     if (vEl) { vEl.value = s.val || ''; }
-    if (dEl && s.dueDate) { dEl.value = s.dueDate; dEl.dataset.manuallySet = '1'; }
+    if (dEl) {
+      var isEv = (key === 'kb_event' || key === 'kb_prewed' || key === 'kb_mainevent' || key === 'kb_event2' || key === 'kb_event3');
+      var pObj = editProjId ? (projects[editProjId] || null) : null;
+      var evDate = pObj ? (_payEventDays(pObj)[0] || pObj.date || '') : ((document.getElementById('f-date')||{}).value || '');
+      if (isEv && evDate) {
+        dEl.value = evDate;
+      } else if (s.dueDate) {
+        dEl.value = s.dueDate;
+        dEl.dataset.manuallySet = '1';
+      }
+    }
     // Show the row even if preset would hide it (project was saved with this stage)
     var rowMap = { kb_advance:'kb-stage-row-1',
                    kb_event:'kb-stage-row-2', kb_event2:'kb-stage-row-2', kb_event3:'kb-stage-row-2', kb_event4:'kb-stage-row-2',
@@ -6495,12 +6514,13 @@ function kbErpLoadSchedule(kbSchedule) {
 // ── Auto-fill event date into Stage 2 date fields ──
 // Safe to call at any time; does not overwrite manually-set dates.
 function kbErpAutoFillEventDate() {
-  var evDate = (document.getElementById('f-date')||{}).value || '';
+  var pObj = editProjId ? (projects[editProjId] || null) : null;
+  var evDate = (document.getElementById('f-date')||{}).value || (pObj ? (_payEventDays(pObj)[0] || pObj.date || '') : '');
   if (!evDate) return;
   var s2d = document.getElementById('kb-s2-date');
-  if (s2d && !s2d.dataset.manuallySet && !s2d.value) s2d.value = evDate;
+  if (s2d) s2d.value = evDate;
   var s2bd = document.getElementById('kb-s2b-date');
-  if (s2bd && !s2bd.dataset.manuallySet && !s2bd.value) s2bd.value = evDate;
+  if (s2bd) s2bd.value = evDate;
 }
 
 // ── KB ERP listeners — wired once after Payments tab first renders ──
@@ -6889,7 +6909,8 @@ function getPayTerms(p){
       return { key:s.key, label:s.label, pct:s.type==='pct'?s.val:Math.round((s.amount/(Math.max(1,(p.value||0)-(p.discount||0))))*100), desc:s.desc||'' };
     });
   } else {
-    base=PAY_PRESETS[p&&p.payPreset?p.payPreset:'30-50-10-5-5']||PAY_PRESETS['30-50-10-5-5'];
+    var presets = (typeof PAY_PRESETS !== 'undefined' && PAY_PRESETS) ? PAY_PRESETS : ((typeof DEFAULT_PAY_PRESETS !== 'undefined' && DEFAULT_PAY_PRESETS) ? DEFAULT_PAY_PRESETS : {});
+    base = presets[p&&p.payPreset?p.payPreset:'30-50-10-5-5'] || presets['30-50-10-5-5'] || [];
   }
   // Apply any saved per-project label overrides
   if(p&&p.payTermLabels){
@@ -18933,9 +18954,7 @@ function _stageDue(p, key) {
   if (!p) return '';
   var v = p['pay_' + key + '_due'];
   if (v) return v;
-  var st = ((p.kbSchedule && p.kbSchedule.stages) || []).find(function (x) { return x.key === key; });
-  if (st && st.dueDate) return st.dueDate;
-  // For event-linked stages: fall back to the appropriate event day
+  // For event-linked stages: ALWAYS use the project's real shoot/event day!
   if (isEventLinkedStage(p, key)) {
     var evs = [];
     ((p.eventDays) || []).forEach(function (ed) {
@@ -18943,11 +18962,13 @@ function _stageDue(p, key) {
     });
     evs.sort();
     if (!evs.length && p.date) evs = [p.date];
-    if (key === 'event2' || key === 'kb_event2') return evs[1] || evs[0] || '';
+    if (key === 'event2' || key === 'kb_event2') return evs[1] || evs[0] || p.date || '';
     if (key === 'event3' || key === 'kb_event3') return evs[2] || evs[1] || evs[0] || '';
     if (key === 'event4' || key === 'kb_event4') return evs[3] || evs[2] || evs[1] || evs[0] || '';
-    return evs[0] || '';
+    return evs[0] || p.date || '';
   }
+  var st = ((p.kbSchedule && p.kbSchedule.stages) || []).find(function (x) { return x.key === key; });
+  if (st && st.dueDate) return st.dueDate;
   return '';
 }
 function getPaymentScheduleWithCarryForward(p) {
@@ -24742,6 +24763,11 @@ function openProject(id, tabId) {
   sv('f-date', p.date); sv('f-bookdate', p.bookdate || ''); sv('f-venue', p.venue); sv('f-type', p.type);
   sv('f-package', p.package); sv('f-source', p.source); sv('f-value', p.value); sv('f-discount', p.discount);
   sv('f-stage', p.stage); sv('f-pay-preset', p.payPreset || '30-50-10-5-5');
+  // Reset payment stage date fields and manual flags to prevent stale date leakage from previously viewed projects
+  ['kb-s2-date','kb-s2a-date','kb-s2b-date'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) { el.value = ''; delete el.dataset.manuallySet; }
+  });
   // Remember the preset the project was opened with, so onPayPresetChangeGuarded()
   // can tell a real user-initiated change apart from the initial population above.
   (function(){ var _pp = document.getElementById('f-pay-preset'); if (_pp) _pp.dataset.prevValue = p.payPreset || '30-50-10-5-5'; })();
