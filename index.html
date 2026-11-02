@@ -1729,6 +1729,8 @@ document.addEventListener('wheel', function(e) {
       <!-- Projects tab content -->
       <div id="pay-tab-projects">
         <div id="pay-simple-banner" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px 22px;margin-bottom:12px"></div>
+        <!-- Zoho Receivables KPI Bar — shown at top so it's always visible -->
+        <div id="pay-future-section" style="margin-bottom:16px"></div>
         <div style="margin-bottom:10px">
           <button type="button" id="pay-details-toggle" class="btn btn-sm" onclick="togglePayDetails()" style="font-size:11px;color:#888;border-color:#ddd">Show full breakdown ▾</button>
         </div>
@@ -1763,7 +1765,6 @@ document.addEventListener('wheel', function(e) {
 <div id="dws-view" style="margin-bottom:16px"></div>
         <div class="metrics" id="pay-metrics" style="display:none"></div>
         <div id="pay-due-alerts" style="margin-bottom:12px"></div>
-        <div id="pay-future-section" style="margin-bottom:16px"></div>
         <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary" id="btn-record-pay">+ Record Payment</button>
           <button class="btn btn-sm" style="background:#16a34a;color:#fff;border:none;font-weight:700" onclick="exportPaymentsReportExcel()">📊 Export Period Report (Excel)</button>
@@ -6798,7 +6799,14 @@ var _PAY_DESC_MAP = {
 function friendlyPayDesc(d){
   if(!d) return d;
   var key=String(d).trim().toLowerCase();
-  return _PAY_DESC_MAP.hasOwnProperty(key) ? _PAY_DESC_MAP[key] : d;
+  var map = (typeof _PAY_DESC_MAP !== 'undefined' && _PAY_DESC_MAP) ? _PAY_DESC_MAP : {
+    booking:  'On booking',
+    event:    'On shoot day',
+    raw:      'Before raw data delivery',
+    delivery: 'Before final delivery',
+    other:    'Other milestone'
+  };
+  return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : d;
 }
 // Many older rows were saved with the "When" dropdown left on its default
 // ("booking") for every installment, regardless of what the row is actually
@@ -18883,9 +18891,10 @@ function isEventLinkedStage(p, stageKey){
     var ct=p.customPayTerms.find(function(t){return t.key===stageKey;});
     if(!ct) return false;
     var l=((ct.label||'')+' '+(ct.desc||'')).toLowerCase();
-    return /event|shoot/.test(l);
+    return /event|shoot|wedding|sangeet|mehndi|haldi/.test(l);
   }
-  return /^p(50|60)$/.test(stageKey||'');
+  return /^p(50|60)$|^kb_(event\d*|prewed|mainevent|event_extra_\d+)$/.test(stageKey||'') ||
+         /event|shoot|wedding|sangeet|mehndi|haldi/i.test(stageKey||'');
 }
 // ── Recognize "this stage key/string represents the Advance/booking payment" ──
 // Mirrors the isAdv convention already used at payment-entry time (see recordPayment).
@@ -18915,6 +18924,32 @@ var _KB_TO_LEGACY_KEYS = {
   kb_teaser:    ['p5a'],
   kb_final:     ['p5b','p10b','p10c','pfinal','p50b']
 };
+
+// ── A stage's effective due date ─────────────────────────────────────────────
+// Priority: 1) per-project override (pay_xxx_due), 2) kbSchedule saved date,
+// 3) for event-linked stages → first (or 2nd/3rd) event day from eventDays.
+// This is the single source of truth used by getPaymentScheduleWithCarryForward.
+function _stageDue(p, key) {
+  if (!p) return '';
+  var v = p['pay_' + key + '_due'];
+  if (v) return v;
+  var st = ((p.kbSchedule && p.kbSchedule.stages) || []).find(function (x) { return x.key === key; });
+  if (st && st.dueDate) return st.dueDate;
+  // For event-linked stages: fall back to the appropriate event day
+  if (isEventLinkedStage(p, key)) {
+    var evs = [];
+    ((p.eventDays) || []).forEach(function (ed) {
+      if (ed && /^\d{4}-\d{2}-\d{2}$/.test(ed.date || '') && evs.indexOf(ed.date) < 0) evs.push(ed.date);
+    });
+    evs.sort();
+    if (!evs.length && p.date) evs = [p.date];
+    if (key === 'event2' || key === 'kb_event2') return evs[1] || evs[0] || '';
+    if (key === 'event3' || key === 'kb_event3') return evs[2] || evs[1] || evs[0] || '';
+    if (key === 'event4' || key === 'kb_event4') return evs[3] || evs[2] || evs[1] || evs[0] || '';
+    return evs[0] || '';
+  }
+  return '';
+}
 function getPaymentScheduleWithCarryForward(p) {
   if (!p) return [];
   var net = netVal(p);
@@ -24973,7 +25008,12 @@ function renderFuturePayments() {
     var amtDue = next.collectibleTotal || next.shortfall || 0;
     if (amtDue <= 0 && bal > 0) amtDue = bal;
 
-    var days = next.dueDate ? daysUntil(next.dueDate) : null;
+    // Use _payEffectiveDues to get the event-day-resolved due date
+    var effDues = _payEffectiveDues(p);
+    var nextEff = effDues.find(function(r) { return !r.st.isSettled && r.balance > 0; });
+    var effDate = nextEff ? nextEff.date : (next.dueDate || '');
+
+    var days = effDate ? daysUntil(effDate) : null;
     var urgency = 'pending';
     if (days !== null) {
       if (days < 0) {
@@ -24993,6 +25033,7 @@ function renderFuturePayments() {
     items.push({
       p: p,
       stage: next,
+      effDate: effDate,
       amtDue: amtDue,
       days: days,
       urgency: urgency,
@@ -25077,16 +25118,17 @@ function renderFuturePayments() {
       bodyHtml = '<table class="tbl"><thead><tr><th>Client</th><th>Next Milestone</th><th>Amount Collectible</th><th>Due Status</th><th>Actions</th></tr></thead><tbody>' +
         filteredItems.map(function(u) {
           var s = u.stage;
+          var effDate = u.effDate || s.dueDate || '';
           var cName = coupleName(u.p.bride, u.p.groom);
           var statusHtml = '';
           if (u.urgency === 'overdue') {
-            statusHtml = '<span class="badge b-red" style="font-weight:800">⚠️ ' + Math.abs(u.days) + 'd OVERDUE</span><div style="font-size:10px;color:#dc2626;margin-top:2px">Due: ' + fmtDate(s.dueDate) + '</div>';
+            statusHtml = '<span class="badge b-red" style="font-weight:800">⚠️ ' + Math.abs(u.days) + 'd OVERDUE</span><div style="font-size:10px;color:#dc2626;margin-top:2px">Due: ' + fmtDate(effDate) + '</div>';
           } else if (u.urgency === 'today') {
-            statusHtml = '<span class="badge b-red" style="font-weight:800;background:#ea580c">🔴 Due TODAY</span><div style="font-size:10px;color:#ea580c;margin-top:2px">' + fmtDate(s.dueDate) + '</div>';
+            statusHtml = '<span class="badge b-red" style="font-weight:800;background:#ea580c">🔴 Due TODAY</span><div style="font-size:10px;color:#ea580c;margin-top:2px">' + fmtDate(effDate) + '</div>';
           } else if (u.urgency === 'week') {
-            statusHtml = '<span class="badge b-amber">🟡 in ' + u.days + ' days</span><div style="font-size:10px;color:#64748b;margin-top:2px">' + fmtDate(s.dueDate) + '</div>';
+            statusHtml = '<span class="badge b-amber">🟡 in ' + u.days + ' days</span><div style="font-size:10px;color:#64748b;margin-top:2px">' + fmtDate(effDate) + '</div>';
           } else if (u.urgency === 'month') {
-            statusHtml = '<span class="badge b-blue">in ' + u.days + ' days</span><div style="font-size:10px;color:#64748b;margin-top:2px">' + fmtDate(s.dueDate) + '</div>';
+            statusHtml = '<span class="badge b-blue">in ' + u.days + ' days</span><div style="font-size:10px;color:#64748b;margin-top:2px">' + fmtDate(effDate) + '</div>';
           } else {
             statusHtml = '<span style="color:#888;font-size:11px">Awaiting Milestone (' + (s.desc || s.label) + ')</span>';
           }
@@ -41323,31 +41365,31 @@ function dwsRenderQuickMonthChips() {
     var bal = Math.max(0, balDue(p));
     if (bal <= 0) return;
 
-    var schedule = getPaymentScheduleWithCarryForward(p);
-    schedule.forEach(function(s) {
-      if (s.isSettled) return;
-      var amt = s.collectibleTotal || s.shortfall || 0;
-      if (amt <= 0) return;
+    // Use _payEffectiveDues so event dates fall on actual eventDays (same as dwsBuild/PDF)
+    try {
+      _payEffectiveDues(p).forEach(function(r) {
+        if (r.st.isSettled || r.balance <= 0) return;
+        var amt = r.balance;
+        var due = r.date || '';
+        var ym = parseYM(due);
 
-      totalAllUpcoming += amt;
-      var due = s.dueDate || p.date || '';
-      var ym = parseYM(due);
-
-      if (due && due < todayStr) {
-        totalOverdue += amt;
-      }
-
-      if (ym) {
-        if (!monthsMap[ym]) {
-          var y = parseInt(ym.substring(0, 4));
-          var m = parseInt(ym.substring(5, 7));
-          var lbl = (mn[m - 1] || 'M') + ' ' + y;
-          monthsMap[ym] = { ym: ym, label: lbl, total: 0, count: 0 };
+        totalAllUpcoming += amt;
+        if (due && due < todayStr) {
+          totalOverdue += amt;
         }
-        monthsMap[ym].total += amt;
-        monthsMap[ym].count++;
-      }
-    });
+
+        if (ym) {
+          if (!monthsMap[ym]) {
+            var y = parseInt(ym.substring(0, 4));
+            var m = parseInt(ym.substring(5, 7));
+            var lbl = (mn[m - 1] || 'M') + ' ' + y;
+            monthsMap[ym] = { ym: ym, label: lbl, total: 0, count: 0 };
+          }
+          monthsMap[ym].total += amt;
+          monthsMap[ym].count++;
+        }
+      });
+    } catch(e) { console.warn('chips calc err', e); }
   });
 
   var curSel = (document.getElementById('dws-month') || {}).value || '';
@@ -41385,6 +41427,7 @@ function dwsRenderQuickMonthChips() {
     chipsHtml += '<button onclick="dwsSelectQuickMonth(\'' + m.ym + '\')" style="background:' + bg + ';color:' + tc + ';border:1px solid ' + bc + ';border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px">' +
       '<span>' + m.label + '</span>' +
       '<strong style="color:' + (isSel ? '#38bdf8' : (isPast ? '#dc2626' : '#16a34a')) + '">' + fmt(m.total) + '</strong>' +
+      '<span style="font-size:10px;opacity:0.8">(' + m.count + ')</span>' +
     '</button>';
   });
 
@@ -41393,11 +41436,17 @@ function dwsRenderQuickMonthChips() {
 
 window.dwsSelectSpecialRange = function(type) {
   var sel = document.getElementById('dws-range');
-  if (sel) {
-    sel.value = type === 'upcoming' ? 'upcoming' : 'month';
+  var ex = document.getElementById('dws-extra');
+  if (type === 'overdue') {
+    if (sel) sel.value = 'upcoming';
+    if (ex) ex.checked = true;
+  } else if (type === 'upcoming') {
+    if (sel) sel.value = 'upcoming';
+  } else {
+    if (sel) sel.value = 'month';
   }
   var minp = document.getElementById('dws-month');
-  if (minp && type !== 'upcoming') {
+  if (minp && type !== 'upcoming' && type !== 'overdue') {
     minp.value = new Date().toISOString().substring(0, 7);
   }
   dwsRangeChanged();
@@ -41439,10 +41488,12 @@ function dwsInit() {
   dwsRenderQuickMonthChips();
   var m = document.getElementById('dws-month');
   if (m && !m.value) {
-    var d = new Date(); d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    var d = new Date();
     m.value = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
   }
   dwsRangeChanged();
+  // Auto-render the current month table on first load so user sees data immediately
+  if (!window._dwsOpen) { try { dwsShow(); } catch(e){} }
 }
 function dwsRangeChanged() {
   var r = (document.getElementById('dws-range') || {}).value;
@@ -41615,7 +41666,14 @@ function dwsBuild() {
   var monthKeys = Object.keys(monthRows).sort();
   if (mode === 'month' && !monthRows[ym]) monthKeys = [ym];
   monthKeys.forEach(function (k) { var a = monthRows[k] || []; sortRows(a); sections.push({ label: _dwsMonthLabel(k), rows: a }); });
-  if (extras && overdue.length) { sortRows(overdue); sections.push({ label: 'Earlier overdue — before ' + (byMonth ? _dwsMonthLabel(ym) : 'today'), rows: overdue }); }
+  if (overdue.length && (extras || !byMonth)) {
+    sortRows(overdue);
+    if (!byMonth) {
+      sections.unshift({ label: '🔴 Overdue Receivables (Action Required)', rows: overdue });
+    } else {
+      sections.push({ label: 'Earlier overdue — before ' + _dwsMonthLabel(ym), rows: overdue });
+    }
+  }
   if (extras && undated.length) { sortRows(undated); sections.push({ label: 'Date not set / not confirmed', rows: undated }); }
 
   var grand = 0, count = 0, clients = {};
