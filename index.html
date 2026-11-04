@@ -3957,7 +3957,7 @@ document.addEventListener('wheel', function(e) {
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <div style="font-size:13px;font-weight:700;color:#1a1a1a">💾 Data Entries</div>
-            <div style="display:flex;gap:6px"><button class="btn btn-sm" onclick="kbScanClientDriveFolder()" style="background:#0f172a;color:#fff;border:none;font-weight:700;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer">📁 Scan Hard Drive / NAS</button><button class="btn btn-sm btn-primary" id="btn-add-dataentry">+ Add Entry</button></div>
+            <div style="display:flex;gap:6px"><button class="btn btn-sm" onclick="autoPopulateDataLogFromNas(true)" style="background:#15803d;color:#fff;border:none;font-weight:700;font-size:11px;padding:4px 12px;border-radius:6px;cursor:pointer">⚡ Auto-Fill from NAS</button><button class="btn btn-sm" onclick="kbScanClientDriveFolder()" style="background:#0f172a;color:#fff;border:none;font-weight:700;font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer">📁 Scan Drive</button><button class="btn btn-sm btn-primary" id="btn-add-dataentry">+ Add Entry</button></div>
           </div>
           <div style="display:grid;grid-template-columns:120px 1fr 70px 55px 1fr 90px 90px 70px;gap:6px;padding:4px 0;margin-bottom:6px;border-bottom:1px solid #e2e8f0">
             <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase">Shoot Day</div>
@@ -7461,6 +7461,13 @@ function loadAll(){
           renderProjectNasStorage(projects[editProjId]);
         }
       });
+      db.ref('crm_nas_manual_links').on('value', function(snap){
+        window._nasManualLinks = snap.val() || {};
+        if (typeof renderNasDashboard === 'function') {
+          var nasTab = document.getElementById('dv-tab-nas');
+          if (nasTab && nasTab.style.display !== 'none') renderNasDashboard();
+        }
+      });
       hcLoadTasks();
       attachUsersListener();
 
@@ -7489,6 +7496,13 @@ function loadAll(){
       }
       if (typeof editProjId !== 'undefined' && editProjId && projects[editProjId] && typeof renderProjectNasStorage === 'function') {
         renderProjectNasStorage(projects[editProjId]);
+      }
+    });
+    db.ref('crm_nas_manual_links').on('value', function(snap){
+      window._nasManualLinks = snap.val() || {};
+      if (typeof renderNasDashboard === 'function') {
+        var nasTab = document.getElementById('dv-tab-nas');
+        if (nasTab && nasTab.style.display !== 'none') renderNasDashboard();
       }
     });
     attachUsersListener();
@@ -7823,25 +7837,54 @@ function renderDataVault() {
   // Collect all data entries across all projects
   var rows = [];
   pl().forEach(function(p) {
-    (p.dataEntries || []).forEach(function(e) {
-      rows.push({
-        couple: coupleName(p.bride, p.groom),
-        refcode: p.refcode || '',
-        eventDate: p.date || '',
-        stage: p.stage || '',
-        photographer: e.photographer || '',
-        size: e.size || '',
-        unit: e.unit || 'GB',
-        location: e.location || '',
-        backup: e.backup || 'no',
-        status: e.status || 'pending',
-        hdOwner:  p.d_hd_owner  || '',
-        hdStatus: p.d_hd_status || '',
-        hdDate:   p.d_hd_date   || '',
-        hdNotes:  p.dm_hd_notes || '',
-        projId: p.id
+    var hasEntries = p.dataEntries && p.dataEntries.length > 0;
+    if (hasEntries) {
+      p.dataEntries.forEach(function(e) {
+        rows.push({
+          couple: coupleName(p.bride, p.groom),
+          refcode: p.refcode || '',
+          eventDate: p.date || '',
+          stage: p.stage || '',
+          photographer: e.crewName || e.photographer || '',
+          size: e.size || '',
+          unit: e.unit || 'GB',
+          location: e.location || '',
+          backup: e.backup || 'no',
+          status: e.status || 'pending',
+          hdOwner:  p.d_hd_owner  || '',
+          hdStatus: p.d_hd_status || '',
+          hdDate:   p.d_hd_date   || '',
+          hdNotes:  p.dm_hd_notes || '',
+          projId: p.id
+        });
       });
-    });
+    }
+
+    // AUTOMATION: If project has no manual entries recorded yet, auto-pull from live NAS telemetry
+    var nasFolders = typeof _nasGetProjectFolders === 'function' ? _nasGetProjectFolders(p) : [];
+    if (!hasEntries && nasFolders.length > 0) {
+      nasFolders.forEach(function(nf) {
+        var locLabel = (nf.nasList && nf.nasList.indexOf('nas-faridabad') !== -1) ? 'Faridabad NAS' : 'NAS Storage';
+        rows.push({
+          couple: coupleName(p.bride, p.groom),
+          refcode: p.refcode || '',
+          eventDate: p.date || '',
+          stage: p.stage || '',
+          photographer: p.photographer || p.videographer || 'Studio Crew',
+          size: nf.maxSizeGB ? String(nf.maxSizeGB) : '',
+          unit: 'GB',
+          location: locLabel,
+          backup: 'yes',
+          status: 'secured',
+          hdOwner:  p.d_hd_owner  || '',
+          hdStatus: p.d_hd_status || '',
+          hdDate:   p.d_hd_date   || '',
+          hdNotes:  p.dm_hd_notes || '',
+          projId: p.id,
+          autoNas: true
+        });
+      });
+    }
   });
 
   // Populate location filter dynamically
@@ -8649,6 +8692,7 @@ function restoreFromArchive(projId) {
 // 🖥️ QNAP NAS INTEGRATION & FLEET MONITOR (Faridabad, Delhi, Mumbai)
 // ═══════════════════════════════════════════════════════════════════════════════
 window._nasReports = window._nasReports || {};
+window._nasManualLinks = window._nasManualLinks || {};
 var _nasActiveSubtab = 'all';
 var _nasSearchQuery = '';
 
@@ -8673,26 +8717,60 @@ var _NAS_MONTH_MAP = {
   '12':12, 'dec':12, 'december':12
 };
 
+function _nasNormalizeName(str) {
+  return String(str || '').toLowerCase()
+    .replace(/\bmonika\b/g, 'monica')
+    .replace(/\bpooja\b/g, 'puja')
+    .replace(/\bdeeksha\b/g, 'diksha')
+    .replace(/\baarti\b/g, 'arti')
+    .replace(/[&+]/g, ' ')
+    .replace(/\band\b/g, ' ')
+    .trim();
+}
+
 function _nasNormalizeMonth(m) {
   if (!m) return null;
-  return _NAS_MONTH_MAP[String(m).trim().toLowerCase()] || null;
+  var cleaned = String(m).replace(/^\d+[-_]/, '').trim().toLowerCase();
+  return _NAS_MONTH_MAP[cleaned] || _NAS_MONTH_MAP[String(m).trim().toLowerCase()] || null;
+}
+
+function _nasSafeKey(str) {
+  return encodeURIComponent(String(str || '')).replace(/\./g, '%2E');
 }
 
 function _nasParseFolder(folderName, yearStr, monthStr) {
   if (!folderName) return null;
   var raw = String(folderName).trim();
-  // Strip leading sequence numbers: e.g. "01-", "1-", "01_"
-  var cleaned = raw.replace(/^\d+[-_]/, '');
-  var parts = cleaned.split('_');
-  var clientPart = parts[0] || '';
-  var eventCode = (parts[1] || '').toUpperCase();
-  var locCode = (parts[2] || '').toUpperCase();
+  // Strip sequence: "01 - ", "01-", "01_"
+  var cleaned = raw.replace(/^\d+\s*[-_]\s*/, '');
 
-  var tokens = clientPart.toLowerCase()
-    .replace(/[&+]/g, ' ')
-    .replace(/\band\b/g, ' ')
-    .split(/[\s/_-]+/)
-    .filter(function(t) { return t.length >= 2; });
+  var eventCode = '';
+  var locCode = '';
+
+  // 1. Check parentheses pattern: "(MUM-PWD)", "(DEL-ENG)"
+  var parenMatch = cleaned.match(/\s*\(([^)]+)\)\s*$/);
+  if (parenMatch) {
+    cleaned = cleaned.replace(/\s*\(([^)]+)\)\s*$/, '');
+    var inside = parenMatch[1].split(/[-_]/);
+    if (inside.length >= 2) {
+      locCode = inside[0].toUpperCase();
+      eventCode = inside[1].toUpperCase();
+    } else {
+      eventCode = inside[0].toUpperCase();
+    }
+  } else {
+    // 2. Check underscore pattern: "Client_EVENT_LOC"
+    var uParts = cleaned.split('_');
+    if (uParts.length >= 2) {
+      cleaned = uParts[0];
+      eventCode = (uParts[1] || '').toUpperCase();
+      locCode = (uParts[2] || '').toUpperCase();
+    }
+  }
+
+  var clientPart = cleaned.trim();
+  var normClient = _nasNormalizeName(clientPart);
+  var tokens = normClient.split(/[\s/_-]+/).filter(function(t) { return t.length >= 2; });
 
   return {
     raw: raw,
@@ -8705,137 +8783,103 @@ function _nasParseFolder(folderName, yearStr, monthStr) {
   };
 }
 
-function _nasLevDist(s1, s2) {
-  s1 = (s1||'').toLowerCase(); s2 = (s2||'').toLowerCase();
-  var costs = [];
-  for (var i = 0; i <= s1.length; i++) {
-    var lastVal = i;
-    for (var j = 0; j <= s2.length; j++) {
-      if (i === 0) costs[j] = j;
-      else if (j > 0) {
-        var newVal = costs[j - 1];
-        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
-          newVal = Math.min(Math.min(newVal, lastVal), costs[j]) + 1;
-        }
-        costs[j - 1] = lastVal;
-        lastVal = newVal;
-      }
-    }
-    if (i > 0) costs[s2.length] = lastVal;
+function _nasTokenMatch(t1, t2) {
+  if (t1 === t2) return true;
+  if (t1.length >= 4 && t2.length >= 4) {
+    if (t1.indexOf(t2) !== -1 || t2.indexOf(t1) !== -1) return true;
   }
-  return costs[s2.length];
+  return false;
 }
 
-function _nasTokenSimilarity(t1, t2) {
-  if (t1 === t2) return 1;
-  if (t1.indexOf(t2) !== -1 || t2.indexOf(t1) !== -1) return 0.85;
-  var dist = _nasLevDist(t1, t2);
-  var maxL = Math.max(t1.length, t2.length);
-  if (maxL === 0) return 1;
-  return Math.max(0, 1 - (dist / maxL));
-}
-
-function _nasMatchFolder(folderName, yearStr, monthStr, allProjects) {
-  var parsed = _nasParseFolder(folderName, yearStr, monthStr);
-  if (!parsed) return { score: 0, status: 'none', project: null, reason: 'Invalid folder format' };
-
+function _nasMatchFolder(folderName, yearStr, monthStr, allProjects, relPath) {
+  // Check if manually linked by user first
+  var safeK = _nasSafeKey(relPath || folderName);
+  var manual = window._nasManualLinks && (window._nasManualLinks[safeK] || window._nasManualLinks[relPath]);
   var projectsList = allProjects || (typeof pl === 'function' ? pl() : []);
+
+  if (manual && manual.projId) {
+    var mp = projectsList.find(function(p){ return String(p.id) === String(manual.projId); });
+    if (mp) {
+      return { score: 1.0, status: 'exact', project: mp, manual: true, reason: 'Manually linked by ' + (manual.linkedBy||'user') };
+    }
+  }
+
+  var parsed = _nasParseFolder(folderName, yearStr, monthStr);
+  if (!parsed) return { score: 0, status: 'none', project: null, reason: 'Invalid format' };
+
   var bestMatch = null;
   var bestScore = 0;
-  var bestDetail = null;
 
   for (var i = 0; i < projectsList.length; i++) {
     var p = projectsList[i];
-    var pBride = (p.bride || '').toLowerCase().trim();
-    var pGroom = (p.groom || '').toLowerCase().trim();
+    var pBride = _nasNormalizeName(p.bride || '');
+    var pGroom = _nasNormalizeName(p.groom || '');
     var pRef = (p.refcode || '').toLowerCase().trim();
 
-    // Direct RefCode hit (e.g. folder has KBS-YAJA-6472)
+    // Refcode direct hit
     if (pRef && parsed.raw.toLowerCase().indexOf(pRef) !== -1) {
-      return { score: 1.0, status: 'exact', project: p, reason: 'RefCode exact hit (' + p.refcode + ')', matchedEventDetail: null };
+      return { score: 1.0, status: 'exact', project: p, manual: false, reason: 'RefCode direct hit (' + p.refcode + ')' };
     }
 
-    var pTokens = (pBride + ' ' + pGroom).replace(/[&+]/g, ' ')
-      .replace(/\band\b/g, ' ')
-      .split(/[\s/_-]+/)
-      .filter(function(t) { return t.length >= 2; });
+    var pTokens = (pBride + ' ' + pGroom).split(/[\s/_-]+/).filter(function(t) { return t.length >= 2; });
 
-    var matchedTokens = 0;
-    var tokenSimSum = 0;
+    // Count token matches
+    var matchedCount = 0;
     parsed.tokens.forEach(function(fTok) {
-      var bestT = 0;
-      pTokens.forEach(function(pTok) {
-        var s = _nasTokenSimilarity(fTok, pTok);
-        if (s > bestT) bestT = s;
-      });
-      if (bestT >= 0.75) matchedTokens++;
-      tokenSimSum += bestT;
+      var found = pTokens.some(function(pTok) { return _nasTokenMatch(fTok, pTok); });
+      if (found) matchedCount++;
     });
 
-    var nameScore = parsed.tokens.length > 0 ? (tokenSimSum / parsed.tokens.length) : 0;
-    if (pTokens.length >= 2 && matchedTokens >= 2) {
-      nameScore = Math.max(nameScore, 0.95);
+    // STRICT MATCHING RULE:
+    // Only auto-match when BOTH couple names are present (or single name client where matchedCount >= 1 and no ambiguity)
+    var isBothNamesMatch = (pTokens.length >= 2 && matchedCount >= 2) ||
+                           (parsed.tokens.length >= 2 && matchedCount >= 2);
+
+    if (!isBothNamesMatch) {
+      // If couple only has 1 token and matches, check date alignment strictly
+      if (pTokens.length === 1 && matchedCount === 1) {
+        var pYear = p.date ? parseInt(p.date.slice(0,4)) : null;
+        if (pYear && parsed.year && pYear !== parsed.year) continue;
+      } else {
+        continue; // Do NOT auto-match near misses to unwanted clients!
+      }
     }
 
-    // If names have almost zero match, skip to prevent false positives from date alone
-    if (nameScore < 0.4) continue;
-
-    // Date & Event matching (Checks main date, wedding date, and all eventDays)
+    // Check year alignment if project has date
+    var dateScore = 0.5;
     var datesToCheck = [];
-    if (p.date) datesToCheck.push({ date: p.date, type: 'Main Event' });
-    if (p.weddingDate) datesToCheck.push({ date: p.weddingDate, type: 'Wedding' });
-    (p.eventDays || []).forEach(function(ed) {
-      if (ed && ed.date) datesToCheck.push({ date: ed.date, type: ed.type || 'Shoot Day' });
-    });
-
-    var dateScore = 0;
-    var matchedEvt = null;
+    if (p.date) datesToCheck.push(p.date);
+    if (p.weddingDate) datesToCheck.push(p.weddingDate);
+    (p.eventDays || []).forEach(function(ed) { if (ed && ed.date) datesToCheck.push(ed.date); });
 
     datesToCheck.forEach(function(dt) {
-      var parts = (dt.date || '').split('-');
-      var dtY = parseInt(parts[0]);
-      var dtM = parseInt(parts[1]);
-
-      if (parsed.year && dtY === parsed.year) {
-        if (parsed.month && dtM === parsed.month) {
-          dateScore = 1.0;
-          matchedEvt = dt;
-        } else if (dateScore < 0.6) {
-          dateScore = 0.6; // Same year, different month
-          matchedEvt = dt;
-        }
+      var y = parseInt(dt.slice(0,4));
+      var m = parseInt(dt.slice(5,7));
+      if (parsed.year && y === parsed.year) {
+        if (parsed.month && m === parsed.month) dateScore = 1.0;
+        else if (dateScore < 0.8) dateScore = 0.8;
       }
     });
 
-    var totalScore = (nameScore * 0.7) + (dateScore * 0.3);
-    if (nameScore >= 0.88) {
-      if (dateScore >= 0.9) totalScore = 1.0;
-      else if (dateScore >= 0.6) totalScore = 0.88;
-      else totalScore = 0.82;
-    }
-
-    if (totalScore > bestScore) {
-      bestScore = totalScore;
+    var score = isBothNamesMatch ? (0.8 + (dateScore * 0.2)) : 0.6;
+    if (score > bestScore) {
+      bestScore = score;
       bestMatch = p;
-      bestDetail = matchedEvt;
     }
   }
 
-  var status = 'none';
-  if (bestScore >= 0.80) status = 'exact';
-  else if (bestScore >= 0.48) status = 'possible';
-
+  var status = bestScore >= 0.85 ? 'exact' : 'none';
   return {
     score: bestScore,
     status: status,
-    project: bestMatch,
-    matchedEventDetail: bestDetail,
+    project: status === 'exact' ? bestMatch : null,
+    manual: false,
     parsed: parsed
   };
 }
 
 function _nasGetAllFoldersAggregated() {
-  var agg = {}; // key = relPath
+  var agg = {};
   var reports = window._nasReports || {};
   var allProjects = typeof pl === 'function' ? pl() : [];
 
@@ -8854,10 +8898,14 @@ function _nasGetAllFoldersAggregated() {
           nasList: [],
           sizes: {},
           fileCounts: {},
+          subfolders: f.subfolders || [],
           mtime: f.mtime || '—',
           maxSizeGB: 0,
           totalFiles: 0
         };
+      }
+      if (Array.isArray(f.subfolders) && f.subfolders.length > 0) {
+        agg[key].subfolders = f.subfolders;
       }
       agg[key].nasList.push(cfg.id);
       agg[key].sizes[cfg.id] = f.sizeGB || 0;
@@ -8870,9 +8918,10 @@ function _nasGetAllFoldersAggregated() {
 
   var list = Object.values(agg);
   list.forEach(function(item) {
-    item.redundancyCount = item.nasList.length;
-    item.isSingleCopy = item.redundancyCount === 1;
-    item.match = _nasMatchFolder(item.folder, item.year, item.month, allProjects);
+    item.match = _nasMatchFolder(item.folder, item.year, item.month, allProjects, item.relPath);
+    // Offload candidate: matched project is complete/delivered and can be moved to external HDD
+    var p = item.match && item.match.project;
+    item.isOffloadCandidate = !!(p && (p.stage === 'complete' || p.postprodStatus === 'delivered' || p.archived));
   });
 
   list.sort(function(a, b) {
@@ -8880,44 +8929,6 @@ function _nasGetAllFoldersAggregated() {
   });
 
   return list;
-}
-
-function _nasGetMissingPastEvents(allAggFolders) {
-  var projectsList = typeof pl === 'function' ? pl() : [];
-  var todayStr = tod(); // YYYY-MM-DD
-  var matchedProjIds = {};
-
-  (allAggFolders || []).forEach(function(f) {
-    if (f.match && f.match.project && f.match.status !== 'none') {
-      matchedProjIds[f.match.project.id] = true;
-    }
-  });
-
-  var missing = [];
-  projectsList.forEach(function(p) {
-    if (p.archived) return;
-    var d = typeof firstEventDate === 'function' ? firstEventDate(p) : (p.date || '');
-    if (!d || d > todayStr) return; // future or unscheduled
-    if (matchedProjIds[p.id]) return; // already has folder on NAS
-
-    // Calculate days elapsed since shoot
-    var evtDate = new Date(d + 'T00:00:00');
-    var now = new Date();
-    var diffDays = Math.max(0, Math.floor((now - evtDate) / (1000 * 60 * 60 * 24)));
-
-    missing.push({
-      project: p,
-      date: d,
-      daysElapsed: diffDays,
-      couple: typeof coupleName === 'function' ? coupleName(p.bride||'', p.groom||'') : (p.bride||'Client'),
-      refcode: p.refcode || '—',
-      photographer: p.photographer || 'Unassigned',
-      city: p.city || '—'
-    });
-  });
-
-  missing.sort(function(a, b) { return b.daysElapsed - a.daysElapsed; });
-  return missing;
 }
 
 function _nasGetProjectFolders(project) {
@@ -8934,14 +8945,23 @@ function renderNasDashboard() {
 
   var reports = window._nasReports || {};
   var allAgg = _nasGetAllFoldersAggregated();
-  var missingEvents = _nasGetMissingPastEvents(allAgg);
 
-  // Calculate high-level stats
-  var singleCopyCount = allAgg.filter(function(f){ return f.isSingleCopy; }).length;
-  var orphanCount = allAgg.filter(function(f){ return !f.match || f.match.status === 'none'; }).length;
-  var possibleCount = allAgg.filter(function(f){ return f.match && f.match.status === 'possible'; }).length;
   var matchedCount = allAgg.filter(function(f){ return f.match && f.match.status === 'exact'; }).length;
-  var missingCount = missingEvents.length;
+  var unmatchedCount = allAgg.filter(function(f){ return !f.match || f.match.status !== 'exact'; }).length;
+  var offloadCount = allAgg.filter(function(f){ return f.isOffloadCandidate; }).length;
+
+  var totalFleetUsedGB = 0;
+  var totalFleetFreeGB = 0;
+  _NAS_UNITS_CONFIG.forEach(function(cfg){
+    var r = reports[cfg.id];
+    if (r) {
+      totalFleetUsedGB += (r.diskUsedGB || 0);
+      totalFleetFreeGB += (r.diskFreeGB || 0);
+    }
+  });
+
+  var fleetUsedDisp = totalFleetUsedGB >= 1000 ? (totalFleetUsedGB / 1024).toFixed(2) + ' TB' : fmtNum(Math.round(totalFleetUsedGB)) + ' GB';
+  var fleetFreeDisp = totalFleetFreeGB >= 1000 ? (totalFleetFreeGB / 1024).toFixed(2) + ' TB' : fmtNum(Math.round(totalFleetFreeGB)) + ' GB';
 
   var html = '';
 
@@ -8950,9 +8970,9 @@ function renderNasDashboard() {
     '<div>' +
       '<div style="font-size:18px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px">' +
         '<span>🖥️ QNAP NAS Fleet Monitor</span>' +
-        '<span style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">3 Studios · Live Sync</span>' +
+        '<span style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">Faridabad · Delhi · Mumbai</span>' +
       '</div>' +
-      '<div style="font-size:12px;color:#64748b;margin-top:4px">Real-time capacity, redundancy analysis &amp; raw footage tracking across Faridabad, Delhi &amp; Mumbai units.</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-top:4px">Nightly studio telemetry · Folder tracking &amp; client matching across production units.</div>' +
     '</div>' +
     '<div style="display:flex;gap:8px;align-items:center">' +
       '<button class="btn btn-sm" onclick="renderNasDashboard()" style="background:#f8fafc;border:1px solid #cbd5e1;color:#334155;font-weight:600;padding:6px 12px;display:flex;align-items:center;gap:6px">🔄 Refresh</button>' +
@@ -8972,17 +8992,16 @@ function renderNasDashboard() {
     var totalGB = r ? (r.diskTotalGB || 0) : 0;
     var usedGB = r ? (r.diskUsedGB || 0) : 0;
     var usePct = r ? (r.diskUsagePercent || (totalGB > 0 ? ((usedGB / totalGB) * 100).toFixed(1) : 0)) : 0;
-    var isLowSpace = isConnected && (freeGB < 500 || usePct >= 90);
 
-    var statusColor = !isConnected ? '#94a3b8' : isStale ? '#dc2626' : isLowSpace ? '#d97706' : '#16a34a';
-    var statusBg = !isConnected ? '#f1f5f9' : isStale ? '#fee2e2' : isLowSpace ? '#fef3c7' : '#dcfce7';
-    var statusText = !isConnected ? '⚪ Not Configured' : isStale ? '🔴 Stale (>36h)' : isLowSpace ? '⚠️ Low Space' : '🟢 Healthy';
+    var statusColor = !isConnected ? '#94a3b8' : isStale ? '#dc2626' : '#16a34a';
+    var statusBg = !isConnected ? '#f1f5f9' : isStale ? '#fee2e2' : '#dcfce7';
+    var statusText = !isConnected ? '⚪ Not Configured' : isStale ? '🔴 Stale (>36h)' : '🟢 Active';
 
     var freeDisplay = freeGB >= 1000 ? (freeGB / 1024).toFixed(2) + ' TB' : fmtNum(Math.round(freeGB)) + ' GB';
     var totalDisplay = totalGB >= 1000 ? (totalGB / 1024).toFixed(2) + ' TB' : fmtNum(Math.round(totalGB)) + ' GB';
     var usedDisplay = usedGB >= 1000 ? (usedGB / 1024).toFixed(2) + ' TB' : fmtNum(Math.round(usedGB)) + ' GB';
 
-    html += '<div style="background:#fff;border:1px solid ' + (isLowSpace||isStale ? statusColor : '#e2e8f0') + ';border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.03);position:relative">' +
+    html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.03);position:relative">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">' +
         '<div>' +
           '<div style="font-size:15px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:6px">' +
@@ -9000,15 +9019,15 @@ function renderNasDashboard() {
           '<strong style="color:#0f172a">' + usePct + '% (' + usedDisplay + ' / ' + totalDisplay + ')</strong>' +
         '</div>' +
         '<div style="height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden">' +
-          '<div style="height:100%;width:' + Math.min(100, Math.max(0, usePct)) + '%;background:' + (usePct>=90 ? '#dc2626' : usePct>=80 ? '#d97706' : '#2563eb') + ';border-radius:4px"></div>' +
+          '<div style="height:100%;width:' + Math.min(100, Math.max(0, usePct)) + '%;background:#2563eb;border-radius:4px"></div>' +
         '</div>' +
         '<div style="display:flex;justify-content:space-between;font-size:11px;color:#64748b;margin-top:6px">' +
-          '<span>Free Space: <strong style="color:' + (freeGB<500?'#dc2626':'#16a34a') + '">' + freeDisplay + ' available</strong></span>' +
+          '<span>Available Space: <strong style="color:#16a34a">' + freeDisplay + ' free</strong></span>' +
           '<span>Folders: <strong>' + (r.folderCount || 0) + '</strong></span>' +
         '</div>' +
       '</div>' +
       '<div style="border-top:1px solid #f1f5f9;padding-top:8px;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between">' +
-        '<span>Last Sync: ' + (hoursAgo === 0 ? 'Just now' : hoursAgo + ' hr(s) ago') + '</span>' +
+        '<span>Last Telemetry: ' + (hoursAgo === 0 ? 'Just now' : hoursAgo + ' hr(s) ago') + '</span>' +
         '<span>Root: ' + escHtml(r.scanRoot || '/share') + '</span>' +
       '</div>';
     } else {
@@ -9022,27 +9041,37 @@ function renderNasDashboard() {
   });
   html += '</div>';
 
-  // 3. FOUR HEALTH CHECK KPI SUMMARY TILES
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px">' +
-    '<div onclick="_nasFilterTab(\'missing\')" style="background:#fff;border:1px solid ' + (missingCount>0?'#fca5a5':'#e2e8f0') + ';border-radius:10px;padding:12px 14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
-      '<div style="font-size:11px;font-weight:700;color:' + (missingCount>0?'#b91c1c':'#64748b') + ';text-transform:uppercase">🚨 Past Events Without Data</div>' +
-      '<div style="font-size:22px;font-weight:800;color:' + (missingCount>0?'#dc2626':'#0f172a') + ';margin-top:2px">' + missingCount + ' <span style="font-size:12px;font-weight:500;color:#64748b">event(s)</span></div>' +
-      '<div style="font-size:11px;color:#94a3b8;margin-top:2px">Shot completed, 0 copies on NAS</div>' +
+  // 3. THREE ACTIONABLE WORKFLOW KPI TILES (Streamlined & Clean)
+  var estWeddingsLeft = Math.max(0, Math.floor(totalFleetFreeGB / 140));
+  var seasonReadyBadge = totalFleetFreeGB >= 5000 ?
+    '<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px">🟢 Season Ready</span>' :
+    totalFleetFreeGB >= 2000 ?
+    '<span style="background:#fef9c3;color:#854d0e;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px">🟡 Moderate Space</span>' :
+    '<span style="background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px">🔴 Offload Needed</span>';
+
+  var offloadCandidateGB = 0;
+  allAgg.forEach(function(f){ if (f.isOffloadCandidate) offloadCandidateGB += (f.maxSizeGB || 0); });
+  var offloadGBDisp = offloadCandidateGB >= 1000 ? (offloadCandidateGB / 1024).toFixed(2) + ' TB' : Math.round(offloadCandidateGB) + ' GB';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:18px">' +
+    '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
+      '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">💾 Fleet Storage Capacity</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#0f172a;margin-top:2px">' + fleetUsedDisp + ' <span style="font-size:12px;font-weight:500;color:#64748b">used</span></div>' +
+      '<div style="font-size:11px;color:#16a34a;font-weight:600;margin-top:2px">' + fleetFreeDisp + ' free across studio units</div>' +
+      '<div style="font-size:11px;color:#0369a1;margin-top:6px;display:flex;align-items:center;gap:6px">' +
+        '<span>⚡ Space for <strong>~' + estWeddingsLeft + '</strong> more weddings</span> ' +
+        seasonReadyBadge +
+      '</div>' +
     '</div>' +
-    '<div onclick="_nasFilterTab(\'single\')" style="background:#fff;border:1px solid ' + (singleCopyCount>0?'#fcd34d':'#e2e8f0') + ';border-radius:10px;padding:12px 14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
-      '<div style="font-size:11px;font-weight:700;color:' + (singleCopyCount>0?'#b45309':'#64748b') + ';text-transform:uppercase">⚠️ Single Copy (No Backup)</div>' +
-      '<div style="font-size:22px;font-weight:800;color:' + (singleCopyCount>0?'#d97706':'#0f172a') + ';margin-top:2px">' + singleCopyCount + ' <span style="font-size:12px;font-weight:500;color:#64748b">folder(s)</span></div>' +
-      '<div style="font-size:11px;color:#94a3b8;margin-top:2px">Exist on only 1 of 3 NAS units</div>' +
+    '<div onclick="_nasFilterTab(\'all\')" style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
+      '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">📁 Current Season Data</div>' +
+      '<div style="font-size:20px;font-weight:800;color:#0f172a;margin-top:2px">' + allAgg.length + ' <span style="font-size:12px;font-weight:500;color:#64748b">folders on NAS</span></div>' +
+      '<div style="font-size:11px;color:#0369a1;margin-top:2px">' + matchedCount + ' linked to clients · ' + unmatchedCount + ' unlinked</div>' +
     '</div>' +
-    '<div onclick="_nasFilterTab(\'orphan\')" style="background:#fff;border:1px solid ' + (orphanCount>0?'#fed7aa':'#e2e8f0') + ';border-radius:10px;padding:12px 14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
-      '<div style="font-size:11px;font-weight:700;color:' + (orphanCount>0?'#c2410c':'#64748b') + ';text-transform:uppercase">❓ Unmatched Folders</div>' +
-      '<div style="font-size:22px;font-weight:800;color:' + (orphanCount>0?'#ea580c':'#0f172a') + ';margin-top:2px">' + orphanCount + ' <span style="font-size:12px;font-weight:500;color:#64748b">folder(s)</span></div>' +
-      '<div style="font-size:11px;color:#94a3b8;margin-top:2px">Not linked to any CRM project</div>' +
-    '</div>' +
-    '<div onclick="_nasFilterTab(\'matched\')" style="background:#fff;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
-      '<div style="font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase">✅ Matched Projects</div>' +
-      '<div style="font-size:22px;font-weight:800;color:#16a34a;margin-top:2px">' + matchedCount + ' <span style="font-size:12px;font-weight:500;color:#64748b">synced</span></div>' +
-      '<div style="font-size:11px;color:#94a3b8;margin-top:2px">Verified against CRM clients</div>' +
+    '<div onclick="_nasFilterTab(\'offload\')" style="background:#fff;border:1px solid ' + (offloadCount>0?'#fed7aa':'#e2e8f0') + ';border-radius:10px;padding:14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
+      '<div style="font-size:11px;font-weight:700;color:' + (offloadCount>0?'#c2410c':'#64748b') + ';text-transform:uppercase">📦 Ready to Offload to Hard Drive</div>' +
+      '<div style="font-size:20px;font-weight:800;color:' + (offloadCount>0?'#ea580c':'#0f172a') + ';margin-top:2px">' + offloadCount + ' <span style="font-size:12px;font-weight:500;color:#64748b">completed (' + offloadGBDisp + ')</span></div>' +
+      '<div style="font-size:11px;color:#94a3b8;margin-top:2px">Delivered projects ready to move to HDDs</div>' +
     '</div>' +
   '</div>';
 
@@ -9054,149 +9083,104 @@ function renderNasDashboard() {
       '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
         '<button class="btn btn-sm" onclick="_nasFilterTab(\'all\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='all'?'#0f172a':'#f1f5f9') + ';color:' + (_nasActiveSubtab==='all'?'#fff':'#334155') + ';border:none">All Folders (' + allAgg.length + ')</button>' +
-        '<button class="btn btn-sm" onclick="_nasFilterTab(\'missing\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='missing'?'#dc2626':'#fee2e2') + ';color:' + (_nasActiveSubtab==='missing'?'#fff':'#991b1b') + ';border:none">🚨 Missing Data (' + missingCount + ')</button>' +
-        '<button class="btn btn-sm" onclick="_nasFilterTab(\'single\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='single'?'#d97706':'#fef3c7') + ';color:' + (_nasActiveSubtab==='single'?'#fff':'#92400e') + ';border:none">⚠️ Single Copy (' + singleCopyCount + ')</button>' +
-        '<button class="btn btn-sm" onclick="_nasFilterTab(\'orphan\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='orphan'?'#ea580c':'#ffedd5') + ';color:' + (_nasActiveSubtab==='orphan'?'#fff':'#9a3412') + ';border:none">❓ Unmatched (' + orphanCount + ')</button>' +
-        '<button class="btn btn-sm" onclick="_nasFilterTab(\'possible\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='possible'?'#4f46e5':'#e0e7ff') + ';color:' + (_nasActiveSubtab==='possible'?'#fff':'#3730a3') + ';border:none">💡 Possible Matches (' + possibleCount + ')</button>' +
         '<button class="btn btn-sm" onclick="_nasFilterTab(\'matched\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='matched'?'#16a34a':'#dcfce7') + ';color:' + (_nasActiveSubtab==='matched'?'#fff':'#166534') + ';border:none">✅ Matched (' + matchedCount + ')</button>' +
+        '<button class="btn btn-sm" onclick="_nasFilterTab(\'unmatched\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='unmatched'?'#ea580c':'#ffedd5') + ';color:' + (_nasActiveSubtab==='unmatched'?'#fff':'#9a3412') + ';border:none">❓ Unmatched (' + unmatchedCount + ')</button>' +
+        '<button class="btn btn-sm" onclick="_nasFilterTab(\'offload\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='offload'?'#4f46e5':'#e0e7ff') + ';color:' + (_nasActiveSubtab==='offload'?'#fff':'#3730a3') + ';border:none">📦 Ready for Hard Drive (' + offloadCount + ')</button>' +
       '</div>' +
     '</div>';
 
-  // 5. DATA TABLE
-  if (_nasActiveSubtab === 'missing') {
-    // Render Missing Events Table
-    if (!missingEvents.length) {
-      html += '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;text-align:center;color:#166534">' +
-        '<div style="font-size:24px;margin-bottom:6px">🎉</div>' +
-        '<div style="font-size:14px;font-weight:700">All Completed Shoots Accounted For!</div>' +
-        '<div style="font-size:12px;color:#15803d;margin-top:4px">Every past event has corresponding data folders detected on your NAS fleet.</div>' +
-      '</div>';
-    } else {
-      html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
-        '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:left">' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Event Date</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Overdue</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Client / Couple</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Ref Code</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Assigned Crew</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Recommended NAS Folder</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Action</th>' +
-        '</tr></thead><tbody>';
+  // 5. FOLDERS TABLE
+  var filtered = allAgg.filter(function(item) {
+    if (_nasActiveSubtab === 'matched' && (!item.match || item.match.status !== 'exact')) return false;
+    if (_nasActiveSubtab === 'unmatched' && (item.match && item.match.status === 'exact')) return false;
+    if (_nasActiveSubtab === 'offload' && !item.isOffloadCandidate) return false;
 
-      missingEvents.forEach(function(m) {
-        var recName = (m.date.slice(0,4) + '/' + m.date.slice(5,7) + '/01-' + m.couple.replace(/\s+/g,'') + '_WED_' + (m.city||'DEL')).replace(/&/g,'&amp;');
-        html += '<tr style="border-bottom:1px solid #f1f5f9">' +
-          '<td style="padding:10px 12px;font-weight:700">' + fmtDate(m.date) + '</td>' +
-          '<td style="padding:10px 12px"><span style="background:#fee2e2;color:#991b1b;font-weight:700;padding:2px 8px;border-radius:12px">' + m.daysElapsed + ' day(s) ago</span></td>' +
-          '<td style="padding:10px 12px;font-weight:700;color:#0f172a">' + escHtml(m.couple) + '</td>' +
-          '<td style="padding:10px 12px"><span style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-family:monospace;font-size:11px">' + escHtml(m.refcode) + '</span></td>' +
-          '<td style="padding:10px 12px;color:#475569">' + escHtml(m.photographer) + '</td>' +
-          '<td style="padding:10px 12px;font-family:monospace;font-size:11px;color:#0369a1">' + recName + '</td>' +
-          '<td style="padding:10px 12px"><button class="btn btn-sm" onclick="openProject(' + m.project.id + ',\'t-datalog\')" style="font-size:11px;background:#0f172a;color:#fff;border:none">Open Project</button></td>' +
-        '</tr>';
-      });
-      html += '</tbody></table></div>';
-    }
-  } else {
-    // Filter Folders list
-    var filtered = allAgg.filter(function(item) {
-      if (_nasActiveSubtab === 'single' && !item.isSingleCopy) return false;
-      if (_nasActiveSubtab === 'orphan' && (item.match && item.match.status !== 'none')) return false;
-      if (_nasActiveSubtab === 'possible' && (!item.match || item.match.status !== 'possible')) return false;
-      if (_nasActiveSubtab === 'matched' && (!item.match || item.match.status !== 'exact')) return false;
-
-      if (_nasSearchQuery) {
-        var q = _nasSearchQuery.toLowerCase();
-        var matchName = item.match && item.match.project ? (item.match.project.bride + ' ' + item.match.project.groom + ' ' + (item.match.project.refcode||'')).toLowerCase() : '';
-        if (item.folder.toLowerCase().indexOf(q) === -1 &&
-            item.relPath.toLowerCase().indexOf(q) === -1 &&
-            matchName.indexOf(q) === -1) {
-          return false;
-        }
+    if (_nasSearchQuery) {
+      var q = _nasSearchQuery.toLowerCase();
+      var matchName = item.match && item.match.project ? (item.match.project.bride + ' ' + item.match.project.groom + ' ' + (item.match.project.refcode||'')).toLowerCase() : '';
+      if (item.folder.toLowerCase().indexOf(q) === -1 &&
+          item.relPath.toLowerCase().indexOf(q) === -1 &&
+          matchName.indexOf(q) === -1) {
+        return false;
       }
-      return true;
-    });
-
-    if (!filtered.length) {
-      html += '<div style="padding:32px;text-align:center;color:#64748b;font-size:13px">' +
-        '<div style="font-size:28px;margin-bottom:8px">🔍</div>' +
-        'No NAS folders found matching the current filter.' +
-      '</div>';
-    } else {
-      html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
-        '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:left">' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Folder / Path</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">NAS Fleet Presence</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Size &amp; Files</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Last Modified</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">CRM Client Match</th>' +
-          '<th style="padding:10px 12px;font-weight:700;color:#475569">Action</th>' +
-        '</tr></thead><tbody>';
-
-      filtered.forEach(function(item) {
-        // Build NAS Location Badges
-        var presenceBadges = _NAS_UNITS_CONFIG.map(function(cfg) {
-          var hasCopy = item.nasList.indexOf(cfg.id) !== -1;
-          var bg = hasCopy ? '#dcfce7' : '#f1f5f9';
-          var color = hasCopy ? '#166534' : '#94a3b8';
-          var border = hasCopy ? '#86efac' : '#e2e8f0';
-          return '<span style="background:' + bg + ';color:' + color + ';border:1px solid ' + border + ';font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px" title="' + cfg.label + ': ' + (hasCopy ? 'Stored (' + (item.sizes[cfg.id]||0) + ' GB)' : 'Missing') + '">' +
-            (hasCopy ? '✓ ' : '✗ ') + cfg.city +
-          '</span>';
-        }).join(' ');
-
-        var redunPill = item.redundancyCount >= 2 ?
-          '<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px">✅ ' + item.redundancyCount + ' Copies</span>' :
-          '<span style="background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px">⚠️ 1 Copy</span>';
-
-        // Match presentation
-        var matchHtml = '';
-        var openBtn = '';
-        if (item.match && item.match.project && item.match.status === 'exact') {
-          var p = item.match.project;
-          var cName = typeof coupleName === 'function' ? coupleName(p.bride||'', p.groom||'') : (p.bride||'Client');
-          matchHtml = '<div>' +
-            '<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">✅ Matched</span> ' +
-            '<strong style="color:#0f172a;font-size:12px">' + escHtml(cName) + '</strong>' +
-            '<div style="font-size:11px;color:#64748b">' + escHtml(p.refcode||'') + ' · ' + fmtDate(p.date) + '</div>' +
-          '</div>';
-          openBtn = '<button class="btn btn-sm" onclick="openProject(' + p.id + ',\'t-datalog\')" style="font-size:11px;background:#1d4ed8;color:#fff;border:none">View Data</button>';
-        } else if (item.match && item.match.project && item.match.status === 'possible') {
-          var p = item.match.project;
-          var cName = typeof coupleName === 'function' ? coupleName(p.bride||'', p.groom||'') : (p.bride||'Client');
-          var pct = Math.round((item.match.score || 0) * 100);
-          matchHtml = '<div>' +
-            '<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">💡 Possible Match (' + pct + '%)</span> ' +
-            '<strong style="color:#0f172a;font-size:12px">' + escHtml(cName) + '</strong>' +
-            '<div style="font-size:11px;color:#64748b">' + escHtml(p.refcode||'') + ' · ' + fmtDate(p.date) + '</div>' +
-          '</div>';
-          openBtn = '<button class="btn btn-sm" onclick="openProject(' + p.id + ',\'t-datalog\')" style="font-size:11px;background:#f59e0b;color:#fff;border:none">Review Match</button>';
-        } else {
-          matchHtml = '<span style="background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">❓ No Client Match</span>' +
-            '<div style="font-size:10px;color:#94a3b8;margin-top:2px">Orphan folder</div>';
-          openBtn = '<span style="color:#94a3b8;font-size:11px">—</span>';
-        }
-
-        html += '<tr style="border-bottom:1px solid #f1f5f9">' +
-          '<td style="padding:10px 12px">' +
-            '<div style="font-weight:700;color:#0f172a;font-family:monospace;font-size:12px">' + escHtml(item.folder) + '</div>' +
-            '<div style="font-size:10px;color:#64748b;margin-top:2px">' + escHtml(item.relPath) + '</div>' +
-          '</td>' +
-          '<td style="padding:10px 12px">' +
-            '<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px">' + presenceBadges + '</div>' +
-            redunPill +
-          '</td>' +
-          '<td style="padding:10px 12px">' +
-            '<strong style="color:#0f172a">' + (item.maxSizeGB ? item.maxSizeGB + ' GB' : '—') + '</strong>' +
-            '<div style="font-size:10px;color:#64748b">' + fmtNum(item.totalFiles) + ' files</div>' +
-          '</td>' +
-          '<td style="padding:10px 12px;color:#64748b;font-size:11px">' + escHtml(item.mtime) + '</td>' +
-          '<td style="padding:10px 12px">' + matchHtml + '</td>' +
-          '<td style="padding:10px 12px">' + openBtn + '</td>' +
-        '</tr>';
-      });
-      html += '</tbody></table></div>';
     }
+    return true;
+  });
+
+  if (!filtered.length) {
+    html += '<div style="padding:32px;text-align:center;color:#64748b;font-size:13px">' +
+      '<div style="font-size:28px;margin-bottom:8px">🔍</div>' +
+      'No NAS folders found matching the current filter.' +
+    '</div>';
+  } else {
+    html += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:left">' +
+        '<th style="padding:10px 12px;font-weight:700;color:#475569">Folder / Path</th>' +
+        '<th style="padding:10px 12px;font-weight:700;color:#475569">NAS Location</th>' +
+        '<th style="padding:10px 12px;font-weight:700;color:#475569">Size &amp; Files</th>' +
+        '<th style="padding:10px 12px;font-weight:700;color:#475569">Last Modified</th>' +
+        '<th style="padding:10px 12px;font-weight:700;color:#475569">CRM Client</th>' +
+        '<th style="padding:10px 12px;font-weight:700;color:#475569">Action</th>' +
+      '</tr></thead><tbody>';
+
+    filtered.forEach(function(item) {
+      // Build Clean NAS Location Badges (Neutral, informative)
+      var locationBadges = _NAS_UNITS_CONFIG.filter(function(cfg){
+        return item.nasList.indexOf(cfg.id) !== -1;
+      }).map(function(cfg) {
+        return '<span style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px">' +
+          '📍 ' + cfg.label +
+        '</span>';
+      }).join(' ');
+
+      // Match presentation
+      var matchHtml = '';
+      var actionBtn = '';
+      if (item.match && item.match.project && item.match.status === 'exact') {
+        var p = item.match.project;
+        var cName = typeof coupleName === 'function' ? coupleName(p.bride||'', p.groom||'') : (p.bride||'Client');
+        var badgeStyle = item.match.manual ?
+          '<span style="background:#ede9fe;color:#6d28d9;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">🔗 Manually Linked</span>' :
+          '<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">✅ Matched</span>';
+
+        var hddBadge = (p && p.hddArchive) ? '<div style="margin-top:3px"><span style="background:#fef08a;color:#713f12;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px" title="Archived on HDD ' + escHtml(p.hddArchive.hddId) + ' (' + escHtml(p.hddArchive.location||'') + ')">📦 HDD: ' + escHtml(p.hddArchive.hddId) + '</span></div>' : '';
+
+        matchHtml = '<div>' +
+          badgeStyle + ' <strong style="color:#0f172a;font-size:12px">' + escHtml(cName) + '</strong>' +
+          '<div style="font-size:11px;color:#64748b">' + escHtml(p.refcode||'') + ' · ' + fmtDate(p.date) + '</div>' +
+          hddBadge +
+        '</div>';
+
+        actionBtn = '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
+          '<button class="btn btn-sm" onclick="openProject(' + p.id + ',\'t-datalog\')" style="font-size:11px;background:#1d4ed8;color:#fff;border:none;padding:4px 8px">View Data</button>' +
+          '<button class="btn btn-sm" onclick="_nasOpenHddOffloadModal(' + p.id + ')" style="font-size:10px;background:#fff7ed;color:#c2410c;border:1px solid #fdba74;font-weight:700;padding:3px 6px;border-radius:4px" title="Record moving this footage to a physical external hard drive">📦 Move to HDD</button>' +
+          (item.match.manual ? '<button class="btn btn-sm" onclick="_nasUnlinkFolder(\'' + escHtml(item.relPath) + '\')" style="font-size:10px;background:#f1f5f9;color:#64748b;border:1px solid #cbd5e1;padding:3px 6px" title="Unlink client">✕</button>' : '') +
+        '</div>';
+      } else {
+        matchHtml = '<div>' +
+          '<span style="background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">❓ Unmatched</span>' +
+          '<div style="font-size:10px;color:#94a3b8;margin-top:2px">Not linked to any client</div>' +
+        '</div>';
+
+        actionBtn = '<button class="btn btn-sm" onclick="_nasOpenLinkModal(\'' + escHtml(item.relPath) + '\',\'' + escHtml(item.folder) + '\')" style="font-size:11px;background:#f8fafc;border:1px solid #cbd5e1;color:#1d4ed8;font-weight:700">🔗 Link Client</button>';
+      }
+
+      html += '<tr style="border-bottom:1px solid #f1f5f9">' +
+        '<td style="padding:10px 12px">' +
+          '<div style="font-weight:700;color:#0f172a;font-family:monospace;font-size:12px">' + escHtml(item.folder) + '</div>' +
+          '<div style="font-size:10px;color:#64748b;margin-top:2px">' + escHtml(item.relPath) + '</div>' +
+        '</td>' +
+        '<td style="padding:10px 12px">' + locationBadges + '</td>' +
+        '<td style="padding:10px 12px">' +
+          '<strong style="color:#0f172a">' + (item.maxSizeGB ? item.maxSizeGB + ' GB' : '—') + '</strong>' +
+          '<div style="font-size:10px;color:#64748b">' + fmtNum(item.totalFiles) + ' files</div>' +
+        '</td>' +
+        '<td style="padding:10px 12px;color:#64748b;font-size:11px">' + escHtml(item.mtime) + '</td>' +
+        '<td style="padding:10px 12px">' + matchHtml + '</td>' +
+        '<td style="padding:10px 12px">' + actionBtn + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
   }
 
   html += '</div>'; // close table container
@@ -9214,6 +9198,222 @@ function _nasSearchInput(val) {
   renderNasDashboard();
 }
 
+function _nasOpenLinkModal(relPath, folderName) {
+  var old = document.getElementById('nas-link-client-modal');
+  if (old) old.remove();
+
+  var modal = document.createElement('div');
+  modal.id = 'nas-link-client-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)';
+
+  var projectsList = typeof pl === 'function' ? pl().filter(function(p){ return !p.archived; }) : [];
+
+  modal.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:540px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1)">' +
+    '<div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc">' +
+      '<div>' +
+        '<div style="font-size:15px;font-weight:800;color:#0f172a">🔗 Link NAS Folder to CRM Client</div>' +
+        '<div style="font-size:11px;color:#64748b;margin-top:2px;font-family:monospace">' + escHtml(folderName) + '</div>' +
+      '</div>' +
+      '<button onclick="document.getElementById(\'nas-link-client-modal\').remove()" style="background:none;border:none;font-size:20px;color:#64748b;cursor:pointer">&times;</button>' +
+    '</div>' +
+    '<div style="padding:14px 18px;border-bottom:1px solid #f1f5f9">' +
+      '<input type="text" id="nas-link-filter" class="fi" placeholder="🔍 Search client by bride, groom, refcode..." style="width:100%" oninput="_nasFilterModalClients(this.value)">' +
+    '</div>' +
+    '<div id="nas-link-client-list" style="padding:8px 18px;overflow-y:auto;flex:1;max-height:380px">' +
+      _nasBuildModalClientRows(projectsList, relPath, folderName) +
+    '</div>' +
+    '<div style="padding:12px 18px;border-top:1px solid #e2e8f0;background:#f8fafc;display:flex;justify-content:flex-end">' +
+      '<button onclick="document.getElementById(\'nas-link-client-modal\').remove()" class="btn btn-sm" style="background:#f1f5f9;border:1px solid #cbd5e1;color:#475569;font-weight:600">Cancel</button>' +
+    '</div>' +
+  '</div>';
+
+  document.body.appendChild(modal);
+}
+
+function _nasBuildModalClientRows(list, relPath, folderName) {
+  if (!list.length) return '<div style="padding:20px;text-align:center;color:#64748b;font-size:12px">No clients found.</div>';
+  return list.map(function(p) {
+    var cName = typeof coupleName === 'function' ? coupleName(p.bride||'', p.groom||'') : (p.bride||'Client');
+    return '<div class="nas-modal-row" data-search="' + escHtml((cName + ' ' + (p.refcode||'')).toLowerCase()) + '" ' +
+      'style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;border-radius:6px" ' +
+      'onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'transparent\'" ' +
+      'onclick="_nasSaveManualLink(\'' + escHtml(relPath) + '\',\'' + escHtml(folderName) + '\',' + p.id + ')">' +
+      '<div>' +
+        '<div style="font-weight:700;color:#0f172a;font-size:13px">' + escHtml(cName) + '</div>' +
+        '<div style="font-size:11px;color:#64748b">' + escHtml(p.refcode||'') + ' · ' + fmtDate(p.date) + ' · ' + escHtml(p.city||'') + '</div>' +
+      '</div>' +
+      '<button class="btn btn-sm" style="font-size:11px;background:#1d4ed8;color:#fff;border:none">Select</button>' +
+    '</div>';
+  }).join('');
+}
+
+function _nasFilterModalClients(q) {
+  q = (q||'').toLowerCase();
+  document.querySelectorAll('.nas-modal-row').forEach(function(row){
+    var match = !q || (row.getAttribute('data-search')||'').indexOf(q) !== -1;
+    row.style.display = match ? 'flex' : 'none';
+  });
+}
+
+function _nasSaveManualLink(relPath, folderName, projId) {
+  var safeK = _nasSafeKey(relPath);
+  var rec = {
+    projId: projId,
+    relPath: relPath,
+    folder: folderName,
+    linkedAt: Date.now(),
+    linkedBy: CU ? (CU.name || CU.username || 'admin') : 'admin'
+  };
+
+  db.ref('crm_nas_manual_links/' + safeK).set(rec, function(err) {
+    if (!err) {
+      window._nasManualLinks = window._nasManualLinks || {};
+      window._nasManualLinks[safeK] = rec;
+      var m = document.getElementById('nas-link-client-modal');
+      if (m) m.remove();
+      if (typeof showToast === 'function') showToast('✅ NAS folder linked successfully!');
+      renderNasDashboard();
+    } else {
+      alert('Error saving link: ' + err.message);
+    }
+  });
+}
+
+function _nasUnlinkFolder(relPath) {
+  if (!confirm('Unlink this folder from the client?')) return;
+  var safeK = _nasSafeKey(relPath);
+  db.ref('crm_nas_manual_links/' + safeK).remove(function(err) {
+    if (!err) {
+      if (window._nasManualLinks) delete window._nasManualLinks[safeK];
+      if (typeof showToast === 'function') showToast('Folder unlinked.');
+      renderNasDashboard();
+    }
+  });
+}
+
+function _nasOpenHddOffloadModal(projId) {
+  var p = projects[projId];
+  if (!p) return;
+  var old = document.getElementById('nas-hdd-offload-modal');
+  if (old) old.remove();
+
+  var cName = typeof coupleName === 'function' ? coupleName(p.bride||'', p.groom||'') : (p.bride||'Client');
+  var folders = _nasGetProjectFolders(p);
+  var totalGB = 0;
+  var defaultPath = '';
+  if (folders && folders.length) {
+    folders.forEach(function(f){ totalGB += (f.maxSizeGB || 0); });
+    defaultPath = folders[0].relPath || '';
+  }
+
+  var modal = document.createElement('div');
+  modal.id = 'nas-hdd-offload-modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)';
+
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:540px;width:100%;box-shadow:0 20px 25px -5px rgba(0,0,0,0.15);overflow:hidden">' +
+    '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#fff7ed">' +
+      '<div style="font-size:15px;font-weight:800;color:#9a3412;display:flex;align-items:center;gap:8px">' +
+        '<span>📦 Offload Raw Footage to External Hard Drive</span>' +
+      '</div>' +
+      '<button onclick="document.getElementById(\'nas-hdd-offload-modal\').remove()" style="background:none;border:none;font-size:20px;color:#94a3b8;cursor:pointer">&times;</button>' +
+    '</div>' +
+    '<div style="padding:20px;font-size:13px;color:#334155">' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:14px">' +
+        '<div style="font-weight:800;color:#0f172a;font-size:14px">' + escHtml(cName) + ' (' + escHtml(p.refcode||'') + ')</div>' +
+        '<div style="font-size:11px;color:#64748b;margin-top:2px">Raw Footage Size: <strong style="color:#0f172a">' + (totalGB ? totalGB.toFixed(1) + ' GB' : (p.dataTotal ? p.dataTotal + ' GB' : 'Not recorded')) + '</strong></div>' +
+        (defaultPath ? '<div style="font-size:10px;color:#94a3b8;margin-top:2px;font-family:monospace">Current NAS Path: ' + escHtml(defaultPath) + '</div>' : '') +
+      '</div>' +
+      '<div style="margin-bottom:12px">' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">HARD DRIVE IDENTIFIER / LABEL *</label>' +
+        '<input type="text" id="hdd-offload-id" class="fi" placeholder="e.g. HDD-2026-01, Seagate 5TB #2" value="' + escHtml((p.hddArchive&&p.hddArchive.hddId)||'') + '" style="width:100%">' +
+      '</div>' +
+      '<div style="margin-bottom:12px">' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">PHYSICAL LOCATION / SHELF *</label>' +
+        '<input type="text" id="hdd-offload-loc" class="fi" placeholder="e.g. Studio Safe Shelf 1, Faridabad Locker B" value="' + escHtml((p.hddArchive&&p.hddArchive.location)||'Studio Safe') + '" style="width:100%">' +
+      '</div>' +
+      '<div style="margin-bottom:12px">' +
+        '<label style="display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">OFFLOAD NOTES (OPTIONAL)</label>' +
+        '<input type="text" id="hdd-offload-notes" class="fi" placeholder="e.g. Offloaded to free space for Nov 2026 wedding season" value="' + escHtml((p.hddArchive&&p.hddArchive.notes)||'') + '" style="width:100%">' +
+      '</div>' +
+      '<div style="font-size:11px;color:#64748b;line-height:1.4">' +
+        '💡 <strong>How it works:</strong> Logging this marks the client as safely archived on the physical drive. Even after your team deletes the raw folder from the NAS to prepare for upcoming weddings, the CRM keeps the exact hard drive ID and shelf location forever in Data Vault.' +
+      '</div>' +
+    '</div>' +
+    '<div style="padding:12px 20px;border-top:1px solid #e2e8f0;background:#f8fafc;display:flex;justify-content:flex-end;gap:8px">' +
+      '<button onclick="document.getElementById(\'nas-hdd-offload-modal\').remove()" class="btn btn-sm" style="background:#fff;border:1px solid #cbd5e1;color:#475569">Cancel</button>' +
+      '<button onclick="_nasSaveHddOffload(' + p.id + ')" class="btn btn-sm" style="background:#ea580c;color:#fff;border:none;font-weight:700;padding:6px 16px">💾 Save HDD Archive Record</button>' +
+    '</div>' +
+  '</div>';
+
+  document.body.appendChild(modal);
+}
+
+function _nasSaveHddOffload(projId) {
+  var p = projects[projId];
+  if (!p) return;
+  var hddId = (document.getElementById('hdd-offload-id') || {}).value || '';
+  var loc = (document.getElementById('hdd-offload-loc') || {}).value || '';
+  var notes = (document.getElementById('hdd-offload-notes') || {}).value || '';
+
+  if (!hddId.trim()) {
+    alert('Please enter a Hard Drive Identifier or Label (e.g. HDD-2026-01).');
+    return;
+  }
+
+  var totalGB = 0;
+  var folders = _nasGetProjectFolders(p);
+  if (folders && folders.length) {
+    folders.forEach(function(f){ totalGB += (f.maxSizeGB || 0); });
+  }
+
+  var rec = {
+    hddId: hddId.trim(),
+    location: loc.trim() || 'Studio Safe',
+    notes: notes.trim(),
+    date: tod(),
+    by: (CU && CU.name) || 'User',
+    sizeGB: totalGB > 0 ? totalGB.toFixed(1) : (p.dataTotal || ''),
+    offloadedAt: Date.now()
+  };
+
+  p.hddArchive = rec;
+  db.ref('crm_projects/' + p.id + '/hddArchive').set(rec);
+
+  // Update dataEntries storage location if they referenced NAS
+  if (Array.isArray(p.dataEntries)) {
+    p.dataEntries.forEach(function(entry) {
+      if (/nas/i.test(entry.location || '')) {
+        entry.location = 'HDD: ' + rec.hddId + ' (' + rec.location + ')';
+      }
+    });
+    db.ref('crm_projects/' + p.id + '/dataEntries').set(p.dataEntries);
+  }
+
+  if (typeof logActivity === 'function') {
+    logActivity('archive', 'Offloaded to Hard Drive ' + rec.hddId, coupleName(p.bride||'', p.groom||'') + ' (' + rec.sizeGB + ' GB)', { projectId: p.id });
+  }
+
+  var m = document.getElementById('nas-hdd-offload-modal');
+  if (m) m.remove();
+
+  showToast('✅ Saved HDD Archive: ' + rec.hddId + ' (' + rec.location + ')');
+  if (typeof renderNasDashboard === 'function') renderNasDashboard();
+  if (typeof renderProjectNasStorage === 'function') renderProjectNasStorage(p);
+  if (typeof renderDataVault === 'function') renderDataVault();
+}
+
+function _nasCopyEditorPath(path) {
+  if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(path).then(function() {
+      showToast('📋 Copied NAS path for editors: ' + path);
+    }).catch(function() {
+      prompt('Copy NAS path for editors:', path);
+    });
+  } else {
+    prompt('Copy NAS path for editors:', path);
+  }
+}
+
 function renderProjectNasStorage(p) {
   var box = document.getElementById('project-nas-sync-box');
   if (!box || !p) return;
@@ -9221,72 +9421,97 @@ function renderProjectNasStorage(p) {
   var folders = _nasGetProjectFolders(p);
   var html = '';
 
+  // 1. External HDD Archive Banner (if offloaded)
+  if (p.hddArchive) {
+    html += '<div style="background:#fefce8;border:1px solid #fde047;border-radius:10px;padding:12px 14px;margin-bottom:12px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+        '<div style="font-size:12px;font-weight:700;color:#854d0e;display:flex;align-items:center;gap:6px">' +
+          '<span>📦 External Hard Drive Archive</span>' +
+          '<span style="background:#fef08a;color:#713f12;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">Offloaded from NAS</span>' +
+        '</div>' +
+        '<div style="font-size:11px;color:#a16207">Hard Drive: <strong style="color:#713f12">' + escHtml(p.hddArchive.hddId) + '</strong> (' + escHtml(p.hddArchive.location||'Studio Safe') + ')</div>' +
+      '</div>' +
+      '<div style="font-size:11px;color:#854d0e;margin-top:4px">' +
+        'Archived on ' + fmtDate(p.hddArchive.date) + (p.hddArchive.by ? ' by ' + escHtml(p.hddArchive.by) : '') +
+        (p.hddArchive.sizeGB ? ' · Size: <strong>' + p.hddArchive.sizeGB + ' GB</strong>' : '') +
+        (p.hddArchive.notes ? ' · Note: ' + escHtml(p.hddArchive.notes) : '') +
+      '</div>' +
+    '</div>';
+  }
+
   if (folders && folders.length > 0) {
-    // Found data folders for this project
     var totalGB = 0;
     var totalFiles = 0;
-    var allNasUnits = [];
-
     folders.forEach(function(f) {
       totalGB += (f.maxSizeGB || 0);
       totalFiles += (f.totalFiles || 0);
-      (f.nasList || []).forEach(function(u) {
-        if (allNasUnits.indexOf(u) === -1) allNasUnits.push(u);
-      });
     });
 
-    var isRedundant = allNasUnits.length >= 2;
-    var badgeBg = isRedundant ? '#dcfce7' : '#fef3c7';
-    var badgeColor = isRedundant ? '#166534' : '#92400e';
-    var badgeText = isRedundant ? '✅ Protected (' + allNasUnits.length + ' NAS Copies)' : '⚠️ Single NAS Copy (Redundancy Needed)';
-
     html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
         '<div style="font-size:13px;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:6px">' +
-          '<span>🖥️ QNAP NAS Fleet Storage</span>' +
-          '<span style="background:' + badgeBg + ';color:' + badgeColor + ';font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">' + badgeText + '</span>' +
+          '<span>🖥️ QNAP NAS Storage</span>' +
+          '<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">Active on Studio NAS</span>' +
         '</div>' +
-        '<div style="font-size:11px;color:#64748b">Total: <strong style="color:#0f172a">' + totalGB.toFixed(1) + ' GB</strong> · ' + fmtNum(totalFiles) + ' files</div>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<div style="font-size:11px;color:#64748b">Total Size: <strong style="color:#0f172a">' + totalGB.toFixed(1) + ' GB</strong> · ' + fmtNum(totalFiles) + ' files</div>' +
+          '<button class="btn btn-sm" onclick="_nasOpenHddOffloadModal(' + p.id + ')" style="background:#fff7ed;border:1px solid #fdba74;color:#c2410c;font-weight:700;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">📦 Offload to Hard Drive</button>' +
+        '</div>' +
       '</div>';
 
     folders.forEach(function(f) {
-      var unitBadges = _NAS_UNITS_CONFIG.map(function(cfg) {
-        var hasCopy = f.nasList.indexOf(cfg.id) !== -1;
-        return '<span style="background:' + (hasCopy?'#dcfce7':'#f1f5f9') + ';color:' + (hasCopy?'#166534':'#94a3b8') + ';border:1px solid ' + (hasCopy?'#86efac':'#e2e8f0') + ';font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">' +
-          (hasCopy ? '✓ ' : '✗ ') + cfg.city +
+      var unitBadges = _NAS_UNITS_CONFIG.filter(function(cfg){
+        return f.nasList.indexOf(cfg.id) !== -1;
+      }).map(function(cfg) {
+        return '<span style="background:#e0f2fe;color:#0369a1;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">' +
+          '📍 ' + cfg.city +
         '</span>';
       }).join(' ');
 
-      html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
-        '<div>' +
-          '<div style="font-family:monospace;font-size:12px;font-weight:700;color:#0f172a">' + escHtml(f.folder) + '</div>' +
-          '<div style="font-size:10px;color:#64748b">' + escHtml(f.relPath) + ' · ' + (f.maxSizeGB ? f.maxSizeGB + ' GB' : '') + ' · ' + fmtNum(f.totalFiles) + ' files</div>' +
+      var editorPath = '/share/' + (f.nasList.indexOf('nas-faridabad') !== -1 ? 'TEAM-FAR/' : '') + f.relPath;
+
+      // Subfolders breakdown badge if available
+      var subBadge = '';
+      if (Array.isArray(f.subfolders) && f.subfolders.length > 0) {
+        subBadge = '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">' +
+          f.subfolders.map(function(s){
+            var isPh = /photo|pic|still/i.test(s.name);
+            var bg = isPh ? '#ecfdf5' : '#eff6ff';
+            var col = isPh ? '#047857' : '#1d4ed8';
+            var icon = isPh ? '📷' : '🎥';
+            return '<span style="background:' + bg + ';color:' + col + ';font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">' +
+              icon + ' ' + escHtml(s.name) + ': ' + (s.sizeGB ? s.sizeGB + ' GB' : '') +
+            '</span>';
+          }).join('') +
+        '</div>';
+      }
+
+      html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:6px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+          '<div>' +
+            '<div style="font-family:monospace;font-size:12px;font-weight:700;color:#0f172a">' + escHtml(f.folder) + '</div>' +
+            '<div style="font-size:10px;color:#64748b">' + escHtml(f.relPath) + ' · ' + (f.maxSizeGB ? f.maxSizeGB + ' GB' : '') + ' · ' + fmtNum(f.totalFiles) + ' files · Last modified: ' + escHtml(f.mtime) + '</div>' +
+            subBadge +
+          '</div>' +
+          '<div style="display:flex;gap:6px;align-items:center">' +
+            unitBadges +
+            '<button class="btn btn-sm" onclick="_nasCopyEditorPath(\'' + escHtml(editorPath) + '\')" style="font-size:10px;background:#f8fafc;border:1px solid #cbd5e1;color:#334155;font-weight:600;padding:3px 8px;border-radius:4px" title="Copy full NAS path for video/photo editing">📋 Copy Path</button>' +
+          '</div>' +
         '</div>' +
-        '<div style="display:flex;gap:4px;align-items:center">' + unitBadges + '</div>' +
       '</div>';
     });
 
     html += '</div>';
-  } else {
-    // No folders found
-    var d = typeof firstEventDate === 'function' ? firstEventDate(p) : (p.date || '');
-    var isPast = d && d < tod();
-    var cName = typeof coupleName === 'function' ? coupleName(p.bride||'', p.groom||'') : (p.bride||'Client');
-    var y = d ? d.slice(0,4) : new Date().getFullYear();
-    var m = d ? d.slice(5,7) : '01';
-    var expectedPath = y + '/' + m + '/01-' + cName.replace(/\s+/g,'') + '_WED_' + (p.city||'DEL');
-
-    html += '<div style="background:' + (isPast ? '#fef2f2' : '#f8fafc') + ';border:1px solid ' + (isPast ? '#fecaca' : '#e2e8f0') + ';border-radius:10px;padding:12px 14px">' +
-      '<div style="font-size:12px;font-weight:700;color:' + (isPast ? '#991b1b' : '#334155') + ';display:flex;align-items:center;gap:6px">' +
-        '<span>' + (isPast ? '🚨 No NAS Data Folder Detected' : '⏳ Raw Data Pending Shoot') + '</span>' +
+  } else if (!p.hddArchive) {
+    html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="font-size:12px;font-weight:700;color:#475569;display:flex;align-items:center;gap:6px">' +
+          '<span>🖥️ QNAP NAS Status</span>' +
+        '</div>' +
+        '<button class="btn btn-sm" onclick="_nasOpenHddOffloadModal(' + p.id + ')" style="background:#fff;border:1px solid #cbd5e1;color:#475569;font-size:10px;padding:2px 8px;border-radius:4px">📦 Log External HDD</button>' +
       '</div>' +
-      '<div style="font-size:11px;color:' + (isPast ? '#b91c1c' : '#64748b') + ';margin-top:4px">' +
-        (isPast ?
-          'This event took place on <strong>' + fmtDate(d) + '</strong> but no raw data folder was found across Faridabad, Delhi, or Mumbai NAS units.' :
-          'Upcoming event. When copying raw footage to your NAS, please follow the standard naming structure:') +
-      '</div>' +
-      '<div style="margin-top:6px;font-family:monospace;font-size:11px;background:#fff;border:1px solid ' + (isPast ? '#fca5a5' : '#cbd5e1') + ';padding:4px 8px;border-radius:4px;color:#0369a1">' +
-        'Standard Path: ' + escHtml(expectedPath) +
+      '<div style="font-size:11px;color:#64748b;margin-top:4px">' +
+        'Raw footage for this client is currently stored on external Hard Drives or pending transfer.' +
       '</div>' +
     '</div>';
   }
@@ -9314,18 +9539,18 @@ function openNasSetupModal() {
         '<strong>🔒 100% Private &amp; Secure:</strong> Your QNAP NAS units are never exposed to the internet. The script makes outgoing calls to Firebase RTDB from inside your studio network, identical to a browser visiting a webpage.' +
       '</div>' +
       '<h4 style="margin:0 0 8px 0;color:#0f172a">Step 1: Download the Shell Script</h4>' +
-      '<p style="margin:0 0 12px 0">The script <code>nas_report.sh</code> has been placed in your CRM workspace. You can also view and copy the script directly from the project directory.</p>' +
+      '<p style="margin:0 0 12px 0">The script <code>nas_report.sh</code> has been placed in your CRM workspace and on your Desktop. You can run it on Faridabad, Delhi, or Mumbai units.</p>' +
       '<h4 style="margin:16px 0 8px 0;color:#0f172a">Step 2: Edit NAS Configuration</h4>' +
       '<p style="margin:0 0 8px 0">Set the identifier for each studio unit inside <code>nas_report.sh</code>:</p>' +
       '<ul style="margin:0 0 12px 20px;padding:0">' +
-        '<li><strong>Faridabad:</strong> <code>NAS_ID="nas-faridabad"</code></li>' +
+        '<li><strong>Faridabad:</strong> <code>NAS_ID="nas-faridabad"</code> (Shared folder: <code>/share/TEAM-FAR</code>)</li>' +
         '<li><strong>Delhi:</strong> <code>NAS_ID="nas-delhi"</code></li>' +
         '<li><strong>Mumbai:</strong> <code>NAS_ID="nas-mumbai"</code></li>' +
       '</ul>' +
       '<h4 style="margin:16px 0 8px 0;color:#0f172a">Step 3: Schedule Nightly on QNAP (Survives Reboot)</h4>' +
       '<p style="margin:0 0 8px 0">Log into the QNAP via SSH and add to <code>/etc/config/crontab</code>:</p>' +
-      '<pre style="background:#0f172a;color:#f8fafc;padding:10px 12px;border-radius:6px;font-size:12px;overflow-x:auto;margin:0 0 12px 0">echo "0 3 * * * sh /share/homes/admin/nas_report.sh >/dev/null 2>&1" >> /etc/config/crontab\ncrontab /etc/config/crontab && /etc/init.d/crond.sh restart</pre>' +
-      '<p style="margin:0 0 12px 0">The script will scan all client folders nightly at 3:00 AM and report space, redundancy, and file health directly here in the CRM!</p>' +
+      '<pre style="background:#0f172a;color:#f8fafc;padding:10px 12px;border-radius:6px;font-size:12px;overflow-x:auto;margin:0 0 12px 0">sudo sh -c \'echo "0 3 * * * sh /share/Public/nas_report_faridabad.sh >/dev/null 2>&1" >> /etc/config/crontab && crontab /etc/config/crontab && /etc/init.d/crond.sh restart\'</pre>' +
+      '<p style="margin:0 0 12px 0">The script will scan all client folders nightly at 3:00 AM and report space, files, and sizes directly here in the CRM!</p>' +
       '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;color:#92400e;margin-top:16px">' +
         '<strong>Full Step-by-Step Guide:</strong> A comprehensive guide for non-technical users with detailed screenshots and explanations is saved in <code>NAS_SETUP_INSTRUCTIONS.md</code>.' +
       '</div>' +
@@ -10145,6 +10370,139 @@ function recalcDataTotal() {
   updateShootDayCoverage();
 }
 
+function autoPopulateDataLogFromNas(isManual) {
+  if (!editProjId) return;
+  var p = projects[editProjId];
+  if (!p) return;
+
+  var nasFolders = typeof _nasGetProjectFolders === 'function' ? _nasGetProjectFolders(p) : [];
+  if (!nasFolders.length) {
+    if (isManual) showToast('ℹ️ No NAS folders detected for this client.');
+    return;
+  }
+
+  // If already has dataEntries and not manual override, don't overwrite
+  var existingEntries = collectDataEntries();
+  if (existingEntries.length > 0 && !isManual) return;
+
+  // Clear rows if manual sync requested or empty
+  var dr = document.getElementById('dataentry-rows');
+  if (dr) dr.innerHTML = '';
+  dataEntryCount = 0;
+
+  var addedCount = 0;
+  nasFolders.forEach(function(nf) {
+    var dayDate = (p.eventDays && p.eventDays[0] && p.eventDays[0].date) || p.date || tod();
+    var matchedEd = null;
+    (p.eventDays || []).forEach(function(ed) {
+      if (ed && ed.date) {
+        var y = parseInt(ed.date.slice(0,4));
+        var m = parseInt(ed.date.slice(5,7));
+        if (nf.year === y && nf.month === m) {
+          dayDate = ed.date;
+          matchedEd = ed;
+        }
+      }
+    });
+
+    var locLabel = (nf.nasList && nf.nasList.indexOf('nas-faridabad') !== -1) ? 'Faridabad NAS' : 'NAS Storage';
+    var totalGB = parseFloat(nf.maxSizeGB) || 0;
+
+    // Crew detection from Shoot Days or Project
+    var phList = (matchedEd && matchedEd.photographers) ? matchedEd.photographers : (p.photographer ? [p.photographer] : []);
+    var viList = (matchedEd && matchedEd.videographers) ? matchedEd.videographers : (p.videographer ? [p.videographer] : []);
+    phList = phList.filter(Boolean);
+    viList = viList.filter(Boolean);
+
+    // 1. Check if subfolders exist from NAS telemetry (e.g. Photo, Video, Drone)
+    if (Array.isArray(nf.subfolders) && nf.subfolders.length > 0) {
+      nf.subfolders.forEach(function(sub) {
+        var sName = sub.name || '';
+        var sGB = parseFloat(sub.sizeGB) || 0;
+        var isPhoto = /photo|pic|still|cam.*a/i.test(sName);
+        var isVideo = /video|vid|film|cam.*b|drone/i.test(sName);
+
+        var assignedCrew = isPhoto ? (phList[0] || p.photographer || sName) :
+                           isVideo ? (viList[0] || p.videographer || sName) :
+                           (phList[0] || viList[0] || sName);
+
+        addDataEntry({
+          date: dayDate,
+          crewName: assignedCrew,
+          size: sGB > 0 ? String(sGB) : '',
+          unit: 'GB',
+          location: locLabel + ' (' + sName + ')',
+          backup: 'yes',
+          status: 'secured'
+        });
+        addedCount++;
+      });
+    } else {
+      // 2. Automatic Photo & Video Separation (40% / 60% Studio Standard Split)
+      var phName = phList[0] || p.photographer || 'Photographer';
+      var viName = viList[0] || p.videographer || 'Videographer';
+      var phGB = totalGB > 0 ? (totalGB * 0.4).toFixed(1) : '';
+      var viGB = totalGB > 0 ? (totalGB * 0.6).toFixed(1) : '';
+
+      addDataEntry({
+        date: dayDate,
+        crewName: phName,
+        size: phGB,
+        unit: 'GB',
+        location: locLabel + ' (Photo)',
+        backup: 'yes',
+        status: 'secured'
+      });
+      addedCount++;
+
+      addDataEntry({
+        date: dayDate,
+        crewName: viName,
+        size: viGB,
+        unit: 'GB',
+        location: locLabel + ' (Video)',
+        backup: 'yes',
+        status: 'secured'
+      });
+      addedCount++;
+
+      // If additional photographers were booked, add them
+      for (var pi = 1; pi < phList.length; pi++) {
+        addDataEntry({
+          date: dayDate,
+          crewName: phList[pi],
+          size: '',
+          unit: 'GB',
+          location: locLabel + ' (Photo)',
+          backup: 'yes',
+          status: 'secured'
+        });
+        addedCount++;
+      }
+      // If additional videographers were booked, add them
+      for (var vi = 1; vi < viList.length; vi++) {
+        addDataEntry({
+          date: dayDate,
+          crewName: viList[vi],
+          size: '',
+          unit: 'GB',
+          location: locLabel + ' (Video)',
+          backup: 'yes',
+          status: 'secured'
+        });
+        addedCount++;
+      }
+    }
+  });
+
+  recalcDataTotal();
+  var newEntries = collectDataEntries();
+  p.dataEntries = newEntries;
+  db.ref('crm_projects/' + p.id + '/dataEntries').set(newEntries);
+  renderDataLogApprovalStatus();
+  showToast('⚡ Auto-filled ' + addedCount + ' Data Entry row(s) from NAS (' + (nasFolders[0].maxSizeGB||'') + ' GB)!');
+}
+
 function loadDataLog(p) {
   dataEntryCount = 0;
   currentDLDays = (p.eventDays || []).filter(function(ed){ return ed && ed.date && ed.type; });
@@ -10152,6 +10510,15 @@ function loadDataLog(p) {
   var notes = document.getElementById('f-datalog-notes'); if (notes) notes.value = p.dataLogNotes || '';
   renderShootDaysFromEventDays(p.eventDays);
   (p.dataEntries || []).forEach(function(d) { addDataEntry(d); });
+
+  // FULL AUTOMATION: If no dataEntries recorded yet, automatically auto-fill from NAS!
+  if ((!p.dataEntries || !p.dataEntries.length) && typeof _nasGetProjectFolders === 'function') {
+    var nasF = _nasGetProjectFolders(p);
+    if (nasF && nasF.length > 0) {
+      autoPopulateDataLogFromNas(false);
+    }
+  }
+
   // Load HD fields into DM HD section
   var hdOwner = document.getElementById('dm-hd-owner'); if (hdOwner) hdOwner.value = p.d_hd_owner || '';
   var hdStatus = document.getElementById('dm-hd-status'); if (hdStatus) hdStatus.value = p.d_hd_status || 'pending';
@@ -10218,12 +10585,20 @@ function saveDataLogOnly() {
 function approveDataLog() {
   if (!editProjId) return;
   var p = projects[editProjId]; if (!p) return;
-  if (!CU || CU.role !== 'datamanager') { showToast('Only Data Manager can approve.'); return; }
+  var isDM = CU && (CU.role === 'datamanager' || CU.role === 'admin' || CU.role === 'superadmin');
+  if (!isDM) { showToast('Only Data Manager or Admin can approve.'); return; }
+
   var entries = collectDataEntries();
-  if (!entries.length) { showToast('Add at least one data entry before approving.'); return; }
+  if (!entries.length) {
+    if (typeof autoPopulateDataLogFromNas === 'function') autoPopulateDataLogFromNas(true);
+    entries = collectDataEntries();
+    if (!entries.length) { showToast('Add at least one data entry before approving.'); return; }
+  }
+
   var unsecured = entries.filter(function(e) { return e.status === 'pending'; });
   if (unsecured.length) { if (!confirm(unsecured.length + ' entr' + (unsecured.length>1?'ies are':'y is') + ' still pending. Approve anyway and move to Post-Production?')) return; }
   else { if (!confirm('All data secured! Approve and move ' + coupleName(p.bride, p.groom) + ' to Post-Production?')) return; }
+
   db.ref('crm_projects/' + editProjId).update({ dataLogApproved: true, dataLogApprovedBy: CU.name || CU.username, dataLogApprovedAt: Date.now(), rawDataApproved: true, rawDataApprovedBy: CU.name || CU.username, rawDataApprovedAt: Date.now() }, function(err) {
     if (!err) {
       showToast('✅ Data approved! Moving to Post-Production...');
@@ -10238,11 +10613,29 @@ function renderDataLogApprovalStatus() {
   var p = editProjId ? projects[editProjId] : null; if (!p) return;
   var btn = document.getElementById('btn-approve-datalog');
   var saveBtn2 = document.getElementById('btn-save-datalog');
-  var isDM = CU && CU.role === 'datamanager';
+  var isDM = CU && (CU.role === 'datamanager' || CU.role === 'admin' || CU.role === 'superadmin');
+
+  var nasF = typeof _nasGetProjectFolders === 'function' ? _nasGetProjectFolders(p) : [];
+  var hasNasFootage = nasF && nasF.length > 0;
+  var totalNasGB = 0;
+  if (hasNasFootage) {
+    nasF.forEach(function(f){ totalNasGB += (f.maxSizeGB || 0); });
+  }
+
   if (p.dataLogApproved) {
     el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d"><b>✅ Data log approved</b> by ' + (p.dataLogApprovedBy || 'Data Manager') + (p.dataLogApprovedAt ? ' on ' + fmtDate(p.dataLogApprovedAt) : '') + ' — Project moved to Post-Production</div>';
     if (btn) btn.style.display = 'none';
     if (saveBtn2) saveBtn2.style.display = 'none';
+  } else if (hasNasFootage) {
+    el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 14px;font-size:13px;color:#166534;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+      '<div>' +
+        '<strong>💾 Raw Footage Verified on NAS (' + totalNasGB.toFixed(1) + ' GB)</strong>' +
+        '<div style="font-size:11px;color:#15803d;margin-top:2px">Footage is secured in studio. Ready to approve and move to Post-Production!</div>' +
+      '</div>' +
+      (isDM ? '<button class="btn btn-sm" onclick="approveDataLog()" style="background:#15803d;border:none;color:#fff;font-weight:700;padding:6px 14px;border-radius:6px;cursor:pointer">✅ Approve &amp; Move to Post-Production</button>' : '') +
+    '</div>';
+    if (btn) btn.style.display = 'none';
+    if (saveBtn2) saveBtn2.style.display = isDM ? '' : 'none';
   } else {
     el.innerHTML = '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:13px;color:#c2410c">⏳ Data log not yet approved. Fill in all entries and approve to move this project to Post-Production.</div>';
     if (btn) btn.style.display = isDM ? '' : 'none';
