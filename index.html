@@ -7453,6 +7453,10 @@ function loadAll(){
       db.ref('crm_dupe_confirmed').on('value',function(snap){dupeConfirmed=snap.val()||{};if(_hcTab==='dupes')renderHealthCheck();});
       db.ref('crm_nas_reports').on('value', function(snap){
         window._nasReports = snap.val() || {};
+        if (typeof _nasClearAggCache === 'function') _nasClearAggCache();
+        if (typeof _nasAutoSyncAllProjects === 'function') {
+          setTimeout(_nasAutoSyncAllProjects, 500);
+        }
         if (typeof renderNasDashboard === 'function') {
           var nasTab = document.getElementById('dv-tab-nas');
           if (nasTab && nasTab.style.display !== 'none') renderNasDashboard();
@@ -7490,6 +7494,10 @@ function loadAll(){
     db.ref('crm_dupe_confirmed').on('value',function(snap){dupeConfirmed=snap.val()||{};if(_hcTab==='dupes')renderHealthCheck();});
     db.ref('crm_nas_reports').on('value', function(snap){
       window._nasReports = snap.val() || {};
+      if (typeof _nasClearAggCache === 'function') _nasClearAggCache();
+      if (typeof _nasAutoSyncAllProjects === 'function') {
+        setTimeout(_nasAutoSyncAllProjects, 500);
+      }
       if (typeof renderNasDashboard === 'function') {
         var nasTab = document.getElementById('dv-tab-nas');
         if (nasTab && nasTab.style.display !== 'none') renderNasDashboard();
@@ -7543,6 +7551,22 @@ function firstEventDate(p){
   return p.date||null;
 }
 
+// ── Helper: get the latest / final event date across all eventDays (or fallback to weddingDate / date) ──
+function finalEventDate(p){
+  if (!p) return null;
+  var dates = [];
+  if (Array.isArray(p.eventDays)) {
+    p.eventDays.forEach(function(ed) {
+      if (ed && ed.date && /^\d{4}-\d{2}-\d{2}$/.test(ed.date)) dates.push(ed.date);
+    });
+  }
+  if (p.weddingDate && /^\d{4}-\d{2}-\d{2}$/.test(p.weddingDate)) dates.push(p.weddingDate);
+  if (p.date && /^\d{4}-\d{2}-\d{2}$/.test(p.date)) dates.push(p.date);
+  if (!dates.length) return null;
+  dates.sort();
+  return dates[dates.length - 1];
+}
+
 // ── Aging: how long a project has been sitting in Post-Production ──
 // Used by the Video Production dashboard to surface which clients have been
 // waiting longest (i.e. most likely to be getting impatient) instead of
@@ -7579,6 +7603,16 @@ function autoAdvanceStage(projId,targetStage,reason){
   if(targetStage==='complete'&&netVal(p)>0&&balDue(p)>0){
     showToast('⚠️ '+coupleName(p.bride, p.groom)+': balance ₹'+fmt(balDue(p))+' still due — cannot move to Complete.');
     return;
+  }
+
+  // GATE: Nothing reaches 'postprod' before the FINAL event date has concluded
+  if(targetStage==='postprod'){
+    var lastDate = typeof finalEventDate === 'function' ? finalEventDate(p) : (p.date || null);
+    var todayStr = tod();
+    if(lastDate && lastDate > todayStr){
+      console.log('Post-Production Gate: ' + coupleName(p.bride, p.groom) + ' final event is on ' + lastDate + ' (upcoming) — remaining in ' + stageLabel(cur));
+      return;
+    }
   }
 
   db.ref('crm_projects/'+projId).update({stage:targetStage,updatedAt:Date.now()},function(err){
@@ -7836,6 +7870,23 @@ function renderDataVault() {
 
   // Collect all data entries across all projects
   var rows = [];
+
+  // PERFORMANCE FIX: Pre-compute NAS aggregation ONCE — not inside the per-project loop
+  var _nasAggCache = null;
+  function getNasAgg() {
+    if (!_nasAggCache) _nasAggCache = (typeof _nasGetAllFoldersAggregated === 'function') ? _nasGetAllFoldersAggregated() : [];
+    return _nasAggCache;
+  }
+  // Build a projectId → nasFolders lookup map (O(n) instead of O(n²))
+  var _nasByProjId = {};
+  getNasAgg().forEach(function(nf) {
+    if (nf.match && nf.match.project && nf.match.status === 'exact') {
+      var pid = String(nf.match.project.id);
+      if (!_nasByProjId[pid]) _nasByProjId[pid] = [];
+      _nasByProjId[pid].push(nf);
+    }
+  });
+
   pl().forEach(function(p) {
     var hasEntries = p.dataEntries && p.dataEntries.length > 0;
     if (hasEntries) {
@@ -7861,7 +7912,8 @@ function renderDataVault() {
     }
 
     // AUTOMATION: If project has no manual entries recorded yet, auto-pull from live NAS telemetry
-    var nasFolders = typeof _nasGetProjectFolders === 'function' ? _nasGetProjectFolders(p) : [];
+    // Use pre-built map — no repeated full aggregation
+    var nasFolders = _nasByProjId[String(p.id)] || [];
     if (!hasEntries && nasFolders.length > 0) {
       nasFolders.forEach(function(nf) {
         var locLabel = (nf.nasList && nf.nasList.indexOf('nas-faridabad') !== -1) ? 'Faridabad NAS' : 'NAS Storage';
@@ -8695,6 +8747,8 @@ window._nasReports = window._nasReports || {};
 window._nasManualLinks = window._nasManualLinks || {};
 var _nasActiveSubtab = 'all';
 var _nasSearchQuery = '';
+window._nasMatrixSearch = '';
+window._nasMatrixFilter = 'all';
 
 var _NAS_UNITS_CONFIG = [
   { id: 'nas-faridabad', label: 'Faridabad NAS', city: 'Faridabad', icon: '🏢' },
@@ -8878,7 +8932,22 @@ function _nasMatchFolder(folderName, yearStr, monthStr, allProjects, relPath) {
   };
 }
 
-function _nasGetAllFoldersAggregated() {
+var _nasAggCachedList = null;
+var _nasProjFoldersMap = {};
+var _nasAggLastTime = 0;
+
+function _nasClearAggCache() {
+  _nasAggCachedList = null;
+  _nasProjFoldersMap = {};
+  _nasAggLastTime = 0;
+}
+
+function _nasGetAllFoldersAggregated(force) {
+  var now = Date.now();
+  if (!force && _nasAggCachedList && (now - _nasAggLastTime < 30000)) {
+    return _nasAggCachedList;
+  }
+
   var agg = {};
   var reports = window._nasReports || {};
   var allProjects = typeof pl === 'function' ? pl() : [];
@@ -8917,26 +8986,430 @@ function _nasGetAllFoldersAggregated() {
   });
 
   var list = Object.values(agg);
+  _nasProjFoldersMap = {};
+
   list.forEach(function(item) {
     item.match = _nasMatchFolder(item.folder, item.year, item.month, allProjects, item.relPath);
-    // Offload candidate: matched project is complete/delivered and can be moved to external HDD
     var p = item.match && item.match.project;
+
+    if (p && p.id) {
+      var pidStr = String(p.id);
+      if (!_nasProjFoldersMap[pidStr]) _nasProjFoldersMap[pidStr] = [];
+      _nasProjFoldersMap[pidStr].push(item);
+    }
+
     item.isOffloadCandidate = !!(p && (p.stage === 'complete' || p.postprodStatus === 'delivered' || p.archived));
+
+    // Full payment & completion status check
+    var isPaidInFull = p && (typeof balDue === 'function' ? balDue(p) <= 0 : (p.stage === 'complete'));
+    var isDelivered = p && (p.stage === 'complete' || p.postprodStatus === 'delivered' || p.deliveryConfirmedAt || p.archived);
+    var hasHddArchive = p && !!p.hddArchive;
+
+    // Safe to Purge from NAS: Paid in full + Delivered + Footage safely logged on external HDD!
+    item.isSafeToPurge = !!(p && isPaidInFull && isDelivered && hasHddArchive && !p.nasPurged);
+    // Needs HDD archive before purging: Paid in full + Delivered, but not yet logged on HDD!
+    item.isPendingHddArchive = !!(p && isPaidInFull && isDelivered && !hasHddArchive && !p.nasPurged);
   });
 
   list.sort(function(a, b) {
     return (b.year || 0) - (a.year || 0) || String(b.month).localeCompare(String(a.month));
   });
 
+  _nasAggCachedList = list;
+  _nasAggLastTime = now;
   return list;
 }
 
 function _nasGetProjectFolders(project) {
   if (!project) return [];
-  var all = _nasGetAllFoldersAggregated();
-  return all.filter(function(item) {
-    return item.match && item.match.project && item.match.project.id === project.id;
+  if (!_nasAggCachedList) {
+    _nasGetAllFoldersAggregated();
+  }
+  return _nasProjFoldersMap[String(project.id)] || [];
+}
+
+// ── FULL AUTONOMOUS PIPELINE: Auto-detect NAS footage & auto-advance after final event ──
+function _nasAutoSyncAllProjects() {
+  if (typeof pl !== 'function') return;
+  var allProjects = pl();
+  if (!allProjects || !allProjects.length) return;
+
+  var todayStr = tod();
+
+  allProjects.forEach(function(p) {
+    if (!p || p.archived) return;
+    var nasFolders = _nasGetProjectFolders(p);
+    if (!nasFolders || !nasFolders.length) return;
+
+    // 1. Auto-fill Data Entries if not present
+    if (!p.dataEntries || !p.dataEntries.length) {
+      var entries = [];
+      nasFolders.forEach(function(nf) {
+        var dayDate = (p.eventDays && p.eventDays[0] && p.eventDays[0].date) || p.date || tod();
+        var locLabel = (nf.nasList && nf.nasList.indexOf('nas-faridabad') !== -1) ? 'Faridabad NAS' : 'NAS Storage';
+        var totalGB = parseFloat(nf.maxSizeGB) || 0;
+
+        var phList = (p.photographer ? [p.photographer] : []);
+        var viList = (p.videographer ? [p.videographer] : []);
+        if (p.eventDays && p.eventDays.length) {
+          p.eventDays.forEach(function(ed){
+            if (ed.photographers) phList = phList.concat(ed.photographers);
+            if (ed.videographers) viList = viList.concat(ed.videographers);
+          });
+        }
+        phList = phList.filter(Boolean);
+        viList = viList.filter(Boolean);
+
+        if (Array.isArray(nf.subfolders) && nf.subfolders.length > 0) {
+          nf.subfolders.forEach(function(sub) {
+            var sName = sub.name || '';
+            var sGB = parseFloat(sub.sizeGB) || 0;
+            var isPhoto = /photo|pic|still|cam.*a/i.test(sName);
+            var isVideo = /video|vid|film|cam.*b|drone/i.test(sName);
+            var assignedCrew = isPhoto ? (phList[0] || p.photographer || 'Photographer') :
+                               isVideo ? (viList[0] || p.videographer || 'Videographer') :
+                               (phList[0] || viList[0] || sName);
+            entries.push({
+              date: dayDate,
+              crewName: assignedCrew,
+              size: sGB > 0 ? String(sGB) : '',
+              unit: 'GB',
+              location: locLabel + ' (' + sName + ')',
+              backup: 'yes',
+              status: 'secured'
+            });
+          });
+        } else {
+          var phGB = totalGB > 0 ? (totalGB * 0.4).toFixed(1) : '';
+          var viGB = totalGB > 0 ? (totalGB * 0.6).toFixed(1) : '';
+          entries.push({
+            date: dayDate,
+            crewName: phList[0] || p.photographer || 'Photographer',
+            size: phGB,
+            unit: 'GB',
+            location: locLabel + ' (Photo)',
+            backup: 'yes',
+            status: 'secured'
+          });
+          entries.push({
+            date: dayDate,
+            crewName: viList[0] || p.videographer || 'Videographer',
+            size: viGB,
+            unit: 'GB',
+            location: locLabel + ' (Video)',
+            backup: 'yes',
+            status: 'secured'
+          });
+        }
+      });
+
+      if (entries.length > 0) {
+        p.dataEntries = entries;
+        db.ref('crm_projects/' + p.id + '/dataEntries').set(entries);
+      }
+    }
+
+    // 2. CHECK FINAL EVENT DATE FOR POST-PRODUCTION TRANSITION
+    // A project in 'production' can ONLY move to 'postprod' after its final event date has passed!
+    if (p.stage === 'production') {
+      var lastDate = typeof finalEventDate === 'function' ? finalEventDate(p) : (p.date || null);
+      if (lastDate && lastDate <= todayStr) {
+        // Final event has concluded and data is on NAS -> Auto-Advance to Post-Production!
+        if (!p.dataLogApproved) {
+          p.dataLogApproved = true;
+          p.dataLogApprovedBy = 'NAS Auto-Sync';
+          p.dataLogApprovedAt = Date.now();
+          p.rawDataApproved = true;
+          p.rawDataApprovedBy = 'NAS Auto-Sync';
+          p.rawDataApprovedAt = Date.now();
+          db.ref('crm_projects/' + p.id).update({
+            dataLogApproved: true,
+            dataLogApprovedBy: 'NAS Auto-Sync',
+            dataLogApprovedAt: p.dataLogApprovedAt,
+            rawDataApproved: true,
+            rawDataApprovedBy: 'NAS Auto-Sync',
+            rawDataApprovedAt: p.rawDataApprovedAt
+          });
+        }
+        autoAdvanceStage(p.id, 'postprod', 'Final event completed (' + fmtDate(lastDate) + ') & footage verified on NAS');
+      }
+    }
   });
+}
+
+// ═══════════════════════════════════════════════════════════
+// 🌐 MULTI-SERVER DATA MATRIX — Google Sheets-style view
+// Shows all client folders across Faridabad, Delhi, Mumbai
+// with cross-server duplicate detection & final edit badges.
+// ═══════════════════════════════════════════════════════════
+function _nasRenderMatrix(allAgg, reports) {
+  var matSearch = (window._nasMatrixSearch || '').toLowerCase();
+  var matFilter = window._nasMatrixFilter || 'all';
+
+  // Build a client-keyed map: group NAS folders by matched client or folder name
+  var clientMap = {};
+  allAgg.forEach(function(item) {
+    var key = '';
+    var displayName = item.folder;
+    var clientData = null;
+    if (item.match && item.match.project && item.match.status === 'exact') {
+      var p = item.match.project;
+      key = 'client_' + p.id;
+      displayName = (p.bride || '') + (p.groom ? ' & ' + p.groom : '');
+      clientData = p;
+    } else {
+      key = 'folder_' + (item.relPath || item.folder);
+    }
+
+    if (!clientMap[key]) {
+      clientMap[key] = {
+        key: key,
+        displayName: displayName,
+        clientData: clientData,
+        farGB: 0, delhiGB: 0, mumGB: 0,
+        farPath: '', delhiPath: '', mumPath: '',
+        farSubs: [], delhiSubs: [], mumSubs: [],
+        mtime: item.mtime,
+        hasFinal: false,
+        isMultiServer: false,
+        totalGB: 0,
+        item: item
+      };
+    }
+    var row = clientMap[key];
+    if (item.nasList.indexOf('nas-faridabad') !== -1) {
+      row.farGB = Math.max(row.farGB, item.sizes['nas-faridabad'] || 0);
+      row.farPath = item.relPath;
+      row.farSubs = item.subfolders || [];
+    }
+    if (item.nasList.indexOf('nas-delhi') !== -1) {
+      row.delhiGB = Math.max(row.delhiGB, item.sizes['nas-delhi'] || 0);
+      row.delhiPath = item.relPath;
+      row.delhiSubs = item.subfolders || [];
+    }
+    if (item.nasList.indexOf('nas-mumbai') !== -1) {
+      row.mumGB = Math.max(row.mumGB, item.sizes['nas-mumbai'] || 0);
+      row.mumPath = item.relPath;
+      row.mumSubs = item.subfolders || [];
+    }
+    row.mtime = item.mtime || row.mtime;
+  });
+
+  // Post-process rows
+  var rows = Object.values(clientMap);
+  rows.forEach(function(row) {
+    var serverCount = (row.farGB > 0 ? 1 : 0) + (row.delhiGB > 0 ? 1 : 0) + (row.mumGB > 0 ? 1 : 0);
+    row.isMultiServer = serverCount > 1;
+    row.totalGB = row.farGB + row.delhiGB + row.mumGB;
+    // Detect finals in subfolders
+    var allSubs = row.farSubs.concat(row.delhiSubs).concat(row.mumSubs);
+    row.hasFinal = allSubs.some(function(s) {
+      return /final|04_final|high_res|deliverable|export|03_export/i.test(s.name || '');
+    });
+    // Detect duplicates: same client on 2+ servers
+    if (row.isMultiServer) {
+      // Smaller copy = reclaimable
+      var sizes = [row.farGB, row.delhiGB, row.mumGB].filter(function(g){ return g > 0; }).sort(function(a,b){return a-b;});
+      row.reclaimGB = sizes.length > 1 ? sizes[0] : 0;
+    } else {
+      row.reclaimGB = 0;
+    }
+  });
+
+  // Sort: multi-server first, then by size desc
+  rows.sort(function(a, b) {
+    if (b.isMultiServer !== a.isMultiServer) return b.isMultiServer ? 1 : -1;
+    return b.totalGB - a.totalGB;
+  });
+
+  // Apply filter
+  var filtered = rows.filter(function(row) {
+    if (matFilter === 'multi' && !row.isMultiServer) return false;
+    if (matFilter === 'final' && !row.hasFinal) return false;
+    if (matFilter === 'delhi' && row.delhiGB <= 0) return false;
+    if (matFilter === 'faridabad' && row.farGB <= 0) return false;
+    if (matFilter === 'mumbai' && row.mumGB <= 0) return false;
+    if (matSearch) {
+      var haystack = (row.displayName + ' ' + row.farPath + ' ' + row.delhiPath + ' ' + row.mumPath).toLowerCase();
+      if (haystack.indexOf(matSearch) === -1) return false;
+    }
+    return true;
+  });
+
+  // Counts for filter badges
+  var multiCount = rows.filter(function(r){ return r.isMultiServer; }).length;
+  var finalCount = rows.filter(function(r){ return r.hasFinal; }).length;
+  var delhiCount = rows.filter(function(r){ return r.delhiGB > 0; }).length;
+  var farCount   = rows.filter(function(r){ return r.farGB > 0; }).length;
+  var mumCount   = rows.filter(function(r){ return r.mumGB > 0; }).length;
+
+  // Total reclaimable
+  var totalReclaimGB = rows.reduce(function(s, r){ return s + (r.reclaimGB||0); }, 0);
+  var reclaimDisp = totalReclaimGB >= 1000 ? (totalReclaimGB/1024).toFixed(1)+' TB' : Math.round(totalReclaimGB)+' GB';
+
+  var mumbaiReport = (reports || {})['nas-mumbai'];
+  var mumStatus = mumbaiReport ? '🟢 Live' : '⏳ Pending (tomorrow)';
+
+  var h = '';
+
+  // --- Banner Stats Row ---
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px">';
+  h += '<div style="background:#0f172a;border-radius:10px;padding:14px;color:#fff">' +
+    '<div style="font-size:11px;font-weight:700;opacity:.6;text-transform:uppercase">Total Clients on NAS</div>' +
+    '<div style="font-size:26px;font-weight:800;margin-top:4px">' + rows.length + '</div>' +
+    '<div style="font-size:11px;opacity:.5;margin-top:2px">across all 3 servers</div>' +
+  '</div>';
+  h += '<div style="background:#1d4ed8;border-radius:10px;padding:14px;color:#fff">' +
+    '<div style="font-size:11px;font-weight:700;opacity:.7;text-transform:uppercase">🏛️ Delhi NAS</div>' +
+    '<div style="font-size:26px;font-weight:800;margin-top:4px">' + delhiCount + '</div>' +
+    '<div style="font-size:11px;opacity:.6;margin-top:2px">client folders · 82% full</div>' +
+  '</div>';
+  h += '<div style="background:#0369a1;border-radius:10px;padding:14px;color:#fff">' +
+    '<div style="font-size:11px;font-weight:700;opacity:.7;text-transform:uppercase">🏢 Faridabad NAS</div>' +
+    '<div style="font-size:26px;font-weight:800;margin-top:4px">' + farCount + '</div>' +
+    '<div style="font-size:11px;opacity:.6;margin-top:2px">folders · 88.8 TB free</div>' +
+  '</div>';
+  h += '<div style="background:#' + (mumbaiReport ? '0f766e' : '475569') + ';border-radius:10px;padding:14px;color:#fff">' +
+    '<div style="font-size:11px;font-weight:700;opacity:.7;text-transform:uppercase">🌊 Mumbai NAS</div>' +
+    '<div style="font-size:26px;font-weight:800;margin-top:4px">' + (mumCount || '—') + '</div>' +
+    '<div style="font-size:11px;opacity:.6;margin-top:2px">' + mumStatus + '</div>' +
+  '</div>';
+  h += '<div style="background:#7c3aed;border-radius:10px;padding:14px;color:#fff">' +
+    '<div style="font-size:11px;font-weight:700;opacity:.7;text-transform:uppercase">🔄 Multi-Server</div>' +
+    '<div style="font-size:26px;font-weight:800;margin-top:4px">' + multiCount + '</div>' +
+    '<div style="font-size:11px;opacity:.6;margin-top:2px">duplicate folders · ' + reclaimDisp + ' reclaimable</div>' +
+  '</div>';
+  h += '<div style="background:#b45309;border-radius:10px;padding:14px;color:#fff">' +
+    '<div style="font-size:11px;font-weight:700;opacity:.7;text-transform:uppercase">🎬 Finals Found</div>' +
+    '<div style="font-size:26px;font-weight:800;margin-top:4px">' + finalCount + '</div>' +
+    '<div style="font-size:11px;opacity:.6;margin-top:2px">ready to deliver</div>' +
+  '</div>';
+  h += '</div>';
+
+  // --- Filter Bar ---
+  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
+  h += '<input type="text" placeholder="🔍 Search client, folder, path..." value="' + escHtml(window._nasMatrixSearch||'') + '" oninput="window._nasMatrixSearch=this.value;renderNasDashboard()" style="flex:1;min-width:220px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit">';
+  var filterBtns = [
+    {k:'all',   lbl:'All ('+rows.length+')',         bg:'#0f172a', fg:'#fff', ibg:'#f1f5f9', ifg:'#334155'},
+    {k:'multi', lbl:'🔄 Multi-Server ('+multiCount+')', bg:'#7c3aed', fg:'#fff', ibg:'#ede9fe', ifg:'#5b21b6'},
+    {k:'final', lbl:'🎬 Finals ('+finalCount+')',    bg:'#b45309', fg:'#fff', ibg:'#fef3c7', ifg:'#92400e'},
+    {k:'delhi', lbl:'🏛️ Delhi ('+delhiCount+')',    bg:'#1d4ed8', fg:'#fff', ibg:'#dbeafe', ifg:'#1e40af'},
+    {k:'faridabad', lbl:'🏢 Faridabad ('+farCount+')', bg:'#0369a1', fg:'#fff', ibg:'#e0f2fe', ifg:'#075985'},
+    {k:'mumbai', lbl:'🌊 Mumbai ('+(mumCount||0)+')', bg:'#0f766e', fg:'#fff', ibg:'#ccfbf1', ifg:'#115e59'}
+  ];
+  filterBtns.forEach(function(fb) {
+    var active = matFilter === fb.k;
+    h += '<button onclick="window._nasMatrixFilter=\''+fb.k+'\';renderNasDashboard()" style="padding:5px 10px;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:'+(active?fb.bg:fb.ibg)+';color:'+(active?fb.fg:fb.ifg)+'">'+fb.lbl+'</button>';
+  });
+  h += '</div>';
+
+  // --- Table ---
+  if (!filtered.length) {
+    h += '<div style="padding:40px;text-align:center;color:#64748b;font-size:13px;background:#fff;border-radius:10px;border:1px solid #e2e8f0">' +
+      '<div style="font-size:32px;margin-bottom:8px">🔍</div>No folders match the current filter.</div>';
+  } else {
+    h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">';
+    h += '<div style="overflow-x:auto">';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+    h += '<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;text-align:left">';
+    h += '<th style="padding:10px 12px;font-weight:800;color:#0f172a;min-width:180px">Client / Folder</th>';
+    h += '<th style="padding:10px 12px;font-weight:800;color:#1d4ed8;white-space:nowrap">🏛️ Delhi NAS</th>';
+    h += '<th style="padding:10px 12px;font-weight:800;color:#0369a1;white-space:nowrap">🏢 Faridabad NAS</th>';
+    h += '<th style="padding:10px 12px;font-weight:800;color:#0f766e;white-space:nowrap">🌊 Mumbai NAS</th>';
+    h += '<th style="padding:10px 12px;font-weight:800;color:#475569;white-space:nowrap">📦 Total</th>';
+    h += '<th style="padding:10px 12px;font-weight:800;color:#475569;white-space:nowrap">Status</th>';
+    h += '<th style="padding:10px 12px;font-weight:800;color:#475569">Action</th>';
+    h += '</tr></thead><tbody>';
+
+    filtered.forEach(function(row, idx) {
+      var rowBg = row.isMultiServer ? '#fdf4ff' : (idx % 2 === 0 ? '#fff' : '#fafafa');
+      var borderLeft = row.isMultiServer ? 'border-left:3px solid #7c3aed' : '';
+
+      // Delhi cell
+      var dCell = row.delhiGB > 0
+        ? '<div style="display:inline-flex;flex-direction:column;gap:2px">' +
+            '<span style="background:#dbeafe;color:#1e40af;font-weight:700;padding:2px 7px;border-radius:4px;font-size:11px">' +
+              (row.delhiGB >= 1000 ? (row.delhiGB/1024).toFixed(1)+' TB' : row.delhiGB.toFixed(1)+' GB') +
+            '</span>' +
+            (row.delhiSubs.filter(function(s){return /final|export|04/i.test(s.name||'');}).length > 0
+              ? '<span style="font-size:9px;color:#1d4ed8;font-weight:700">📁 '+row.delhiSubs.filter(function(s){return /final|export|04/i.test(s.name||'');}).map(function(s){return escHtml(s.name);}).join(', ')+'</span>'
+              : '') +
+          '</div>'
+        : '<span style="color:#cbd5e1;font-size:11px">—</span>';
+
+      // Faridabad cell
+      var fCell = row.farGB > 0
+        ? '<span style="background:#e0f2fe;color:#075985;font-weight:700;padding:2px 7px;border-radius:4px;font-size:11px">' +
+            (row.farGB >= 1000 ? (row.farGB/1024).toFixed(1)+' TB' : row.farGB.toFixed(1)+' GB') +
+          '</span>'
+        : '<span style="color:#cbd5e1;font-size:11px">—</span>';
+
+      // Mumbai cell
+      var mCell = row.mumGB > 0
+        ? '<span style="background:#ccfbf1;color:#115e59;font-weight:700;padding:2px 7px;border-radius:4px;font-size:11px">' +
+            (row.mumGB >= 1000 ? (row.mumGB/1024).toFixed(1)+' TB' : row.mumGB.toFixed(1)+' GB') +
+          '</span>'
+        : '<span style="color:#cbd5e1;font-size:11px">—</span>';
+
+      // Status badges
+      var badges = '';
+      if (row.isMultiServer) {
+        badges += '<span style="background:#ede9fe;color:#6d28d9;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;display:inline-block;margin:1px">🔄 Multi-Server</span>';
+        if (row.reclaimGB > 0) {
+          badges += '<div style="font-size:10px;color:#7c3aed;margin-top:2px">⚡ ~'+Math.round(row.reclaimGB)+' GB reclaimable</div>';
+        }
+      }
+      if (row.hasFinal) {
+        badges += '<span style="background:#fef3c7;color:#92400e;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;display:inline-block;margin:1px">🎬 Final Ready</span>';
+      }
+      if (!row.isMultiServer && !row.hasFinal) {
+        var serverCount2 = (row.farGB>0?1:0)+(row.delhiGB>0?1:0)+(row.mumGB>0?1:0);
+        badges = '<span style="color:#94a3b8;font-size:10px">📍 '+serverCount2+' server'+(serverCount2>1?'s':'')+'</span>';
+      }
+
+      // Action
+      var action = '';
+      if (row.clientData) {
+        var p = row.clientData;
+        action = '<button class="btn btn-sm" onclick="openProject('+p.id+',\'t-datalog\')" style="font-size:10px;background:#1d4ed8;color:#fff;border:none;padding:3px 8px">View</button>';
+        if (row.isMultiServer) {
+          action += ' <button class="btn btn-sm" onclick="_nasOpenHddOffloadModal('+p.id+')" style="font-size:10px;background:#fff7ed;color:#c2410c;border:1px solid #fdba74;padding:3px 7px">📦 HDD</button>';
+        }
+      } else {
+        action = '<button class="btn btn-sm" onclick="_nasOpenLinkModal(\''+escHtml(row.delhiPath||row.farPath||row.mumPath)+'\',\''+escHtml(row.displayName)+'\')" style="font-size:10px;background:#f1f5f9;border:1px solid #cbd5e1;color:#1d4ed8;padding:3px 7px">🔗 Link</button>';
+      }
+
+      // Client name
+      var nameHtml = '<div style="font-weight:700;color:#0f172a;font-size:12px">' + escHtml(row.displayName) + '</div>';
+      if (row.clientData) {
+        nameHtml += '<div style="font-size:10px;color:#64748b">' + escHtml(row.clientData.refcode||'') + (row.clientData.date?' · '+fmtDate(row.clientData.date):'') + '</div>';
+      } else {
+        nameHtml += '<div style="font-size:10px;color:#94a3b8;font-family:monospace">' + escHtml((row.delhiPath||row.farPath||row.mumPath||'').substring(0,38)) + '</div>';
+      }
+      nameHtml += '<div style="font-size:10px;color:#cbd5e1;margin-top:1px">' + escHtml(row.mtime||'') + '</div>';
+
+      var totalDisp = row.totalGB >= 1000 ? (row.totalGB/1024).toFixed(1)+' TB' : row.totalGB.toFixed(1)+' GB';
+
+      h += '<tr style="border-bottom:1px solid #f1f5f9;background:'+rowBg+';'+borderLeft+'">';
+      h += '<td style="padding:10px 12px">'+nameHtml+'</td>';
+      h += '<td style="padding:10px 12px">'+dCell+'</td>';
+      h += '<td style="padding:10px 12px">'+fCell+'</td>';
+      h += '<td style="padding:10px 12px">'+mCell+'</td>';
+      h += '<td style="padding:10px 12px"><strong style="color:#0f172a">'+totalDisp+'</strong></td>';
+      h += '<td style="padding:10px 12px">'+badges+'</td>';
+      h += '<td style="padding:10px 12px">'+action+'</td>';
+      h += '</tr>';
+    });
+
+    h += '</tbody></table></div>';
+    h += '<div style="padding:10px 14px;border-top:1px solid #f1f5f9;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between">';
+    h += '<span>Showing <strong>'+filtered.length+'</strong> of <strong>'+rows.length+'</strong> clients</span>';
+    h += '<span>Mumbai data pending — connects automatically tomorrow once script runs</span>';
+    h += '</div>';
+    h += '</div>';
+  }
+
+  return h;
 }
 
 function renderNasDashboard() {
@@ -9050,10 +9523,16 @@ function renderNasDashboard() {
     '<span style="background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px">🔴 Offload Needed</span>';
 
   var offloadCandidateGB = 0;
-  allAgg.forEach(function(f){ if (f.isOffloadCandidate) offloadCandidateGB += (f.maxSizeGB || 0); });
+  var purgeCount = 0;
+  var purgeCandidateGB = 0;
+  allAgg.forEach(function(f){
+    if (f.isOffloadCandidate) offloadCandidateGB += (f.maxSizeGB || 0);
+    if (f.isSafeToPurge) { purgeCount++; purgeCandidateGB += (f.maxSizeGB || 0); }
+  });
   var offloadGBDisp = offloadCandidateGB >= 1000 ? (offloadCandidateGB / 1024).toFixed(2) + ' TB' : Math.round(offloadCandidateGB) + ' GB';
+  var purgeGBDisp = purgeCandidateGB >= 1000 ? (purgeCandidateGB / 1024).toFixed(2) + ' TB' : Math.round(purgeCandidateGB) + ' GB';
 
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:18px">' +
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:18px">' +
     '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
       '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">💾 Fleet Storage Capacity</div>' +
       '<div style="font-size:20px;font-weight:800;color:#0f172a;margin-top:2px">' + fleetUsedDisp + ' <span style="font-size:12px;font-weight:500;color:#64748b">used</span></div>' +
@@ -9069,9 +9548,14 @@ function renderNasDashboard() {
       '<div style="font-size:11px;color:#0369a1;margin-top:2px">' + matchedCount + ' linked to clients · ' + unmatchedCount + ' unlinked</div>' +
     '</div>' +
     '<div onclick="_nasFilterTab(\'offload\')" style="background:#fff;border:1px solid ' + (offloadCount>0?'#fed7aa':'#e2e8f0') + ';border-radius:10px;padding:14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
-      '<div style="font-size:11px;font-weight:700;color:' + (offloadCount>0?'#c2410c':'#64748b') + ';text-transform:uppercase">📦 Ready to Offload to Hard Drive</div>' +
+      '<div style="font-size:11px;font-weight:700;color:' + (offloadCount>0?'#c2410c':'#64748b') + ';text-transform:uppercase">📦 Ready for Hard Drive</div>' +
       '<div style="font-size:20px;font-weight:800;color:' + (offloadCount>0?'#ea580c':'#0f172a') + ';margin-top:2px">' + offloadCount + ' <span style="font-size:12px;font-weight:500;color:#64748b">completed (' + offloadGBDisp + ')</span></div>' +
       '<div style="font-size:11px;color:#94a3b8;margin-top:2px">Delivered projects ready to move to HDDs</div>' +
+    '</div>' +
+    '<div onclick="_nasFilterTab(\'purge\')" style="background:#fff;border:1px solid ' + (purgeCount>0?'#86efac':'#e2e8f0') + ';border-radius:10px;padding:14px;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.02)">' +
+      '<div style="font-size:11px;font-weight:700;color:' + (purgeCount>0?'#15803d':'#64748b') + ';text-transform:uppercase">🗑️ Ready to Delete from NAS</div>' +
+      '<div style="font-size:20px;font-weight:800;color:' + (purgeCount>0?'#16a34a':'#0f172a') + ';margin-top:2px">' + purgeCount + ' <span style="font-size:12px;font-weight:500;color:#64748b">clients (' + purgeGBDisp + ')</span></div>' +
+      '<div style="font-size:11px;color:#16a34a;margin-top:2px">100% Paid &amp; on HDD · Safe to wipe</div>' +
     '</div>' +
   '</div>';
 
@@ -9086,14 +9570,25 @@ function renderNasDashboard() {
         '<button class="btn btn-sm" onclick="_nasFilterTab(\'matched\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='matched'?'#16a34a':'#dcfce7') + ';color:' + (_nasActiveSubtab==='matched'?'#fff':'#166534') + ';border:none">✅ Matched (' + matchedCount + ')</button>' +
         '<button class="btn btn-sm" onclick="_nasFilterTab(\'unmatched\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='unmatched'?'#ea580c':'#ffedd5') + ';color:' + (_nasActiveSubtab==='unmatched'?'#fff':'#9a3412') + ';border:none">❓ Unmatched (' + unmatchedCount + ')</button>' +
         '<button class="btn btn-sm" onclick="_nasFilterTab(\'offload\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='offload'?'#4f46e5':'#e0e7ff') + ';color:' + (_nasActiveSubtab==='offload'?'#fff':'#3730a3') + ';border:none">📦 Ready for Hard Drive (' + offloadCount + ')</button>' +
+        '<button class="btn btn-sm" onclick="_nasFilterTab(\'purge\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='purge'?'#15803d':'#dcfce7') + ';color:' + (_nasActiveSubtab==='purge'?'#fff':'#166534') + ';border:none">🗑️ Ready to Delete (' + purgeCount + ')</button>' +
+        '<button class="btn btn-sm" onclick="_nasFilterTab(\'matrix\')" style="font-size:11px;font-weight:700;background:' + (_nasActiveSubtab==='matrix'?'#7c3aed':'#ede9fe') + ';color:' + (_nasActiveSubtab==='matrix'?'#fff':'#5b21b6') + ';border:none">🌐 Multi-Server Matrix</button>' +
       '</div>' +
     '</div>';
+
+  // 5a. MULTI-SERVER MATRIX VIEW
+  if (_nasActiveSubtab === 'matrix') {
+    html += _nasRenderMatrix(allAgg, reports);
+    html += '</div>';
+    root.innerHTML = html;
+    return;
+  }
 
   // 5. FOLDERS TABLE
   var filtered = allAgg.filter(function(item) {
     if (_nasActiveSubtab === 'matched' && (!item.match || item.match.status !== 'exact')) return false;
     if (_nasActiveSubtab === 'unmatched' && (item.match && item.match.status === 'exact')) return false;
     if (_nasActiveSubtab === 'offload' && !item.isOffloadCandidate) return false;
+    if (_nasActiveSubtab === 'purge' && !item.isSafeToPurge) return false;
 
     if (_nasSearchQuery) {
       var q = _nasSearchQuery.toLowerCase();
@@ -9402,6 +9897,34 @@ function _nasSaveHddOffload(projId) {
   if (typeof renderDataVault === 'function') renderDataVault();
 }
 
+function _nasMarkPurgedModal(projId, relPath) {
+  var p = projects[projId];
+  if (!p) return;
+  var cName = typeof coupleName === 'function' ? coupleName(p.bride||'', p.groom||'') : (p.bride||'Client');
+  var hdd = p.hddArchive ? (p.hddArchive.hddId + ' (' + (p.hddArchive.location||'Studio Locker') + ')') : 'External Hard Drive';
+
+  if (!confirm('🗑️ CONFIRM NAS SPACE RECLAIM:\n\nClient: ' + cName + '\n\n• Payment: 100% Cleared (₹0 Due)\n• Deliverables: Handed Over & Complete\n• Permanent Archive: Safely on ' + hdd + '\n\nConfirm that you have deleted this folder from the QNAP NAS to free up storage space?')) return;
+
+  p.nasPurged = true;
+  p.nasPurgedAt = Date.now();
+  p.nasPurgedBy = (CU && (CU.name || CU.username)) || 'User';
+
+  db.ref('crm_projects/' + p.id).update({
+    nasPurged: true,
+    nasPurgedAt: p.nasPurgedAt,
+    nasPurgedBy: p.nasPurgedBy
+  }, function(err) {
+    if (!err) {
+      if (typeof logActivity === 'function') {
+        logActivity('archive', 'Purged from NAS', cName + ' — Preserved on ' + hdd, { projectId: p.id });
+      }
+      showToast('🗑️ Client folder cleared from NAS! Preserved on ' + hdd);
+      if (typeof renderNasDashboard === 'function') renderNasDashboard();
+      if (typeof renderProjectNasStorage === 'function') renderProjectNasStorage(p);
+    }
+  });
+}
+
 function _nasCopyEditorPath(path) {
   if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(path).then(function() {
@@ -9447,14 +9970,31 @@ function renderProjectNasStorage(p) {
       totalFiles += (f.totalFiles || 0);
     });
 
+    var isPaid = (balDue(p) <= 0);
+    var isDelivered = (p.stage === 'delivered' || p.stage === 'completed' || p.closed);
+    var isSafeToPurge = (isPaid && isDelivered && !!p.hddArchive && !p.nasPurged);
+
+    var purgeBtn = '';
+    if (p.nasPurged) {
+      purgeBtn = '<span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid #cbd5e1">🗑️ Cleared from NAS</span>';
+    } else if (isSafeToPurge) {
+      var firstRelPath = folders[0] ? folders[0].relPath : '';
+      purgeBtn = '<button class="btn btn-sm" onclick="_nasMarkPurgedModal(' + p.id + ', \'' + escHtml(firstRelPath) + '\')" style="background:#fee2e2;border:1px solid #f87171;color:#b91c1c;font-weight:700;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">🗑️ Ready to Delete from NAS</button>';
+    }
+
+    var activeBadge = p.nasPurged ? 
+      '<span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">📦 Cleared from NAS</span>' :
+      '<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">Active on Studio NAS</span>';
+
     html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
         '<div style="font-size:13px;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:6px">' +
           '<span>🖥️ QNAP NAS Storage</span>' +
-          '<span style="background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">Active on Studio NAS</span>' +
+          activeBadge +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:8px">' +
           '<div style="font-size:11px;color:#64748b">Total Size: <strong style="color:#0f172a">' + totalGB.toFixed(1) + ' GB</strong> · ' + fmtNum(totalFiles) + ' files</div>' +
+          purgeBtn +
           '<button class="btn btn-sm" onclick="_nasOpenHddOffloadModal(' + p.id + ')" style="background:#fff7ed;border:1px solid #fdba74;color:#c2410c;font-weight:700;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">📦 Offload to Hard Drive</button>' +
         '</div>' +
       '</div>';
@@ -9502,6 +10042,19 @@ function renderProjectNasStorage(p) {
     });
 
     html += '</div>';
+  } else if (p.nasPurged) {
+    var hddInfo = p.hddArchive ? (' · Archived on HDD: <strong style="color:#0f172a">' + escHtml(p.hddArchive.hddId || 'Logged HDD') + '</strong>') : '';
+    html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div style="font-size:12px;font-weight:700;color:#475569;display:flex;align-items:center;gap:6px">' +
+          '<span>🖥️ QNAP NAS Status</span>' +
+          '<span style="background:#f1f5f9;color:#64748b;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">🗑️ Cleared from NAS · Space Reclaimed</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="font-size:11px;color:#64748b;margin-top:4px">' +
+        'Client data has been purged from NAS to reclaim storage' + hddInfo + '.' +
+      '</div>' +
+    '</div>';
   } else if (!p.hddArchive) {
     html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px">' +
       '<div style="display:flex;justify-content:space-between;align-items:center">' +
@@ -10585,8 +11138,13 @@ function saveDataLogOnly() {
 function approveDataLog() {
   if (!editProjId) return;
   var p = projects[editProjId]; if (!p) return;
-  var isDM = CU && (CU.role === 'datamanager' || CU.role === 'admin' || CU.role === 'superadmin');
-  if (!isDM) { showToast('Only Data Manager or Admin can approve.'); return; }
+
+  var lastDate = typeof finalEventDate === 'function' ? finalEventDate(p) : (p.date || null);
+  var todayStr = tod();
+  if (lastDate && lastDate > todayStr) {
+    alert('⚠️ Upcoming Event Alert:\n\n' + coupleName(p.bride, p.groom) + ' has a shoot scheduled on ' + fmtDate(lastDate) + '.\n\nPer studio policy, projects can only move to Post-Production after the final event has concluded.');
+    return;
+  }
 
   var entries = collectDataEntries();
   if (!entries.length) {
@@ -10597,12 +11155,21 @@ function approveDataLog() {
 
   var unsecured = entries.filter(function(e) { return e.status === 'pending'; });
   if (unsecured.length) { if (!confirm(unsecured.length + ' entr' + (unsecured.length>1?'ies are':'y is') + ' still pending. Approve anyway and move to Post-Production?')) return; }
-  else { if (!confirm('All data secured! Approve and move ' + coupleName(p.bride, p.groom) + ' to Post-Production?')) return; }
+  else { if (!confirm('All data secured and final event concluded! Move ' + coupleName(p.bride, p.groom) + ' to Post-Production?')) return; }
 
-  db.ref('crm_projects/' + editProjId).update({ dataLogApproved: true, dataLogApprovedBy: CU.name || CU.username, dataLogApprovedAt: Date.now(), rawDataApproved: true, rawDataApprovedBy: CU.name || CU.username, rawDataApprovedAt: Date.now() }, function(err) {
+  var approverName = (CU && (CU.name || CU.username)) || 'Studio Admin';
+
+  db.ref('crm_projects/' + editProjId).update({
+    dataLogApproved: true,
+    dataLogApprovedBy: approverName,
+    dataLogApprovedAt: Date.now(),
+    rawDataApproved: true,
+    rawDataApprovedBy: approverName,
+    rawDataApprovedAt: Date.now()
+  }, function(err) {
     if (!err) {
-      showToast('✅ Data approved! Moving to Post-Production...');
-      autoAdvanceStage(editProjId, 'postprod', 'Data log approved by ' + (CU.name || CU.username));
+      showToast('✅ Final event complete & data approved! Moving to Post-Production...');
+      autoAdvanceStage(editProjId, 'postprod', 'Final event completed & data approved by ' + approverName);
       renderDataLogApprovalStatus();
     }
   });
@@ -10613,7 +11180,6 @@ function renderDataLogApprovalStatus() {
   var p = editProjId ? projects[editProjId] : null; if (!p) return;
   var btn = document.getElementById('btn-approve-datalog');
   var saveBtn2 = document.getElementById('btn-save-datalog');
-  var isDM = CU && (CU.role === 'datamanager' || CU.role === 'admin' || CU.role === 'superadmin');
 
   var nasF = typeof _nasGetProjectFolders === 'function' ? _nasGetProjectFolders(p) : [];
   var hasNasFootage = nasF && nasF.length > 0;
@@ -10622,24 +11188,38 @@ function renderDataLogApprovalStatus() {
     nasF.forEach(function(f){ totalNasGB += (f.maxSizeGB || 0); });
   }
 
+  var lastDate = typeof finalEventDate === 'function' ? finalEventDate(p) : (p.date || null);
+  var todayStr = tod();
+  var isFinalPassed = !lastDate || lastDate <= todayStr;
+
   if (p.dataLogApproved) {
-    el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d"><b>✅ Data log approved</b> by ' + (p.dataLogApprovedBy || 'Data Manager') + (p.dataLogApprovedAt ? ' on ' + fmtDate(p.dataLogApprovedAt) : '') + ' — Project moved to Post-Production</div>';
+    el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:13px;color:#15803d"><b>✅ Raw Data Auto-Approved</b> (' + (p.dataLogApprovedBy || 'NAS Auto-Sync') + (p.dataLogApprovedAt ? ' on ' + fmtDate(p.dataLogApprovedAt) : '') + ') — Project active in Post-Production</div>';
     if (btn) btn.style.display = 'none';
     if (saveBtn2) saveBtn2.style.display = 'none';
   } else if (hasNasFootage) {
-    el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 14px;font-size:13px;color:#166534;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
-      '<div>' +
-        '<strong>💾 Raw Footage Verified on NAS (' + totalNasGB.toFixed(1) + ' GB)</strong>' +
-        '<div style="font-size:11px;color:#15803d;margin-top:2px">Footage is secured in studio. Ready to approve and move to Post-Production!</div>' +
-      '</div>' +
-      (isDM ? '<button class="btn btn-sm" onclick="approveDataLog()" style="background:#15803d;border:none;color:#fff;font-weight:700;padding:6px 14px;border-radius:6px;cursor:pointer">✅ Approve &amp; Move to Post-Production</button>' : '') +
-    '</div>';
+    if (!isFinalPassed) {
+      el.innerHTML = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;font-size:13px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;flex-wrap:gap:8px">' +
+        '<div>' +
+          '<strong>💾 Raw Footage Detected on NAS (' + totalNasGB.toFixed(1) + ' GB)</strong>' +
+          '<div style="font-size:11px;color:#2563eb;margin-top:2px">⏳ Holding in Production: upcoming event on <strong>' + fmtDate(lastDate) + '</strong>. Project will automatically advance to Post-Production after the final event!</div>' +
+        '</div>' +
+        '<span style="background:#dbeafe;color:#1d4ed8;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px">Auto-Pipeline Active</span>' +
+      '</div>';
+    } else {
+      el.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 14px;font-size:13px;color:#166534;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+        '<div>' +
+          '<strong>💾 Raw Footage Verified on NAS (' + totalNasGB.toFixed(1) + ' GB) · Final Event Complete</strong>' +
+          '<div style="font-size:11px;color:#15803d;margin-top:2px">All shoot days complete &amp; footage secured on studio server. Ready for Post-Production!</div>' +
+        '</div>' +
+        '<button class="btn btn-sm" onclick="approveDataLog()" style="background:#15803d;border:none;color:#fff;font-weight:700;padding:6px 14px;border-radius:6px;cursor:pointer">⚡ Move to Post-Production</button>' +
+      '</div>';
+    }
     if (btn) btn.style.display = 'none';
-    if (saveBtn2) saveBtn2.style.display = isDM ? '' : 'none';
+    if (saveBtn2) saveBtn2.style.display = '';
   } else {
-    el.innerHTML = '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:13px;color:#c2410c">⏳ Data log not yet approved. Fill in all entries and approve to move this project to Post-Production.</div>';
-    if (btn) btn.style.display = isDM ? '' : 'none';
-    if (saveBtn2) saveBtn2.style.display = isDM ? '' : 'none';
+    el.innerHTML = '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 14px;font-size:13px;color:#c2410c">⏳ Raw footage not yet detected on studio NAS. When files are dumped on server, Data Log auto-populates!</div>';
+    if (btn) btn.style.display = 'none';
+    if (saveBtn2) saveBtn2.style.display = '';
   }
 }
 
@@ -10647,13 +11227,45 @@ function renderDataLogApprovalStatus() {
 // Uses the earliest eventDays entry; falls back to p.date for legacy projects.
 function runDateAutomations(){
   var today=new Date();today.setHours(0,0,0,0);
+  var todayStr = tod();
   pl().forEach(function(p){
     var fd=firstEventDate(p);
-    if(!fd)return;
-    var evDate=new Date(fd);if(isNaN(evDate))return;
-    var daysToEvent=Math.ceil((evDate-today)/86400000);
-    if(daysToEvent<=30&&daysToEvent>=0&&p.stage==='preprod'){
-      autoAdvanceStage(p.id,'production','First event in '+daysToEvent+' days');
+    if(fd){
+      var evDate=new Date(fd);if(!isNaN(evDate)){
+        var daysToEvent=Math.ceil((evDate-today)/86400000);
+        if(daysToEvent<=30&&daysToEvent>=0&&p.stage==='preprod'){
+          autoAdvanceStage(p.id,'production','First event in '+daysToEvent+' days');
+        }
+      }
+    }
+
+    // Rule 2B: Full Auto-Pipeline into Post-Production (No Data Manager needed)
+    // Only transitions AFTER the FINAL event date has concluded AND raw data is on NAS
+    if(p.stage==='production'){
+      var ld = typeof finalEventDate === 'function' ? finalEventDate(p) : (p.date || null);
+      if(ld && ld <= todayStr){
+        var nasFolders = typeof _nasGetProjectFolders === 'function' ? _nasGetProjectFolders(p) : [];
+        var hasNasData = (nasFolders && nasFolders.length > 0) || (p.dataEntries && p.dataEntries.length > 0);
+        if(hasNasData){
+          if(!p.dataLogApproved){
+            p.dataLogApproved = true;
+            p.dataLogApprovedBy = 'NAS Auto-Sync';
+            p.dataLogApprovedAt = Date.now();
+            p.rawDataApproved = true;
+            p.rawDataApprovedBy = 'NAS Auto-Sync';
+            p.rawDataApprovedAt = Date.now();
+            db.ref('crm_projects/' + p.id).update({
+              dataLogApproved: true,
+              dataLogApprovedBy: 'NAS Auto-Sync',
+              dataLogApprovedAt: p.dataLogApprovedAt,
+              rawDataApproved: true,
+              rawDataApprovedBy: 'NAS Auto-Sync',
+              rawDataApprovedAt: p.rawDataApprovedAt
+            });
+          }
+          autoAdvanceStage(p.id, 'postprod', 'Final event completed (' + fmtDate(ld) + ') & footage verified on NAS');
+        }
+      }
     }
   });
 }
