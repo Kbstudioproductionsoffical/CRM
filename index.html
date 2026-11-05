@@ -8982,6 +8982,43 @@ function _nasClearAggCache() {
   _nasAggLastTime = 0;
 }
 
+function _nasIsContainerFolder(folderName, subfolders) {
+  var fname = String(folderName || '').trim();
+  if (!fname || !Array.isArray(subfolders) || subfolders.length === 0) return false;
+
+  // 1. Explicit Container keywords
+  if (/mumbai data|final files|long video|hard_drive|back up|backup|batch|pending_backlog/i.test(fname)) {
+    return true;
+  }
+  // 2. Month containers (07_July, 02_February, 11_November) or Year (2025, 2026)
+  if (/^(0[1-9]|1[0-2])_[A-Za-z]+$/i.test(fname) || /^202[0-9]$/.test(fname)) {
+    return true;
+  }
+
+  // 3. Never a container if it has camera/day/media/project structure
+  var hasShootMedia = subfolders.some(function(s) {
+    var sn = String(s.name || '').toLowerCase();
+    return /cam_\d|day\s*\d|01_media|raw data|\.fcpbundle|\.prproj|\.fcpcache/i.test(sn);
+  });
+  if (hasShootMedia) return false;
+
+  // 4. Check for multiple distinct couple subfolders
+  var distinctCouples = 0;
+  var cleanParent = fname.replace(/\(.*?\)|\[.*?\]/g, '').trim().toLowerCase();
+  subfolders.forEach(function(s) {
+    var sn = String(s.name || '').replace(/\(.*?\)|\[.*?\]/g, '').trim().toLowerCase();
+    if (!sn || cleanParent.indexOf(sn) !== -1 || sn.indexOf(cleanParent) !== -1) return;
+    if (/[-&+]|\bx\b|\band\b/i.test(sn)) {
+      var toks = sn.split(/[-&+/\s]+|\bx\b|\band\b/i).filter(function(t) {
+        return t.length >= 3 && !/haldi|wedding|mehendi|sangeet|reception|roka|choorha|photo|video|project|export|final|drone|cam|day|media|card/i.test(t);
+      });
+      if (toks.length >= 2) distinctCouples++;
+    }
+  });
+
+  return distinctCouples >= 2;
+}
+
 function _nasGetAllFoldersAggregated(force) {
   var now = Date.now();
   if (!force && _nasAggCachedList && (now - _nasAggLastTime < 30000)) {
@@ -8992,36 +9029,65 @@ function _nasGetAllFoldersAggregated(force) {
   var reports = window._nasReports || {};
   var allProjects = typeof pl === 'function' ? pl() : [];
 
+  function _addOrMerge(aggMap, fItem, nasId) {
+    var key = fItem.relPath || (fItem.year + '/' + fItem.month + '/' + fItem.folder);
+    if (!aggMap[key]) {
+      aggMap[key] = {
+        folder: fItem.folder,
+        relPath: key,
+        year: fItem.year,
+        month: fItem.month,
+        nasList: [],
+        sizes: {},
+        fileCounts: {},
+        subfolders: fItem.subfolders || [],
+        mtime: fItem.mtime || '—',
+        maxSizeGB: 0,
+        totalFiles: 0,
+        parentContainer: fItem.parentContainer || null
+      };
+    }
+    if (Array.isArray(fItem.subfolders) && fItem.subfolders.length > 0) {
+      aggMap[key].subfolders = fItem.subfolders;
+    }
+    if (aggMap[key].nasList.indexOf(nasId) === -1) {
+      aggMap[key].nasList.push(nasId);
+    }
+    aggMap[key].sizes[nasId] = fItem.sizeGB || 0;
+    aggMap[key].fileCounts[nasId] = fItem.fileCount || 0;
+    if ((fItem.sizeGB || 0) > aggMap[key].maxSizeGB) aggMap[key].maxSizeGB = fItem.sizeGB;
+    if ((fItem.fileCount || 0) > aggMap[key].totalFiles) aggMap[key].totalFiles = fItem.fileCount;
+    if (fItem.mtime && fItem.mtime !== 'Unknown') aggMap[key].mtime = fItem.mtime;
+  }
+
   _NAS_UNITS_CONFIG.forEach(function(cfg) {
     var r = reports[cfg.id];
     if (!r || !Array.isArray(r.folders)) return;
 
     r.folders.forEach(function(f) {
-      var key = f.relPath || (f.year + '/' + f.month + '/' + f.folder);
-      if (!agg[key]) {
-        agg[key] = {
-          folder: f.folder,
-          relPath: key,
-          year: f.year,
-          month: f.month,
-          nasList: [],
-          sizes: {},
-          fileCounts: {},
-          subfolders: f.subfolders || [],
-          mtime: f.mtime || '—',
-          maxSizeGB: 0,
-          totalFiles: 0
-        };
+      // BULLETPROOF: Check if this folder is a container holding multiple client projects
+      var isCont = _nasIsContainerFolder(f.folder, f.subfolders);
+      if (isCont && Array.isArray(f.subfolders) && f.subfolders.length > 0) {
+        f.subfolders.forEach(function(sub) {
+          var sName = sub.name || '';
+          if (/^(\.|@|Recycle|Network\s*Trash)/i.test(sName) || /sb-[a-z0-9]+/i.test(sName)) return;
+          var subRel = f.relPath ? (f.relPath + '/' + sName) : (f.folder + '/' + sName);
+          _addOrMerge(agg, {
+            folder: sName,
+            relPath: subRel,
+            year: f.year,
+            month: f.month,
+            sizeGB: sub.sizeGB || 0,
+            fileCount: sub.fileCount || 0,
+            subfolders: [],
+            mtime: f.mtime || '—',
+            parentContainer: f.folder
+          }, cfg.id);
+        });
+        return; // Container wrapper itself is unrolled into its individual clients
       }
-      if (Array.isArray(f.subfolders) && f.subfolders.length > 0) {
-        agg[key].subfolders = f.subfolders;
-      }
-      agg[key].nasList.push(cfg.id);
-      agg[key].sizes[cfg.id] = f.sizeGB || 0;
-      agg[key].fileCounts[cfg.id] = f.fileCount || 0;
-      if ((f.sizeGB || 0) > agg[key].maxSizeGB) agg[key].maxSizeGB = f.sizeGB;
-      if ((f.fileCount || 0) > agg[key].totalFiles) agg[key].totalFiles = f.fileCount;
-      if (f.mtime && f.mtime !== 'Unknown') agg[key].mtime = f.mtime;
+
+      _addOrMerge(agg, f, cfg.id);
     });
   });
 
@@ -9216,10 +9282,12 @@ function _nasRenderMatrix(allAgg, reports) {
         hasFinal: false,
         isMultiServer: false,
         totalGB: 0,
+        parentContainer: item.parentContainer || null,
         item: item
       };
     }
     var row = clientMap[key];
+    if (item.parentContainer && !row.parentContainer) row.parentContainer = item.parentContainer;
     if (item.nasList.indexOf('nas-faridabad') !== -1) {
       row.farGB = Math.max(row.farGB, item.sizes['nas-faridabad'] || 0);
       row.farPath = item.relPath;
@@ -9431,10 +9499,13 @@ function _nasRenderMatrix(allAgg, reports) {
 
       // Client name
       var nameHtml = '<div style="font-weight:700;color:#0f172a;font-size:12px">' + escHtml(row.displayName) + '</div>';
+      if (row.parentContainer) {
+        nameHtml += '<div style="font-size:10px;color:#7c3aed;font-weight:600">📁 ' + escHtml(row.parentContainer) + '</div>';
+      }
       if (row.clientData) {
         nameHtml += '<div style="font-size:10px;color:#64748b">' + escHtml(row.clientData.refcode||'') + (row.clientData.date?' · '+fmtDate(row.clientData.date):'') + '</div>';
       } else {
-        nameHtml += '<div style="font-size:10px;color:#94a3b8;font-family:monospace">' + escHtml((row.delhiPath||row.farPath||row.mumPath||'').substring(0,38)) + '</div>';
+        nameHtml += '<div style="font-size:10px;color:#94a3b8;font-family:monospace">' + escHtml((row.delhiPath||row.farPath||row.mumPath||'').substring(0,42)) + '</div>';
       }
       nameHtml += '<div style="font-size:10px;color:#cbd5e1;margin-top:1px">' + escHtml(row.mtime||'') + '</div>';
 
@@ -9713,6 +9784,7 @@ function renderNasDashboard() {
       html += '<tr style="border-bottom:1px solid #f1f5f9">' +
         '<td style="padding:10px 12px">' +
           '<div style="font-weight:700;color:#0f172a;font-family:monospace;font-size:12px">' + escHtml(item.folder) + '</div>' +
+          (item.parentContainer ? '<div style="font-size:10px;color:#7c3aed;font-weight:600">📁 ' + escHtml(item.parentContainer) + '</div>' : '') +
           '<div style="font-size:10px;color:#64748b;margin-top:2px">' + escHtml(item.relPath) + '</div>' +
         '</td>' +
         '<td style="padding:10px 12px">' + locationBadges + '</td>' +
