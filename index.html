@@ -8782,6 +8782,46 @@ function _nasNormalizeName(str) {
     .trim();
 }
 
+function _nasClassifySubfolder(name) {
+  var s = String(name || '').trim().toLowerCase();
+
+  // 1. Deliverables / Finals
+  if (/final|04_final|high_res|print|deliverable/i.test(s)) {
+    return { type: 'final', label: 'Deliverable', icon: '🎬', bg: '#fef3c7', col: '#92400e', isShootCrew: false };
+  }
+
+  // 2. Exports / Cuts / Previews / Teasers
+  if (/export|03_export|teaser|trailer|preview|reel|highlights/i.test(s)) {
+    return { type: 'export', label: 'Export', icon: '🎞️', bg: '#fef9c3', col: '#854d0e', isShootCrew: false };
+  }
+
+  // 3. Editor Workspaces / Projects (Named project folders, editors, software cuts)
+  if (/project|\bproj\b|prproj|fcp|premiere|davinci|resolve|edit|proxy|by\s+[a-z]|project\s*by|ankit|ifrose|afroz|subrat|vivek|rahul|danny|uves|suraj|mohit|deepanshu|chahal|raaj|akash|rohan|karan|bhanu|sharma|kumar|02_project/i.test(s)) {
+    return { type: 'editor', label: 'Editor Project', icon: '💻', bg: '#ede9fe', col: '#6d28d9', isShootCrew: false };
+  }
+
+  // 4. Photos (RAW or Selected)
+  if (/photo|pic|still|cam.*a|raw.*photo|lightroom|culling/i.test(s)) {
+    return { type: 'photo', label: 'Photo Shoot', icon: '📷', bg: '#ecfdf5', col: '#047857', isShootCrew: true };
+  }
+
+  // 5. Audio / Drone
+  if (/drone/i.test(s)) {
+    return { type: 'drone', label: 'Drone RAW', icon: '🛸', bg: '#f0fdf4', col: '#166534', isShootCrew: true };
+  }
+  if (/audio|mic|sound/i.test(s)) {
+    return { type: 'audio', label: 'Audio RAW', icon: '🎙️', bg: '#fdf2f8', col: '#9d174d', isShootCrew: true };
+  }
+
+  // 6. Camera / Day-wise Raw Shoot Data
+  if (/cam|card|day|haldi|sangeet|wedding|reception|ring|cocktail|01_media|media|raw/i.test(s)) {
+    return { type: 'video', label: 'Camera RAW', icon: '🎥', bg: '#eff6ff', col: '#1d4ed8', isShootCrew: true };
+  }
+
+  // Default fallback (Generic folder, not a camera card)
+  return { type: 'folder', label: 'Folder', icon: '📁', bg: '#f1f5f9', col: '#475569', isShootCrew: false };
+}
+
 function _nasNormalizeMonth(m) {
   if (!m) return null;
   var cleaned = String(m).replace(/^\d+[-_]/, '').trim().toLowerCase();
@@ -9064,10 +9104,13 @@ function _nasAutoSyncAllProjects() {
           nf.subfolders.forEach(function(sub) {
             var sName = sub.name || '';
             var sGB = parseFloat(sub.sizeGB) || 0;
-            var isPhoto = /photo|pic|still|cam.*a/i.test(sName);
-            var isVideo = /video|vid|film|cam.*b|drone/i.test(sName);
-            var assignedCrew = isPhoto ? (phList[0] || p.photographer || 'Photographer') :
-                               isVideo ? (viList[0] || p.videographer || 'Videographer') :
+            var c = _nasClassifySubfolder(sName);
+
+            // CRITICAL: NEVER log editor project workspaces or final exports as shoot camera cards!
+            if (!c.isShootCrew) return;
+
+            var assignedCrew = (c.type === 'photo') ? (phList[0] || p.photographer || 'Photographer') :
+                               (c.type === 'video' || c.type === 'drone') ? (viList[0] || p.videographer || 'Videographer') :
                                (phList[0] || viList[0] || sName);
             entries.push({
               date: dayDate,
@@ -9143,7 +9186,7 @@ function _nasAutoSyncAllProjects() {
 // with cross-server duplicate detection & final edit badges.
 // ═══════════════════════════════════════════════════════════
 function _nasRenderMatrix(allAgg, reports) {
-  var matSearch = (window._nasMatrixSearch || '').toLowerCase();
+  var matSearch = (_nasSearchQuery || '').toLowerCase();
   var matFilter = window._nasMatrixFilter || 'all';
 
   // Build a client-keyed map: group NAS folders by matched client or folder name
@@ -9287,8 +9330,8 @@ function _nasRenderMatrix(allAgg, reports) {
   h += '</div>';
 
   // --- Filter Bar ---
-  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
-  h += '<input type="text" placeholder="🔍 Search client, folder, path..." value="' + escHtml(window._nasMatrixSearch||'') + '" oninput="window._nasMatrixSearch=this.value;renderNasDashboard()" style="flex:1;min-width:220px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;font-family:inherit">';
+  h += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
+  h += '<span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-right:4px">Server Filter:</span>';
   var filterBtns = [
     {k:'all',   lbl:'All ('+rows.length+')',         bg:'#0f172a', fg:'#fff', ibg:'#f1f5f9', ifg:'#334155'},
     {k:'multi', lbl:'🔄 Multi-Server ('+multiCount+')', bg:'#7c3aed', fg:'#fff', ibg:'#ede9fe', ifg:'#5b21b6'},
@@ -9331,8 +9374,15 @@ function _nasRenderMatrix(allAgg, reports) {
             '<span style="background:#dbeafe;color:#1e40af;font-weight:700;padding:2px 7px;border-radius:4px;font-size:11px">' +
               (row.delhiGB >= 1000 ? (row.delhiGB/1024).toFixed(1)+' TB' : row.delhiGB.toFixed(1)+' GB') +
             '</span>' +
-            (row.delhiSubs.filter(function(s){return /final|export|04/i.test(s.name||'');}).length > 0
-              ? '<span style="font-size:9px;color:#1d4ed8;font-weight:700">📁 '+row.delhiSubs.filter(function(s){return /final|export|04/i.test(s.name||'');}).map(function(s){return escHtml(s.name);}).join(', ')+'</span>'
+            (row.delhiSubs.length > 0
+              ? (function(){
+                  var tags = [];
+                  var hasFin = row.delhiSubs.some(function(s){ return /final|04/i.test(s.name); });
+                  var edSubs = row.delhiSubs.filter(function(s){ return _nasClassifySubfolder(s.name).type === 'editor'; });
+                  if (hasFin) tags.push('🎬 Final');
+                  if (edSubs.length > 0) tags.push('💻 ' + edSubs.length + ' Edit' + (edSubs.length>1?'s':''));
+                  return tags.length ? '<span style="font-size:9px;color:#475569;font-weight:700">' + tags.join(' · ') + '</span>' : '';
+                })()
               : '') +
           '</div>'
         : '<span style="color:#cbd5e1;font-size:11px">—</span>';
@@ -9579,7 +9629,7 @@ function renderNasDashboard() {
   if (_nasActiveSubtab === 'matrix') {
     html += _nasRenderMatrix(allAgg, reports);
     html += '</div>';
-    root.innerHTML = html;
+    _nasSetHtmlWithFocus(root, html);
     return;
   }
 
@@ -9680,7 +9730,26 @@ function renderNasDashboard() {
 
   html += '</div>'; // close table container
 
+  _nasSetHtmlWithFocus(root, html);
+}
+
+function _nasSetHtmlWithFocus(root, html) {
+  var activeEl = document.activeElement;
+  var activeId = activeEl ? activeEl.id : null;
+  var selStart = (activeEl && typeof activeEl.selectionStart === 'number') ? activeEl.selectionStart : null;
+  var selEnd = (activeEl && typeof activeEl.selectionEnd === 'number') ? activeEl.selectionEnd : null;
+
   root.innerHTML = html;
+
+  if (activeId) {
+    var restored = document.getElementById(activeId);
+    if (restored) {
+      restored.focus();
+      if (selStart !== null && selEnd !== null) {
+        try { restored.setSelectionRange(selStart, selEnd); } catch(e){}
+      }
+    }
+  }
 }
 
 function _nasFilterTab(tab) {
@@ -9688,9 +9757,13 @@ function _nasFilterTab(tab) {
   renderNasDashboard();
 }
 
+var _nasSearchDebounceTimer = null;
 function _nasSearchInput(val) {
   _nasSearchQuery = val || '';
-  renderNasDashboard();
+  if (_nasSearchDebounceTimer) clearTimeout(_nasSearchDebounceTimer);
+  _nasSearchDebounceTimer = setTimeout(function() {
+    renderNasDashboard();
+  }, 100);
 }
 
 function _nasOpenLinkModal(relPath, folderName) {
@@ -10015,12 +10088,10 @@ function renderProjectNasStorage(p) {
       if (Array.isArray(f.subfolders) && f.subfolders.length > 0) {
         subBadge = '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">' +
           f.subfolders.map(function(s){
-            var isPh = /photo|pic|still/i.test(s.name);
-            var bg = isPh ? '#ecfdf5' : '#eff6ff';
-            var col = isPh ? '#047857' : '#1d4ed8';
-            var icon = isPh ? '📷' : '🎥';
-            return '<span style="background:' + bg + ';color:' + col + ';font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px">' +
-              icon + ' ' + escHtml(s.name) + ': ' + (s.sizeGB ? s.sizeGB + ' GB' : '') +
+            var c = _nasClassifySubfolder(s.name);
+            var szDisp = s.sizeGB ? ' · ' + s.sizeGB + ' GB' : '';
+            return '<span style="background:' + c.bg + ';color:' + c.col + ';font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;display:inline-flex;align-items:center;gap:4px" title="' + c.label + ': ' + escHtml(s.name) + '">' +
+              '<span>' + c.icon + '</span> <span>' + escHtml(s.name) + '</span><span style="opacity:0.8">' + szDisp + '</span>' +
             '</span>';
           }).join('') +
         '</div>';
@@ -10972,11 +11043,13 @@ function autoPopulateDataLogFromNas(isManual) {
       nf.subfolders.forEach(function(sub) {
         var sName = sub.name || '';
         var sGB = parseFloat(sub.sizeGB) || 0;
-        var isPhoto = /photo|pic|still|cam.*a/i.test(sName);
-        var isVideo = /video|vid|film|cam.*b|drone/i.test(sName);
+        var c = _nasClassifySubfolder(sName);
 
-        var assignedCrew = isPhoto ? (phList[0] || p.photographer || sName) :
-                           isVideo ? (viList[0] || p.videographer || sName) :
+        // CRITICAL: NEVER log editor project workspaces or final exports as shoot camera cards!
+        if (!c.isShootCrew) return;
+
+        var assignedCrew = (c.type === 'photo') ? (phList[0] || p.photographer || 'Photographer') :
+                           (c.type === 'video' || c.type === 'drone') ? (viList[0] || p.videographer || 'Videographer') :
                            (phList[0] || viList[0] || sName);
 
         addDataEntry({
