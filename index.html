@@ -9627,7 +9627,7 @@ function renderNasDashboard() {
     } else {
       html += '<div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:14px;text-align:center;margin-top:8px">' +
         '<div style="font-size:12px;color:#64748b;margin-bottom:6px">No telemetry received from this NAS yet.</div>' +
-        '<button class="btn btn-sm" onclick="openNasSetupModal()" style="font-size:11px;background:#fff;border:1px solid #cbd5e1;color:#1d4ed8;font-weight:700">Setup Script on ' + cfg.city + '</button>' +
+        '<button class="btn btn-sm" onclick="openNasSetupModal(\'' + cfg.id.replace('nas-','') + '\')" style="font-size:11px;background:#fff;border:1px solid #cbd5e1;color:#1d4ed8;font-weight:700">Setup Script on ' + cfg.city + '</button>' +
       '</div>';
     }
 
@@ -9790,7 +9790,7 @@ function renderNasDashboard() {
         '<td style="padding:10px 12px">' + locationBadges + '</td>' +
         '<td style="padding:10px 12px">' +
           '<strong style="color:#0f172a">' + (item.maxSizeGB ? item.maxSizeGB + ' GB' : '—') + '</strong>' +
-          '<div style="font-size:10px;color:#64748b">' + fmtNum(item.totalFiles) + ' files</div>' +
+          '<div style="font-size:10px;color:#64748b">' + (item.totalFiles > 0 ? fmtNum(item.totalFiles) + ' files' : ((item.subfolders && item.subfolders.length) ? item.subfolders.length + ' subfolders' : 'Footage Secured')) + '</div>' +
         '</td>' +
         '<td style="padding:10px 12px;color:#64748b;font-size:11px">' + escHtml(item.mtime) + '</td>' +
         '<td style="padding:10px 12px">' + matchHtml + '</td>' +
@@ -10138,7 +10138,7 @@ function renderProjectNasStorage(p) {
           activeBadge +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:8px">' +
-          '<div style="font-size:11px;color:#64748b">Total Size: <strong style="color:#0f172a">' + totalGB.toFixed(1) + ' GB</strong> · ' + fmtNum(totalFiles) + ' files</div>' +
+          '<div style="font-size:11px;color:#64748b">Total Size: <strong style="color:#0f172a">' + totalGB.toFixed(1) + ' GB</strong>' + (totalFiles > 0 ? ' · ' + fmtNum(totalFiles) + ' files' : '') + '</div>' +
           purgeBtn +
           '<button class="btn btn-sm" onclick="_nasOpenHddOffloadModal(' + p.id + ')" style="background:#fff7ed;border:1px solid #fdba74;color:#c2410c;font-weight:700;font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">📦 Offload to Hard Drive</button>' +
         '</div>' +
@@ -10173,7 +10173,7 @@ function renderProjectNasStorage(p) {
         '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
           '<div>' +
             '<div style="font-family:monospace;font-size:12px;font-weight:700;color:#0f172a">' + escHtml(f.folder) + '</div>' +
-            '<div style="font-size:10px;color:#64748b">' + escHtml(f.relPath) + ' · ' + (f.maxSizeGB ? f.maxSizeGB + ' GB' : '') + ' · ' + fmtNum(f.totalFiles) + ' files · Last modified: ' + escHtml(f.mtime) + '</div>' +
+            '<div style="font-size:10px;color:#64748b">' + escHtml(f.relPath) + ' · ' + (f.maxSizeGB ? f.maxSizeGB + ' GB' : '') + (f.totalFiles > 0 ? ' · ' + fmtNum(f.totalFiles) + ' files' : '') + ' · Last modified: ' + escHtml(f.mtime) + '</div>' +
             subBadge +
           '</div>' +
           '<div style="display:flex;gap:6px;align-items:center">' +
@@ -10215,47 +10215,76 @@ function renderProjectNasStorage(p) {
   box.innerHTML = html;
 }
 
-function openNasSetupModal() {
+function openNasSetupModal(nasTarget) {
   var old = document.getElementById('nas-setup-guide-modal');
   if (old) old.remove();
+
+  var target = nasTarget || 'faridabad';
+
+  var FAR_CMD = 'cat << \'KBSCRIPT\' > /share/TEAM-FAR/nas_report_faridabad.sh\n#!/bin/sh\nNAS_ID="nas-faridabad"\nNAS_LABEL="Faridabad NAS"\nSCAN_ROOT="/share/TEAM-FAR"\nFIREBASE_URL="https://kbstudiocrm-default-rtdb.asia-southeast1.firebasedatabase.app"\nFIREBASE_SECRET="bBmC46YXHKbbSsgcmoWbgm2CdRWTR2IV5BQrmTrk"\nLOG_FILE="/share/TEAM-FAR/nas_report.log"\nlog_msg() { echo "[$( date \'+%Y-%m-%d %H:%M:%S\')] $1"; echo "[$( date \'+%Y-%m-%d %H:%M:%S\')] $1" >> "$LOG_FILE" 2>/dev/null; }\nlog_msg "=== Starting scan for $NAS_LABEL ==="\nDISK_INFO=$(df -k "$SCAN_ROOT" 2>/dev/null | tail -n 1)\nTOTAL_KB=$(echo "$DISK_INFO" | awk \'{print $2}\')\nUSED_KB=$(echo "$DISK_INFO" | awk \'{print $3}\')\nFREE_KB=$(echo "$DISK_INFO" | awk \'{print $4}\')\nUSE_PCT_RAW=$(echo "$DISK_INFO" | awk \'{for(i=1;i<=NF;i++) if($i~/%/){gsub(/%/,"",$i);print $i;exit}}\')\nTOTAL_GB=$(awk "BEGIN{printf \\"%.2f\\",${TOTAL_KB:-0}/1048576}" 2>/dev/null||echo "89739")\nUSED_GB=$(awk "BEGIN{printf \\"%.2f\\",${USED_KB:-0}/1048576}" 2>/dev/null||echo "0")\nFREE_GB=$(awk "BEGIN{printf \\"%.2f\\",${FREE_KB:-0}/1048576}" 2>/dev/null||echo "89739")\nUSE_PCT="${USE_PCT_RAW:-1}"\nJSON_FOLDERS=""; FOLDER_COUNT=0; TOTAL_DATA_KB=0\nesc(){ printf \'%s\' "$1"|sed \'s/\\\\/\\\\\\\\/g;s/"/\\\\"/g\'; }\nis_skip(){ case "$1" in .*|@*|lost+found|@Recycle|@Recently-Snapshot|@Trash|@tmp|@AppData|@eaDir|_TEMPLATE*|*.sh|*.log) return 0;; "Ankit Project"|"Ankit_Project"|"Ifrose"|"Afroz"|"Vivek"|"Rahul"|"Subrat Project"|"Subrat_Project"|"Sangeet Project") return 0;; esac; return 1; }\nis_container(){ N="$1"; case "$N" in 202[0-9]) return 0;; esac; U=$(echo "$N"|tr \'[:lower:]\' \'[:upper:]\'|sed \'s/^[0-9]*[_-]*//\'); case "$U" in JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER) return 0;; esac; case "$(echo "$N"|tr \'[:lower:]\' \'[:upper:]\')" in *"MUMBAI DATA"*|*"FINAL FILES"*|*"PENDING_BACKLOG"*|*"NEW PROJECTS"*|*"BACKUP"*|*"OLD DATA"*|*"ARCHIVE"*|*"PENDING"*|*"FAR DATA"*|*"DELHI DATA"*) return 0;; esac; return 1; }\nis_shoot(){ U=$(echo "$1"|tr \'[:lower:]\' \'[:upper:]\'); case "$U" in CAM*|CAMERA*|DAY*|DRONE*|AUDIO*|GH*|GOPRO*|SOUND*|PHOTO*|CANDID*|TRADITIONAL*|VIDEO*|RAW*|MEDIA*|RUSHES*|FOOTAGE*|CARDS*|EXPORT*|RENDER*|TEASER*|HIGHLIGHT*|REEL*|FILM*|SELECTION*|COLOR*|GRADE*|WEDDING|MEHENDI|HALDI|SANGEET|RECEPTION|ROKA|ENGAGEMENT) return 0;; esac; return 1; }\nrecord_p(){ P_DIR="$1"; P_PRE="$2"; [ -d "$P_DIR" ]||return; PN=$(basename "$P_DIR"); is_skip "$PN"&&return; is_container "$PN"&&return; PKB=$(du -sk "$P_DIR" 2>/dev/null|awk \'{print $1}\'); [ -z "$PKB" ]&&PKB=0; TOTAL_DATA_KB=$((TOTAL_DATA_KB+PKB)); PGB=$(awk "BEGIN{printf \\"%.2f\\",$PKB/1048576}" 2>/dev/null||echo "0"); PMT=$(date -r "$P_DIR" +"%Y-%m-%d %H:%M" 2>/dev/null||echo "Unknown"); SJ=""; for SUB in "$P_DIR"/*/; do SUB="${SUB%/}"; [ -d "$SUB" ]||continue; SN=$(basename "$SUB"); case "$SN" in .*|@*) continue;; esac; SKB=$(du -sk "$SUB" 2>/dev/null|awk \'{print $1}\'); [ -z "$SKB" ]&&SKB=0; SGB=$(awk "BEGIN{printf \\"%.2f\\",$SKB/1048576}" 2>/dev/null||echo "0"); ESN=$(esc "$SN"); SI="{\"name\":\"$ESN\",\"sizeGB\":$SGB,\"fileCount\":0}"; [ -n "$SJ" ]&&SJ="$SJ,$SI"||SJ="$SI"; done; EF=$(esc "$PN"); ER=$(esc "${P_PRE}/${PN}"); ITEM="{\"folder\":\"$EF\",\"relPath\":\"$ER\",\"year\":\"\",\"month\":\"\",\"sizeGB\":$PGB,\"fileCount\":0,\"mtime\":\"$PMT\",\"subfolders\":[$SJ]}"; [ -n "$JSON_FOLDERS" ]&&JSON_FOLDERS="$JSON_FOLDERS,$ITEM"||JSON_FOLDERS="$ITEM"; FOLDER_COUNT=$((FOLDER_COUNT+1)); log_msg "Found: ${P_PRE}/${PN} ($PGB GB)"; }\nscan_d(){ DIR="$1"; PRE="$2"; D="${3:-0}"; [ -d "$DIR" ]||return; [ "$D" -gt 5 ]&&return; DN=$(basename "$DIR"); if [ "$D" -eq 0 ]; then for C in "$DIR"/*/; do C="${C%/}"; [ -d "$C" ]||continue; CN=$(basename "$C"); is_skip "$CN"&&continue; scan_d "$C" "" 1; done; return; fi; if is_container "$DN"; then NP="${PRE:+${PRE}/}${DN}"; for C in "$DIR"/*/; do C="${C%/}"; [ -d "$C" ]||continue; CN=$(basename "$C"); is_skip "$CN"&&continue; scan_d "$C" "$NP" $((D+1)); done; return; fi; echo "$DN"|grep -qE \'[A-Za-z]{2,}\'&&! is_shoot "$DN"&&! is_skip "$DN"&&! is_container "$DN"&&{ record_p "$DIR" "${PRE}"; return; }; NP="${PRE:+${PRE}/}${DN}"; for C in "$DIR"/*/; do C="${C%/}"; [ -d "$C" ]||continue; CN=$(basename "$C"); is_skip "$CN"&&continue; scan_d "$C" "$NP" $((D+1)); done; }\nlog_msg "Scanning $SCAN_ROOT recursively..."\nscan_d "$SCAN_ROOT" "" 0\nTOTAL_DATA_GB=$(awk "BEGIN{printf \\"%.2f\\",$TOTAL_DATA_KB/1048576}" 2>/dev/null||echo "0")\nREPORTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null||date +"%Y-%m-%dT%H:%M:%SZ")\nlog_msg "Done. Folders: $FOLDER_COUNT | Data: ${TOTAL_DATA_GB} GB"\nPAY="{\"nasId\":\"$NAS_ID\",\"nasLabel\":\"$NAS_LABEL\",\"reportedAt\":\"$REPORTED_AT\",\"diskTotalGB\":$TOTAL_GB,\"diskUsedGB\":$USED_GB,\"diskFreeGB\":$FREE_GB,\"diskUsagePercent\":$USE_PCT,\"scanRoot\":\"$SCAN_ROOT\",\"folderCount\":$FOLDER_COUNT,\"totalDataGB\":$TOTAL_DATA_GB,\"folders\":[$JSON_FOLDERS]}"\nTMP="/tmp/nas_report_${NAS_ID}.json"\necho "$PAY" > "$TMP"\nHTTP=$(curl -s -k -w "%{http_code}" -o /dev/null -X PUT -H "Content-Type: application/json" --data-binary "@$TMP" "$FIREBASE_URL/crm_nas_reports/$NAS_ID.json?auth=$FIREBASE_SECRET" 2>/dev/null)\nrm -f "$TMP"\nlog_msg "Pushed. HTTP=$HTTP Folders=$FOLDER_COUNT"\nKBSCRIPT\nchmod +x /share/TEAM-FAR/nas_report_faridabad.sh && /bin/sh /share/TEAM-FAR/nas_report_faridabad.sh';
+
+  var FAR_CRON = 'sudo sh -c \'grep -v nas_report_faridabad /etc/config/crontab > /tmp/ct.tmp && echo "0 * * * * /bin/sh /share/TEAM-FAR/nas_report_faridabad.sh > /dev/null 2>&1" >> /tmp/ct.tmp && cp /tmp/ct.tmp /etc/config/crontab && crontab /etc/config/crontab && /etc/init.d/crond.sh restart\'';
+
+  var DEL_CMD = 'cat << \'KBSCRIPT\' > /share/DATA/nas_report_delhi.sh\n#!/bin/sh\nNAS_ID="nas-delhi"\nNAS_LABEL="Delhi NAS"\nSCAN_ROOT="/share/DATA"\nFIREBASE_URL="https://kbstudiocrm-default-rtdb.asia-southeast1.firebasedatabase.app"\nFIREBASE_SECRET="bBmC46YXHKbbSsgcmoWbgm2CdRWTR2IV5BQrmTrk"\nLOG_FILE="/share/DATA/nas_report.log"\nlog_msg() { echo "[$( date \'+%Y-%m-%d %H:%M:%S\')] $1"; echo "[$( date \'+%Y-%m-%d %H:%M:%S\')] $1" >> "$LOG_FILE" 2>/dev/null; }\nlog_msg "=== Starting scan for $NAS_LABEL ==="\nDISK_INFO=$(df -k "$SCAN_ROOT" 2>/dev/null | tail -n 1)\nTOTAL_KB=$(echo "$DISK_INFO" | awk \'{print $2}\')\nUSED_KB=$(echo "$DISK_INFO" | awk \'{print $3}\')\nFREE_KB=$(echo "$DISK_INFO" | awk \'{print $4}\')\nUSE_PCT_RAW=$(echo "$DISK_INFO" | awk \'{for(i=1;i<=NF;i++) if($i~/%/){gsub(/%/,"",$i);print $i;exit}}\')\nTOTAL_GB=$(awk "BEGIN{printf \\"%.2f\\",${TOTAL_KB:-0}/1048576}" 2>/dev/null||echo "56550")\nUSED_GB=$(awk "BEGIN{printf \\"%.2f\\",${USED_KB:-0}/1048576}" 2>/dev/null||echo "0")\nFREE_GB=$(awk "BEGIN{printf \\"%.2f\\",${FREE_KB:-0}/1048576}" 2>/dev/null||echo "56550")\nUSE_PCT="${USE_PCT_RAW:-0}"\nJSON_FOLDERS=""; FOLDER_COUNT=0; TOTAL_DATA_KB=0\nesc(){ printf \'%s\' "$1"|sed \'s/\\\\/\\\\\\\\/g;s/"/\\\\"/g\'; }\nis_skip(){ case "$1" in .*|@*|lost+found|@Recycle|@Recently-Snapshot|@Trash|@tmp|@AppData|@eaDir|_TEMPLATE*|*.sh|*.log) return 0;; "Ankit Project"|"Ankit_Project"|"Ifrose"|"Afroz"|"Vivek"|"Rahul"|"Subrat Project"|"Subrat_Project"|"Sangeet Project") return 0;; esac; return 1; }\nis_container(){ N="$1"; case "$N" in 202[0-9]) return 0;; esac; U=$(echo "$N"|tr \'[:lower:]\' \'[:upper:]\'|sed \'s/^[0-9]*[_-]*//\'); case "$U" in JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER) return 0;; esac; case "$(echo "$N"|tr \'[:lower:]\' \'[:upper:]\')" in *"MUMBAI DATA"*|*"FINAL FILES"*|*"PENDING_BACKLOG"*|*"NEW PROJECTS"*|*"BACKUP"*|*"OLD DATA"*|*"ARCHIVE"*|*"PENDING"*|*"FAR DATA"*|*"DELHI DATA"*) return 0;; esac; return 1; }\nis_shoot(){ U=$(echo "$1"|tr \'[:lower:]\' \'[:upper:]\'|sed \'s/^0*//\'); case "$U" in CAM*|CAMERA*|DAY*|DRONE*|AUDIO*|GH*|GOPRO*|SOUND*|PHOTO*|CANDID*|TRADITIONAL*|VIDEO*|RAW*|MEDIA*|RUSHES*|FOOTAGE*|CARDS*|EXPORT*|RENDER*|TEASER*|HIGHLIGHT*|REEL*|FILM*|SELECTION*|COLOR*|GRADE*|WEDDING|MEHENDI|HALDI|SANGEET|RECEPTION|ROKA|ENGAGEMENT) return 0;; esac; return 1; }\nrecord_p(){ P_DIR="$1"; P_PRE="$2"; [ -d "$P_DIR" ]||return; PN=$(basename "$P_DIR"); is_skip "$PN"&&return; is_container "$PN"&&return; PKB=$(du -sk "$P_DIR" 2>/dev/null|awk \'{print $1}\'); [ -z "$PKB" ]&&PKB=0; TOTAL_DATA_KB=$((TOTAL_DATA_KB+PKB)); PGB=$(awk "BEGIN{printf \\"%.2f\\",$PKB/1048576}" 2>/dev/null||echo "0"); PMT=$(date -r "$P_DIR" +"%Y-%m-%d %H:%M" 2>/dev/null||echo "Unknown"); SJ=""; for SUB in "$P_DIR"/*/; do SUB="${SUB%/}"; [ -d "$SUB" ]||continue; SN=$(basename "$SUB"); case "$SN" in .*|@*) continue;; esac; SKB=$(du -sk "$SUB" 2>/dev/null|awk \'{print $1}\'); [ -z "$SKB" ]&&SKB=0; SGB=$(awk "BEGIN{printf \\"%.2f\\",$SKB/1048576}" 2>/dev/null||echo "0"); ESN=$(esc "$SN"); SI="{\"name\":\"$ESN\",\"sizeGB\":$SGB,\"fileCount\":0}"; [ -n "$SJ" ]&&SJ="$SJ,$SI"||SJ="$SI"; done; EF=$(esc "$PN"); ER=$(esc "${P_PRE}/${PN}"); ITEM="{\"folder\":\"$EF\",\"relPath\":\"$ER\",\"year\":\"\",\"month\":\"\",\"sizeGB\":$PGB,\"fileCount\":0,\"mtime\":\"$PMT\",\"subfolders\":[$SJ]}"; [ -n "$JSON_FOLDERS" ]&&JSON_FOLDERS="$JSON_FOLDERS,$ITEM"||JSON_FOLDERS="$ITEM"; FOLDER_COUNT=$((FOLDER_COUNT+1)); log_msg "Found: ${P_PRE}/${PN} ($PGB GB)"; }\nscan_d(){ DIR="$1"; PRE="$2"; D="${3:-0}"; [ -d "$DIR" ]||return; [ "$D" -gt 5 ]&&return; DN=$(basename "$DIR"); if [ "$D" -eq 0 ]; then for C in "$DIR"/*/; do C="${C%/}"; [ -d "$C" ]||continue; CN=$(basename "$C"); is_skip "$CN"&&continue; scan_d "$C" "" 1; done; return; fi; if is_container "$DN"; then NP="${PRE:+${PRE}/}${DN}"; for C in "$DIR"/*/; do C="${C%/}"; [ -d "$C" ]||continue; CN=$(basename "$C"); is_skip "$CN"&&continue; scan_d "$C" "$NP" $((D+1)); done; return; fi; echo "$DN"|grep -qE \'[A-Za-z]{2,}\'&&! is_shoot "$DN"&&! is_skip "$DN"&&! is_container "$DN"&&{ record_p "$DIR" "${PRE}"; return; }; NP="${PRE:+${PRE}/}${DN}"; for C in "$DIR"/*/; do C="${C%/}"; [ -d "$C" ]||continue; CN=$(basename "$C"); is_skip "$CN"&&continue; scan_d "$C" "$NP" $((D+1)); done; }\nlog_msg "Scanning $SCAN_ROOT recursively..."\nscan_d "$SCAN_ROOT" "" 0\nTOTAL_DATA_GB=$(awk "BEGIN{printf \\"%.2f\\",$TOTAL_DATA_KB/1048576}" 2>/dev/null||echo "0")\nREPORTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null||date +"%Y-%m-%dT%H:%M:%SZ")\nlog_msg "Done. Folders: $FOLDER_COUNT | Data: ${TOTAL_DATA_GB} GB"\nPAY="{\"nasId\":\"$NAS_ID\",\"nasLabel\":\"$NAS_LABEL\",\"reportedAt\":\"$REPORTED_AT\",\"diskTotalGB\":$TOTAL_GB,\"diskUsedGB\":$USED_GB,\"diskFreeGB\":$FREE_GB,\"diskUsagePercent\":$USE_PCT,\"scanRoot\":\"$SCAN_ROOT\",\"folderCount\":$FOLDER_COUNT,\"totalDataGB\":$TOTAL_DATA_GB,\"folders\":[$JSON_FOLDERS]}"\nTMP="/tmp/nas_report_${NAS_ID}.json"\necho "$PAY" > "$TMP"\nHTTP=$(curl -s -k -w "%{http_code}" -o /dev/null -X PUT -H "Content-Type: application/json" --data-binary "@$TMP" "$FIREBASE_URL/crm_nas_reports/$NAS_ID.json?auth=$FIREBASE_SECRET" 2>/dev/null)\nrm -f "$TMP"\nlog_msg "Pushed. HTTP=$HTTP Folders=$FOLDER_COUNT"\nKBSCRIPT\nchmod +x /share/DATA/nas_report_delhi.sh && /bin/sh /share/DATA/nas_report_delhi.sh';
+
+  var DEL_CRON = 'sudo sh -c \'grep -v nas_report_delhi /etc/config/crontab > /tmp/ct.tmp && echo "0 * * * * /bin/sh /share/DATA/nas_report_delhi.sh > /dev/null 2>&1" >> /tmp/ct.tmp && cp /tmp/ct.tmp /etc/config/crontab && crontab /etc/config/crontab && /etc/init.d/crond.sh restart\'';
+
+  function mkTab(id, label, active) {
+    return '<button onclick="window._nasSetupTab=\''+id+'\';[...document.querySelectorAll(\'.nas-stab\')].forEach(b=>{b.style.background=\'#f1f5f9\';b.style.color=\'#334155\';b.style.fontWeight=\'600\'});this.style.background=\'#1d4ed8\';this.style.color=\'#fff\';[...document.querySelectorAll(\'.nas-spanel\')].forEach(p=>{p.style.display=p.id===\'nsp-'+id+'\'?\'block\':\'none\'})" class="nas-stab" style="padding:7px 14px;border:none;border-radius:7px;cursor:pointer;font-size:12px;background:'+(active?'#1d4ed8':'#f1f5f9')+';color:'+(active?'#fff':'#334155')+';font-weight:700">'+label+'</button>';
+  }
+
+  function mkPanel(id, copyId, title, cmd, cronCmd, visible) {
+    return '<div id="nsp-'+id+'" class="nas-spanel" style="display:'+(visible?'block':'none')+'">' +
+      '<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:14px;color:#15803d;font-size:12px">' +
+        '<strong>🔁 Universal Recursive Script v2 — Finds ALL projects at any folder depth.</strong><br>Works with: <code>2026/10_OCTOBER/Client</code>, <code>ClientName</code> (root), or any nested structure.' +
+      '</div>' +
+      '<p style="margin:0 0 10px 0;font-weight:700;color:#0f172a">Step 1: SSH into '+title+' and run this ONE command:</p>' +
+      '<div style="position:relative">' +
+        '<pre id="'+copyId+'" style="background:#0f172a;color:#f8fafc;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;margin:0 0 8px 0;white-space:pre-wrap;word-break:break-all">'+escHtml(cmd)+'</pre>' +
+        '<button onclick="var el=document.getElementById(\''+copyId+'\');navigator.clipboard.writeText(el.textContent).then(function(){var b=event.target;b.textContent=\'✅ Copied!\';setTimeout(function(){b.textContent=\'📋 Copy\'},2000)})" style="position:absolute;top:8px;right:8px;background:#334155;border:none;color:#fff;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:700">📋 Copy</button>' +
+      '</div>' +
+      '<p style="margin:10px 0;font-size:12px;color:#64748b">The script writes itself to the NAS and runs immediately. Watch for <code>Pushed. HTTP=200 Folders=N</code> in the output.</p>' +
+      '<p style="margin:0 0 8px 0;font-weight:700;color:#0f172a">Step 2: Lock in hourly auto-sync (run once):</p>' +
+      '<div style="position:relative">' +
+        '<pre id="'+copyId+'-cron" style="background:#0f172a;color:#f8fafc;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;margin:0;white-space:pre-wrap;word-break:break-all">'+escHtml(cronCmd)+'</pre>' +
+        '<button onclick="var el=document.getElementById(\''+copyId+'-cron\');navigator.clipboard.writeText(el.textContent).then(function(){var b=event.target;b.textContent=\'✅ Copied!\';setTimeout(function(){b.textContent=\'📋 Copy\'},2000)})" style="position:absolute;top:8px;right:8px;background:#334155;border:none;color:#fff;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:700">📋 Copy</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  var html = '<div style="background:#fff;border-radius:14px;max-width:820px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 25px -5px rgba(0,0,0,0.15);overflow:hidden">' +
+    '<div style="padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc">' +
+      '<div style="font-size:15px;font-weight:800;color:#0f172a">🖥️ NAS Auto-Sync Setup — KB Studio</div>' +
+      '<button onclick="document.getElementById(\'nas-setup-guide-modal\').remove()" style="background:none;border:none;font-size:22px;color:#64748b;cursor:pointer">&times;</button>' +
+    '</div>' +
+    '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;gap:8px;flex-wrap:wrap">' +
+      mkTab('faridabad', '🏢 Faridabad NAS', target==='faridabad') +
+      mkTab('delhi', '🏛️ Delhi NAS', target==='delhi') +
+      mkTab('mumbai', '🌊 Mumbai NAS', target==='mumbai') +
+    '</div>' +
+    '<div style="padding:20px;overflow-y:auto;font-size:13px;line-height:1.6;color:#334155">' +
+      '<div style="background:#e0f2fe;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-bottom:16px;color:#0369a1;font-size:12px">' +
+        '<strong>🔒 Secure:</strong> Scripts run entirely inside your studio network. No data leaves your QNAP — only folder names, sizes, and timestamps go to Firebase.' +
+      '</div>' +
+      mkPanel('faridabad', 'far-cmd', 'Faridabad NAS (192.168.0.200)', FAR_CMD, FAR_CRON, target==='faridabad') +
+      mkPanel('delhi', 'del-cmd', 'Delhi NAS (192.168.0.54)', DEL_CMD, DEL_CRON, target==='delhi') +
+      '<div id="nsp-mumbai" class="nas-spanel" style="display:'+(target==='mumbai'?'block':'none')+'">' +
+        '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;color:#92400e">' +
+          '<strong>🌊 Mumbai NAS Setup</strong><br>Mumbai NAS (<code>45.248.67.158</code>) requires AnyDesk/remote desktop access. Connect to the Mumbai server, open a terminal, and run the same style of script with:<br><br>' +
+          '<code>NAS_ID="nas-mumbai"<br>NAS_LABEL="Mumbai NAS"<br>SCAN_ROOT="/DATA/Team"</code><br><br>' +
+          'Ask Antigravity to generate the full Mumbai script when you are connected to the Mumbai server.' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="padding:12px 20px;border-top:1px solid #e2e8f0;background:#f8fafc;display:flex;justify-content:flex-end">' +
+      '<button onclick="document.getElementById(\'nas-setup-guide-modal\').remove()" class="btn btn-primary" style="padding:8px 18px;font-weight:700">Close</button>' +
+    '</div>' +
+  '</div>';
 
   var modal = document.createElement('div');
   modal.id = 'nas-setup-guide-modal';
   modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)';
-
-  modal.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:760px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 25px -5px rgba(0,0,0,0.1),0 10px 10px -5px rgba(0,0,0,0.04);overflow:hidden">' +
-    '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#f8fafc">' +
-      '<div style="font-size:16px;font-weight:800;color:#0f172a;display:flex;align-items:center;gap:8px">' +
-        '<span>🖥️ QNAP NAS Fleet Integration Guide</span>' +
-      '</div>' +
-      '<button onclick="document.getElementById(\'nas-setup-guide-modal\').remove()" style="background:none;border:none;font-size:20px;color:#64748b;cursor:pointer">&times;</button>' +
-    '</div>' +
-    '<div style="padding:20px;overflow-y:auto;font-size:13px;line-height:1.6;color:#334155">' +
-      '<div style="background:#e0f2fe;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-bottom:16px;color:#0369a1">' +
-        '<strong>🔒 100% Private &amp; Secure:</strong> Your QNAP NAS units are never exposed to the internet. The script makes outgoing calls to Firebase RTDB from inside your studio network, identical to a browser visiting a webpage.' +
-      '</div>' +
-      '<h4 style="margin:0 0 8px 0;color:#0f172a">Step 1: Download the Shell Script</h4>' +
-      '<p style="margin:0 0 12px 0">The script <code>nas_report.sh</code> has been placed in your CRM workspace and on your Desktop. You can run it on Faridabad, Delhi, or Mumbai units.</p>' +
-      '<h4 style="margin:16px 0 8px 0;color:#0f172a">Step 2: Edit NAS Configuration</h4>' +
-      '<p style="margin:0 0 8px 0">Set the identifier for each studio unit inside <code>nas_report.sh</code>:</p>' +
-      '<ul style="margin:0 0 12px 20px;padding:0">' +
-        '<li><strong>Faridabad:</strong> <code>NAS_ID="nas-faridabad"</code> (Shared folder: <code>/share/TEAM-FAR</code>)</li>' +
-        '<li><strong>Delhi:</strong> <code>NAS_ID="nas-delhi"</code></li>' +
-        '<li><strong>Mumbai:</strong> <code>NAS_ID="nas-mumbai"</code></li>' +
-      '</ul>' +
-      '<h4 style="margin:16px 0 8px 0;color:#0f172a">Step 3: Schedule Nightly on QNAP (Survives Reboot)</h4>' +
-      '<p style="margin:0 0 8px 0">Log into the QNAP via SSH and add to <code>/etc/config/crontab</code>:</p>' +
-      '<pre style="background:#0f172a;color:#f8fafc;padding:10px 12px;border-radius:6px;font-size:12px;overflow-x:auto;margin:0 0 12px 0">sudo sh -c \'echo "0 3 * * * sh /share/Public/nas_report_faridabad.sh >/dev/null 2>&1" >> /etc/config/crontab && crontab /etc/config/crontab && /etc/init.d/crond.sh restart\'</pre>' +
-      '<p style="margin:0 0 12px 0">The script will scan all client folders nightly at 3:00 AM and report space, files, and sizes directly here in the CRM!</p>' +
-      '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;color:#92400e;margin-top:16px">' +
-        '<strong>Full Step-by-Step Guide:</strong> A comprehensive guide for non-technical users with detailed screenshots and explanations is saved in <code>NAS_SETUP_INSTRUCTIONS.md</code>.' +
-      '</div>' +
-    '</div>' +
-    '<div style="padding:12px 20px;border-top:1px solid #e2e8f0;background:#f8fafc;display:flex;justify-content:flex-end">' +
-      '<button onclick="document.getElementById(\'nas-setup-guide-modal\').remove()" class="btn btn-primary" style="padding:8px 18px;font-weight:700">Close Guide</button>' +
-    '</div>' +
-  '</div>';
-
+  modal.innerHTML = html;
   document.body.appendChild(modal);
 }
 
