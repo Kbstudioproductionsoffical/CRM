@@ -7889,8 +7889,13 @@ function renderDataVault() {
 
   pl().forEach(function(p) {
     var hasEntries = p.dataEntries && p.dataEntries.length > 0;
+    var nasFolders = _nasByProjId[String(p.id)] || [];
+    var seenLocations = {};
+
     if (hasEntries) {
       p.dataEntries.forEach(function(e) {
+        var locKey = String(e.location || '').toLowerCase();
+        seenLocations[locKey] = true;
         rows.push({
           couple: coupleName(p.bride, p.groom),
           refcode: p.refcode || '',
@@ -7911,30 +7916,63 @@ function renderDataVault() {
       });
     }
 
-    // AUTOMATION: If project has no manual entries recorded yet, auto-pull from live NAS telemetry
-    // Use pre-built map — no repeated full aggregation
-    var nasFolders = _nasByProjId[String(p.id)] || [];
-    if (!hasEntries && nasFolders.length > 0) {
+    // AUTOMATION: If NAS has shoot subfolders not yet in dataEntries (e.g. VIDEO, CAMERA RAW), surface them immediately!
+    if (nasFolders.length > 0) {
       nasFolders.forEach(function(nf) {
-        var locLabel = (nf.nasList && nf.nasList.indexOf('nas-faridabad') !== -1) ? 'Faridabad NAS' : 'NAS Storage';
-        rows.push({
-          couple: coupleName(p.bride, p.groom),
-          refcode: p.refcode || '',
-          eventDate: p.date || '',
-          stage: p.stage || '',
-          photographer: p.photographer || p.videographer || 'Studio Crew',
-          size: nf.maxSizeGB ? String(nf.maxSizeGB) : '',
-          unit: 'GB',
-          location: locLabel,
-          backup: 'yes',
-          status: 'secured',
-          hdOwner:  p.d_hd_owner  || '',
-          hdStatus: p.d_hd_status || '',
-          hdDate:   p.d_hd_date   || '',
-          hdNotes:  p.dm_hd_notes || '',
-          projId: p.id,
-          autoNas: true
-        });
+        var locLabel = (nf.nasList && nf.nasList.indexOf('nas-faridabad') !== -1) ? 'Faridabad NAS' :
+                       (nf.nasList && nf.nasList.indexOf('nas-delhi') !== -1) ? 'Delhi NAS' :
+                       (nf.nasList && nf.nasList.indexOf('nas-mumbai') !== -1) ? 'Mumbai NAS' : 'NAS Storage';
+        if (Array.isArray(nf.subfolders) && nf.subfolders.length > 0) {
+          nf.subfolders.forEach(function(sub) {
+            var sName = sub.name || '';
+            var c = _nasClassifySubfolder(sName);
+            if (!c.isShootCrew) return;
+            var subLoc = locLabel + ' (' + sName + ')';
+            if (seenLocations[subLoc.toLowerCase()]) return; // Already rendered from dataEntries
+            var crewTitle = (c.type === 'photo') ? (p.photographer || 'Photographer') : (p.videographer || 'Videographer');
+            rows.push({
+              couple: coupleName(p.bride, p.groom),
+              refcode: p.refcode || '',
+              eventDate: p.date || '',
+              stage: p.stage || '',
+              photographer: crewTitle,
+              size: sub.sizeGB ? String(sub.sizeGB) : '',
+              unit: 'GB',
+              location: subLoc,
+              backup: 'yes',
+              status: 'secured',
+              hdOwner:  p.d_hd_owner  || '',
+              hdStatus: p.d_hd_status || '',
+              hdDate:   p.d_hd_date   || '',
+              hdNotes:  p.dm_hd_notes || '',
+              projId: p.id,
+              autoNas: true
+            });
+            seenLocations[subLoc.toLowerCase()] = true;
+          });
+        } else if (!hasEntries) {
+          var genLoc = locLabel;
+          if (!seenLocations[genLoc.toLowerCase()]) {
+            rows.push({
+              couple: coupleName(p.bride, p.groom),
+              refcode: p.refcode || '',
+              eventDate: p.date || '',
+              stage: p.stage || '',
+              photographer: p.photographer || p.videographer || 'Studio Crew',
+              size: nf.maxSizeGB ? String(nf.maxSizeGB) : '',
+              unit: 'GB',
+              location: genLoc,
+              backup: 'yes',
+              status: 'secured',
+              hdOwner:  p.d_hd_owner  || '',
+              hdStatus: p.d_hd_status || '',
+              hdDate:   p.d_hd_date   || '',
+              hdNotes:  p.dm_hd_notes || '',
+              projId: p.id,
+              autoNas: true
+            });
+          }
+        }
       });
     }
   });
@@ -8813,13 +8851,13 @@ function _nasClassifySubfolder(name) {
     return { type: 'audio', label: 'Audio RAW', icon: '🎙️', bg: '#fdf2f8', col: '#9d174d', isShootCrew: true };
   }
 
-  // 6. Camera / Day-wise Raw Shoot Data
-  if (/cam|card|day|haldi|sangeet|wedding|reception|ring|cocktail|01_media|media|raw/i.test(s)) {
+  // 6. Camera / Day-wise Raw Shoot Data & Video Folders
+  if (/video|vid|cam|card|day|haldi|sangeet|wedding|reception|ring|cocktail|01_media|media|raw|footage|rushes|clip|record/i.test(s)) {
     return { type: 'video', label: 'Camera RAW', icon: '🎥', bg: '#eff6ff', col: '#1d4ed8', isShootCrew: true };
   }
 
-  // Default fallback (Generic folder, not a camera card)
-  return { type: 'folder', label: 'Folder', icon: '📁', bg: '#f1f5f9', col: '#475569', isShootCrew: false };
+  // Default fallback: ANY OTHER FOLDER inside a client directory is shoot footage!
+  return { type: 'video', label: 'Shoot Data', icon: '🎥', bg: '#eff6ff', col: '#1d4ed8', isShootCrew: true };
 }
 
 function _nasNormalizeMonth(m) {
@@ -9147,75 +9185,85 @@ function _nasAutoSyncAllProjects() {
     var nasFolders = _nasGetProjectFolders(p);
     if (!nasFolders || !nasFolders.length) return;
 
-    // 1. Auto-fill Data Entries if not present
-    if (!p.dataEntries || !p.dataEntries.length) {
-      var entries = [];
-      nasFolders.forEach(function(nf) {
-        var dayDate = (p.eventDays && p.eventDays[0] && p.eventDays[0].date) || p.date || tod();
-        var locLabel = (nf.nasList && nf.nasList.indexOf('nas-faridabad') !== -1) ? 'Faridabad NAS' : 'NAS Storage';
-        var totalGB = parseFloat(nf.maxSizeGB) || 0;
+    // 1. Auto-fill or Synchronize Data Entries from live NAS telemetry
+    var existingEntries = Array.isArray(p.dataEntries) ? p.dataEntries.slice() : [];
+    // Preserve manual entries (e.g. physical HDDs, client drives)
+    var manualEntries = existingEntries.filter(function(e) {
+      return !(/faridabad\s*nas|delhi\s*nas|mumbai\s*nas|nas\s*storage/i.test(e.location || ''));
+    });
 
-        var phList = (p.photographer ? [p.photographer] : []);
-        var viList = (p.videographer ? [p.videographer] : []);
-        if (p.eventDays && p.eventDays.length) {
-          p.eventDays.forEach(function(ed){
-            if (ed.photographers) phList = phList.concat(ed.photographers);
-            if (ed.videographers) viList = viList.concat(ed.videographers);
-          });
-        }
-        phList = phList.filter(Boolean);
-        viList = viList.filter(Boolean);
-
-        if (Array.isArray(nf.subfolders) && nf.subfolders.length > 0) {
-          nf.subfolders.forEach(function(sub) {
-            var sName = sub.name || '';
-            var sGB = parseFloat(sub.sizeGB) || 0;
-            var c = _nasClassifySubfolder(sName);
-
-            // CRITICAL: NEVER log editor project workspaces or final exports as shoot camera cards!
-            if (!c.isShootCrew) return;
-
-            var assignedCrew = (c.type === 'photo') ? (phList[0] || p.photographer || 'Photographer') :
-                               (c.type === 'video' || c.type === 'drone') ? (viList[0] || p.videographer || 'Videographer') :
-                               (phList[0] || viList[0] || sName);
-            entries.push({
-              date: dayDate,
-              crewName: assignedCrew,
-              size: sGB > 0 ? String(sGB) : '',
-              unit: 'GB',
-              location: locLabel + ' (' + sName + ')',
-              backup: 'yes',
-              status: 'secured'
-            });
-          });
-        } else {
-          var phGB = totalGB > 0 ? (totalGB * 0.4).toFixed(1) : '';
-          var viGB = totalGB > 0 ? (totalGB * 0.6).toFixed(1) : '';
-          entries.push({
-            date: dayDate,
-            crewName: phList[0] || p.photographer || 'Photographer',
-            size: phGB,
-            unit: 'GB',
-            location: locLabel + ' (Photo)',
-            backup: 'yes',
-            status: 'secured'
-          });
-          entries.push({
-            date: dayDate,
-            crewName: viList[0] || p.videographer || 'Videographer',
-            size: viGB,
-            unit: 'GB',
-            location: locLabel + ' (Video)',
-            backup: 'yes',
-            status: 'secured'
-          });
-        }
+    var dayDate = (p.eventDays && p.eventDays[0] && p.eventDays[0].date) || p.date || tod();
+    var phList = (p.photographer ? [p.photographer] : []);
+    var viList = (p.videographer ? [p.videographer] : []);
+    if (p.eventDays && p.eventDays.length) {
+      p.eventDays.forEach(function(ed){
+        if (ed.photographers) phList = phList.concat(ed.photographers);
+        if (ed.videographers) viList = viList.concat(ed.videographers);
       });
+    }
+    phList = phList.filter(Boolean);
+    viList = viList.filter(Boolean);
 
-      if (entries.length > 0) {
-        p.dataEntries = entries;
-        db.ref('crm_projects/' + p.id + '/dataEntries').set(entries);
+    var nasEntries = [];
+    nasFolders.forEach(function(nf) {
+      var locLabel = (nf.nasList && nf.nasList.indexOf('nas-faridabad') !== -1) ? 'Faridabad NAS' :
+                     (nf.nasList && nf.nasList.indexOf('nas-delhi') !== -1) ? 'Delhi NAS' :
+                     (nf.nasList && nf.nasList.indexOf('nas-mumbai') !== -1) ? 'Mumbai NAS' : 'NAS Storage';
+      var totalGB = parseFloat(nf.maxSizeGB) || 0;
+
+      if (Array.isArray(nf.subfolders) && nf.subfolders.length > 0) {
+        nf.subfolders.forEach(function(sub) {
+          var sName = sub.name || '';
+          var sGB = parseFloat(sub.sizeGB) || 0;
+          var c = _nasClassifySubfolder(sName);
+
+          // CRITICAL: NEVER log editor project workspaces or final exports as shoot camera cards!
+          if (!c.isShootCrew) return;
+
+          var assignedCrew = (c.type === 'photo') ? (phList[0] || p.photographer || 'Photographer') :
+                             (c.type === 'video' || c.type === 'drone') ? (viList[0] || p.videographer || 'Videographer') :
+                             (phList[0] || viList[0] || sName);
+          nasEntries.push({
+            date: dayDate,
+            crewName: assignedCrew,
+            size: sGB > 0 ? String(sGB) : '',
+            unit: 'GB',
+            location: locLabel + ' (' + sName + ')',
+            backup: 'yes',
+            status: 'secured'
+          });
+        });
+      } else {
+        var phGB = totalGB > 0 ? (totalGB * 0.4).toFixed(1) : '';
+        var viGB = totalGB > 0 ? (totalGB * 0.6).toFixed(1) : '';
+        nasEntries.push({
+          date: dayDate,
+          crewName: phList[0] || p.photographer || 'Photographer',
+          size: phGB,
+          unit: 'GB',
+          location: locLabel + ' (Photo)',
+          backup: 'yes',
+          status: 'secured'
+        });
+        nasEntries.push({
+          date: dayDate,
+          crewName: viList[0] || p.videographer || 'Videographer',
+          size: viGB,
+          unit: 'GB',
+          location: locLabel + ' (Video)',
+          backup: 'yes',
+          status: 'secured'
+        });
       }
+    });
+
+    var newEntries = manualEntries.concat(nasEntries);
+    var oldJson = JSON.stringify(existingEntries);
+    var newJson = JSON.stringify(newEntries);
+
+    if (newEntries.length > 0 && oldJson !== newJson) {
+      p.dataEntries = newEntries;
+      db.ref('crm_projects/' + p.id + '/dataEntries').set(newEntries);
     }
 
     // 2. CHECK FINAL EVENT DATE FOR POST-PRODUCTION TRANSITION
@@ -11106,11 +11154,27 @@ function autoPopulateDataLogFromNas(isManual) {
     return;
   }
 
-  // If already has dataEntries and not manual override, don't overwrite
+  // If already has dataEntries and not manual override, check if NAS subfolders are missing
   var existingEntries = collectDataEntries();
-  if (existingEntries.length > 0 && !isManual) return;
+  if (existingEntries.length > 0 && !isManual) {
+    var hasMissingNasSub = false;
+    var existingLocs = existingEntries.map(function(e){ return String(e.location||'').toLowerCase(); });
+    nasFolders.forEach(function(nf){
+      if (Array.isArray(nf.subfolders)) {
+        nf.subfolders.forEach(function(sub){
+          var c = _nasClassifySubfolder(sub.name);
+          if (c.isShootCrew) {
+            var subLow = ('(' + (sub.name||'') + ')').toLowerCase();
+            var found = existingLocs.some(function(l){ return l.indexOf(subLow) !== -1; });
+            if (!found) hasMissingNasSub = true;
+          }
+        });
+      }
+    });
+    if (!hasMissingNasSub) return;
+  }
 
-  // Clear rows if manual sync requested or empty
+  // Clear rows if manual sync requested, empty, or missing NAS subfolders
   var dr = document.getElementById('dataentry-rows');
   if (dr) dr.innerHTML = '';
   dataEntryCount = 0;
