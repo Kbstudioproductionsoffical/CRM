@@ -2131,6 +2131,8 @@ document.addEventListener('wheel', function(e) {
         <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap">
           <button id="fl-live-otps-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#fef3c7;border:1px solid #fde047;color:#854d0e;font-weight:700" onclick="showLiveOtpsModal()" title="View live freelancer portal verification OTPs">🔑 Live OTPs <span id="fl-live-otps-badge" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;display:none">0</span></button>
           <button id="fl-quick-shoot-btn" class="btn btn-primary btn-sm" style="font-size:12.5px;padding:8px 14px;font-weight:700" onclick="openQuickShootModal()">➕ Add Shoot Entry</button>
+          <button id="fl-join-link-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;font-weight:700" onclick="flCopyJoinLink()" title="Copy freelancer self-registration link to clipboard">🔗 Copy Join Link</button>
+          <button id="fl-whatsapp-join-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#dcfce7;border:1px solid #86efac;color:#15803d;font-weight:700" onclick="flWhatsappJoinInvite()" title="Send join link via WhatsApp to a new freelancer">📲 WhatsApp Join Invite</button>
           <button id="fl-sheet-import-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-weight:700" onclick="openSheetImportModal()" title="Import all rows from Google Sheet">📥 Import Google Sheet</button>
           <button id="fl-record-pay-btn" class="btn btn-success" style="font-size:12.5px;padding:8px 14px;display:none" onclick="openRecordFlPaymentModal()">💳 Record Payment</button>
           <button id="fl-manual-bill-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#f8fafc;border:1px solid #cbd5e1;color:#1e293b;font-weight:700;display:none" onclick="openAddFlManualBillModal()">➕ Add Bill / Expense</button>
@@ -11943,8 +11945,24 @@ function renderCrewPortal() {
   var portal = _crewPortal.el;
   var crewId = _crewPortal.crewId;
   var eventFilter = _crewPortal.eventFilter;
-  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId];
-  if (!member || !portal) return;
+  // Expanded member lookup: check team, freelancers, and cupAllFreelancers / users
+  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId] ||
+               (window._cupAllFreelancers || {})[crewId] || (window._cupAllTeam || {})[crewId] ||
+               (window._cupAllUsers || {})[crewId];
+  if (!portal) return;
+  if (!member) {
+    // Admin or unknown user: show helpful notice instead of blank
+    portal.innerHTML = '<div style="min-height:100vh;background:linear-gradient(135deg,#0f172a,#1e3a5f);display:flex;align-items:center;justify-content:center;font-family:-apple-system,sans-serif">' +
+      '<div style="background:#fff;border-radius:16px;padding:32px;max-width:420px;width:100%;text-align:center;margin:20px">' +
+        '<div style="font-size:48px;margin-bottom:12px">⚠️</div>' +
+        '<h2 style="color:#0f172a;margin:0 0 8px">Profile Not Found</h2>' +
+        '<p style="color:#64748b;font-size:13px;line-height:1.6">Your login ID (<code>' + escHtml(crewId) + '</code>) was not found in the freelancer database.<br><br>' +
+        'Please contact KB Studio admin to get your profile added, then try logging in again.</p>' +
+        '<button onclick="cupLogout()" style="margin-top:16px;padding:10px 24px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🚪 Back to Login</button>' +
+      '</div>' +
+    '</div>';
+    return;
+  }
   var initials = (member.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().substring(0,2);
 
   var myDays = [];
@@ -23707,6 +23725,53 @@ function ctrDeleteContract(id) {
   });
 }
 
+// ═══ AUTO-ASSIGN PORTAL PINs FOR ALL FREELANCERS ═══════════════════════
+function flAutoAssignPins() {
+  var updates = {};
+  Object.keys(freelancerData || {}).forEach(function(id) {
+    var f = freelancerData[id];
+    if (!f) return;
+    if (f.portalPin && f.portalPin.length >= 4) return; // already set
+    var ph = String(f.phone || f.whatsapp || '').replace(/\D/g, '');
+    var pin = ph.length >= 4 ? ph.slice(-4) : '0000';
+    updates[id + '/portalPin'] = pin;
+    freelancerData[id].portalPin = pin; // update local cache too
+  });
+  if (Object.keys(updates).length > 0) {
+    try { db.ref('crm_freelancers').update(updates); } catch(e) {}
+    console.log('[flAutoAssignPins] Assigned PINs to ' + Object.keys(updates).length + ' freelancers.');
+  }
+}
+
+// ═══ JOIN LINK HELPERS ════════════════════════════════════════════════════
+function flGetJoinLink() {
+  return location.origin + location.pathname + '?join=freelancer';
+}
+
+function flCopyJoinLink() {
+  var link = flGetJoinLink();
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(function() {
+      showToast('✅ Join link copied! Share it with new freelancers → ' + link);
+    }).catch(function() {
+      prompt('Copy this freelancer join link:', link);
+    });
+  } else {
+    prompt('Copy this freelancer join link:', link);
+  }
+}
+
+function flWhatsappJoinInvite() {
+  var link = flGetJoinLink();
+  var msg = encodeURIComponent(
+    'Hi! 🎬 You are invited to join KB Studio Productions as a Freelancer!\n\n' +
+    'Please fill in your details to register:\n' +
+    link + '\n\n' +
+    'You will receive your personal Portal PIN after registering. Looking forward to working with you!'
+  );
+  window.open('https://api.whatsapp.com/send?text=' + msg, '_blank');
+}
+
 function renderFreelancers() {
   try { if (typeof renderFlDirectory === 'function') renderFlDirectory(); } catch (e) {}
   var grid = document.getElementById('freelancer-grid'); if (!grid) return;
@@ -23780,9 +23845,23 @@ function renderFreelancers() {
           (f.notes  ? '<div style="grid-column:1/-1;color:#888;font-style:italic;font-size:11px">'+f.notes+'</div>' : '') +
         '</div>' +
         (f.upi ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;font-size:11px;color:#6d28d9;font-family:monospace">UPI: '+f.upi+'</div>' : '') +
+        (function(){
+          var pin = f.portalPin || '';
+          if (!pin) { var ph=(String(f.phone||f.whatsapp||'')).replace(/\D/g,''); pin = ph.length>=4?ph.slice(-4):'0000'; }
+          var portalLink = location.origin + location.pathname + '?portal=crew';
+          var waPhone = String(f.whatsapp||f.phone||'').replace(/\D/g,'');
+          if(waPhone.length===10) waPhone='91'+waPhone;
+          var waMsg = encodeURIComponent('Hi '+f.name+'! Your KB Studio Freelancer Portal is ready.\n\nPortal Link: '+portalLink+'\nYour Mobile: (use your registered number)\nYour PIN: '+pin+'\n\nSign in with OTP or PIN at any time!');
+          return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:6px">' +
+            '<span style="font-size:11px;background:#fef3c7;border:1px solid #fde047;border-radius:6px;padding:3px 8px;font-weight:800;color:#78350f;cursor:pointer" onclick="showToast(\'🔑 PIN for '+escHtml(f.name||'')+': '+pin+' (send portal link with WhatsApp invite button)\')" title="Click to view PIN">🔑 PIN: ' + pin + '</span>' +
+            (waPhone ? '<a href="https://api.whatsapp.com/send?phone='+waPhone+'&text='+waMsg+'" target="_blank" style="font-size:11px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 8px;font-weight:700;color:#15803d;text-decoration:none">📲 Send Portal Invite</a>' : '') +
+          '</div>';
+        })() +
       '</div>';
     }).join('') +
   '</div>';
+  // Auto-assign missing PINs silently in background
+  setTimeout(flAutoAssignPins, 2000);
 }
 
 function openAddFreelancer(prefill) {
@@ -23795,9 +23874,26 @@ function openAddFreelancer(prefill) {
   if (prefill) {
     if (prefill.name) sv('fl-name', prefill.name);
     if (prefill.role) flFillRoleSelect(prefill.role);
-    if (prefill.phone) sv('fl-phone', prefill.phone);
+    if (prefill.phone) { sv('fl-phone', prefill.phone); flAutoFillPin(prefill.phone); }
   }
   openModal('freelancer-modal');
+  // Auto-fill PIN when phone is typed
+  setTimeout(function() {
+    var phoneEl = document.getElementById('fl-phone');
+    if (phoneEl) phoneEl.addEventListener('input', function() { flAutoFillPin(this.value); });
+    var waEl = document.getElementById('fl-whatsapp');
+    if (waEl) waEl.addEventListener('input', function() { flAutoFillPin(this.value); });
+  }, 200);
+}
+
+function flAutoFillPin(phoneRaw) {
+  var ph = String(phoneRaw || '').replace(/\D/g, '');
+  var pinEl = document.getElementById('fl-portalpin');
+  if (!pinEl || pinEl.dataset.customized === 'true') return;
+  if (ph.length >= 4) {
+    pinEl.value = ph.slice(-4);
+    pinEl.placeholder = 'Auto: ' + ph.slice(-4);
+  }
 }
 
 function openEditFreelancer(id) {
@@ -24374,7 +24470,7 @@ function updateFlConfirmBadge() {
   var assignments = flGetAllShootAssignments();
   var needsConfirm = assignments.filter(function(a){ return a.status === 'needs_confirm'; }).length;
   var bills = window.flBillsData || {};
-  var pendingClaims = Object.values(bills).filter(function(b){ return b && b.status === 'pending'; }).length;
+  var pendingClaims = Object.values(bills).filter(function(b){ return b && (b.status === 'pending' || b.status === 'pending_review'); }).length;
   var total = needsConfirm + pendingClaims;
   if (total > 0) {
     badge.textContent = total;
@@ -24595,7 +24691,7 @@ function renderFlShootVerification() {
     var b = bills[k];
     b.id = k;
     return b;
-  }).filter(function(b){ return b.status === 'pending'; });
+  }).filter(function(b){ return b.status === 'pending' || b.status === 'pending_review'; });
 
   var totalPending = needsConfirm.length + pendingClaims.length;
 
@@ -24627,10 +24723,13 @@ function renderFlShootVerification() {
     '</tr></thead><tbody>';
 
     pendingClaims.forEach(function(b) {
+      var isSelfReport = b.source === 'portal_self_report' || b.type === 'missed_shoot_report';
       html += '<tr>' +
-        '<td><div style="font-weight:700">' + fmtDate(b.eventDate) + '</div><div style="font-size:10px;color:#888">' + (b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-IN') : '') + '</div></td>' +
+        '<td><div style="font-weight:700">' + fmtDate(b.eventDate) + '</div><div style="font-size:10px;color:#888">' + (b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-IN') : '') + '</div>' +
+          (isSelfReport ? '<span style="background:#f3e8ff;color:#6b21a8;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:2px">📢 Self-Reported</span>' : '') +
+        '</td>' +
         '<td><strong style="color:#1d4ed8">' + escHtml(b.freelancerName) + '</strong><div style="font-size:10px;color:#64748b">' + escHtml(b.role||'') + '</div></td>' +
-        '<td><div style="font-weight:600">' + escHtml(b.coupleName||'—') + '</div><div style="font-size:11px;color:#64748b">' + escHtml(b.eventType||'') + '</div></td>' +
+        '<td><div style="font-weight:600">' + escHtml(b.coupleName||'—') + '</div><div style="font-size:11px;color:#64748b">' + escHtml(b.eventType||'') + (b.venue ? ' · 📍 ' + escHtml(b.venue) : '') + '</div></td>' +
         '<td>₹' + fmtNum(b.shootFee||0) + '</td>' +
         '<td>' + (b.travelExpense ? '₹' + fmtNum(b.travelExpense) : '—') + '</td>' +
         '<td>' + (b.otherExpense ? '₹' + fmtNum(b.otherExpense) : '—') + '</td>' +
@@ -25433,15 +25532,31 @@ function renderCrewPortal() {
   var portal = _crewPortal.el;
   var crewId = _crewPortal.crewId;
   var eventFilter = _crewPortal.eventFilter;
-  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId];
-  if (!member || !portal) return;
+  // Expanded member lookup: check team, freelancers, and cupAllFreelancers / users
+  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId] ||
+               (window._cupAllFreelancers || {})[crewId] || (window._cupAllTeam || {})[crewId] ||
+               (window._cupAllUsers || {})[crewId];
+  if (!portal) return;
+  if (!member) {
+    // Admin or unknown user: show helpful notice instead of blank
+    portal.innerHTML = '<div style="min-height:100vh;background:linear-gradient(135deg,#0f172a,#1e3a5f);display:flex;align-items:center;justify-content:center;font-family:-apple-system,sans-serif">' +
+      '<div style="background:#fff;border-radius:16px;padding:32px;max-width:420px;width:100%;text-align:center;margin:20px">' +
+        '<div style="font-size:48px;margin-bottom:12px">⚠️</div>' +
+        '<h2 style="color:#0f172a;margin:0 0 8px">Profile Not Found</h2>' +
+        '<p style="color:#64748b;font-size:13px;line-height:1.6">Your login ID (<code>' + escHtml(crewId) + '</code>) was not found in the freelancer database.<br><br>' +
+        'Please contact KB Studio admin to get your profile added, then try logging in again.</p>' +
+        '<button onclick="cupLogout()" style="margin-top:16px;padding:10px 24px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🚪 Back to Login</button>' +
+      '</div>' +
+    '</div>';
+    return;
+  }
   var initials = (member.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().substring(0,2);
 
   var bills = _crewPortal.bills || window.flBillsData || {};
   var payments = _crewPortal.payments || window.flPaymentsData || {};
 
   var myVerifiedBills = Object.values(bills).filter(function(b){ return b && b.freelancerId === crewId && b.status === 'verified'; });
-  var myPendingBills = Object.values(bills).filter(function(b){ return b && b.freelancerId === crewId && b.status === 'pending'; });
+  var myPendingBills = Object.values(bills).filter(function(b){ return b && b.freelancerId === crewId && (b.status === 'pending' || b.status === 'pending_review'); });
   var myPayments = Object.values(payments).filter(function(p){ return p && p.freelancerId === crewId; });
 
   var totalEarned = myVerifiedBills.reduce(function(sum, b){ return sum + (parseFloat(b.totalAmount) || 0); }, 0);
@@ -25552,6 +25667,35 @@ function renderCrewPortal() {
       });
     }
 
+    // Also show any self-reported missed shoots currently pending
+    var selfReportedPending = myPendingBills.filter(function(b){ return b && b.source === 'portal_self_report'; });
+    if (selfReportedPending.length) {
+      html += '<div style="font-size:13px;font-weight:800;color:#854d0e;margin:22px 0 8px">🟡 Self-Reported Shoots Under Review (' + selfReportedPending.length + ')</div>';
+      selfReportedPending.forEach(function(sb){
+        html += '<div style="background:#fff;border-radius:12px;padding:14px 16px;border:1px solid #fef08a;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
+            '<div>' +
+              '<div style="font-weight:800;font-size:14px;color:#0f172a">' + escHtml(sb.coupleName||'Shoot') + '</div>' +
+              '<div style="font-size:12px;color:#64748b;margin-top:2px">📅 ' + fmtDate(sb.eventDate) + ' · ' + escHtml(sb.eventType||'Shoot') + (sb.venue ? ' · 📍 ' + escHtml(sb.venue) : '') + '</div>' +
+              (sb.notes ? '<div style="font-size:11px;color:#854d0e;margin-top:4px;font-style:italic">' + escHtml(sb.notes) + '</div>' : '') +
+            '</div>' +
+            '<div style="text-align:right">' +
+              '<div style="font-size:15px;font-weight:800;color:#0f172a">₹' + fmtNum(sb.totalAmount) + '</div>' +
+              '<span style="background:#fef08a;color:#854d0e;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:6px;display:inline-block;margin-top:4px">🟡 Under Review by Studio</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      });
+    }
+
+    // ── MISSED / EXTRA SHOOT REPORTING ──────────────────────────────────────
+    html +=
+      '<div style="margin-top:28px;border:1.5px dashed #e2e8f0;border-radius:14px;padding:18px 20px;background:#fafbff">' +
+        '<div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:4px">📢 Worked on a Shoot Not Listed Above?</div>' +
+        '<div style="font-size:12px;color:#64748b;margin-bottom:14px">If you were assigned to a shoot but it\'s missing from your list, or if the studio missed adding you — report it here. Ketan will review and confirm.</div>' +
+        '<button onclick="openPortalMissedShootModal()" style="width:100%;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">📋 Report a Missed Shoot / Extra Work</button>' +
+      '</div>';
+
   } else {
     // ── EARNINGS & STATEMENT TAB ──
     html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">' +
@@ -25595,6 +25739,31 @@ function renderCrewPortal() {
     var run = 0;
     pTxns.forEach(function(t){ run += (t.billed - t.paid); t.running = run; });
     var displayPTxns = pTxns.slice().reverse();
+
+    if (myPendingBills.length) {
+      html += '<div style="background:#fefce8;border:1px solid #fde047;border-radius:12px;padding:14px 16px;margin-bottom:18px">' +
+        '<div style="font-size:13px;font-weight:800;color:#854d0e;margin-bottom:8px">🟡 Claims Submitted — Awaiting Studio Verification (' + myPendingBills.length + ')</div>' +
+        myPendingBills.map(function(pb){
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #fef08a;font-size:12.5px">' +
+            '<div>' +
+              '<div style="font-weight:700;color:#0f172a">' + escHtml(pb.coupleName||'Shoot') + '</div>' +
+              '<div style="font-size:11px;color:#64748b">' + fmtDate(pb.eventDate) + ' · ' + escHtml(pb.eventType||'Shoot') + '</div>' +
+              (pb.notes ? '<div style="font-size:10.5px;color:#854d0e;margin-top:2px">' + escHtml(pb.notes) + '</div>' : '') +
+            '</div>' +
+            '<div style="text-align:right">' +
+              '<div style="font-weight:800;color:#0f172a;font-size:14px">₹' + fmtNum(pb.totalAmount) + '</div>' +
+              '<span style="background:#fef08a;color:#854d0e;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:2px">🟡 Under Review</span>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+        '<div style="font-size:11px;color:#a16207;margin-top:8px">Ketan will review and verify these claims. Once verified, they will be added to your verified balance.</div>' +
+      '</div>';
+    }
+
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">' +
+      '<div style="font-size:13px;font-weight:800;color:#374151">Payment &amp; Earnings History</div>' +
+      '<button onclick="openPortalMissedShootModal()" style="padding:6px 12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer">➕ Submit New Bill / Extra Shoot</button>' +
+    '</div>';
 
     html += '<div style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03)">' +
       '<div style="padding:12px 16px;border-bottom:1px solid #f1f5f9;font-weight:700;font-size:13px;color:#0f172a">Payment &amp; Earnings History</div>' +
@@ -25721,6 +25890,169 @@ function submitPortalClaim(projId, dayId, date, couple, eventType) {
     alert('✅ Claim submitted successfully! Your studio admin will review and verify it.');
     if (!_crewPortal.bills) _crewPortal.bills = {};
     _crewPortal.bills[billId] = claimData;
+    renderCrewPortal();
+  });
+}
+
+// ── Missed / Extra Shoot Modal (Freelancer Self-Reporting) ───────────────
+function openPortalMissedShootModal() {
+  var c = document.getElementById('portal-claim-modal-container');
+  if (!c) return;
+  var crewId = _crewPortal.crewId;
+  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId] ||
+               (window._cupAllFreelancers||{})[crewId] || (window._cupAllTeam||{})[crewId];
+
+  c.innerHTML =
+    '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;padding:16px;overflow-y:auto">' +
+      '<div style="background:#fff;border-radius:16px;max-width:500px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto">' +
+        '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1">' +
+          '<div>' +
+            '<div style="font-size:16px;font-weight:800;color:#0f172a">📢 Report a Missed Shoot</div>' +
+            '<div style="font-size:11px;color:#64748b;margin-top:2px">Fill details — Ketan will review and confirm</div>' +
+          '</div>' +
+          '<button onclick="closePortalClaimModal()" style="border:none;background:none;font-size:20px;cursor:pointer;padding:4px">✕</button>' +
+        '</div>' +
+        '<div style="padding:18px 20px">' +
+          // Event Date
+          '<div style="margin-bottom:14px">' +
+            '<label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:5px">Shoot Date *</label>' +
+            '<input id="pmiss-date" type="date" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px">' +
+          '</div>' +
+          // Client / Couple Name
+          '<div style="margin-bottom:14px">' +
+            '<label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:5px">Client Name / Couple Name *</label>' +
+            '<input id="pmiss-client" type="text" placeholder="e.g. Priya & Rahul" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px">' +
+          '</div>' +
+          // Event Type
+          '<div style="margin-bottom:14px">' +
+            '<label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:5px">Event Type</label>' +
+            '<select id="pmiss-type" style="width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px">' +
+            ['Wedding','Pre-Wedding','Engagement','Roka','Haldi','Mehndi','Sangeet','Reception','Birthday','Corporate','Other'].map(function(t){ return '<option>'+t+'</option>'; }).join('') +
+            '</select>' +
+          '</div>' +
+          // Venue / Location
+          '<div style="margin-bottom:14px">' +
+            '<label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:5px">Venue / Location</label>' +
+            '<input id="pmiss-venue" type="text" placeholder="e.g. The Grand, Jaipur" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px">' +
+          '</div>' +
+          // My Role on this shoot
+          '<div style="margin-bottom:14px">' +
+            '<label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:5px">My Role on This Shoot</label>' +
+            '<input id="pmiss-role" type="text" value="' + escHtml((member&&member.role)||'') + '" placeholder="e.g. Photographer, Videographer" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px">' +
+          '</div>' +
+          // Shoot Fee
+          '<div style="margin-bottom:14px">' +
+            '<label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:5px">Shoot Fee (₹) *</label>' +
+            '<input id="pmiss-fee" type="number" placeholder="e.g. 5000" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px" oninput="calcMissedTotal()">' +
+          '</div>' +
+          // Travel Expense
+          '<div style="margin-bottom:14px">' +
+            '<label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:5px">Travel Expense (₹)</label>' +
+            '<input id="pmiss-travel" type="number" placeholder="e.g. 800" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px" oninput="calcMissedTotal()">' +
+          '</div>' +
+          // Notes
+          '<div style="margin-bottom:14px">' +
+            '<label style="display:block;font-size:11px;font-weight:700;color:#374151;text-transform:uppercase;margin-bottom:5px">Additional Notes / What Happened</label>' +
+            '<textarea id="pmiss-notes" rows="3" placeholder="e.g. Rohit bhai called me directly for Priya\'s wedding, wasn\'t added to portal..." style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:13px"></textarea>' +
+          '</div>' +
+          // Total
+          '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+            '<span style="font-weight:700;color:#065f46">Total Claim:</span>' +
+            '<span id="pmiss-total" style="font-size:18px;font-weight:800;color:#047857">₹0</span>' +
+          '</div>' +
+          '<div id="pmiss-err" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px"></div>' +
+          '<button onclick="submitPortalMissedShoot()" style="width:100%;padding:13px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer">🚀 Send Report to Studio Admin</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+function calcMissedTotal() {
+  var f = parseFloat((document.getElementById('pmiss-fee')||{value:0}).value) || 0;
+  var t = parseFloat((document.getElementById('pmiss-travel')||{value:0}).value) || 0;
+  var d = document.getElementById('pmiss-total');
+  if (d) d.textContent = '₹' + fmtNum(f + t);
+}
+
+function submitPortalMissedShoot() {
+  var crewId = _crewPortal.crewId;
+  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId] ||
+               (window._cupAllFreelancers||{})[crewId] || (window._cupAllTeam||{})[crewId];
+
+  var date    = (document.getElementById('pmiss-date')||{}).value || '';
+  var client  = ((document.getElementById('pmiss-client')||{}).value||'').trim();
+  var eType   = ((document.getElementById('pmiss-type')||{}).value||'Shoot');
+  var venue   = ((document.getElementById('pmiss-venue')||{}).value||'').trim();
+  var role    = ((document.getElementById('pmiss-role')||{}).value||'').trim();
+  var fee     = parseFloat((document.getElementById('pmiss-fee')||{value:0}).value) || 0;
+  var travel  = parseFloat((document.getElementById('pmiss-travel')||{value:0}).value) || 0;
+  var notes   = ((document.getElementById('pmiss-notes')||{}).value||'').trim();
+  var errEl   = document.getElementById('pmiss-err');
+
+  if (errEl) errEl.style.display = 'none';
+  if (!date)   { if(errEl){errEl.textContent='Please select the shoot date.';errEl.style.display='';} return; }
+  if (!client) { if(errEl){errEl.textContent='Please enter client / couple name.';errEl.style.display='';} return; }
+  if (fee <= 0){ if(errEl){errEl.textContent='Please enter your shoot fee.';errEl.style.display='';} return; }
+
+  var submitBtn = document.querySelector('#portal-claim-modal-container button[onclick*="submitPortalMissedShoot"]');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; }
+
+  var totalAmount = fee + travel;
+  var reportId = 'missed_' + crewId + '_' + date.replace(/-/g,'') + '_' + Date.now();
+
+  var reportData = {
+    id: reportId,
+    type: 'missed_shoot_report',
+    freelancerId: crewId,
+    freelancerName: (member && member.name) || 'Freelancer',
+    role: role || (member && member.role) || 'Crew',
+    coupleName: client,
+    eventType: eType,
+    eventDate: date,
+    venue: venue,
+    shootFee: fee,
+    travelExpense: travel,
+    totalAmount: totalAmount,
+    notes: notes,
+    status: 'pending_review',
+    source: 'portal_self_report',
+    createdAt: Date.now()
+  };
+
+  // Save to both crm_freelancer_bills AND crm_notifications
+  db.ref('crm_freelancer_bills/' + reportId).set(reportData, function(err) {
+    if (err) {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '🚀 Send Report to Studio Admin'; }
+      if (errEl) { errEl.textContent = 'Error: ' + err.message; errEl.style.display = ''; }
+      return;
+    }
+    // Push admin notification
+    try {
+      db.ref('crm_notifications').push({
+        type: 'missed_shoot_reported',
+        message: (member&&member.name||'A freelancer') + ' reported a missed shoot: ' + client + ' (' + eType + ') on ' + date + '. Please review and add to the event.',
+        freelancerId: crewId,
+        freelancerName: (member&&member.name)||'Freelancer',
+        reportId: reportId,
+        createdAt: Date.now(),
+        read: false
+      });
+    } catch(e2) {}
+
+    // Update local bills cache
+    if (!_crewPortal.bills) _crewPortal.bills = {};
+    _crewPortal.bills[reportId] = reportData;
+
+    closePortalClaimModal();
+    // Show success toast inside portal
+    var portalEl = document.getElementById('crew-portal');
+    if (portalEl) {
+      var toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#7c3aed;color:#fff;padding:12px 24px;border-radius:12px;font-size:13px;font-weight:700;z-index:999999;box-shadow:0 8px 24px rgba(124,58,237,0.4)';
+      toast.textContent = '✅ Report sent! Ketan will review and add you to the event.';
+      document.body.appendChild(toast);
+      setTimeout(function(){ toast.remove(); }, 5000);
+    }
     renderCrewPortal();
   });
 }
@@ -26194,7 +26526,7 @@ document.addEventListener('DOMContentLoaded', function() {
       equipment: gv('fl-equipment'), upi: gv('fl-upi'), bankaccount: gv('fl-bankaccount'),
       ifsc: gv('fl-ifsc'), notes: gv('fl-notes'), idproof: gv('fl-idproof'),
       referredby: gv('fl-referredby'), isFreelancer: true,
-      portalPin: gv('fl-portalpin').trim() || '',
+      portalPin: (function(){ var p=gv('fl-portalpin').trim(); if(p) return p; var ph=(gv('fl-phone')||gv('fl-whatsapp')||'').replace(/\D/g,''); return ph.length>=4 ? ph.slice(-4) : '0000'; })(),
       rates: flReadRates(), customRates: flReadCustomRates(), payTerms: gv('fl-payterms'), terms: gv('fl-terms'),
       termsDate: gv('fl-termsdate'), termsAgreed: gv('fl-termsagreed') === 'yes',
       createdAt: (_editFreelancerId && freelancerData[_editFreelancerId] && freelancerData[_editFreelancerId].createdAt) || Date.now(),
@@ -31573,7 +31905,8 @@ function isStandalonePortalUrl() {
            s.indexOf('crewlogin=') !== -1 ||
            s.indexOf('brief=') !== -1 ||
            s.indexOf('editor=') !== -1 ||
-           s.indexOf('onboard=') !== -1;
+           s.indexOf('onboard=') !== -1 ||
+           s.indexOf('join=') !== -1;
   } catch(e) {
     return false;
   }
@@ -31879,9 +32212,196 @@ function submitPasswordChange() {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FREELANCER SELF-ONBOARDING — ?join=freelancer
+// A new freelancer opens this link, fills their details, auto-registers,
+// and gets their PIN + portal link immediately.
+// ═══════════════════════════════════════════════════════════════════════════
+function checkFreelancerJoinMode() {
+  var params = new URLSearchParams(window.location.search);
+  var joinVal = params.get('join') || params.get('onboard');
+  if (!joinVal || (joinVal !== 'freelancer' && joinVal !== 'crew')) return false;
+
+  var loginEl = document.getElementById('login-screen');
+  var appEl   = document.getElementById('main-app');
+  if (loginEl) loginEl.style.display = 'none';
+  if (appEl)   appEl.style.display   = 'none';
+
+  renderFreelancerSelfOnboardScreen();
+  return true;
+}
+
+function renderFreelancerSelfOnboardScreen() {
+  var old = document.getElementById('fl-self-onboard');
+  if (old) old.remove();
+
+  var wrap = document.createElement('div');
+  wrap.id = 'fl-self-onboard';
+  wrap.style.cssText = 'min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);display:flex;align-items:flex-start;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:24px 16px 60px';
+
+  wrap.innerHTML =
+    '<div style="background:#fff;border-radius:20px;padding:32px 28px;width:100%;max-width:480px;box-shadow:0 24px 64px rgba(0,0,0,.35)">' +
+      '<div style="text-align:center;margin-bottom:28px">' +
+        '<div style="font-size:40px;margin-bottom:8px">🎬</div>' +
+        '<div style="font-size:22px;font-weight:800;color:#0f172a">Join KB Studio</div>' +
+        '<div style="font-size:13px;color:#64748b;margin-top:4px">Freelancer Registration — Fill your details to get registered</div>' +
+      '</div>' +
+      '<div id="fl-join-err" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>' +
+      '<div id="fl-join-success" style="display:none"></div>' +
+      '<div id="fl-join-form">' +
+        flJoinField('Full Name *', 'fl-j-name', 'text', 'e.g. Rahul Sharma', true) +
+        flJoinField('WhatsApp / Mobile *', 'fl-j-phone', 'tel', 'e.g. 9876543210', true) +
+        flJoinField('City *', 'fl-j-city', 'text', 'e.g. Delhi, Mumbai, Jaipur', true) +
+        '<div style="margin-bottom:14px">' +
+          '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Your Role *</label>' +
+          '<select id="fl-j-role" style="width:100%;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px">' +
+          ['Photographer','Videographer','Drone Operator','Phonographer','Editor','Photo Editor','Video Editor','Album Designer','Colorist','Assistant','Coordinator','Makeup Artist','Other'].map(function(r){ return '<option>'+r+'</option>'; }).join('') +
+          '</select>' +
+        '</div>' +
+        flJoinField('Per Day Rate (₹)', 'fl-j-rate', 'number', 'e.g. 5000', false) +
+        flJoinField('Equipment you bring', 'fl-j-equip', 'text', 'e.g. Sony A7IV, DJI Mavic 3', false) +
+        flJoinField('UPI ID or Bank Account', 'fl-j-upi', 'text', 'e.g. name@ybl or account number', false) +
+        flJoinField('Instagram / Portfolio Link', 'fl-j-insta', 'url', 'e.g. instagram.com/yourhandle', false) +
+        '<button onclick="flSubmitJoinForm()" style="width:100%;padding:14px;background:#0f172a;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;margin-top:4px">🚀 Register & Get My Portal</button>' +
+        '<div style="text-align:center;margin-top:16px;font-size:12px;color:#94a3b8">Already registered? <a href="?portal=crew" style="color:#0284c7;font-weight:600;text-decoration:none">Open my portal →</a></div>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(wrap);
+}
+
+function flJoinField(label, id, type, placeholder, required) {
+  return '<div style="margin-bottom:14px">' +
+    '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">' + label + '</label>' +
+    '<input id="' + id + '" type="' + type + '" placeholder="' + placeholder + '"' + (required ? ' required' : '') +
+    ' style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none">' +
+  '</div>';
+}
+
+function flGv(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+function flSubmitJoinForm() {
+  var name  = flGv('fl-j-name');
+  var phone = flGv('fl-j-phone').replace(/\D/g,'');
+  var city  = flGv('fl-j-city');
+  var role  = flGv('fl-j-role');
+  var errEl = document.getElementById('fl-join-err');
+
+  if (errEl) errEl.style.display = 'none';
+
+  if (!name) { if (errEl) { errEl.textContent = 'Please enter your full name.'; errEl.style.display = ''; } return; }
+  if (!phone || phone.length < 10) { if (errEl) { errEl.textContent = 'Please enter a valid 10-digit mobile number.'; errEl.style.display = ''; } return; }
+  if (!city)  { if (errEl) { errEl.textContent = 'Please enter your city.'; errEl.style.display = ''; } return; }
+
+  if (phone.length === 12 && phone.startsWith('91')) phone = phone.slice(2);
+  if (phone.length === 11 && phone.startsWith('0')) phone = phone.slice(1);
+
+  var submitBtn = document.querySelector('#fl-join-form button');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Registering…'; }
+
+  // Auto-generate PIN from last 4 digits of phone
+  var pin = phone.slice(-4);
+  var id  = 'fl_join_' + Date.now();
+
+  var data = {
+    id: id,
+    name: name,
+    phone: phone,
+    whatsapp: phone,
+    city: city,
+    role: role || 'Freelancer',
+    rate: flGv('fl-j-rate'),
+    equipment: flGv('fl-j-equip'),
+    upi: flGv('fl-j-upi'),
+    instagram: flGv('fl-j-insta'),
+    portalPin: pin,
+    availability: 'available',
+    isFreelancer: true,
+    source: 'self-onboarding',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+
+  // Check if already registered by phone
+  try {
+    firebase.auth().signInAnonymously().then(function() {
+      db.ref('crm_freelancers').orderByChild('phone').equalTo(phone).once('value', function(snap) {
+        if (snap.exists()) {
+          // Already exists — just show success with existing portal link
+          var existing = Object.values(snap.val())[0];
+          var existPin = existing.portalPin || pin;
+          flShowJoinSuccess(name, existPin, true);
+          return;
+        }
+        // Save to Firebase
+        db.ref('crm_freelancers/' + id).set(data, function(err) {
+          if (err) {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '🚀 Register & Get My Portal'; }
+            if (errEl) { errEl.textContent = 'Error saving: ' + err.message + '. Please try again.'; errEl.style.display = ''; }
+            return;
+          }
+          // Also push a notification for Ketan
+          try {
+            db.ref('crm_notifications').push({
+              type: 'new_freelancer_joined',
+              message: name + ' (' + role + ') just registered as a freelancer from the join link. City: ' + city,
+              name: name, phone: phone, role: role, city: city,
+              createdAt: Date.now(), read: false
+            });
+          } catch(e2) {}
+          flShowJoinSuccess(name, pin, false);
+        });
+      }, function() {
+        // Permission error — save anyway
+        db.ref('crm_freelancers/' + id).set(data, function(err) {
+          if (err) {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '🚀 Register & Get My Portal'; }
+            if (errEl) { errEl.textContent = 'Connection error. Please try again.'; errEl.style.display = ''; }
+          } else {
+            flShowJoinSuccess(name, pin, false);
+          }
+        });
+      });
+    }).catch(function() {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '🚀 Register & Get My Portal'; }
+      if (errEl) { errEl.textContent = 'Connection error. Please check your internet and try again.'; errEl.style.display = ''; }
+    });
+  } catch(e) {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '🚀 Register & Get My Portal'; }
+    if (errEl) { errEl.textContent = 'App error: ' + e.message; errEl.style.display = ''; }
+  }
+}
+
+function flShowJoinSuccess(name, pin, alreadyExists) {
+  var formEl = document.getElementById('fl-join-form');
+  var succEl = document.getElementById('fl-join-success');
+  if (formEl) formEl.style.display = 'none';
+  var portalUrl = location.origin + location.pathname + '?portal=crew';
+  if (succEl) {
+    succEl.style.display = '';
+    succEl.innerHTML =
+      '<div style="text-align:center">' +
+        '<div style="font-size:52px;margin-bottom:12px">' + (alreadyExists ? '👋' : '🎉') + '</div>' +
+        '<div style="font-size:20px;font-weight:800;color:#0f172a;margin-bottom:6px">' +
+          (alreadyExists ? 'Welcome back, ' + name + '!' : 'You\'re registered, ' + name + '!') +
+        '</div>' +
+        '<div style="font-size:13px;color:#64748b;margin-bottom:20px">' +
+          (alreadyExists ? 'Your profile is already in our system.' : 'Your profile has been added to KB Studio Productions.') +
+        '</div>' +
+        '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px;margin-bottom:20px">' +
+          '<div style="font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;margin-bottom:6px">Your Studio PIN</div>' +
+          '<div style="font-size:36px;font-weight:900;letter-spacing:8px;color:#0f172a;font-family:monospace;background:#e0f2fe;padding:8px 20px;border-radius:10px;display:inline-block">' + pin + '</div>' +
+          '<div style="font-size:11px;color:#64748b;margin-top:8px">Save this PIN — it\'s the last 4 digits of your mobile number</div>' +
+        '</div>' +
+        '<a href="' + portalUrl + '" style="display:block;width:100%;box-sizing:border-box;padding:14px;background:#0f172a;color:#fff;text-decoration:none;border-radius:10px;font-size:15px;font-weight:800;text-align:center;margin-bottom:12px">🚀 Open My Portal Now</a>' +
+        '<div style="font-size:12px;color:#94a3b8">Portal Link: <span style="font-family:monospace;font-size:11px">' + portalUrl + '</span></div>' +
+      '</div>';
+  }
+}
+
 // ═══ STARTUP ══════════════════════════════════════════════════════════════════
 (function() {
-  if(!checkBriefMode() && !checkEditorMode() && !checkCrewPortalMode() && !checkCrewMode() && !checkOnboardMode()) {
+  if(!checkFreelancerJoinMode() && !checkBriefMode() && !checkEditorMode() && !checkCrewPortalMode() && !checkCrewMode() && !checkOnboardMode()) {
     var ls = document.getElementById('login-screen');
     var ma = document.getElementById('main-app');
     if (ls) ls.style.display = 'flex';
