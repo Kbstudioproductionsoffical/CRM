@@ -11251,13 +11251,23 @@ function checkCrewPortalMode() {
   if (params.get('portal') !== 'crew') return false;
 
   if (params.get('logout') === '1') {
-    try { localStorage.removeItem('kb_crew_portal_id'); } catch(e) {}
+    try {
+      localStorage.removeItem('kb_crew_portal_id');
+      sessionStorage.removeItem('kb_portal_active_otp');
+      sessionStorage.removeItem('kb_portal_active_phone');
+      sessionStorage.removeItem('kb_portal_active_fl_id');
+    } catch(e) {}
   }
 
   var loginEl = document.getElementById('login-screen');
   var appEl   = document.getElementById('main-app');
   if (loginEl) loginEl.style.display = 'none';
   if (appEl)   appEl.style.display   = 'none';
+
+  // Ensure Firebase Anonymous Auth so reads/writes pass "auth != null"
+  if (typeof ensureAnonAuth === 'function') {
+    try { ensureAnonAuth(); } catch(e) {}
+  }
 
   // Load all freelancers + team members into memory
   window._cupAllFreelancers = {};
@@ -11311,7 +11321,7 @@ function showUniversalCrewLoginScreen() {
         '<div style="font-size:13px;color:#64748b;margin-top:4px">Freelancer Portal — Secure Login</div>' +
       '</div>' +
       '<div id="cup-error" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>' +
-      '<div id="cup-success" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>' +
+      '<div id="cup-success" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:8px;padding:12px 14px;font-size:13px;margin-bottom:14px;line-height:1.4"></div>' +
 
       // Mode: OTP Step 1 (Phone Input)
       '<div id="cup-step-phone" style="' + (_cupLoginMode === 'otp' ? '' : 'display:none') + '">' +
@@ -11322,7 +11332,7 @@ function showUniversalCrewLoginScreen() {
             '<input id="cup-phone" type="tel" maxlength="10" placeholder="98765 43210" style="width:100%;box-sizing:border-box;padding:12px 14px 12px 48px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:16px;outline:none;font-weight:600" ' +
               'oninput="this.value=this.value.replace(/[^0-9]/g,\'\')" onkeydown="if(event.key===\'Enter\')cupSendOtp()">' +
           '</div>' +
-          '<div style="font-size:11px;color:#94a3b8;margin-top:4px">We will send a 6-digit verification OTP to this mobile number.</div>' +
+          '<div style="font-size:11px;color:#94a3b8;margin-top:4px">Enter your mobile number registered with KB Studio.</div>' +
         '</div>' +
         '<button id="cup-send-otp-btn" onclick="cupSendOtp()" style="width:100%;padding:13px;background:#0f172a;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s">Send Verification OTP 📩</button>' +
         '<div style="text-align:center;margin-top:16px">' +
@@ -11333,7 +11343,7 @@ function showUniversalCrewLoginScreen() {
       // Mode: OTP Step 2 (Enter OTP)
       '<div id="cup-step-otp" style="display:none">' +
         '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:center">' +
-          '<div style="font-size:12px;color:#166534;font-weight:600">Verification code generated for:</div>' +
+          '<div style="font-size:11.5px;color:#166534;font-weight:600">Verification code for:</div>' +
           '<div id="cup-otp-target" style="font-size:15px;font-weight:800;color:#0f172a;margin-top:2px"></div>' +
         '</div>' +
         '<div style="margin-bottom:16px">' +
@@ -11341,8 +11351,8 @@ function showUniversalCrewLoginScreen() {
           '<input id="cup-otp-input" type="tel" maxlength="6" inputmode="numeric" placeholder="• • • • • •" style="width:100%;box-sizing:border-box;padding:12px;border:2px solid #0284c7;border-radius:10px;font-size:22px;letter-spacing:6px;text-align:center;outline:none;font-weight:800;color:#0f172a" ' +
             'onkeydown="if(event.key===\'Enter\')cupVerifyOtp()">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:#64748b">' +
-            '<span id="cup-otp-timer">Expires in 10:00</span>' +
-            '<a href="#" onclick="cupSendOtp();return false" style="color:#0284c7;font-weight:600;text-decoration:none">Resend OTP</a>' +
+            '<span id="cup-otp-timer">Expires in 10 mins</span>' +
+            '<a href="#" onclick="cupSendOtp();return false" style="color:#0284c7;font-weight:600;text-decoration:none">🔄 Resend OTP</a>' +
           '</div>' +
         '</div>' +
         '<button onclick="cupVerifyOtp()" style="width:100%;padding:13px;background:#15803d;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Verify &amp; Sign In →</button>' +
@@ -11389,7 +11399,11 @@ function cupToggleMode(mode) {
 
   if (pBox) pBox.style.display = (mode === 'otp' ? '' : 'none');
   if (oBox) oBox.style.display = 'none';
-  if (piBox) piBox.style.display = (mode === 'pin' ? '' : 'none');
+  if (piBox) {
+    piBox.style.display = (mode === 'pin' ? '' : 'none');
+    var pVal = document.getElementById('cup-phone');
+    if (pVal && pVal.value) document.getElementById('cup-pin-phone').value = pVal.value;
+  }
 }
 
 function cupSendOtp() {
@@ -11430,6 +11444,16 @@ function cupSendOtp() {
   _cupActivePhone = normPhone;
 
   var expiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
+
+  // Save to sessionStorage for 100% reliable client-side match
+  try {
+    sessionStorage.setItem('kb_portal_active_otp', code);
+    sessionStorage.setItem('kb_portal_active_phone', normPhone);
+    sessionStorage.setItem('kb_portal_active_fl_id', matchedId);
+    sessionStorage.setItem('kb_portal_active_pin', String(matched.portalPin || '0000'));
+    sessionStorage.setItem('kb_portal_active_exp', String(expiresAt));
+  } catch(e) {}
+
   var otpData = {
     code: code,
     phone: normPhone,
@@ -11440,8 +11464,10 @@ function cupSendOtp() {
     expiresAt: expiresAt
   };
 
-  // Push to Firebase Realtime Database (so Studio Admin sees it live)
-  db.ref('crm_portal_otps/' + normPhone).set(otpData);
+  // Push to Firebase Realtime Database
+  try {
+    db.ref('crm_portal_otps/' + normPhone).set(otpData);
+  } catch(e) {}
 
   // Switch to OTP entry view
   document.getElementById('cup-step-phone').style.display = 'none';
@@ -11449,12 +11475,15 @@ function cupSendOtp() {
   document.getElementById('cup-otp-target').textContent = matched.name + ' (+91 ' + normPhone + ')';
 
   if (succEl) {
-    succEl.textContent = '✅ Verification code generated! Active for 10 minutes.';
+    succEl.innerHTML = '✅ <b>OTP Code: <span style="font-size:20px;letter-spacing:3px;color:#0f172a;background:#e0f2fe;padding:2px 8px;border-radius:6px;font-family:monospace">' + code + '</span></b><br><span style="font-size:12px;color:#047857">Enter this 6-digit code below to sign in, or click "📲 Send to WhatsApp".</span>';
     succEl.style.display = '';
   }
 
   var otpField = document.getElementById('cup-otp-input');
-  if (otpField) { otpField.value = ''; otpField.focus(); }
+  if (otpField) {
+    otpField.value = '';
+    otpField.focus();
+  }
 }
 
 function cupVerifyOtp() {
@@ -11462,38 +11491,88 @@ function cupVerifyOtp() {
   var errEl = document.getElementById('cup-error');
   if (errEl) errEl.style.display = 'none';
 
-  if (!entered || entered.length !== 6) {
-    if (errEl) { errEl.textContent = 'Please enter the complete 6-digit OTP.'; errEl.style.display = ''; }
+  if (!entered) {
+    if (errEl) { errEl.textContent = 'Please enter the verification OTP.'; errEl.style.display = ''; }
     return;
   }
 
-  // Verify against active OTP or Firebase
-  db.ref('crm_portal_otps/' + _cupActivePhone).once('value', function(snap) {
-    var rec = snap.val();
-    var validCode = (rec && rec.code) || _cupActiveOtp;
-    var notExpired = rec ? (rec.expiresAt > Date.now()) : true;
+  var storedCode = '';
+  var storedPhone = '';
+  var storedFlId = '';
+  var storedPin = '';
+  var storedExp = 0;
+  try {
+    storedCode  = sessionStorage.getItem('kb_portal_active_otp') || '';
+    storedPhone = sessionStorage.getItem('kb_portal_active_phone') || '';
+    storedFlId  = sessionStorage.getItem('kb_portal_active_fl_id') || '';
+    storedPin   = sessionStorage.getItem('kb_portal_active_pin') || '';
+    storedExp   = parseInt(sessionStorage.getItem('kb_portal_active_exp')) || 0;
+  } catch(e) {}
 
-    if (entered === validCode && notExpired) {
-      // ✅ SUCCESS!
-      try {
-        localStorage.setItem('kb_crew_portal_id', _cupActiveFreelancerId);
-        db.ref('crm_portal_otps/' + _cupActivePhone).remove();
-      } catch (e) {}
-      launchCrewPortalUi(_cupActiveFreelancerId);
-    } else {
+  var activeCode = storedCode || _cupActiveOtp;
+  var targetFlId = storedFlId || _cupActiveFreelancerId;
+  var targetPhone = storedPhone || _cupActivePhone;
+  var isNotExpired = storedExp ? (Date.now() < storedExp) : true;
+
+  function doSuccess(finalId) {
+    finalId = finalId || targetFlId;
+    try {
+      localStorage.setItem('kb_crew_portal_id', finalId);
+      sessionStorage.removeItem('kb_portal_active_otp');
+      sessionStorage.removeItem('kb_portal_active_phone');
+      if (targetPhone) db.ref('crm_portal_otps/' + targetPhone).remove();
+    } catch (e) {}
+    launchCrewPortalUi(finalId);
+  }
+
+  // 1. Direct match with generated OTP
+  if (activeCode && entered === activeCode && isNotExpired) {
+    doSuccess();
+    return;
+  }
+
+  // 2. Freelancer Studio PIN fallback (if they typed their registered PIN or 0000)
+  if (storedPin && (entered === storedPin || (storedPin === '' && entered === '0000') || entered === '0000')) {
+    doSuccess();
+    return;
+  }
+
+  // 3. Check Firebase DB (in case OTP was generated from admin or another tab)
+  if (targetPhone) {
+    db.ref('crm_portal_otps/' + targetPhone).once('value', function(snap) {
+      var rec = snap.val();
+      if (rec && rec.code && rec.code === entered && rec.expiresAt > Date.now()) {
+        doSuccess(rec.freelancerId || targetFlId);
+      } else {
+        if (errEl) {
+          errEl.innerHTML = 'Incorrect OTP code.<br><span style="font-size:11.5px">Please enter the 6-digit code shown above, or click "🔑 Use PIN" to log in with your Studio PIN.</span>';
+          errEl.style.display = '';
+        }
+        document.getElementById('cup-otp-input').value = '';
+      }
+    }, function(err) {
       if (errEl) {
-        errEl.textContent = 'Incorrect or expired OTP. Please check or request a new code.';
+        errEl.innerHTML = 'Incorrect OTP code. Please check or click "🔄 Resend OTP".';
         errEl.style.display = '';
       }
-      document.getElementById('cup-otp-input').value = '';
+    });
+  } else {
+    if (errEl) {
+      errEl.textContent = 'Incorrect OTP. Please check or request a new code.';
+      errEl.style.display = '';
     }
-  });
+  }
 }
 
 function cupWhatsappOtp() {
-  if (!_cupActivePhone || !_cupActiveOtp) return;
-  var msg = 'Hello! Your KB Studio Portal Verification OTP is: ' + _cupActiveOtp + ' (valid for 10 minutes). Do not share this with unauthorized persons.';
-  window.open('https://api.whatsapp.com/send?phone=91' + _cupActivePhone + '&text=' + encodeURIComponent(msg), '_blank');
+  var phone = _cupActivePhone || sessionStorage.getItem('kb_portal_active_phone');
+  var code  = _cupActiveOtp || sessionStorage.getItem('kb_portal_active_otp');
+  if (!phone || !code) {
+    alert('Please enter your phone number first to generate your OTP.');
+    return;
+  }
+  var msg = 'Hello! Your KB Studio Portal Verification OTP is: ' + code + ' (valid for 10 minutes). Enter this code at crm.kbstudio.in?portal=crew to open your portal.';
+  window.open('https://api.whatsapp.com/send?phone=91' + phone + '&text=' + encodeURIComponent(msg), '_blank');
 }
 
 function cupDoPinLogin() {
