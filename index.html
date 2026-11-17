@@ -40546,7 +40546,7 @@ function copyClientPortalLink(projId) {
 function checkClientPortalMode() {
   var params = new URLSearchParams(window.location.search);
   var portal = params.get('portal');
-  if (!portal) return false;
+  if (!portal || portal === 'crew' || portal.indexOf('_') === -1) return false;
 
   // Extract projId from token_projId format
   var parts = portal.split('_');
@@ -41611,7 +41611,7 @@ function saveRevTargetFromSettings() {
 // Check portal mode before normal app load
 (function() {
   var params = new URLSearchParams(window.location.search);
-  if (params.get('portal')) {
+  if (params.get('portal') && params.get('portal') !== 'crew') {
     // Delay to let Firebase connect
     setTimeout(function() { checkClientPortalMode(); }, 300);
   } else if (params.get('feedback')) {
