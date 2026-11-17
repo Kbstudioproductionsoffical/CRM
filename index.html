@@ -2120,6 +2120,16 @@ document.addEventListener('wheel', function(e) {
     <div id="page-freelancers" class="page">
       <div class="page-title">🧑‍🎨 Freelancers &amp; Shoot Crew Hub</div>
       <div class="page-sub">Shoot duty roster, post-shoot confirmation, travel expenses, portals &amp; complete billing ledgers.</div>
+
+      <!-- Live Duplicate Detection Banner -->
+      <div id="fl-dupe-alert-banner" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:10px 16px;margin-bottom:14px;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">⚠️</span>
+          <span id="fl-dupe-banner-text" style="font-size:12.5px;color:#991b1b;font-weight:600">Possible duplicate entries detected.</span>
+        </div>
+        <button type="button" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:700;font-size:11.5px;padding:5px 14px;border-radius:6px;cursor:pointer" onclick="flOpenDuplicateCleaner()">🔍 Review &amp; Fix Duplicates</button>
+      </div>
+
       <div id="fl-tabbar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
         <div style="display:flex;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;background:#fff">
           <button id="fl-tab-roster" onclick="flGoTab('roster')" style="padding:9px 16px;font-size:13px;font-weight:700;border:none;cursor:pointer">📅 Shoot Roster (Excel View)</button>
@@ -2128,15 +2138,17 @@ document.addEventListener('wheel', function(e) {
           <button id="fl-tab-dir" onclick="flGoTab('dir')" style="padding:9px 16px;font-size:13px;font-weight:700;border:none;cursor:pointer">👥 Freelancers</button>
           <button id="fl-tab-work" onclick="flGoTab('work')" style="padding:9px 16px;font-size:13px;font-weight:700;border:none;cursor:pointer">💼 Post-Prod Edits</button>
         </div>
-        <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap">
-          <button id="fl-live-otps-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#fef3c7;border:1px solid #fde047;color:#854d0e;font-weight:700" onclick="showLiveOtpsModal()" title="View live freelancer portal verification OTPs">🔑 Live OTPs <span id="fl-live-otps-badge" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;display:none">0</span></button>
-          <button id="fl-quick-shoot-btn" class="btn btn-primary btn-sm" style="font-size:12.5px;padding:8px 14px;font-weight:700" onclick="openQuickShootModal()">➕ Add Shoot Entry</button>
-          <button id="fl-join-link-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;font-weight:700" onclick="flCopyJoinLink()" title="Copy freelancer self-registration link to clipboard">🔗 Copy Join Link</button>
-          <button id="fl-whatsapp-join-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#dcfce7;border:1px solid #86efac;color:#15803d;font-weight:700" onclick="flWhatsappJoinInvite()" title="Send join link via WhatsApp to a new freelancer">📲 WhatsApp Join Invite</button>
-          <button id="fl-sheet-import-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-weight:700" onclick="openSheetImportModal()" title="Import all rows from Google Sheet">📥 Import Google Sheet</button>
-          <button id="fl-record-pay-btn" class="btn btn-success" style="font-size:12.5px;padding:8px 14px;display:none" onclick="openRecordFlPaymentModal()">💳 Record Payment</button>
-          <button id="fl-manual-bill-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#f8fafc;border:1px solid #cbd5e1;color:#1e293b;font-weight:700;display:none" onclick="openAddFlManualBillModal()">➕ Add Bill / Expense</button>
-          <button id="fl-add-btn" class="btn btn-primary" style="font-size:12.5px;padding:8px 16px;display:none" onclick="openAddFreelancer()">➕ Add Freelancer</button>
+        <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;align-items:center">
+          <button id="fl-universal-btn" class="btn btn-primary" style="font-size:12.5px;padding:8px 16px;font-weight:800;background:#0f172a;color:#fff;border-radius:8px;box-shadow:0 2px 6px rgba(15,23,42,0.2)" onclick="openUniversalFlEntryModal()">⚡ New Entry (Shoot / Payout)</button>
+          <button id="fl-dupe-check-btn" class="btn btn-sm" style="font-size:12px;padding:7px 11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-weight:700;display:none" onclick="flOpenDuplicateCleaner()" title="Check and fix duplicate bills">🧹 Fix Duplicates (<span id="fl-dupe-badge-count">0</span>)</button>
+          <button id="fl-live-otps-btn" class="btn btn-sm" style="font-size:12px;padding:7px 11px;background:#fef3c7;border:1px solid #fde047;color:#854d0e;font-weight:700" onclick="showLiveOtpsModal()" title="View live freelancer portal verification OTPs">🔑 Live OTPs <span id="fl-live-otps-badge" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;display:none">0</span></button>
+          <button id="fl-join-link-btn" class="btn btn-sm" style="font-size:12px;padding:7px 11px;background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;font-weight:700" onclick="flCopyJoinLink()" title="Copy freelancer self-registration link to clipboard">🔗 Join Link</button>
+          <button id="fl-whatsapp-join-btn" class="btn btn-sm" style="font-size:12px;padding:7px 11px;background:#dcfce7;border:1px solid #86efac;color:#15803d;font-weight:700" onclick="flWhatsappJoinInvite()" title="Send join link via WhatsApp to a new freelancer">📲 Invite</button>
+          <button id="fl-sheet-import-btn" class="btn btn-sm" style="font-size:12px;padding:7px 11px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-weight:700" onclick="openSheetImportModal()" title="Import all rows from Google Sheet">📥 Import</button>
+          <button id="fl-quick-shoot-btn" class="btn btn-sm" style="display:none" onclick="openQuickShootModal()">➕ Add Shoot</button>
+          <button id="fl-record-pay-btn" class="btn btn-sm" style="display:none" onclick="openRecordFlPaymentModal()">💳 Record Pay</button>
+          <button id="fl-manual-bill-btn" class="btn btn-sm" style="display:none" onclick="openAddFlManualBillModal()">➕ Add Bill</button>
+          <button id="fl-add-btn" class="btn btn-sm" style="display:none" onclick="openAddFreelancer()">➕ Freelancer</button>
         </div>
       </div>
       <div id="flr-content" style="display:none"></div>
@@ -4497,6 +4509,7 @@ document.addEventListener('wheel', function(e) {
       <div id="frp-balance-hint" style="font-size:12px;margin:-4px 0 10px;padding:6px 10px;background:#f8fafc;border-radius:6px;color:#475569">
         Current balance due will appear here.
       </div>
+      <div id="frp-upi-quick-box" style="display:none"></div>
 
       <div class="fg">
         <div class="fr" style="flex:1">
@@ -4505,7 +4518,7 @@ document.addEventListener('wheel', function(e) {
         </div>
         <div class="fr" style="flex:1">
           <label class="fl">Amount Paid (₹) *</label>
-          <input class="fi" type="number" id="frp-amount" min="1" placeholder="Enter amount">
+          <input class="fi" type="number" id="frp-amount" min="1" placeholder="Enter amount" oninput="if(typeof frpUpdateUpiBox==='function')frpUpdateUpiBox()">
         </div>
       </div>
 
@@ -4788,6 +4801,170 @@ document.addEventListener('wheel', function(e) {
     </div>
     <div class="modal-foot">
       <button class="btn" data-close="fl-live-otps-modal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- UNIFIED FAST ENTRY MODAL (SHOOT / EXPENSE OR PAYOUT) -->
+<div class="modal-overlay" id="fl-universal-entry-modal">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-hdr">
+      <div class="modal-title">⚡ Quick Freelancer Entry</div>
+      <button class="modal-close" data-close="fl-universal-entry-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Mode Toggle Switch -->
+      <div style="display:flex;background:#f1f5f9;border-radius:10px;padding:4px;margin-bottom:16px">
+        <button type="button" id="fue-tab-shoot" onclick="fueSetMode('shoot')" style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:#0f172a;color:#fff;transition:all .15s">📸 Shoot Duty / Expense</button>
+        <button type="button" id="fue-tab-pay" onclick="fueSetMode('pay')" style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#475569;transition:all .15s">💳 Payment / Payout</button>
+      </div>
+
+      <!-- Live Duplicate Warning Box -->
+      <div id="fue-dupe-warn" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#991b1b;line-height:1.4"></div>
+
+      <!-- SHOOT DUTY SECTION -->
+      <div id="fue-sec-shoot">
+        <div class="fg">
+          <div class="fr" style="flex:1">
+            <label class="fl">Shoot Date *</label>
+            <input class="fi" type="date" id="fue-date" onchange="fueCheckDuplicates()">
+          </div>
+          <div class="fr" style="flex:1">
+            <label class="fl">Freelancer *</label>
+            <select class="fi" id="fue-freelancer" onchange="fueOnFreelancerChange()">
+              <option value="">-- Choose Freelancer --</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="fr">
+          <label class="fl">Client Project / Couple *</label>
+          <select class="fi" id="fue-project" onchange="fueOnProjectChange()">
+            <option value="">-- Select Client or Custom Event --</option>
+          </select>
+          <input class="fi" type="text" id="fue-custom-couple" placeholder="Enter custom event name (e.g. Sharma Pre-wedding)" style="display:none;margin-top:6px" oninput="fueCheckDuplicates()">
+        </div>
+
+        <div class="fg">
+          <div class="fr" style="flex:1">
+            <label class="fl">Shoot Role *</label>
+            <select class="fi" id="fue-role" onchange="fueOnRoleChange()">
+              <option value="Photographer">Photographer (Candid/Traditional)</option>
+              <option value="Videographer">Videographer (Cinematic/Traditional)</option>
+              <option value="Drone Operator">Drone Operator</option>
+              <option value="Gimbal Operator">Gimbal Operator</option>
+              <option value="Assistant / Lights">Assistant / Lights</option>
+              <option value="Editor">Editor / Post-Production</option>
+              <option value="Lead Shooter">Lead Shooter / Director</option>
+            </select>
+          </div>
+          <div class="fr" style="flex:1">
+            <label class="fl">Shoot Fee (₹) *</label>
+            <input class="fi" type="number" id="fue-fee" min="0" placeholder="e.g. 8000" oninput="fueCalcTotal()">
+          </div>
+        </div>
+
+        <div class="fg">
+          <div class="fr" style="flex:1">
+            <label class="fl">Travel / Cab Expense (₹)</label>
+            <input class="fi" type="number" id="fue-travel" min="0" placeholder="0" oninput="fueCalcTotal()">
+          </div>
+          <div class="fr" style="flex:1">
+            <label class="fl">Food / Other Expense (₹)</label>
+            <input class="fi" type="number" id="fue-other" min="0" placeholder="0" oninput="fueCalcTotal()">
+          </div>
+        </div>
+
+        <!-- Calculated Net Total Banner -->
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700;color:#065f46;font-size:13px">Total Amount to Ledger:</span>
+          <span id="fue-total-display" style="font-size:18px;font-weight:800;color:#047857">₹0</span>
+        </div>
+
+        <div class="fr">
+          <label class="fl">Notes / Instructions (Optional)</label>
+          <input class="fi" id="fue-notes" placeholder="e.g. Day 1 Haldi + Night Sangeet, ITC Grand Bharat">
+        </div>
+      </div>
+
+      <!-- PAYMENT PAYOUT SECTION -->
+      <div id="fue-sec-pay" style="display:none">
+        <div class="fr">
+          <label class="fl">Freelancer to Pay *</label>
+          <select class="fi" id="fue-pay-freelancer" onchange="fueOnPayFreelancerChange()">
+            <option value="">-- Choose Freelancer --</option>
+          </select>
+        </div>
+
+        <div id="fue-pay-balance-hint" style="font-size:12px;margin:-4px 0 10px;padding:8px 12px;background:#f8fafc;border-radius:8px;color:#334155;border:1px solid #e2e8f0">
+          Select a freelancer to see their current balance due.
+        </div>
+
+        <div id="fue-pay-upi-box" style="display:none"></div>
+
+        <div class="fg">
+          <div class="fr" style="flex:1">
+            <label class="fl">Payout Date *</label>
+            <input class="fi" type="date" id="fue-pay-date">
+          </div>
+          <div class="fr" style="flex:1">
+            <label class="fl">Amount to Pay (₹) *</label>
+            <input class="fi" type="number" id="fue-pay-amount" min="1" placeholder="Enter amount" oninput="fueUpdatePayUpiBox()">
+          </div>
+        </div>
+
+        <div class="fg">
+          <div class="fr" style="flex:1">
+            <label class="fl">Payment Mode *</label>
+            <select class="fi" id="fue-pay-mode">
+              <option value="UPI">📱 UPI / PhonePe / GPay</option>
+              <option value="Bank Transfer">🏦 Bank Transfer (IMPS/NEFT)</option>
+              <option value="Cash">💵 Cash</option>
+              <option value="Cheque">📑 Cheque</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="fr" style="flex:1">
+            <label class="fl">Paid From Account</label>
+            <select class="fi" id="fue-pay-account">
+              <option value="">Studio Account</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="fr">
+          <label class="fl">Transaction Ref / UTR / Note</label>
+          <input class="fi" id="fue-pay-ref" placeholder="e.g. UTR / UPI Ref ID / Oct Shoots Clearance">
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn" data-close="fl-universal-entry-modal">Cancel</button>
+      <button id="fue-submit-btn" class="btn btn-primary" onclick="fueSubmitEntry()">💾 Save Shoot Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- FREELANCER DUPLICATE BILL CLEANER & MERGER MODAL -->
+<div class="modal-overlay" id="fl-duplicate-cleaner-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-hdr">
+      <div class="modal-title">🧹 Clean Duplicate Freelancer Bills</div>
+      <button class="modal-close" data-close="fl-duplicate-cleaner-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:#64748b;margin-bottom:14px;line-height:1.5">
+        Duplicate entries cause ledger balances to mismatch (e.g. a freelancer entered twice for the same shoot). Review suspected duplicate pairs below and merge or remove duplicates with 1 click.
+      </div>
+      <div id="fl-dupe-cleaner-list" style="max-height:400px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-foot" style="justify-content:space-between">
+      <span id="fl-dupe-count-label" style="font-size:12px;font-weight:700;color:#dc2626"></span>
+      <div>
+        <button class="btn" data-close="fl-duplicate-cleaner-modal">Close</button>
+        <button id="fl-dupe-auto-clean-btn" class="btn btn-danger" style="display:none" onclick="flExecuteAutoDeduplication()">⚡ Auto-Clean All Safe Duplicates</button>
+      </div>
     </div>
   </div>
 </div>
@@ -7864,6 +8041,7 @@ function loadAll(){
       db.ref('crm_freelancer_bills').on('value', function(snap){
         window.flBillsData = snap.val() || {};
         if (typeof updateFlConfirmBadge === 'function') updateFlConfirmBadge();
+        if (typeof flUpdateDuplicateBanner === 'function') flUpdateDuplicateBanner();
         if (typeof flRenderTab === 'function') {
           var pg = document.getElementById('page-freelancers');
           if (pg && pg.classList.contains('active')) flRenderTab();
@@ -11539,9 +11717,9 @@ function checkCrewPortalMode() {
     var loadingSplash = document.getElementById('cup-loading-splash');
     if (loadingSplash) loadingSplash.remove();
 
-    // Check if user authenticated in this active browser tab
+    // Check if user authenticated in this browser
     var activeCrewId = null;
-    try { activeCrewId = sessionStorage.getItem('kb_crew_portal_id'); } catch(e) {}
+    try { activeCrewId = sessionStorage.getItem('kb_crew_portal_id') || localStorage.getItem('kb_crew_portal_id'); } catch(e) {}
 
     if (activeCrewId && params.get('logout') !== '1') {
       var allPeople = Object.assign({}, window._cupAllTeam || {}, window._cupAllFreelancers || {}, window._cupAllUsers || {});
@@ -11802,6 +11980,7 @@ function cupVerifyOtp() {
     finalId = finalId || targetFlId;
     try {
       sessionStorage.setItem('kb_crew_portal_id', finalId);
+      localStorage.setItem('kb_crew_portal_id', finalId);
       sessionStorage.removeItem('kb_portal_active_otp');
       sessionStorage.removeItem('kb_portal_active_phone');
       if (targetPhone) db.ref('crm_portal_otps/' + targetPhone).remove();
@@ -11907,6 +12086,7 @@ function cupDoPinLogin() {
 
     try {
       sessionStorage.setItem('kb_crew_portal_id', matched._id);
+      localStorage.setItem('kb_crew_portal_id', matched._id);
     } catch(e) {}
 
     launchCrewPortalUi(matched._id);
@@ -25100,6 +25280,491 @@ function fcrRejectClaim() {
 
 console.log("Verification module syntax check passed!");
 
+// ═══ UNIFIED FAST ENTRY MODAL LOGIC ═══════════════════════════════════════
+
+function openUniversalFlEntryModal(mode) {
+  mode = mode || 'shoot';
+  var allFl = freelancerData || {};
+  var fSel = document.getElementById('fue-freelancer');
+  var fpSel = document.getElementById('fue-pay-freelancer');
+
+  // Populate freelancer dropdowns
+  var flKeys = Object.keys(allFl).sort(function(a,b){
+    return ((allFl[a].name||'').localeCompare(allFl[b].name||''));
+  });
+  var flOpts = '<option value="">-- Choose Freelancer --</option>';
+  for (var fi = 0; fi < flKeys.length; fi++) {
+    var fid = flKeys[fi];
+    var fobj = allFl[fid];
+    flOpts += '<option value="'+fid+'">'+escHtml(fobj.name)+(fobj.role?' ('+escHtml(fobj.role)+')':'')+'</option>';
+  }
+  if (fSel) fSel.innerHTML = flOpts;
+  if (fpSel) fpSel.innerHTML = flOpts;
+
+  // Populate project dropdown
+  var pSel = document.getElementById('fue-project');
+  if (pSel) {
+    var pOpts = '<option value="">-- Select Client / Project --</option>';
+    var pKeys = Object.keys(projects||{}).sort(function(a,b){
+      var pa=projects[a], pb=projects[b];
+      return ((pa.date||'').localeCompare(pb.date||''));
+    });
+    for (var pi = 0; pi < pKeys.length; pi++) {
+      var pid = pKeys[pi];
+      var p = projects[pid];
+      var nm = coupleName(p.bride,p.groom)||(p.refcode||'Untitled');
+      pOpts += '<option value="'+pid+'">'+escHtml(nm)+(p.date?' ('+fmtDate(p.date)+')':'')+'</option>';
+    }
+    pOpts += '<option value="custom">+ Other / Direct Client</option>';
+    pSel.innerHTML = pOpts;
+  }
+
+  // Set accounts dropdown
+  var accSel = document.getElementById('fue-pay-account');
+  if (accSel) {
+    var aOpts = '<option value="">Studio Account</option>';
+    var aVals = Object.values(accounts||{});
+    for (var ai = 0; ai < aVals.length; ai++) {
+      aOpts += '<option value="'+escHtml(aVals[ai].name)+'">'+escHtml(aVals[ai].name)+'</option>';
+    }
+    aOpts += '<option value="Cash">Cash in Hand</option>';
+    accSel.innerHTML = aOpts;
+  }
+
+  // Reset shoot fields
+  document.getElementById('fue-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('fue-fee').value = '';
+  document.getElementById('fue-travel').value = '';
+  document.getElementById('fue-other').value = '';
+  document.getElementById('fue-notes').value = '';
+  document.getElementById('fue-total-display').textContent = '\u20b90';
+  document.getElementById('fue-dupe-warn').style.display = 'none';
+  document.getElementById('fue-custom-couple').style.display = 'none';
+  document.getElementById('fue-custom-couple').value = '';
+  // Reset pay fields
+  document.getElementById('fue-pay-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('fue-pay-amount').value = '';
+  document.getElementById('fue-pay-ref').value = '';
+  document.getElementById('fue-pay-upi-box').style.display = 'none';
+  document.getElementById('fue-pay-balance-hint').textContent = 'Select a freelancer to see their current balance due.';
+  document.getElementById('fue-submit-btn').textContent = '\ud83d\udcbe Save Shoot Entry';
+
+  fueSetMode(mode);
+  openModal('fl-universal-entry-modal');
+}
+
+function fueSetMode(mode) {
+  var shootSec = document.getElementById('fue-sec-shoot');
+  var paySec   = document.getElementById('fue-sec-pay');
+  var tabShoot = document.getElementById('fue-tab-shoot');
+  var tabPay   = document.getElementById('fue-tab-pay');
+  var submitBtn = document.getElementById('fue-submit-btn');
+
+  if (mode === 'shoot') {
+    if (shootSec)  shootSec.style.display = '';
+    if (paySec)    paySec.style.display   = 'none';
+    if (tabShoot)  { tabShoot.style.background='#0f172a'; tabShoot.style.color='#fff'; }
+    if (tabPay)    { tabPay.style.background='transparent'; tabPay.style.color='#475569'; }
+    if (submitBtn) submitBtn.textContent = '\ud83d\udcbe Save Shoot Entry';
+  } else {
+    if (shootSec)  shootSec.style.display = 'none';
+    if (paySec)    paySec.style.display   = '';
+    if (tabPay)    { tabPay.style.background='#059669'; tabPay.style.color='#fff'; }
+    if (tabShoot)  { tabShoot.style.background='transparent'; tabShoot.style.color='#475569'; }
+    if (submitBtn) submitBtn.textContent = '\ud83d\udcb3 Record Payment';
+  }
+  window._fueMode = mode;
+}
+
+function fueOnFreelancerChange() {
+  var flId = document.getElementById('fue-freelancer').value;
+  var f = freelancerData && freelancerData[flId];
+  if (!f) return;
+  var rSel = document.getElementById('fue-role');
+  if (rSel && f.role) {
+    var r = f.role.toLowerCase();
+    if (r.indexOf('photo') !== -1)   rSel.value = 'Photographer';
+    else if (r.indexOf('drone') !== -1)  rSel.value = 'Drone Operator';
+    else if (r.indexOf('gimbal') !== -1) rSel.value = 'Gimbal Operator';
+    else if (r.indexOf('vid') !== -1 || r.indexOf('cine') !== -1) rSel.value = 'Videographer';
+    else if (r.indexOf('edit') !== -1) rSel.value = 'Editor';
+  }
+  var rate = (typeof flGetDayRate === 'function') ? flGetDayRate(f, (rSel ? rSel.value : '')) : 0;
+  var feeEl = document.getElementById('fue-fee');
+  if (feeEl && rate > 0 && !feeEl.value) feeEl.value = rate;
+  fueCalcTotal();
+  fueCheckDuplicates();
+}
+
+function fueOnProjectChange() {
+  var pId = document.getElementById('fue-project').value;
+  var customEl = document.getElementById('fue-custom-couple');
+  if (pId === 'custom') {
+    if (customEl) customEl.style.display = '';
+  } else {
+    if (customEl) customEl.style.display = 'none';
+    if (pId && projects && projects[pId]) {
+      var p = projects[pId];
+      var dateEl = document.getElementById('fue-date');
+      if (dateEl && !dateEl.value && p.date) dateEl.value = p.date;
+    }
+  }
+  fueCheckDuplicates();
+}
+
+function fueOnRoleChange() {
+  var flId = document.getElementById('fue-freelancer').value;
+  var f = freelancerData && freelancerData[flId];
+  if (!f) return;
+  var role = document.getElementById('fue-role').value;
+  var rate = (typeof flGetDayRate === 'function') ? flGetDayRate(f, role) : 0;
+  var feeEl = document.getElementById('fue-fee');
+  if (feeEl && rate > 0) feeEl.value = rate;
+  fueCalcTotal();
+}
+
+function fueCalcTotal() {
+  var fee    = parseFloat(document.getElementById('fue-fee').value)    || 0;
+  var travel = parseFloat(document.getElementById('fue-travel').value) || 0;
+  var other  = parseFloat(document.getElementById('fue-other').value)  || 0;
+  var total  = fee + travel + other;
+  var el = document.getElementById('fue-total-display');
+  if (el) el.textContent = '\u20b9' + fmtNum(total);
+}
+
+function fueCheckDuplicates() {
+  var flId = document.getElementById('fue-freelancer').value;
+  var date = document.getElementById('fue-date').value;
+  if (!flId || !date) {
+    document.getElementById('fue-dupe-warn').style.display = 'none';
+    return;
+  }
+  var pId = document.getElementById('fue-project').value;
+  var customName = (document.getElementById('fue-custom-couple').value || '').trim().toLowerCase();
+  var proj = (pId && pId !== 'custom' && projects && projects[pId]) ? projects[pId] : null;
+  var coupleStr = proj ? coupleName(proj.bride, proj.groom).toLowerCase() : customName;
+
+  var bills = window.flBillsData || {};
+  var dupes = [];
+  var bids = Object.keys(bills);
+  for (var i = 0; i < bids.length; i++) {
+    var b = bills[bids[i]];
+    if (!b || b.freelancerId !== flId) continue;
+    var bDate = b.eventDate || b.date || '';
+    if (bDate !== date) continue;
+    var bCouple = (b.coupleName || '').toLowerCase();
+    if (!coupleStr || !bCouple ||
+        bCouple.indexOf(coupleStr.split(' ')[0]) !== -1 ||
+        coupleStr.indexOf(bCouple.split(' ')[0]) !== -1) {
+      dupes.push(b);
+    }
+  }
+
+  var warnEl = document.getElementById('fue-dupe-warn');
+  if (dupes.length > 0 && warnEl) {
+    var fl = freelancerData && freelancerData[flId];
+    warnEl.innerHTML = '\u26a0\ufe0f <strong>Possible duplicate!</strong> ' + escHtml(fl ? fl.name : 'This freelancer') +
+      ' already has ' + dupes.length + ' entry on ' + fmtDate(date) +
+      (dupes[0].coupleName ? ' for ' + escHtml(dupes[0].coupleName) : '') +
+      ' (\u20b9' + fmtNum(dupes[0].totalAmount) + ', status: ' + (dupes[0].status || 'verified') + ').<br>' +
+      '<span style="font-size:11px;color:#7f1d1d">Tap "Save" only if this is a genuinely separate shoot on the same date. Otherwise close and edit the existing entry.</span>';
+    warnEl.style.display = '';
+  } else if (warnEl) {
+    warnEl.style.display = 'none';
+  }
+}
+
+function fueOnPayFreelancerChange() {
+  var flId = document.getElementById('fue-pay-freelancer').value;
+  var fl   = freelancerData && freelancerData[flId];
+  var hint = document.getElementById('fue-pay-balance-hint');
+  var amtEl = document.getElementById('fue-pay-amount');
+
+  if (!flId) {
+    if (hint) hint.textContent = 'Select a freelancer to see their current balance due.';
+    document.getElementById('fue-pay-upi-box').style.display = 'none';
+    return;
+  }
+  var balances = (typeof flComputeBalances === 'function') ? flComputeBalances() : {perFreelancer:{}};
+  var st  = balances.perFreelancer[flId];
+  var bal = st ? st.balance : 0;
+  if (hint) {
+    hint.innerHTML = 'Outstanding Balance Due: <strong style="color:'+(bal>0?'#dc2626':'#059669')+';font-size:14px">\u20b9'+fmtNum(bal)+'</strong>'+
+      (fl && fl.upi ? ' &nbsp;&middot;&nbsp; <span style="color:#6d28d9;font-weight:700">UPI: '+escHtml(fl.upi)+'</span>' : '');
+  }
+  if (amtEl && !amtEl.value && bal > 0) amtEl.value = bal;
+  fueUpdatePayUpiBox();
+}
+
+function fueUpdatePayUpiBox() {
+  var flId = document.getElementById('fue-pay-freelancer').value;
+  var fl   = freelancerData && freelancerData[flId];
+  var box  = document.getElementById('fue-pay-upi-box');
+  if (!box) return;
+  if (!fl || !fl.upi) { box.style.display = 'none'; return; }
+  var amt    = parseFloat(document.getElementById('fue-pay-amount').value) || 0;
+  var upiUri = 'upi://pay?pa=' + encodeURIComponent(fl.upi) + '&pn=' + encodeURIComponent(fl.name||'Freelancer') + (amt>0?'&am='+amt:'') + '&cu=INR';
+  var qrUrl  = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent(upiUri);
+  box.style.display = 'block';
+  box.innerHTML = '<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px;margin-bottom:10px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+      '<span style="font-size:12px;font-weight:700;color:#6d28d9">\u26a1 UPI Instant Pay</span>' +
+      '<button type="button" class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="navigator.clipboard.writeText(\''+escHtml(fl.upi)+'\').then(function(){showToast(\'UPI ID Copied!\')})">&#128203; Copy UPI</button>' +
+    '</div>' +
+    '<div style="display:flex;gap:10px;align-items:center">' +
+      '<img src="'+qrUrl+'" alt="UPI QR" style="width:72px;height:72px;border-radius:6px;border:1px solid #c4b5fd;padding:2px;background:#fff">' +
+      '<div><div style="font-size:12px;font-weight:700;color:#1e1b4b">'+escHtml(fl.upi)+'</div>' +
+        '<div style="font-size:11px;color:#6d28d9;margin:2px 0 6px">Scan with PhonePe / GPay / Paytm'+(amt>0?' \u00b7 \u20b9'+fmtNum(amt):'')+' </div>' +
+        '<a href="'+upiUri+'" class="btn btn-sm" style="display:inline-block;padding:4px 10px;background:#6d28d9;color:#fff;text-decoration:none;border-radius:6px;font-size:11px;font-weight:700">&#128242; Open in UPI App</a></div>' +
+    '</div></div>';
+}
+
+function fueSubmitEntry() {
+  var mode = window._fueMode || 'shoot';
+  if (mode === 'pay') {
+    _fueDoSavePay();
+  } else {
+    _fueDoSaveShoot();
+  }
+}
+
+function _fueDoSaveShoot() {
+  var date   = (document.getElementById('fue-date').value || '').trim();
+  var flId   = document.getElementById('fue-freelancer').value;
+  var pId    = document.getElementById('fue-project').value;
+  var role   = document.getElementById('fue-role').value;
+  var fee    = parseFloat(document.getElementById('fue-fee').value)    || 0;
+  var travel = parseFloat(document.getElementById('fue-travel').value) || 0;
+  var other  = parseFloat(document.getElementById('fue-other').value)  || 0;
+  var notes  = (document.getElementById('fue-notes').value || '').trim();
+
+  if (!date)   { alert('Please choose a shoot date.'); return; }
+  if (!flId)   { alert('Please select a freelancer.'); return; }
+  if (fee <= 0){ alert('Please enter the shoot fee (minimum \u20b91).'); return; }
+
+  var fl         = freelancerData && freelancerData[flId];
+  var proj       = (pId && pId !== 'custom' && projects && projects[pId]) ? projects[pId] : null;
+  var customCouple = (document.getElementById('fue-custom-couple').value || '').trim();
+  var cName      = proj ? coupleName(proj.bride, proj.groom) : (customCouple || 'Direct Shoot');
+  var total      = fee + travel + other;
+
+  var submitBtn  = document.getElementById('fue-submit-btn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving\u2026'; }
+
+  var billId   = 'fbill_fue_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
+  var billData = {
+    id:             billId,
+    category:       'shoot',
+    source:         'unified_entry',
+    eventDate:      date,
+    projectId:      proj ? pId : '',
+    coupleName:     cName,
+    freelancerId:   flId,
+    freelancerName: (fl && fl.name) || 'Freelancer',
+    role:           role,
+    shootFee:       fee,
+    travelExpense:  travel,
+    otherExpense:   other,
+    totalAmount:    total,
+    notes:          notes,
+    status:         'verified',
+    createdAt:      Date.now(),
+    createdBy:      (window.CU && (window.CU.name || window.CU.username)) || 'Admin',
+    shootEntry:     true
+  };
+
+  db.ref('crm_freelancer_bills/' + billId).set(billData, function(err) {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '\ud83d\udcbe Save Shoot Entry'; }
+    if (err) { alert('Error saving: ' + err.message); return; }
+    closeModal('fl-universal-entry-modal');
+    showToast('\u2705 Shoot entry saved \u2014 \u20b9' + fmtNum(total) + ' added to ' + (fl ? fl.name : '') + '\'s ledger!');
+    if (!window.flBillsData) window.flBillsData = {};
+    window.flBillsData[billId] = billData;
+    flUpdateDuplicateBanner();
+    if (typeof flRenderTab === 'function') flRenderTab();
+  });
+}
+
+function _fueDoSavePay() {
+  var flId   = document.getElementById('fue-pay-freelancer').value;
+  if (!flId) { alert('Please select a freelancer.'); return; }
+  var fl     = freelancerData && freelancerData[flId];
+  var date   = document.getElementById('fue-pay-date').value;
+  var amount = parseFloat(document.getElementById('fue-pay-amount').value) || 0;
+  if (!date || amount <= 0) { alert('Please enter a valid date and positive amount.'); return; }
+  var mode    = document.getElementById('fue-pay-mode').value;
+  var account = document.getElementById('fue-pay-account').value;
+  var ref     = (document.getElementById('fue-pay-ref').value || '').trim();
+
+  var submitBtn = document.getElementById('fue-submit-btn');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving\u2026'; }
+
+  var payId   = 'fpay_fue_' + Date.now();
+  var payData = {
+    id:             payId,
+    freelancerId:   flId,
+    freelancerName: (fl && fl.name) || 'Freelancer',
+    date:           date,
+    amount:         amount,
+    mode:           mode,
+    account:        account,
+    txnRef:         ref,
+    createdAt:      Date.now(),
+    createdBy:      (window.CU && (window.CU.name || window.CU.username)) || 'Admin'
+  };
+
+  db.ref('crm_freelancer_payments/' + payId).set(payData, function(err) {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '\ud83d\udcb3 Record Payment'; }
+    if (err) { alert('Error: ' + err.message); return; }
+    closeModal('fl-universal-entry-modal');
+    showToast('\u2705 Payment of \u20b9' + fmtNum(amount) + ' recorded for ' + (fl ? fl.name : '') + '!');
+    if (!window.flPaymentsData) window.flPaymentsData = {};
+    window.flPaymentsData[payId] = payData;
+    if (typeof renderFlBillingLedger === 'function') renderFlBillingLedger();
+
+    var curPhone = fl ? (fl.phone || fl.whatsapp || '') : '';
+    if (curPhone) {
+      setTimeout(function() {
+        if (confirm('Send WhatsApp payment receipt to ' + (fl ? fl.name : 'freelancer') + '?')) {
+          var cleanPhone = (typeof cupNormalizePhone === 'function') ? cupNormalizePhone(curPhone) : curPhone.replace(/\D/g,'');
+          var msg = 'Hello ' + (fl ? fl.name : '') + '! \ud83d\udc4b\n\nYour payment from KB Studio Productions:\n\n' +
+            '\ud83d\udcb0 Amount: \u20b9' + fmtNum(amount) + '\n\ud83d\udcc5 Date: ' + fmtDate(date) + '\n\ud83d\udcb3 Mode: ' + mode + (ref ? ' (Ref: ' + ref + ')' : '') + '\n\n' +
+            'View your ledger: https://crm.kbstudio.in/?portal=crew\n\nThank you!\n\u2014 Team KB Studio';
+          window.open('https://api.whatsapp.com/send?phone=91' + cleanPhone + '&text=' + encodeURIComponent(msg), '_blank');
+        }
+      }, 300);
+    }
+  });
+}
+
+// ═══ DUPLICATE BILL DETECTOR & CLEANER ═══════════════════════════════════════
+
+function flScanForDuplicates() {
+  var bills  = window.flBillsData || {};
+  var groups = {};
+  var bids   = Object.keys(bills);
+  for (var i = 0; i < bids.length; i++) {
+    var b = bills[bids[i]];
+    if (!b || !b.freelancerId) continue;
+    var date   = b.eventDate || b.date || '';
+    var couple = (b.coupleName || '').toLowerCase().trim().split(' ').slice(0,2).join('_');
+    var key    = b.freelancerId + '::' + date + '::' + couple;
+    if (!groups[key]) groups[key] = [];
+    var bc = {};
+    var bk = Object.keys(b);
+    for (var k = 0; k < bk.length; k++) bc[bk[k]] = b[bk[k]];
+    bc._id = bids[i];
+    groups[key].push(bc);
+  }
+  var dupeGroups = [];
+  var gkeys = Object.keys(groups);
+  for (var g = 0; g < gkeys.length; g++) {
+    if (groups[gkeys[g]].length > 1) dupeGroups.push(groups[gkeys[g]]);
+  }
+  return dupeGroups;
+}
+
+function flUpdateDuplicateBanner() {
+  var dupes     = flScanForDuplicates();
+  var banner    = document.getElementById('fl-dupe-alert-banner');
+  var dupeBtn   = document.getElementById('fl-dupe-check-btn');
+  var badgeCount = document.getElementById('fl-dupe-badge-count');
+  var total = dupes.reduce(function(s,g){ return s + (g.length-1); }, 0);
+  if (dupes.length > 0) {
+    if (banner) {
+      banner.style.display = 'flex';
+      var btxt = document.getElementById('fl-dupe-banner-text');
+      if (btxt) btxt.textContent = total + ' duplicate bill' + (total>1?'s':'') + ' detected across ' + dupes.length + ' freelancer-day pair' + (dupes.length>1?'s':'') + ' \u2014 ledger balance may be incorrect!';
+    }
+    if (dupeBtn)    dupeBtn.style.display = '';
+    if (badgeCount) badgeCount.textContent = total;
+  } else {
+    if (banner)  banner.style.display  = 'none';
+    if (dupeBtn) dupeBtn.style.display = 'none';
+  }
+}
+
+function flOpenDuplicateCleaner() {
+  var dupeGroups  = flScanForDuplicates();
+  var listEl      = document.getElementById('fl-dupe-cleaner-list');
+  var countLabel  = document.getElementById('fl-dupe-count-label');
+  var autoBtn     = document.getElementById('fl-dupe-auto-clean-btn');
+  var totalDupes  = dupeGroups.reduce(function(s,g){ return s + (g.length-1); }, 0);
+
+  if (countLabel) countLabel.textContent = totalDupes > 0 ? totalDupes + ' duplicate bill'+(totalDupes>1?'s':'')+' found' : '\u2705 No duplicates found!';
+  if (autoBtn)    autoBtn.style.display  = totalDupes > 0 ? '' : 'none';
+
+  if (!listEl) { openModal('fl-duplicate-cleaner-modal'); return; }
+  if (dupeGroups.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center;padding:32px;color:#22c55e;font-weight:700;font-size:14px">\u2705 No duplicate bills detected! Your ledger is clean.</div>';
+    openModal('fl-duplicate-cleaner-modal');
+    return;
+  }
+
+  var html = '';
+  for (var di = 0; di < dupeGroups.length; di++) {
+    var group = dupeGroups[di];
+    var flobj = freelancerData && freelancerData[group[0].freelancerId];
+    html += '<div style="background:#fff;border:1px solid #fca5a5;border-radius:10px;padding:12px;margin-bottom:12px">' +
+      '<div style="font-size:12.5px;font-weight:700;color:#991b1b;margin-bottom:8px">\u26a0\ufe0f ' + escHtml(flobj ? flobj.name : group[0].freelancerName || 'Unknown') +
+        ' \u2014 ' + fmtDate(group[0].eventDate || group[0].date || '') + (group[0].coupleName ? ' \u00b7 ' + escHtml(group[0].coupleName) : '') + '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px">';
+    for (var bi = 0; bi < group.length; bi++) {
+      var bitem  = group[bi];
+      var isFirst = bi === 0;
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:'+(isFirst?'#f0fdf4':'#fef2f2')+';border-radius:7px;border:1px solid '+(isFirst?'#bbf7d0':'#fecaca')+'">' +
+        '<div style="font-size:11.5px"><span style="font-weight:700">'+(isFirst?'\u2705 KEEP':'\u274c DUPLICATE')+'</span>' +
+        ' \u00b7 \u20b9'+fmtNum(bitem.totalAmount)+' \u00b7 '+escHtml(bitem.source||'manual')+
+        ' \u00b7 status: '+(bitem.status||'?')+(bitem.notes?' \u00b7 '+escHtml(bitem.notes.substring(0,30)):'')+
+        ' \u00b7 created: '+(bitem.createdAt?new Date(bitem.createdAt).toLocaleDateString('en-IN'):'?')+'</div>' +
+        (!isFirst
+          ? '<button type="button" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;font-size:11px;font-weight:700;padding:3px 10px;border-radius:5px;cursor:pointer;white-space:nowrap" onclick="flDeleteDuplicateBill(\''+bitem._id+'\')">\ud83d\uddd1 Remove</button>'
+          : '<span style="font-size:10px;color:#16a34a;font-weight:700">Primary</span>') +
+      '</div>';
+    }
+    html += '</div></div>';
+  }
+  listEl.innerHTML = html;
+  openModal('fl-duplicate-cleaner-modal');
+}
+
+function flDeleteDuplicateBill(billId) {
+  if (!confirm('Remove this duplicate bill entry? This cannot be undone.')) return;
+  db.ref('crm_freelancer_bills/' + billId).remove(function(err) {
+    if (err) { alert('Error: ' + err.message); return; }
+    if (window.flBillsData) delete window.flBillsData[billId];
+    showToast('\ud83e\uddf9 Duplicate removed!');
+    flUpdateDuplicateBanner();
+    flOpenDuplicateCleaner();
+    if (typeof renderFlBillingLedger === 'function') renderFlBillingLedger();
+  });
+}
+
+function flExecuteAutoDeduplication() {
+  if (!confirm('Auto-remove all detected duplicate bills (keeping the first entry for each freelancer+date+couple)? This cannot be undone.')) return;
+  var dupeGroups = flScanForDuplicates();
+  var toDelete   = [];
+  for (var di = 0; di < dupeGroups.length; di++) {
+    var gr = dupeGroups[di];
+    for (var bi = 1; bi < gr.length; bi++) { toDelete.push(gr[bi]._id); }
+  }
+  if (toDelete.length === 0) { showToast('\u2705 Nothing to remove!'); return; }
+  var updates = {};
+  for (var ti = 0; ti < toDelete.length; ti++) {
+    updates['crm_freelancer_bills/' + toDelete[ti]] = null;
+  }
+  db.ref().update(updates, function(err) {
+    if (err) { alert('Error: ' + err.message); return; }
+    for (var ri = 0; ri < toDelete.length; ri++) {
+      if (window.flBillsData) delete window.flBillsData[toDelete[ri]];
+    }
+    closeModal('fl-duplicate-cleaner-modal');
+    showToast('\u2705 ' + toDelete.length + ' duplicate bill'+(toDelete.length>1?'s':'')+' removed! Ledger is now clean.');
+    flUpdateDuplicateBanner();
+    if (typeof renderFlBillingLedger === 'function') renderFlBillingLedger();
+  });
+}
+
 // ── 3. BILLING & LEDGERS ─────────────────────────────────────────────
 function renderFlBillingLedger() {
   var root = document.getElementById('flb-content');
@@ -25375,12 +26040,46 @@ function frpOnFreelancerChange() {
   var balances = flComputeBalances();
   var st = balances.perFreelancer[flId];
   var bal = st ? st.balance : 0;
+  var fl = freelancerData && freelancerData[flId];
   if (hint) {
-    hint.innerHTML = 'Current Outstanding Due: <strong style="color:' + (bal > 0 ? '#dc2626' : '#059669') + ';font-size:13px">₹' + fmtNum(bal) + '</strong>';
+    hint.innerHTML = 'Current Outstanding Due: <strong style="color:' + (bal > 0 ? '#dc2626' : '#059669') + ';font-size:13px">₹' + fmtNum(bal) + '</strong>' +
+      (fl && fl.upi ? ' &nbsp;·&nbsp; <span style="color:#6d28d9;font-weight:700">UPI: ' + escHtml(fl.upi) + '</span>' : '');
   }
   if (amtInput && !amtInput.value && bal > 0) {
     amtInput.value = bal;
   }
+  frpUpdateUpiBox();
+}
+
+function frpUpdateUpiBox() {
+  var flId = gv('frp-freelancer');
+  var fl = freelancerData && freelancerData[flId];
+  var upiBox = document.getElementById('frp-upi-quick-box');
+  if (!upiBox) return;
+  if (!fl || !fl.upi) {
+    upiBox.style.display = 'none';
+    return;
+  }
+  var amt = parseFloat(gv('frp-amount')) || 0;
+  var upiUri = 'upi://pay?pa=' + encodeURIComponent(fl.upi) + '&pn=' + encodeURIComponent(fl.name || 'Freelancer') + (amt > 0 ? '&am=' + amt : '') + '&cu=INR';
+  var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=' + encodeURIComponent(upiUri);
+
+  upiBox.style.display = 'block';
+  upiBox.innerHTML =
+    '<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:10px;padding:12px;margin-bottom:12px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+        '<span style="font-size:12px;font-weight:700;color:#6d28d9">⚡ Instant UPI Payout</span>' +
+        '<button type="button" class="btn btn-sm" style="font-size:11px;padding:2px 8px" onclick="navigator.clipboard.writeText(\'' + escHtml(fl.upi) + '\').then(function(){showToast(\'UPI ID Copied!\')})">📋 Copy UPI</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:12px;align-items:center">' +
+        '<img src="' + qrUrl + '" alt="UPI QR" style="width:74px;height:74px;border-radius:6px;border:1px solid #c4b5fd;background:#fff;padding:2px">' +
+        '<div style="flex:1">' +
+          '<div style="font-size:12px;font-weight:700;color:#1e1b4b">' + escHtml(fl.upi) + '</div>' +
+          '<div style="font-size:11px;color:#6d28d9;margin:2px 0 6px">Scan with PhonePe / GPay / Paytm' + (amt > 0 ? ' (₹' + fmtNum(amt) + ')' : '') + '</div>' +
+          '<a href="' + upiUri + '" class="btn btn-sm" style="display:inline-block;padding:4px 10px;background:#6d28d9;color:#fff;text-decoration:none;border-radius:6px;font-size:11px;font-weight:700">📲 Open in UPI App</a>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
 }
 
 function frpSavePayment() {
@@ -25420,6 +26119,21 @@ function frpSavePayment() {
     if (!window.flPaymentsData) window.flPaymentsData = {};
     window.flPaymentsData[payId] = payData;
     renderFlBillingLedger();
+
+    var curPhone = fl ? (fl.phone || fl.whatsapp || '') : '';
+    if (curPhone) {
+      setTimeout(function() {
+        if (confirm('Payment of ₹' + fmtNum(amount) + ' recorded!\n\nDo you want to send a WhatsApp payment receipt voucher to ' + flName + '?')) {
+          var cleanPhone = cupNormalizePhone(curPhone);
+          var msg = 'Hello ' + flName + '! 👋\n\nYour shoot payment from KB Studio Productions has been processed:\n\n' +
+            '💰 Amount Paid: ₹' + fmtNum(amount) + '\n' +
+            '📅 Date: ' + fmtDate(date) + '\n' +
+            '💳 Mode: ' + mode + (ref ? ' (Ref: ' + ref + ')' : '') + '\n\n' +
+            'You can view your complete payment ledger anytime in your portal:\nhttps://crm.kbstudio.in/?portal=crew\n\nThank you!\n— Team KB Studio Productions';
+          window.open('https://api.whatsapp.com/send?phone=91' + cleanPhone + '&text=' + encodeURIComponent(msg), '_blank');
+        }
+      }, 300);
+    }
   });
 }
 
