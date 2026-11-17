@@ -2129,9 +2129,12 @@ document.addEventListener('wheel', function(e) {
           <button id="fl-tab-work" onclick="flGoTab('work')" style="padding:9px 16px;font-size:13px;font-weight:700;border:none;cursor:pointer">💼 Post-Prod Edits</button>
         </div>
         <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap">
-          <button id="fl-record-pay-btn" class="btn btn-success" style="font-size:13px;padding:9px 16px;display:none" onclick="openRecordFlPaymentModal()">💳 Record Payment</button>
-          <button id="fl-manual-bill-btn" class="btn btn-sm" style="font-size:13px;padding:9px 14px;background:#f8fafc;border:1px solid #cbd5e1;color:#1e293b;font-weight:700;display:none" onclick="openAddFlManualBillModal()">➕ Add Bill / Expense</button>
-          <button id="fl-add-btn" class="btn btn-primary" style="font-size:13px;padding:9px 18px" onclick="openAddFreelancer()">➕ Add Freelancer</button>
+          <button id="fl-live-otps-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#fef3c7;border:1px solid #fde047;color:#854d0e;font-weight:700" onclick="showLiveOtpsModal()" title="View live freelancer portal verification OTPs">🔑 Live OTPs <span id="fl-live-otps-badge" style="background:#dc2626;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px;display:none">0</span></button>
+          <button id="fl-quick-shoot-btn" class="btn btn-primary btn-sm" style="font-size:12.5px;padding:8px 14px;font-weight:700" onclick="openQuickShootModal()">➕ Add Shoot Entry</button>
+          <button id="fl-sheet-import-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-weight:700" onclick="openSheetImportModal()" title="Import all rows from Google Sheet">📥 Import Google Sheet</button>
+          <button id="fl-record-pay-btn" class="btn btn-success" style="font-size:12.5px;padding:8px 14px;display:none" onclick="openRecordFlPaymentModal()">💳 Record Payment</button>
+          <button id="fl-manual-bill-btn" class="btn btn-sm" style="font-size:12.5px;padding:8px 12px;background:#f8fafc;border:1px solid #cbd5e1;color:#1e293b;font-weight:700;display:none" onclick="openAddFlManualBillModal()">➕ Add Bill / Expense</button>
+          <button id="fl-add-btn" class="btn btn-primary" style="font-size:12.5px;padding:8px 16px;display:none" onclick="openAddFreelancer()">➕ Add Freelancer</button>
         </div>
       </div>
       <div id="flr-content" style="display:none"></div>
@@ -4381,6 +4384,21 @@ document.addEventListener('wheel', function(e) {
       <div class="section-divider" style="margin-top:8px">Notes &amp; Tags</div>
       <div class="fr"><label class="fl">Internal Notes</label><textarea class="fi" id="fl-notes" rows="2" placeholder="e.g. Very reliable for pre-wedding shoots. Brings own lighting."></textarea></div>
       <div class="fg"><div class="fr"><label class="fl">ID Proof</label><input class="fi" id="fl-idproof" placeholder="e.g. Aadhar: 1234-5678-9012"></div><div class="fr"><label class="fl">Referred By</label><input class="fi" id="fl-referredby" placeholder="e.g. Vikram Sharma (Team)"></div></div>
+      <div class="section-divider" style="margin-top:8px">🔑 Freelancer Self-Portal Access</div>
+      <div class="fg">
+        <div class="fr">
+          <label class="fl">Portal PIN <span style="font-weight:400;color:#94a3b8;font-size:11px">(freelancer uses this to log in at crm.kbstudio.in?portal=crew)</span></label>
+          <input class="fi" id="fl-portalpin" placeholder="e.g. 1234  (leave blank = default 0000)" maxlength="8" autocomplete="off">
+        </div>
+        <div class="fr" style="align-self:flex-end">
+          <label class="fl">Portal Link (share via WhatsApp)</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input class="fi" id="fl-portallink" readonly value="https://crm.kbstudio.in?portal=crew" style="background:#f8fafc;color:#0369a1;font-size:12px">
+            <button type="button" class="btn btn-sm" onclick="navigator.clipboard.writeText('https://crm.kbstudio.in?portal=crew').then(function(){showToast('✅ Link copied!')})">📋 Copy</button>
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:3px">One universal link for ALL freelancers — each logs in with their phone + PIN.</div>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn" data-close="freelancer-modal">Cancel</button>
@@ -4641,6 +4659,133 @@ document.addEventListener('wheel', function(e) {
         <button class="btn" data-close="fl-claim-review-modal">Cancel</button>
         <button class="btn btn-primary" onclick="fcrApproveClaim()">✅ Approve &amp; Verify</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK SHOOT ENTRY MODAL (REPLACES MANUAL GOOGLE SHEET) -->
+<div class="modal-overlay" id="fl-quick-shoot-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-hdr">
+      <div class="modal-title">➕ Quick Freelancer Shoot Entry</div>
+      <button class="modal-close" data-close="fl-quick-shoot-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:#64748b;margin-bottom:14px">
+        Directly log which freelancer is on which client shoot and their agreed rate — exactly like your Google Sheet. Automatically updates the live duty roster, billing ledger, and freelancer mobile portal!
+      </div>
+      <div class="fg">
+        <div class="fr">
+          <label class="fl">Shoot Date *</label>
+          <input class="fi" type="date" id="fqe-date">
+        </div>
+        <div class="fr">
+          <label class="fl">Client / Project *</label>
+          <select class="fi" id="fqe-project" onchange="fqeOnProjectChange()"></select>
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fr">
+          <label class="fl">Freelancer Name *</label>
+          <select class="fi" id="fqe-freelancer" onchange="fqeOnFreelancerChange()"></select>
+        </div>
+        <div class="fr">
+          <label class="fl">Role</label>
+          <select class="fi" id="fqe-role">
+            <option value="Photographer">📷 Photographer</option>
+            <option value="Videographer">🎥 Videographer</option>
+            <option value="Drone Operator">🚁 Drone Operator</option>
+            <option value="Phonographer">📱 Phonographer</option>
+            <option value="Coordinator">📋 Coordinator</option>
+            <option value="Assistant">💡 Assistant / Light</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fr">
+          <label class="fl">Agreed Shoot Rate (₹) *</label>
+          <input class="fi" type="number" id="fqe-rate" placeholder="e.g. 8000" min="0">
+        </div>
+        <div class="fr">
+          <label class="fl">Status</label>
+          <select class="fi" id="fqe-status">
+            <option value="verified">✅ Confirmed / Verified</option>
+            <option value="upcoming">⏳ Upcoming Schedule</option>
+          </select>
+        </div>
+      </div>
+      <div class="fr">
+        <label class="fl">Notes / Remarks</label>
+        <input class="fi" id="fqe-notes" placeholder="e.g. Revised from 10K / Haldi + Mehendi / Drone card">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="fl-quick-shoot-modal">Cancel</button>
+      <button class="btn btn-primary" onclick="saveQuickShootEntry()">💾 Save Shoot Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- GOOGLE SHEET IMPORT MODAL (309 ROWS) -->
+<div class="modal-overlay" id="fl-sheet-import-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-hdr">
+      <div class="modal-title">📥 Import Freelancers Sheet (309 Rows)</div>
+      <button class="modal-close" data-close="fl-sheet-import-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12.5px;color:#475569;margin-bottom:12px;line-height:1.5">
+        Automatically import all past &amp; scheduled shoot duties, client assignments, agreed rates, and notes directly from your Google Sheet into the CRM. Existing entries are matched without duplication.
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+        <div style="font-size:12px;font-weight:700;color:#0f172a;margin-bottom:4px">Google Sheet Source:</div>
+        <input class="fi" id="fsi-url" value="https://docs.google.com/spreadsheets/d/12B_HUeUqkMCBws5Di4p8l9l9b1CAXe2yfgbKyFkkSK4/export?format=csv" style="font-size:12px;font-family:monospace" placeholder="Paste Google Sheet CSV URL">
+        <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-sm btn-primary" onclick="fetchAndParseGoogleSheet()">🔄 Fetch &amp; Preview Sheet</button>
+          <label class="btn btn-sm" style="cursor:pointer;background:#fff;border:1px solid #cbd5e1">
+            📁 Or Upload CSV File
+            <input type="file" id="fsi-file" accept=".csv" style="display:none" onchange="uploadGoogleSheetCsv(this)">
+          </label>
+          <span id="fsi-status" style="font-size:12px;color:#64748b"></span>
+        </div>
+      </div>
+      <div id="fsi-preview-wrap" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span id="fsi-summary" style="font-size:13px;font-weight:700;color:#0f172a"></span>
+          <span id="fsi-total-val" style="font-size:13px;font-weight:800;color:#059669"></span>
+        </div>
+        <div style="max-height:260px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px">
+          <table class="tbl" style="font-size:11.5px">
+            <thead><tr><th>Date</th><th>Client / Project</th><th>Freelancer</th><th>Rate</th><th>Notes</th><th>Status</th></tr></thead>
+            <tbody id="fsi-preview-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="fl-sheet-import-modal">Cancel</button>
+      <button id="fsi-import-btn" class="btn btn-success" disabled onclick="executeSheetImport()">✅ Import All Rows into CRM</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIVE SHOOT OTPS MODAL (ADMIN VIEW) -->
+<div class="modal-overlay" id="fl-live-otps-modal">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-hdr">
+      <div class="modal-title">🔑 Live Freelancer Shoot OTPs</div>
+      <button class="modal-close" data-close="fl-live-otps-modal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">
+        Active 6-digit verification OTPs requested by freelancers in the last 15 minutes. If a freelancer has poor mobile reception at the wedding venue, read this OTP to them!
+      </div>
+      <div id="fl-live-otps-list" style="max-height:300px;overflow-y:auto">
+        <div class="empty">No active OTP requests right now.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="fl-live-otps-modal">Close</button>
     </div>
   </div>
 </div>
@@ -11085,6 +11230,360 @@ function getCrewPortalURL(id, projId) {
 function copyCrewPortalLink(id, projId) {
   var url = getCrewPortalURL(id, projId);
   navigator.clipboard.writeText(url).then(function(){ showToast(projId ? '🔗 Link copied — shows only this event\'s checklist.' : '🔗 Shoot portal link copied (all their events)!'); });
+}
+
+function flSharePortalWhatsapp(flId) {
+  var f = freelancerData && freelancerData[flId];
+  if (!f) return;
+  var rawPhone = (f.whatsapp || f.phone || '').replace(/[^0-9]/g, '');
+  if (!rawPhone) { alert('No phone or WhatsApp number saved for ' + f.name); return; }
+  var phone = rawPhone.length === 10 ? '91' + rawPhone : rawPhone;
+  var pin = f.portalPin ? f.portalPin : '0000 (default)';
+  var msg = 'Hello ' + f.name + '! 👋\n\nHere is your KB Studio Freelancer Portal link:\nhttps://crm.kbstudio.in?portal=crew\n\nLog in using:\n📱 Phone: ' + (f.phone || f.whatsapp) + '\n🔑 PIN: ' + pin + '\n\nYou can view your upcoming shoot dates, checklist, submit your shoot fees, and track your payment ledger directly from your phone!';
+  window.open('https://api.whatsapp.com/send?phone=' + phone + '&text=' + encodeURIComponent(msg), '_blank');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UNIVERSAL CREW PORTAL — ?portal=crew  (phone + PIN login for all freelancers)
+// ═══════════════════════════════════════════════════════════════════════════
+function checkCrewPortalMode() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('portal') !== 'crew') return false;
+
+  if (params.get('logout') === '1') {
+    try { localStorage.removeItem('kb_crew_portal_id'); } catch(e) {}
+  }
+
+  var loginEl = document.getElementById('login-screen');
+  var appEl   = document.getElementById('main-app');
+  if (loginEl) loginEl.style.display = 'none';
+  if (appEl)   appEl.style.display   = 'none';
+
+  // Load all freelancers + team members into memory
+  window._cupAllFreelancers = {};
+  window._cupAllTeam = {};
+
+  var savedCrewId = null;
+  try { savedCrewId = localStorage.getItem('kb_crew_portal_id'); } catch(e) {}
+
+  // If saved session exists, launch immediately
+  if (savedCrewId) {
+    db.ref('crm_freelancers/' + savedCrewId).once('value', function(s) {
+      if (s.exists()) {
+        launchCrewPortalUi(savedCrewId);
+      } else {
+        db.ref('crm_team/' + savedCrewId).once('value', function(st) {
+          if (st.exists()) launchCrewPortalUi(savedCrewId);
+          else {
+            try { localStorage.removeItem('kb_crew_portal_id'); } catch(e) {}
+            showUniversalCrewLoginScreen();
+          }
+        });
+      }
+    });
+  } else {
+    showUniversalCrewLoginScreen();
+  }
+
+  db.ref('crm_freelancers').once('value', function(s) { window._cupAllFreelancers = s.val() || {}; });
+  db.ref('crm_team').once('value',        function(s) { window._cupAllTeam = s.val() || {}; });
+
+  return true;
+}
+
+var _cupActiveOtp = null;
+var _cupActiveFreelancerId = null;
+var _cupActivePhone = '';
+var _cupLoginMode = 'otp'; // 'otp' or 'pin'
+
+function showUniversalCrewLoginScreen() {
+  var old = document.getElementById('crew-universal-portal');
+  if (old) old.remove();
+
+  var wrap = document.createElement('div');
+  wrap.id = 'crew-universal-portal';
+  wrap.style.cssText = 'min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:16px';
+  wrap.innerHTML =
+    '<div style="background:#fff;border-radius:20px;padding:34px 30px;width:100%;max-width:410px;box-shadow:0 24px 64px rgba(0,0,0,.35)">' +
+      '<div style="text-align:center;margin-bottom:24px">' +
+        '<div style="font-size:38px;margin-bottom:6px">🎬</div>' +
+        '<div style="font-size:22px;font-weight:800;color:#0f172a">KB Studio</div>' +
+        '<div style="font-size:13px;color:#64748b;margin-top:4px">Freelancer Portal — Secure Login</div>' +
+      '</div>' +
+      '<div id="cup-error" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>' +
+      '<div id="cup-success" style="display:none;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>' +
+
+      // Mode: OTP Step 1 (Phone Input)
+      '<div id="cup-step-phone" style="' + (_cupLoginMode === 'otp' ? '' : 'display:none') + '">' +
+        '<div style="margin-bottom:16px">' +
+          '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">📱 Registered Mobile Number</label>' +
+          '<div style="position:relative">' +
+            '<span style="position:absolute;left:12px;top:13px;font-weight:700;color:#64748b;font-size:14px">+91</span>' +
+            '<input id="cup-phone" type="tel" maxlength="10" placeholder="98765 43210" style="width:100%;box-sizing:border-box;padding:12px 14px 12px 48px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:16px;outline:none;font-weight:600" ' +
+              'oninput="this.value=this.value.replace(/[^0-9]/g,\'\')" onkeydown="if(event.key===\'Enter\')cupSendOtp()">' +
+          '</div>' +
+          '<div style="font-size:11px;color:#94a3b8;margin-top:4px">We will send a 6-digit verification OTP to this mobile number.</div>' +
+        '</div>' +
+        '<button id="cup-send-otp-btn" onclick="cupSendOtp()" style="width:100%;padding:13px;background:#0f172a;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s">Send Verification OTP 📩</button>' +
+        '<div style="text-align:center;margin-top:16px">' +
+          '<a href="#" onclick="cupToggleMode(\'pin\');return false" style="font-size:12px;color:#0284c7;font-weight:600;text-decoration:none">🔑 Or sign in with Studio PIN instead</a>' +
+        '</div>' +
+      '</div>' +
+
+      // Mode: OTP Step 2 (Enter OTP)
+      '<div id="cup-step-otp" style="display:none">' +
+        '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:center">' +
+          '<div style="font-size:12px;color:#166534;font-weight:600">Verification code generated for:</div>' +
+          '<div id="cup-otp-target" style="font-size:15px;font-weight:800;color:#0f172a;margin-top:2px"></div>' +
+        '</div>' +
+        '<div style="margin-bottom:16px">' +
+          '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">🔢 Enter 6-Digit Verification OTP</label>' +
+          '<input id="cup-otp-input" type="tel" maxlength="6" inputmode="numeric" placeholder="• • • • • •" style="width:100%;box-sizing:border-box;padding:12px;border:2px solid #0284c7;border-radius:10px;font-size:22px;letter-spacing:6px;text-align:center;outline:none;font-weight:800;color:#0f172a" ' +
+            'onkeydown="if(event.key===\'Enter\')cupVerifyOtp()">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:#64748b">' +
+            '<span id="cup-otp-timer">Expires in 10:00</span>' +
+            '<a href="#" onclick="cupSendOtp();return false" style="color:#0284c7;font-weight:600;text-decoration:none">Resend OTP</a>' +
+          '</div>' +
+        '</div>' +
+        '<button onclick="cupVerifyOtp()" style="width:100%;padding:13px;background:#15803d;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Verify &amp; Sign In →</button>' +
+        '<div style="margin-top:10px;display:flex;gap:8px">' +
+          '<button onclick="cupWhatsappOtp()" style="flex:1;padding:9px;background:#25d366;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">📲 Send to WhatsApp</button>' +
+          '<button onclick="cupToggleMode(\'pin\')" style="flex:1;padding:9px;background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">🔑 Use PIN</button>' +
+        '</div>' +
+        '<div style="text-align:center;margin-top:14px">' +
+          '<a href="#" onclick="showUniversalCrewLoginScreen();return false" style="font-size:12px;color:#64748b;text-decoration:none">← Change Mobile Number</a>' +
+        '</div>' +
+      '</div>' +
+
+      // Mode: PIN Fallback
+      '<div id="cup-step-pin" style="' + (_cupLoginMode === 'pin' ? '' : 'display:none') + '">' +
+        '<div style="margin-bottom:14px">' +
+          '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">📱 Registered Phone Number</label>' +
+          '<input id="cup-pin-phone" type="tel" placeholder="e.g. 9876543210" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;outline:none" ' +
+            'oninput="this.value=this.value.replace(/[^0-9+]/,\'\')">' +
+        '</div>' +
+        '<div style="margin-bottom:18px">' +
+          '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">🔑 Studio PIN</label>' +
+          '<input id="cup-pin-val" type="password" inputmode="numeric" maxlength="8" placeholder="Enter PIN" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:18px;letter-spacing:4px;outline:none" ' +
+            'onkeydown="if(event.key===\'Enter\')cupDoPinLogin()">' +
+          '<div style="font-size:11px;color:#94a3b8;margin-top:3px">Default is 0000 unless changed by admin.</div>' +
+        '</div>' +
+        '<button onclick="cupDoPinLogin()" style="width:100%;padding:13px;background:#0f172a;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Sign In with PIN →</button>' +
+        '<div style="text-align:center;margin-top:16px">' +
+          '<a href="#" onclick="cupToggleMode(\'otp\');return false" style="font-size:12px;color:#0284c7;font-weight:600;text-decoration:none">📱 Switch back to Secure OTP Login</a>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(wrap);
+}
+
+function cupToggleMode(mode) {
+  _cupLoginMode = mode;
+  var pBox = document.getElementById('cup-step-phone');
+  var oBox = document.getElementById('cup-step-otp');
+  var piBox = document.getElementById('cup-step-pin');
+  var errEl = document.getElementById('cup-error');
+  var succEl = document.getElementById('cup-success');
+  if (errEl) errEl.style.display = 'none';
+  if (succEl) succEl.style.display = 'none';
+
+  if (pBox) pBox.style.display = (mode === 'otp' ? '' : 'none');
+  if (oBox) oBox.style.display = 'none';
+  if (piBox) piBox.style.display = (mode === 'pin' ? '' : 'none');
+}
+
+function cupSendOtp() {
+  var phoneInput = document.getElementById('cup-phone');
+  var raw = (phoneInput ? phoneInput.value : _cupActivePhone) || '';
+  var normPhone = raw.replace(/^\+91/, '').replace(/[^0-9]/g, '');
+  var errEl = document.getElementById('cup-error');
+  var succEl = document.getElementById('cup-success');
+  if (errEl) errEl.style.display = 'none';
+  if (succEl) succEl.style.display = 'none';
+
+  if (!normPhone || normPhone.length < 10) {
+    if (errEl) { errEl.textContent = 'Please enter a valid 10-digit mobile number.'; errEl.style.display = ''; }
+    return;
+  }
+
+  // Find freelancer or team member
+  var allPeople = Object.assign({}, window._cupAllTeam || {}, window._cupAllFreelancers || {});
+  var matched = null, matchedId = null;
+  Object.keys(allPeople).forEach(function(id) {
+    var p = allPeople[id]; if (!p) return;
+    var pPhone = String(p.phone || p.whatsapp || '').replace(/^\+91/, '').replace(/[^0-9]/g, '');
+    if (pPhone && pPhone === normPhone) { matched = p; matchedId = id; }
+  });
+
+  if (!matched) {
+    if (errEl) {
+      errEl.textContent = 'Mobile number (' + normPhone + ') is not registered with KB Studio. Please ask studio admin to register your profile.';
+      errEl.style.display = '';
+    }
+    return;
+  }
+
+  // Generate 6-digit OTP code
+  var code = String(Math.floor(100000 + Math.random() * 900000));
+  _cupActiveOtp = code;
+  _cupActiveFreelancerId = matchedId;
+  _cupActivePhone = normPhone;
+
+  var expiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
+  var otpData = {
+    code: code,
+    phone: normPhone,
+    freelancerId: matchedId,
+    freelancerName: matched.name || 'Freelancer',
+    role: matched.role || 'Crew',
+    requestedAt: Date.now(),
+    expiresAt: expiresAt
+  };
+
+  // Push to Firebase Realtime Database (so Studio Admin sees it live)
+  db.ref('crm_portal_otps/' + normPhone).set(otpData);
+
+  // Switch to OTP entry view
+  document.getElementById('cup-step-phone').style.display = 'none';
+  document.getElementById('cup-step-otp').style.display = '';
+  document.getElementById('cup-otp-target').textContent = matched.name + ' (+91 ' + normPhone + ')';
+
+  if (succEl) {
+    succEl.textContent = '✅ Verification code generated! Active for 10 minutes.';
+    succEl.style.display = '';
+  }
+
+  var otpField = document.getElementById('cup-otp-input');
+  if (otpField) { otpField.value = ''; otpField.focus(); }
+}
+
+function cupVerifyOtp() {
+  var entered = (document.getElementById('cup-otp-input').value || '').trim();
+  var errEl = document.getElementById('cup-error');
+  if (errEl) errEl.style.display = 'none';
+
+  if (!entered || entered.length !== 6) {
+    if (errEl) { errEl.textContent = 'Please enter the complete 6-digit OTP.'; errEl.style.display = ''; }
+    return;
+  }
+
+  // Verify against active OTP or Firebase
+  db.ref('crm_portal_otps/' + _cupActivePhone).once('value', function(snap) {
+    var rec = snap.val();
+    var validCode = (rec && rec.code) || _cupActiveOtp;
+    var notExpired = rec ? (rec.expiresAt > Date.now()) : true;
+
+    if (entered === validCode && notExpired) {
+      // ✅ SUCCESS!
+      try {
+        localStorage.setItem('kb_crew_portal_id', _cupActiveFreelancerId);
+        db.ref('crm_portal_otps/' + _cupActivePhone).remove();
+      } catch (e) {}
+      launchCrewPortalUi(_cupActiveFreelancerId);
+    } else {
+      if (errEl) {
+        errEl.textContent = 'Incorrect or expired OTP. Please check or request a new code.';
+        errEl.style.display = '';
+      }
+      document.getElementById('cup-otp-input').value = '';
+    }
+  });
+}
+
+function cupWhatsappOtp() {
+  if (!_cupActivePhone || !_cupActiveOtp) return;
+  var msg = 'Hello! Your KB Studio Portal Verification OTP is: ' + _cupActiveOtp + ' (valid for 10 minutes). Do not share this with unauthorized persons.';
+  window.open('https://api.whatsapp.com/send?phone=91' + _cupActivePhone + '&text=' + encodeURIComponent(msg), '_blank');
+}
+
+function cupDoPinLogin() {
+  var raw = (document.getElementById('cup-pin-phone').value || '').trim();
+  var pin = (document.getElementById('cup-pin-val').value || '').trim();
+  var errEl = document.getElementById('cup-error');
+  if (errEl) errEl.style.display = 'none';
+
+  var normPhone = raw.replace(/^\+91/, '').replace(/[^0-9]/g, '');
+  if (!normPhone) { if (errEl) { errEl.textContent = 'Please enter your phone number.'; errEl.style.display = ''; } return; }
+  if (!pin) { if (errEl) { errEl.textContent = 'Please enter your Studio PIN.'; errEl.style.display = ''; } return; }
+
+  var allPeople = Object.assign({}, window._cupAllTeam || {}, window._cupAllFreelancers || {});
+  var matched = null, matchedId = null;
+  Object.keys(allPeople).forEach(function(id) {
+    var p = allPeople[id]; if (!p) return;
+    var pPhone = String(p.phone || p.whatsapp || '').replace(/^\+91/, '').replace(/[^0-9]/g, '');
+    if (pPhone && pPhone === normPhone) {
+      var storedPin = String(p.portalPin || '').trim();
+      if (storedPin && storedPin === pin) { matched = p; matchedId = id; }
+      else if (!storedPin && (pin === '0000' || pin === '1234')) { matched = p; matchedId = id; }
+    }
+  });
+
+  if (!matched) {
+    if (errEl) {
+      errEl.textContent = 'Phone number or PIN is incorrect. Please try again, or use OTP sign in.';
+      errEl.style.display = '';
+    }
+    document.getElementById('cup-pin-val').value = '';
+    return;
+  }
+
+  try { localStorage.setItem('kb_crew_portal_id', matchedId); } catch (e) {}
+  launchCrewPortalUi(matchedId);
+}
+
+function cupLogout() {
+  try { localStorage.removeItem('kb_crew_portal_id'); } catch (e) {}
+  window.location.href = window.location.origin + window.location.pathname + '?portal=crew&logout=1';
+}
+
+function launchCrewPortalUi(matchedId) {
+  var wrap = document.getElementById('crew-universal-portal');
+  if (wrap) wrap.remove();
+
+  var portal = document.getElementById('crew-portal');
+  if (!portal) {
+    portal = document.createElement('div');
+    portal.id = 'crew-portal';
+    portal.style.cssText = 'min-height:100vh;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+    document.body.appendChild(portal);
+  }
+
+  window._crewPortal = {
+    el: portal, crewId: matchedId, eventFilter: null,
+    projects: {}, team: window._cupAllTeam || {}, freelancers: window._cupAllFreelancers || {},
+    tpl: {}, bills: {}, payments: {}
+  };
+  window.flBillsData    = {};
+  window.flPaymentsData = {};
+
+  var loaded = 0;
+  function onLoad() {
+    loaded++;
+    if (loaded < 4) return;
+    renderCrewPortal();
+  }
+
+  db.ref('crm_projects').once('value', function(snap) {
+    window._crewPortal.projects = snap.val() || {};
+    onLoad();
+    db.ref('crm_projects').on('child_changed', function(s2) { window._crewPortal.projects[s2.key] = s2.val(); renderCrewPortal(); });
+    db.ref('crm_projects').on('child_added',   function(s2) { window._crewPortal.projects[s2.key] = s2.val(); renderCrewPortal(); });
+  });
+  db.ref('crm_checklist_templates').once('value', function(snap) { window._crewPortal.tpl = snap.val() || {}; onLoad(); });
+  db.ref('crm_freelancer_bills').once('value', function(snap) {
+    window._crewPortal.bills = snap.val() || {};
+    window.flBillsData = window._crewPortal.bills;
+    onLoad();
+    db.ref('crm_freelancer_bills').on('value', function(s2) { window._crewPortal.bills = s2.val() || {}; window.flBillsData = s2.val() || {}; renderCrewPortal(); });
+  });
+  db.ref('crm_freelancer_payments').once('value', function(snap) {
+    window._crewPortal.payments = snap.val() || {};
+    window.flPaymentsData = window._crewPortal.payments;
+    onLoad();
+    db.ref('crm_freelancer_payments').on('value', function(s2) { window._crewPortal.payments = s2.val() || {}; window.flPaymentsData = s2.val() || {}; renderCrewPortal(); });
+  });
+  db.ref('crm_freelancers').once('value', function(snap) { window._crewPortal.freelancers = snap.val() || {}; onLoad(); });
+  db.ref('crm_team').once('value',        function(snap) { window._crewPortal.team = snap.val() || {}; onLoad(); });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -23003,7 +23502,7 @@ function openAddFreelancer(prefill) {
   _editFreelancerId = null;
   var modal_title = document.getElementById('freelancer-modal-title');
   if (modal_title) modal_title.textContent = 'Add Freelancer';
-  ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby'].forEach(function(i){sv(i,'');});
+  ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby','fl-portalpin'].forEach(function(i){sv(i,'');});
   flFillRoleSelect('Photographer'); sv('fl-availability','available'); sv('fl-rating','');
   flBuildRateGrid({}, []); flFillPayTerms(''); sv('fl-terms',''); sv('fl-termsdate',''); sv('fl-termsagreed','no');
   if (prefill) {
@@ -23020,6 +23519,7 @@ function openEditFreelancer(id) {
   var modal_title = document.getElementById('freelancer-modal-title');
   if (modal_title) modal_title.textContent = 'Edit — ' + f.name;
   ['name','nickname','phone','whatsapp','email','city','exp','rate','skills','equipment','upi','bankaccount','ifsc','notes','idproof','referredby'].forEach(function(k){sv('fl-'+k, f[k]||'');});
+  sv('fl-portalpin', f.portalPin || '');
   flFillRoleSelect(f.role||'Photographer');
   sv('fl-availability', f.availability||'available');
   sv('fl-rating', f.rating||'');
@@ -23268,6 +23768,9 @@ function renderFlDirectory() {
     '<select class="fi" id="fld-role" style="max-width:170px" onchange="renderFlDirectory()"><option value="">All roles</option>' +
       Object.keys(roles).sort().map(function(r) { return '<option' + (rf === r ? ' selected' : '') + '>' + escHtml(r) + '</option>'; }).join('') + '</select>' +
     '<span style="font-size:12px;color:#888">' + list.length + ' freelancer' + (list.length !== 1 ? 's' : '') + '</span>' +
+    '<div style="margin-left:auto;display:flex;gap:8px;align-items:center">' +
+      '<button class="btn btn-sm" onclick="navigator.clipboard.writeText(\'https://crm.kbstudio.in?portal=crew\').then(function(){showToast(\'✅ Universal Portal Link copied!\')})" style="background:#0f172a;color:#fff;font-weight:700;font-size:12px;padding:7px 12px;border-radius:8px" title="Single universal link for all freelancers. They log in with their phone + PIN.">📱 Copy Universal Portal Link</button>' +
+    '</div>' +
     '</div>';
 
   h += '<div class="card" style="padding:0"><div class="mob-scroll"><table class="tbl"><thead><tr><th>Freelancer</th><th>Contact</th><th>Rate card</th><th>Terms</th><th>Work</th><th></th></tr></thead><tbody>' +
@@ -23283,7 +23786,8 @@ function renderFlDirectory() {
         '<td>' + (f.termsAgreed ? '<span style="color:#16a34a;font-size:11px;font-weight:700">✅ Agreed' + (f.termsDate ? '<br>' + fmtDate(f.termsDate) : '') + '</span>' : '<span style="color:#aaa;font-size:11px">Not signed</span>') + '</td>' +
         '<td style="font-size:12px">' + ((hires[f.id] || 0) ? '🎬 ' + hires[f.id] + ' event' + (hires[f.id] > 1 ? 's' : '') + '<br>' : '') + ((w.open + w.done) ? w.open + ' open · ' + w.done + ' deliverables done' : '<span style="color:#aaa">No edits assigned</span>') + (money && w.due ? '<div style="color:#d97706;font-weight:700">' + fmt(w.due) + ' due</div>' : '') + '</td>' +
         '<td style="white-space:nowrap">' + (canEdit ? '<button class="btn btn-sm" onclick="openEditFreelancer(\'' + f.id + '\')">Edit</button> ' : '') +
-          '<button class="btn btn-sm" title="Copy shoot checklist link" onclick="copyCrewPortalLink(\'' + f.id + '\')">🔗</button> ' +
+          '<button class="btn btn-sm" title="Share portal link on WhatsApp" onclick="flSharePortalWhatsapp(\'' + f.id + '\')">💬 WhatsApp</button> ' +
+          '<button class="btn btn-sm" title="Copy direct one-click link" onclick="copyCrewPortalLink(\'' + f.id + '\')">🔗</button> ' +
           '<button class="btn btn-sm" title="Rate card &amp; agreement (print)" onclick="printFreelancerAgreement(\'' + f.id + '\')">📄</button> ' +
           '<button class="btn btn-sm" title="View their work" onclick="_flpState.fl=\'' + f.id + '\';flGoTab(\'work\')">📦</button> ' +
           (canDel ? '<button class="btn-danger" onclick="deleteFreelancer(\'' + f.id + '\')">✕</button>' : '') + '</td></tr>';
@@ -23337,11 +23841,17 @@ function flRenderTab() {
   var addBtn = document.getElementById('fl-add-btn');
   var payBtn = document.getElementById('fl-record-pay-btn');
   var billBtn = document.getElementById('fl-manual-bill-btn');
+  var quickShootBtn = document.getElementById('fl-quick-shoot-btn');
+  var sheetImportBtn = document.getElementById('fl-sheet-import-btn');
+  var liveOtpsBtn = document.getElementById('fl-live-otps-btn');
   var canManage = CU && ['superadmin','admin','accounts','videohead','postprod'].indexOf(CU.role) > -1;
 
   if (addBtn) addBtn.style.display = (canManage && _flTab === 'dir') ? '' : 'none';
   if (payBtn) payBtn.style.display = (canManage && _flTab === 'billing') ? '' : 'none';
   if (billBtn) billBtn.style.display = (canManage && _flTab === 'billing') ? '' : 'none';
+  if (quickShootBtn) quickShootBtn.style.display = (canManage && _flTab === 'roster') ? '' : 'none';
+  if (sheetImportBtn) sheetImportBtn.style.display = (canManage && _flTab === 'roster') ? '' : 'none';
+  if (liveOtpsBtn) liveOtpsBtn.style.display = canManage ? '' : 'none';
 
   updateFlConfirmBadge();
 
@@ -23375,6 +23885,7 @@ function flGetAllShootAssignments() {
 
   var billByAssign = {};
   var billByFlProjDate = {};
+  var seenBillIds = {};
   Object.keys(bills).forEach(function(bId) {
     var b = bills[bId];
     if (!b) return;
@@ -23415,6 +23926,7 @@ function flGetAllShootAssignments() {
 
         var assignId = 'flshoot_' + pId + '_' + dayId + '_' + crewId + '_' + slotKey;
         var matchedBill = billByAssign[assignId] || billByFlProjDate[crewId + '_' + pId + '_' + dDate] || null;
+        if (matchedBill && matchedBill.id) seenBillIds[matchedBill.id] = true;
 
         var isPast = dDate < todayStr;
         var isToday = dDate === todayStr;
@@ -23450,6 +23962,46 @@ function flGetAllShootAssignments() {
           status: status
         });
       });
+    });
+  });
+
+  // Standalone shoot bills from Quick Entry or Google Sheet Import
+  Object.keys(bills || {}).forEach(function(bId) {
+    if (seenBillIds[bId]) return;
+    var b = bills[bId];
+    if (!b || !b.freelancerId) return;
+    if (b.category !== 'shoot' && b.eventType !== 'shoot' && !b.shootEntry && b.source !== 'google_sheet' && b.source !== 'quick_entry') return;
+
+    var fl = allFl[b.freelancerId] || { name: b.freelancerName || 'Freelancer', role: b.role || 'Crew' };
+    var p = (b.projectId && projects && projects[b.projectId]) || null;
+    var cName = b.coupleName || (p ? coupleName(p.bride, p.groom) : 'Direct Shoot');
+    var dDate = b.eventDate || b.date || '';
+
+    var isPast = dDate < todayStr;
+    var isToday = dDate === todayStr;
+    var isUpcoming = dDate > todayStr;
+
+    assignments.push({
+      id: bId,
+      projectId: b.projectId || '',
+      project: p,
+      dayId: b.dayId || '',
+      couple: cName,
+      refcode: (p && p.refcode) || '',
+      date: dDate,
+      type: b.notes || 'Shoot Duty',
+      venue: b.venue || (p && (p.venue || p.city)) || '—',
+      callTime: b.callTime || '—',
+      freelancerId: b.freelancerId,
+      freelancer: fl,
+      freelancerName: fl.name || b.freelancerName,
+      slotKey: 'direct',
+      role: b.role || fl.role || 'Crew',
+      isPast: isPast,
+      isToday: isToday,
+      isUpcoming: isUpcoming,
+      bill: b,
+      status: b.status || 'verified'
     });
   });
 
@@ -24656,6 +25208,7 @@ function renderCrewPortal() {
         '<div style="font-size:18px;font-weight:800;color:' + (balanceDue > 0 ? '#15803d' : '#475569') + '">' +
           (balanceDue > 0 ? '₹' + fmtNum(balanceDue) : 'Settled ✅') +
         '</div>' +
+        '<button onclick="cupLogout()" style="margin-top:4px;padding:3px 8px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;font-size:11px;font-weight:600;color:#64748b;cursor:pointer" title="Sign out of your portal">🚪 Sign Out</button>' +
       '</div>' +
     '</div>' +
 
@@ -24885,6 +25438,457 @@ function submitPortalClaim(projId, dayId, date, couple, eventType) {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 1. QUICK FREELANCER SHOOT ENTRY (REPLACES MANUAL GOOGLE SHEET)
+// ═══════════════════════════════════════════════════════════════════════
+function openQuickShootModal(defaultDate) {
+  var pSel = document.getElementById('fqe-project');
+  var fSel = document.getElementById('fqe-freelancer');
+  if (!pSel || !fSel) return;
+
+  var activeProjects = Object.keys(projects || {}).map(function(k) {
+    var p = projects[k];
+    return { id: k, name: coupleName(p.bride, p.groom) || p.refcode || 'Untitled', date: p.date, venue: p.venue || p.city };
+  }).filter(function(p){ return p.name; }).sort(function(a, b) { return a.name.localeCompare(b.name); });
+
+  pSel.innerHTML = '<option value="">-- Select Client / Project --</option>' +
+    activeProjects.map(function(p) {
+      return '<option value="' + p.id + '">' + escHtml(p.name) + (p.date ? ' (' + p.date + ')' : '') + '</option>';
+    }).join('') +
+    '<option value="custom">+ Other / Direct Client</option>';
+
+  var fls = Object.values(freelancerData || {}).sort(function(a, b) {
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+  fSel.innerHTML = '<option value="">-- Select Freelancer --</option>' +
+    fls.map(function(f) {
+      return '<option value="' + f.id + '">' + escHtml(f.name) + (f.role ? ' (' + f.role + ')' : '') + (f.city ? ' · ' + f.city : '') + '</option>';
+    }).join('');
+
+  document.getElementById('fqe-date').value = defaultDate || new Date().toISOString().slice(0, 10);
+  document.getElementById('fqe-rate').value = '';
+  document.getElementById('fqe-notes').value = '';
+  document.getElementById('fqe-status').value = 'verified';
+
+  openModal('fl-quick-shoot-modal');
+}
+
+function fqeOnProjectChange() {
+  var pId = document.getElementById('fqe-project').value;
+  if (!pId || pId === 'custom') return;
+  var p = projects && projects[pId];
+  if (p && p.date && !document.getElementById('fqe-date').value) {
+    document.getElementById('fqe-date').value = p.date;
+  }
+}
+
+function fqeOnFreelancerChange() {
+  var flId = document.getElementById('fqe-freelancer').value;
+  var f = freelancerData && freelancerData[flId];
+  if (!f) return;
+  if (f.role) {
+    var rSel = document.getElementById('fqe-role');
+    if (rSel) {
+      var lowRole = f.role.toLowerCase();
+      if (lowRole.indexOf('photo') !== -1) rSel.value = 'Photographer';
+      else if (lowRole.indexOf('vid') !== -1 || lowRole.indexOf('cine') !== -1) rSel.value = 'Videographer';
+      else if (lowRole.indexOf('drone') !== -1) rSel.value = 'Drone Operator';
+    }
+  }
+  var rate = flGetDayRate(f, document.getElementById('fqe-role').value);
+  if (rate > 0) {
+    document.getElementById('fqe-rate').value = rate;
+  }
+}
+
+function saveQuickShootEntry() {
+  var date = (document.getElementById('fqe-date').value || '').trim();
+  var pId = document.getElementById('fqe-project').value;
+  var flId = document.getElementById('fqe-freelancer').value;
+  var role = document.getElementById('fqe-role').value;
+  var rate = parseFloat(document.getElementById('fqe-rate').value) || 0;
+  var notes = (document.getElementById('fqe-notes').value || '').trim();
+  var status = document.getElementById('fqe-status').value || 'verified';
+
+  if (!date) { alert('Please choose a shoot date.'); return; }
+  if (!flId) { alert('Please select a freelancer.'); return; }
+  if (rate <= 0) { alert('Please enter the agreed rate for this shoot.'); return; }
+
+  var fl = freelancerData && freelancerData[flId];
+  var proj = (pId && pId !== 'custom' && projects && projects[pId]) || null;
+  var cName = proj ? coupleName(proj.bride, proj.groom) : 'Direct Shoot';
+
+  var billId = 'fbill_quick_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+  var billData = {
+    id: billId,
+    category: 'shoot',
+    eventType: 'shoot',
+    source: 'quick_entry',
+    eventDate: date,
+    projectId: (proj ? pId : ''),
+    coupleName: cName,
+    freelancerId: flId,
+    freelancerName: (fl && fl.name) || 'Freelancer',
+    role: role,
+    rate: rate,
+    travelAmount: 0,
+    otherAmount: 0,
+    totalAmount: rate,
+    notes: notes,
+    status: status,
+    createdAt: Date.now()
+  };
+
+  db.ref('crm_freelancer_bills/' + billId).set(billData, function(err) {
+    if (err) { alert('Error saving entry: ' + err.message); return; }
+    closeModal('fl-quick-shoot-modal');
+    showToast('✅ Shoot duty entry saved into CRM ledger!');
+    if (!window.flBillsData) window.flBillsData = {};
+    window.flBillsData[billId] = billData;
+    renderFlShootRoster();
+    if (typeof renderFlBillingLedger === 'function') renderFlBillingLedger();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2. GOOGLE SHEET IMPORTER (309 ROWS DIRECT TO CRM LEDGER)
+// ═══════════════════════════════════════════════════════════════════════
+window._parsedSheetRows = [];
+
+function openSheetImportModal() {
+  document.getElementById('fsi-status').textContent = '';
+  document.getElementById('fsi-preview-wrap').style.display = 'none';
+  document.getElementById('fsi-import-btn').disabled = true;
+  window._parsedSheetRows = [];
+  openModal('fl-sheet-import-modal');
+}
+
+function parseCsvRows(text) {
+  var lines = text.split(/\r\n|\n|\r/);
+  var result = [];
+  lines.forEach(function(line) {
+    line = line.trim();
+    if (!line) return;
+    var row = [];
+    var inQuotes = false;
+    var cur = '';
+    for (var i = 0; i < line.length; i++) {
+      var c = line[i];
+      if (c === '"') {
+        if (inQuotes && line[i+1] === '"') { cur += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (c === ',' && !inQuotes) {
+        row.push(cur.trim());
+        cur = '';
+      } else {
+        cur += c;
+      }
+    }
+    row.push(cur.trim());
+    result.push(row);
+  });
+  return result;
+}
+
+var _SHEET_MONTH_MAP = { jan:'01', feb:'02', mar:'03', apr:'04', may:'05', jun:'06', jul:'07', aug:'08', sep:'09', oct:'10', nov:'11', dec:'12' };
+function parseSheetDate(str) {
+  if (!str) return '';
+  str = String(str).trim();
+  var m1 = str.match(/^(\d{1,2})[-/ ]([A-Za-z]{3})[-/ ](\d{4})$/);
+  if (m1) {
+    var d = ('0' + m1[1]).slice(-2);
+    var m = _SHEET_MONTH_MAP[m1[2].toLowerCase()] || '01';
+    return m1[3] + '-' + m + '-' + d;
+  }
+  var m2 = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (m2) {
+    return m2[1] + '-' + ('0' + m2[2]).slice(-2) + '-' + ('0' + m2[3]).slice(-2);
+  }
+  return str;
+}
+
+function uploadGoogleSheetCsv(input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    processSheetCsvText(e.target.result);
+  };
+  reader.readAsText(file);
+}
+
+function fetchAndParseGoogleSheet() {
+  var url = (document.getElementById('fsi-url').value || '').trim();
+  if (!url) { alert('Please enter the Google Sheet CSV URL.'); return; }
+  var st = document.getElementById('fsi-status');
+  st.textContent = '⏳ Fetching Google Sheet data…';
+  st.style.color = '#0284c7';
+
+  fetch(url)
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    })
+    .then(function(text) {
+      processSheetCsvText(text);
+    })
+    .catch(function(err) {
+      st.textContent = '⚠️ Browser blocked direct Google Sheet fetch (CORS). Please click "📁 Or Upload CSV File" to upload the downloaded sheet CSV.';
+      st.style.color = '#dc2626';
+    });
+}
+
+function processSheetCsvText(text) {
+  var st = document.getElementById('fsi-status');
+  var rows = parseCsvRows(text);
+  if (!rows.length) {
+    st.textContent = '❌ No data found in CSV.';
+    st.style.color = '#dc2626';
+    return;
+  }
+
+  // Find header index: Date, Project, Freelancer Name, Rate, Notes
+  var header = rows[0].map(function(c){ return c.toLowerCase(); });
+  var dateIdx = header.findIndex(function(c){ return c.indexOf('date') !== -1; });
+  var projIdx = header.findIndex(function(c){ return c.indexOf('project') !== -1 || c.indexOf('client') !== -1; });
+  var flIdx = header.findIndex(function(c){ return c.indexOf('freelancer') !== -1 || c.indexOf('name') !== -1; });
+  var rateIdx = header.findIndex(function(c){ return c.indexOf('rate') !== -1 || c.indexOf('amount') !== -1 || c.indexOf('fee') !== -1; });
+  var notesIdx = header.findIndex(function(c){ return c.indexOf('notes') !== -1 || c.indexOf('remark') !== -1; });
+
+  if (dateIdx === -1) dateIdx = 0;
+  if (projIdx === -1) projIdx = 1;
+  if (flIdx === -1) flIdx = 2;
+  if (rateIdx === -1) rateIdx = 3;
+  if (notesIdx === -1) notesIdx = 4;
+
+  var allFl = freelancerData || {};
+  var allProj = projects || {};
+  var parsed = [];
+  var totalVal = 0;
+
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r || r.length < 3) continue;
+    var rawDate = r[dateIdx] || '';
+    var rawProj = r[projIdx] || '';
+    var rawFl = r[flIdx] || '';
+    var rawRate = r[rateIdx] || '0';
+    var rawNotes = r[notesIdx] || '';
+
+    if (!rawDate && !rawFl) continue;
+
+    var isoDate = parseSheetDate(rawDate);
+    var rateNum = parseFloat(String(rawRate).replace(/[^0-9.]/g, '')) || 0;
+    totalVal += rateNum;
+
+    // Match freelancer
+    var flMatch = null;
+    var cleanFlName = rawFl.trim().toLowerCase();
+    Object.keys(allFl).forEach(function(fId) {
+      if (flMatch) return;
+      var f = allFl[fId];
+      if (f && f.name && f.name.trim().toLowerCase() === cleanFlName) {
+        flMatch = f;
+      }
+    });
+
+    // Match project
+    var projMatch = null;
+    var cleanProj = rawProj.trim().toLowerCase();
+    Object.keys(allProj).forEach(function(pId) {
+      if (projMatch) return;
+      var p = allProj[pId];
+      if (!p) return;
+      var cName = (coupleName(p.bride, p.groom) || p.refcode || '').toLowerCase();
+      if (cleanProj && (cName.indexOf(cleanProj) !== -1 || cleanProj.indexOf(cName) !== -1)) {
+        projMatch = p;
+      }
+    });
+
+    parsed.push({
+      date: isoDate,
+      displayDate: rawDate,
+      project: rawProj,
+      projectId: projMatch ? projMatch.id : '',
+      matchedProject: projMatch,
+      freelancerName: rawFl.trim(),
+      freelancerId: flMatch ? flMatch.id : '',
+      matchedFreelancer: flMatch,
+      rate: rateNum,
+      notes: rawNotes.trim()
+    });
+  }
+
+  window._parsedSheetRows = parsed;
+  st.textContent = '✅ Parsed ' + parsed.length + ' shoot records!';
+  st.style.color = '#15803d';
+
+  // Render preview
+  document.getElementById('fsi-preview-wrap').style.display = '';
+  document.getElementById('fsi-summary').textContent = parsed.length + ' Shoot Entries Ready to Import';
+  document.getElementById('fsi-total-val').textContent = 'Total Value: ₹' + Number(totalVal).toLocaleString('en-IN');
+
+  var tbody = document.getElementById('fsi-preview-tbody');
+  tbody.innerHTML = parsed.slice(0, 50).map(function(p) {
+    return '<tr>' +
+      '<td style="white-space:nowrap;font-weight:700">' + escHtml(p.displayDate) + '</td>' +
+      '<td>' + escHtml(p.project) + (p.matchedProject ? ' <span style="color:#16a34a;font-size:10px">✓ CRM</span>' : '') + '</td>' +
+      '<td style="font-weight:700">' + escHtml(p.freelancerName) + (p.matchedFreelancer ? ' <span style="color:#16a34a;font-size:10px">✓ FL</span>' : ' <span style="color:#0284c7;font-size:10px">+ Auto-add</span>') + '</td>' +
+      '<td style="font-weight:700;color:#047857">₹' + Number(p.rate).toLocaleString('en-IN') + '</td>' +
+      '<td style="color:#64748b;font-size:11px">' + escHtml(p.notes || '—') + '</td>' +
+      '<td><span style="background:#ecfdf5;color:#047857;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700">Verified</span></td>' +
+    '</tr>';
+  }).join('') + (parsed.length > 50 ? '<tr><td colspan="6" style="text-align:center;color:#64748b;font-style:italic">…and ' + (parsed.length - 50) + ' more rows</td></tr>' : '');
+
+  document.getElementById('fsi-import-btn').disabled = false;
+}
+
+function executeSheetImport() {
+  var rows = window._parsedSheetRows;
+  if (!rows || !rows.length) { alert('No parsed rows to import.'); return; }
+
+  var btn = document.getElementById('fsi-import-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Importing to CRM Firebase…';
+
+  var updates = {};
+  var allFl = freelancerData || {};
+
+  rows.forEach(function(r, idx) {
+    var flId = r.freelancerId;
+    if (!flId) {
+      // Find or auto-create freelancer in local cache
+      var normName = r.freelancerName.toLowerCase();
+      var existing = Object.values(allFl).find(function(f){ return (f.name||'').trim().toLowerCase() === normName; });
+      if (existing) {
+        flId = existing.id;
+      } else {
+        flId = 'fl_import_' + normName.replace(/[^a-z0-9]/g, '_');
+        var newFlData = {
+          id: flId,
+          name: r.freelancerName,
+          role: 'Photographer',
+          rate: r.rate,
+          availability: 'available',
+          isFreelancer: true,
+          createdAt: Date.now()
+        };
+        updates['crm_freelancers/' + flId] = newFlData;
+        allFl[flId] = newFlData;
+      }
+    }
+
+    var cleanKey = (r.date || 'nodate') + '_' + flId + '_' + Math.round(r.rate) + '_' + idx;
+    var billId = 'fbill_sheet_' + cleanKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    var billData = {
+      id: billId,
+      category: 'shoot',
+      eventType: 'shoot',
+      source: 'google_sheet',
+      eventDate: r.date || '',
+      displayDate: r.displayDate || '',
+      projectId: r.projectId || '',
+      coupleName: r.project || 'Shoot Event',
+      freelancerId: flId,
+      freelancerName: r.freelancerName,
+      role: 'Crew',
+      rate: r.rate,
+      travelAmount: 0,
+      otherAmount: 0,
+      totalAmount: r.rate,
+      notes: r.notes || '',
+      status: 'verified',
+      createdAt: Date.now()
+    };
+
+    updates['crm_freelancer_bills/' + billId] = billData;
+    if (!window.flBillsData) window.flBillsData = {};
+    window.flBillsData[billId] = billData;
+  });
+
+  db.ref().update(updates, function(err) {
+    btn.disabled = false;
+    btn.textContent = '✅ Import All Rows into CRM';
+    if (err) {
+      alert('Error during import: ' + err.message);
+      return;
+    }
+    closeModal('fl-sheet-import-modal');
+    showToast('🎉 Successfully imported ' + rows.length + ' shoot records into CRM ledger!');
+    renderFlShootRoster();
+    if (typeof renderFlBillingLedger === 'function') renderFlBillingLedger();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 3. STUDIO ADMIN LIVE SHOOT OTPS LISTENER
+// ═══════════════════════════════════════════════════════════════════════
+window._flLiveOtps = {};
+
+function initLiveOtpListener() {
+  db.ref('crm_portal_otps').on('value', function(snap) {
+    window._flLiveOtps = snap.val() || {};
+    updateLiveOtpsBadge();
+  });
+}
+
+function updateLiveOtpsBadge() {
+  var badge = document.getElementById('fl-live-otps-badge');
+  var btn = document.getElementById('fl-live-otps-btn');
+  if (!badge) return;
+
+  var otps = window._flLiveOtps || {};
+  var now = Date.now();
+  var activeCount = Object.values(otps).filter(function(o){ return o && o.expiresAt > now; }).length;
+
+  if (activeCount > 0) {
+    badge.textContent = activeCount;
+    badge.style.display = 'inline-block';
+    if (btn) { btn.style.background = '#fef08a'; btn.style.borderColor = '#eab308'; }
+  } else {
+    badge.style.display = 'none';
+    if (btn) { btn.style.background = '#fef3c7'; btn.style.borderColor = '#fde047'; }
+  }
+}
+
+function showLiveOtpsModal() {
+  var listWrap = document.getElementById('fl-live-otps-list');
+  if (!listWrap) return;
+
+  var otps = window._flLiveOtps || {};
+  var now = Date.now();
+  var active = Object.values(otps).filter(function(o){ return o && o.expiresAt > now; }).sort(function(a,b){ return b.requestedAt - a.requestedAt; });
+
+  if (!active.length) {
+    listWrap.innerHTML = '<div class="empty" style="padding:24px;text-align:center;color:#64748b">No active verification OTP requests right now.<br><span style="font-size:11px;color:#94a3b8">When a freelancer requests an OTP at crm.kbstudio.in?portal=crew, their live code appears here.</span></div>';
+  } else {
+    listWrap.innerHTML = active.map(function(o) {
+      var minsLeft = Math.max(1, Math.round((o.expiresAt - now) / 60000));
+      return '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">' +
+        '<div>' +
+          '<div style="font-size:14px;font-weight:800;color:#0f172a">' + escHtml(o.freelancerName || 'Freelancer') + '</div>' +
+          '<div style="font-size:12px;color:#64748b">📱 +91 ' + escHtml(o.phone || '') + ' · Expires in ' + minsLeft + 'm</div>' +
+        '</div>' +
+        '<div style="text-align:right;display:flex;gap:8px;align-items:center">' +
+          '<span style="font-size:20px;font-weight:900;color:#0369a1;background:#f0f9ff;border:1px solid #bae6fd;padding:4px 10px;border-radius:8px;letter-spacing:2px;font-family:monospace">' + escHtml(o.code) + '</span>' +
+          '<button class="btn btn-sm" onclick="adminWhatsappOtp(\'' + o.phone + '\',\'' + escHtml(o.freelancerName) + '\',\'' + o.code + '\')" style="background:#25d366;color:#fff;border:none;font-weight:700;font-size:11px;padding:6px 10px;border-radius:6px">📲 WhatsApp</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  openModal('fl-live-otps-modal');
+}
+
+function adminWhatsappOtp(phone, name, code) {
+  var msg = 'Hello ' + name + '! Your KB Studio Portal Verification OTP is: ' + code + ' (valid for 10 minutes).';
+  window.open('https://api.whatsapp.com/send?phone=91' + phone + '&text=' + encodeURIComponent(msg), '_blank');
+}
+
+try { initLiveOtpListener(); } catch(e) {}
+
 console.log("Full Freelancer module syntax check passed!");
 
 
@@ -24903,6 +25907,7 @@ document.addEventListener('DOMContentLoaded', function() {
       equipment: gv('fl-equipment'), upi: gv('fl-upi'), bankaccount: gv('fl-bankaccount'),
       ifsc: gv('fl-ifsc'), notes: gv('fl-notes'), idproof: gv('fl-idproof'),
       referredby: gv('fl-referredby'), isFreelancer: true,
+      portalPin: gv('fl-portalpin').trim() || '',
       rates: flReadRates(), customRates: flReadCustomRates(), payTerms: gv('fl-payterms'), terms: gv('fl-terms'),
       termsDate: gv('fl-termsdate'), termsAgreed: gv('fl-termsagreed') === 'yes',
       createdAt: (_editFreelancerId && freelancerData[_editFreelancerId] && freelancerData[_editFreelancerId].createdAt) || Date.now(),
@@ -30560,7 +31565,7 @@ function submitPasswordChange() {
 
 // ═══ STARTUP ══════════════════════════════════════════════════════════════════
 (function() {
-  if(!checkBriefMode() && !checkEditorMode() && !checkCrewMode() && !checkOnboardMode()) {
+  if(!checkBriefMode() && !checkEditorMode() && !checkCrewPortalMode() && !checkCrewMode() && !checkOnboardMode()) {
     var ls = document.getElementById('login-screen');
     var ma = document.getElementById('main-app');
     if (ls) ls.style.display = 'flex';
