@@ -11246,6 +11246,49 @@ function flSharePortalWhatsapp(flId) {
 // ═══════════════════════════════════════════════════════════════════════════
 // UNIVERSAL CREW PORTAL — ?portal=crew  (phone + PIN login for all freelancers)
 // ═══════════════════════════════════════════════════════════════════════════
+// _cupDataReady: promise that resolves once freelancer+team data is loaded
+var _cupDataReady = null;
+
+function cupEnsureDataLoaded() {
+  if (_cupDataReady) return _cupDataReady;
+  _cupDataReady = new Promise(function(resolve) {
+    // Step 1: ensure anon Firebase auth (required for reads) then fetch
+    function fetchData() {
+      Promise.all([
+        new Promise(function(res) {
+          db.ref('crm_freelancers').once('value', function(s) {
+            window._cupAllFreelancers = s.val() || {};
+            res();
+          }, function() { window._cupAllFreelancers = window._cupAllFreelancers || {}; res(); });
+        }),
+        new Promise(function(res) {
+          db.ref('crm_team').once('value', function(s) {
+            window._cupAllTeam = s.val() || {};
+            res();
+          }, function() { window._cupAllTeam = window._cupAllTeam || {}; res(); });
+        })
+      ]).then(function() { resolve(); }).catch(function() { resolve(); });
+    }
+
+    // Ensure Firebase auth before reading (auth != null rules)
+    try {
+      if (typeof firebase !== 'undefined' && firebase.auth) {
+        var user = firebase.auth().currentUser;
+        if (user) {
+          fetchData();
+        } else {
+          firebase.auth().signInAnonymously().then(fetchData).catch(fetchData);
+        }
+      } else {
+        fetchData();
+      }
+    } catch(e) {
+      fetchData();
+    }
+  });
+  return _cupDataReady;
+}
+
 function checkCrewPortalMode() {
   var params = new URLSearchParams(window.location.search);
   if (params.get('portal') !== 'crew') return false;
@@ -11256,6 +11299,7 @@ function checkCrewPortalMode() {
       sessionStorage.removeItem('kb_portal_active_otp');
       sessionStorage.removeItem('kb_portal_active_phone');
       sessionStorage.removeItem('kb_portal_active_fl_id');
+      _cupDataReady = null; // force re-fetch on fresh login
     } catch(e) {}
   }
 
@@ -11264,39 +11308,38 @@ function checkCrewPortalMode() {
   if (loginEl) loginEl.style.display = 'none';
   if (appEl)   appEl.style.display   = 'none';
 
-  // Ensure Firebase Anonymous Auth so reads/writes pass "auth != null"
-  if (typeof ensureAnonAuth === 'function') {
-    try { ensureAnonAuth(); } catch(e) {}
-  }
+  // Show a loading splash immediately so the screen is not blank
+  var splash = document.createElement('div');
+  splash.id = 'cup-loading-splash';
+  splash.style.cssText = 'min-height:100vh;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);display:flex;align-items:center;justify-content:center;font-family:-apple-system,sans-serif';
+  splash.innerHTML = '<div style="text-align:center;color:#fff"><div style="font-size:48px;margin-bottom:16px">🎬</div><div style="font-size:18px;font-weight:700;margin-bottom:8px">KB Studio Portal</div><div style="font-size:13px;opacity:.7">Loading your profile…</div></div>';
+  document.body.appendChild(splash);
 
-  // Load all freelancers + team members into memory
+  // Load data first, THEN show login or launch session
   window._cupAllFreelancers = {};
   window._cupAllTeam = {};
+  _cupDataReady = null; // reset so cupEnsureDataLoaded always fetches fresh
 
-  var savedCrewId = null;
-  try { savedCrewId = localStorage.getItem('kb_crew_portal_id'); } catch(e) {}
+  cupEnsureDataLoaded().then(function() {
+    var loadingSplash = document.getElementById('cup-loading-splash');
+    if (loadingSplash) loadingSplash.remove();
 
-  // If saved session exists, launch immediately
-  if (savedCrewId) {
-    db.ref('crm_freelancers/' + savedCrewId).once('value', function(s) {
-      if (s.exists()) {
+    var savedCrewId = null;
+    try { savedCrewId = localStorage.getItem('kb_crew_portal_id'); } catch(e) {}
+
+    if (savedCrewId) {
+      // Verify saved session is still valid
+      var allPeople = Object.assign({}, window._cupAllTeam || {}, window._cupAllFreelancers || {});
+      if (allPeople[savedCrewId]) {
         launchCrewPortalUi(savedCrewId);
       } else {
-        db.ref('crm_team/' + savedCrewId).once('value', function(st) {
-          if (st.exists()) launchCrewPortalUi(savedCrewId);
-          else {
-            try { localStorage.removeItem('kb_crew_portal_id'); } catch(e) {}
-            showUniversalCrewLoginScreen();
-          }
-        });
+        try { localStorage.removeItem('kb_crew_portal_id'); } catch(e) {}
+        showUniversalCrewLoginScreen();
       }
-    });
-  } else {
-    showUniversalCrewLoginScreen();
-  }
-
-  db.ref('crm_freelancers').once('value', function(s) { window._cupAllFreelancers = s.val() || {}; });
-  db.ref('crm_team').once('value',        function(s) { window._cupAllTeam = s.val() || {}; });
+    } else {
+      showUniversalCrewLoginScreen();
+    }
+  });
 
   return true;
 }
@@ -11305,6 +11348,13 @@ var _cupActiveOtp = null;
 var _cupActiveFreelancerId = null;
 var _cupActivePhone = '';
 var _cupLoginMode = 'otp'; // 'otp' or 'pin'
+
+function cupNormalizePhone(val) {
+  var digits = String(val || '').replace(/[^0-9]/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+}
 
 function showUniversalCrewLoginScreen() {
   var old = document.getElementById('crew-universal-portal');
@@ -11370,7 +11420,7 @@ function showUniversalCrewLoginScreen() {
         '<div style="margin-bottom:14px">' +
           '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">📱 Registered Phone Number</label>' +
           '<input id="cup-pin-phone" type="tel" placeholder="e.g. 9876543210" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:15px;outline:none" ' +
-            'oninput="this.value=this.value.replace(/[^0-9+]/,\'\')">' +
+            'oninput="this.value=this.value.replace(/[^0-9]/g,\'\')">' +
         '</div>' +
         '<div style="margin-bottom:18px">' +
           '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">🔑 Studio PIN</label>' +
@@ -11382,6 +11432,11 @@ function showUniversalCrewLoginScreen() {
         '<div style="text-align:center;margin-top:16px">' +
           '<a href="#" onclick="cupToggleMode(\'otp\');return false" style="font-size:12px;color:#0284c7;font-weight:600;text-decoration:none">📱 Switch back to Secure OTP Login</a>' +
         '</div>' +
+      '</div>' +
+
+      // Studio Admin CRM Switch Link
+      '<div style="text-align:center;margin-top:22px;padding-top:16px;border-top:1px dashed #e2e8f0">' +
+        '<a href="/" style="font-size:12px;color:#64748b;text-decoration:none;font-weight:600">👑 Switch to Studio Admin CRM →</a>' +
       '</div>' +
     '</div>';
   document.body.appendChild(wrap);
@@ -11409,7 +11464,7 @@ function cupToggleMode(mode) {
 function cupSendOtp() {
   var phoneInput = document.getElementById('cup-phone');
   var raw = (phoneInput ? phoneInput.value : _cupActivePhone) || '';
-  var normPhone = raw.replace(/^\+91/, '').replace(/[^0-9]/g, '');
+  var normPhone = cupNormalizePhone(raw);
   var errEl = document.getElementById('cup-error');
   var succEl = document.getElementById('cup-success');
   if (errEl) errEl.style.display = 'none';
@@ -11420,70 +11475,73 @@ function cupSendOtp() {
     return;
   }
 
-  // Find freelancer or team member
-  var allPeople = Object.assign({}, window._cupAllTeam || {}, window._cupAllFreelancers || {});
-  var matched = null, matchedId = null;
-  Object.keys(allPeople).forEach(function(id) {
-    var p = allPeople[id]; if (!p) return;
-    var pPhone = String(p.phone || p.whatsapp || '').replace(/^\+91/, '').replace(/[^0-9]/g, '');
-    if (pPhone && pPhone === normPhone) { matched = p; matchedId = id; }
-  });
+  var sendBtn = document.getElementById('cup-send-otp-btn');
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Checking...'; }
 
-  if (!matched) {
-    if (errEl) {
-      errEl.textContent = 'Mobile number (' + normPhone + ') is not registered with KB Studio. Please ask studio admin to register your profile.';
-      errEl.style.display = '';
+  // Always re-fetch fresh data to ensure registration check is accurate
+  _cupDataReady = null;
+  cupEnsureDataLoaded().then(function() {
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send Verification OTP 📩'; }
+
+    var allPeople = Object.assign({}, window._cupAllTeam || {}, window._cupAllFreelancers || {});
+    var matched = null, matchedId = null;
+    Object.keys(allPeople).forEach(function(id) {
+      var p = allPeople[id]; if (!p) return;
+      var pPhone = cupNormalizePhone(p.phone || p.whatsapp || '');
+      if (pPhone && pPhone === normPhone) { matched = p; matchedId = id; }
+    });
+
+    if (!matched) {
+      // Show all stored phones to help debug
+      var allPhones = Object.values(allPeople).map(function(p) {
+        return cupNormalizePhone(p.phone || p.whatsapp || '');
+      }).filter(Boolean).join(', ') || 'none';
+      console.log('[Portal] Registered phones in DB:', allPhones, '| Entered:', normPhone);
+      if (errEl) {
+        errEl.textContent = 'Mobile number +91 ' + normPhone + ' is not registered. Contact studio admin to add your profile with this number.';
+        errEl.style.display = '';
+      }
+      return;
     }
-    return;
-  }
 
-  // Generate 6-digit OTP code
-  var code = String(Math.floor(100000 + Math.random() * 900000));
-  _cupActiveOtp = code;
-  _cupActiveFreelancerId = matchedId;
-  _cupActivePhone = normPhone;
+    // Generate 6-digit OTP code
+    var code = String(Math.floor(100000 + Math.random() * 900000));
+    _cupActiveOtp = code;
+    _cupActiveFreelancerId = matchedId;
+    _cupActivePhone = normPhone;
 
-  var expiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
+    var expiresAt = Date.now() + (10 * 60 * 1000); // 10 minutes
 
-  // Save to sessionStorage for 100% reliable client-side match
-  try {
-    sessionStorage.setItem('kb_portal_active_otp', code);
-    sessionStorage.setItem('kb_portal_active_phone', normPhone);
-    sessionStorage.setItem('kb_portal_active_fl_id', matchedId);
-    sessionStorage.setItem('kb_portal_active_pin', String(matched.portalPin || '0000'));
-    sessionStorage.setItem('kb_portal_active_exp', String(expiresAt));
-  } catch(e) {}
+    try {
+      sessionStorage.setItem('kb_portal_active_otp', code);
+      sessionStorage.setItem('kb_portal_active_phone', normPhone);
+      sessionStorage.setItem('kb_portal_active_fl_id', matchedId);
+      sessionStorage.setItem('kb_portal_active_pin', String(matched.portalPin || '0000'));
+      sessionStorage.setItem('kb_portal_active_exp', String(expiresAt));
+    } catch(e) {}
 
-  var otpData = {
-    code: code,
-    phone: normPhone,
-    freelancerId: matchedId,
-    freelancerName: matched.name || 'Freelancer',
-    role: matched.role || 'Crew',
-    requestedAt: Date.now(),
-    expiresAt: expiresAt
-  };
+    // Push to Firebase Realtime Database (for admin Live OTPs view)
+    try { db.ref('crm_portal_otps/' + normPhone).set({ code: code, phone: normPhone, freelancerId: matchedId, freelancerName: matched.name || 'Freelancer', role: matched.role || 'Crew', requestedAt: Date.now(), expiresAt: expiresAt }); } catch(e) {}
 
-  // Push to Firebase Realtime Database
-  try {
-    db.ref('crm_portal_otps/' + normPhone).set(otpData);
-  } catch(e) {}
+    // Switch to OTP entry view
+    var stepPhone = document.getElementById('cup-step-phone');
+    var stepOtp = document.getElementById('cup-step-otp');
+    var otpTarget = document.getElementById('cup-otp-target');
+    if (stepPhone) stepPhone.style.display = 'none';
+    if (stepOtp) stepOtp.style.display = '';
+    if (otpTarget) otpTarget.textContent = (matched.name || 'Crew') + ' (+91 ' + normPhone + ')';
 
-  // Switch to OTP entry view
-  document.getElementById('cup-step-phone').style.display = 'none';
-  document.getElementById('cup-step-otp').style.display = '';
-  document.getElementById('cup-otp-target').textContent = matched.name + ' (+91 ' + normPhone + ')';
-
-  if (succEl) {
-    succEl.innerHTML = '✅ <b>OTP Code: <span style="font-size:20px;letter-spacing:3px;color:#0f172a;background:#e0f2fe;padding:2px 8px;border-radius:6px;font-family:monospace">' + code + '</span></b><br><span style="font-size:12px;color:#047857">Enter this 6-digit code below to sign in, or click "📲 Send to WhatsApp".</span>';
-    succEl.style.display = '';
-  }
-
-  var otpField = document.getElementById('cup-otp-input');
-  if (otpField) {
-    otpField.value = '';
-    otpField.focus();
-  }
+    if (succEl) {
+      succEl.innerHTML = '✅ <b>Your OTP Code: <span style="font-size:22px;letter-spacing:4px;color:#0f172a;background:#e0f2fe;padding:4px 10px;border-radius:6px;font-family:monospace;display:inline-block;margin-top:4px">' + code + '</span></b><br><span style="font-size:12px;color:#047857;margin-top:6px;display:block">Type this code below ↓ or click 📲 Send to WhatsApp</span>';
+      succEl.style.display = '';
+    }
+    var otpField = document.getElementById('cup-otp-input');
+    if (otpField) { otpField.value = ''; otpField.focus(); }
+  }).catch(function(e) {
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Send Verification OTP 📩'; }
+    console.error('[Portal] Data load error:', e);
+    if (errEl) { errEl.textContent = 'Could not connect. Check your internet and try again.'; errEl.style.display = ''; }
+  });
 }
 
 function cupVerifyOtp() {
@@ -11581,33 +11639,51 @@ function cupDoPinLogin() {
   var errEl = document.getElementById('cup-error');
   if (errEl) errEl.style.display = 'none';
 
-  var normPhone = raw.replace(/^\+91/, '').replace(/[^0-9]/g, '');
-  if (!normPhone) { if (errEl) { errEl.textContent = 'Please enter your phone number.'; errEl.style.display = ''; } return; }
+  var normPhone = cupNormalizePhone(raw);
+  if (!normPhone || normPhone.length < 10) { if (errEl) { errEl.textContent = 'Please enter your 10-digit phone number.'; errEl.style.display = ''; } return; }
   if (!pin) { if (errEl) { errEl.textContent = 'Please enter your Studio PIN.'; errEl.style.display = ''; } return; }
 
-  var allPeople = Object.assign({}, window._cupAllTeam || {}, window._cupAllFreelancers || {});
-  var matched = null, matchedId = null;
-  Object.keys(allPeople).forEach(function(id) {
-    var p = allPeople[id]; if (!p) return;
-    var pPhone = String(p.phone || p.whatsapp || '').replace(/^\+91/, '').replace(/[^0-9]/g, '');
-    if (pPhone && pPhone === normPhone) {
-      var storedPin = String(p.portalPin || '').trim();
-      if (storedPin && storedPin === pin) { matched = p; matchedId = id; }
-      else if (!storedPin && (pin === '0000' || pin === '1234')) { matched = p; matchedId = id; }
+  var pinBtn = document.querySelector('#cup-step-pin button[onclick*="cupDoPinLogin"]');
+  if (pinBtn) { pinBtn.disabled = true; pinBtn.textContent = 'Checking...'; }
+
+  // Always re-fetch to ensure fresh data for PIN verification
+  _cupDataReady = null;
+  cupEnsureDataLoaded().then(function() {
+    if (pinBtn) { pinBtn.disabled = false; pinBtn.textContent = 'Sign In with PIN →'; }
+
+    var allPeople = Object.assign({}, window._cupAllTeam || {}, window._cupAllFreelancers || {});
+    var matched = null, matchedId = null;
+    Object.keys(allPeople).forEach(function(id) {
+      var p = allPeople[id]; if (!p) return;
+      var pPhone = cupNormalizePhone(p.phone || p.whatsapp || '');
+      if (pPhone && pPhone === normPhone) {
+        var savedPin = String(p.portalPin || '').trim();
+        // Match if: savedPin set and matches, OR no savedPin set and user typed 0000 or 1234
+        if (savedPin && savedPin === pin) { matched = p; matchedId = id; }
+        else if (!savedPin && (pin === '0000' || pin === '1234')) { matched = p; matchedId = id; }
+      }
+    });
+
+    if (!matched) {
+      var allPhones = Object.values(allPeople).map(function(p) {
+        return cupNormalizePhone(p.phone || p.whatsapp || '');
+      }).filter(Boolean).join(', ') || 'none';
+      console.log('[Portal PIN] DB phones:', allPhones, '| Entered phone:', normPhone, '| PIN:', pin);
+      if (errEl) {
+        errEl.innerHTML = 'Phone or PIN is incorrect.<br><span style="font-size:11px;color:#9ca3af">Tip: If you haven\'t set a PIN, the default is <b>0000</b>. Use OTP login if unsure.</span>';
+        errEl.style.display = '';
+      }
+      var pv = document.getElementById('cup-pin-val'); if (pv) pv.value = '';
+      return;
     }
+
+    try { localStorage.setItem('kb_crew_portal_id', matchedId); } catch (e) {}
+    launchCrewPortalUi(matchedId);
+  }).catch(function(e) {
+    if (pinBtn) { pinBtn.disabled = false; pinBtn.textContent = 'Sign In with PIN →'; }
+    console.error('[Portal PIN] Load error:', e);
+    if (errEl) { errEl.textContent = 'Could not connect. Check your internet and try again.'; errEl.style.display = ''; }
   });
-
-  if (!matched) {
-    if (errEl) {
-      errEl.textContent = 'Phone number or PIN is incorrect. Please try again, or use OTP sign in.';
-      errEl.style.display = '';
-    }
-    document.getElementById('cup-pin-val').value = '';
-    return;
-  }
-
-  try { localStorage.setItem('kb_crew_portal_id', matchedId); } catch (e) {}
-  launchCrewPortalUi(matchedId);
 }
 
 function cupLogout() {
@@ -31354,10 +31430,31 @@ function populateWASel() {
   if (!prev) document.getElementById('wa-area').innerHTML = '';
 }
 
+// ═══ STANDALONE PORTAL URL DETECTION ════════════════════════════════════════
+// When a user accesses a standalone public portal (?portal=crew, ?crewlogin=, etc.),
+// we MUST NEVER auto-restore the CRM main-app dashboard or show the admin UI,
+// even if the user has an active Google/Admin session cached in their browser.
+function isStandalonePortalUrl() {
+  try {
+    var s = window.location.search || '';
+    return s.indexOf('portal=crew') !== -1 ||
+           s.indexOf('crewlogin=') !== -1 ||
+           s.indexOf('brief=') !== -1 ||
+           s.indexOf('editor=') !== -1 ||
+           s.indexOf('onboard=') !== -1;
+  } catch(e) {
+    return false;
+  }
+}
+
 // ═══ LOGIN HANDLER ════════════════════════════════════════════════════════════
 // Shared "match Firebase account → CRM user → enter app" logic, used both by
 // a fresh Google sign-in click AND by silent session auto-restore on load.
 function loginWithFirebaseUser(fbUser, silent) {
+  if (isStandalonePortalUrl()) {
+    console.log('[Portal] Standalone portal URL detected — skipping CRM admin auto-login');
+    return;
+  }
   var email = fbUser.email;
   function findAndLogin() {
     var match = null;
@@ -31474,6 +31571,14 @@ function ensureAnonAuth(cb) {
 try {
   firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function(){});
   firebase.auth().onAuthStateChanged(function(fbUser) {
+    // If accessing a standalone portal (?portal=crew, ?crewlogin=, etc.),
+    // NEVER auto-restore the CRM main-app dashboard. The user explicitly requested the portal.
+    if (isStandalonePortalUrl()) {
+      if (!fbUser) {
+        try { ensureAnonAuth(); } catch(e) {}
+      }
+      return;
+    }
     // Anonymous sessions are created silently after username/password login
     // (see doLogin) purely so Firebase writes pass "auth != null" rules —
     // they carry no email, so they must never be matched against crm_users.
