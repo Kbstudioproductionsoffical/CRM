@@ -1023,6 +1023,13 @@ body {
   vertical-align: middle !important;
 }
 .tbl tr:hover td { background: #f8f8fa !important; }
+/* Override hover for grouped headers & subtotals so they do NOT turn white */
+.tbl tr.fl-month-hdr td { background: #1e3a5f !important; color: #fff !important; }
+.tbl tr.fl-month-hdr:hover td { background: #254a78 !important; color: #fff !important; }
+.tbl tr.fl-date-hdr td { background: #0f172a !important; color: #fff !important; }
+.tbl tr.fl-date-hdr:hover td { background: #1e293b !important; color: #fff !important; }
+.tbl tr.fl-subtot-row td { background: #f1f5f9 !important; }
+.tbl tr.fl-subtot-row:hover td { background: #e2e8f0 !important; }
 
 /* ════════════════════════════════════
    PIPELINE KANBAN
@@ -25212,6 +25219,8 @@ function renderFlShootRoster() {
   var isGrouped = _flRosterFilter.groupByDate !== false;
 
   var filtered = assignments.filter(function(a) {
+    // Hide dates before Oct 2026 by default
+    if (sc !== 'all_history' && a.date && a.date < '2026-10-01') return false;
     if (fId && a.freelancerId !== fId) return false;
     if (ro && a.role !== ro) return false;
     if (sc === 'this_month' && a.date.slice(0, 7) !== curMonth) return false;
@@ -25268,11 +25277,12 @@ function renderFlShootRoster() {
     // Filter controls
     '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
       '<input class="fi" id="flr-search" placeholder="Search couple, venue, freelancer…" value="' + escHtml(_flRosterFilter.query || '') + '" style="max-width:240px" oninput="_flRosterFilter.query=this.value;renderFlShootRoster()">' +
-      '<select class="fi" style="max-width:170px" onchange="_flRosterFilter.scope=this.value;renderFlShootRoster()">' +
-        '<option value="all"' + (sc==='all'?' selected':'') + '>All Dates</option>' +
+      '<select class="fi" style="max-width:210px" onchange="_flRosterFilter.scope=this.value;renderFlShootRoster()">' +
+        '<option value="all"' + (sc==='all'?' selected':'') + '>Season (Oct 2026+)</option>' +
         '<option value="this_month"' + (sc==='this_month'?' selected':'') + '>This Month (' + curMonth + ')</option>' +
         '<option value="upcoming"' + (sc==='upcoming'?' selected':'') + '>Upcoming Shoots</option>' +
-        '<option value="past"' + (sc==='past'?' selected':'') + '>Past Shoots</option>' +
+        '<option value="past"' + (sc==='past'?' selected':'') + '>Past Shoots (Oct 2026+)</option>' +
+        '<option value="all_history"' + (sc==='all_history'?' selected':'') + '>All History (incl. Pre-Oct 2026)</option>' +
       '</select>' +
       '<select class="fi" style="max-width:180px" onchange="_flRosterFilter.flId=this.value;renderFlShootRoster()">' +
         '<option value="">All Freelancers</option>' +
@@ -25423,7 +25433,7 @@ function renderFlShootRoster() {
                      '<span style="background:#2563eb;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">🔵 UPCOMING</span>';
 
       // Date Header Row
-      html += '<tr id="flr-group-' + dStr + '" style="background:linear-gradient(90deg, #0f172a 0%, #1e293b 100%);color:#fff;cursor:pointer;user-select:none" onclick="flToggleDateGroup(\'' + dStr + '\')">' +
+      html += '<tr id="flr-group-' + dStr + '" class="fl-date-hdr" style="color:#fff;cursor:pointer;user-select:none" onclick="flToggleDateGroup(\'' + dStr + '\')">' +
         '<td colspan="8" style="padding:10px 14px;border-top:3px solid #3b82f6">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
             '<div style="display:flex;align-items:center;gap:8px">' +
@@ -25448,7 +25458,7 @@ function renderFlShootRoster() {
         });
 
         // Day Subtotal Row
-        html += '<tr style="background:#f8fafc;border-bottom:2px solid #cbd5e1;font-size:11.5px">' +
+        html += '<tr class="fl-subtot-row" style="border-bottom:2px solid #cbd5e1;font-size:11.5px">' +
           '<td colspan="5" style="padding:7px 14px;color:#475569;font-weight:700">' +
             '<span style="color:#0f172a;font-weight:800">Day Total (' + fmtDate(dStr) + '):</span> ' + dAssignments.length + ' crew duties across ' + uniqueProjCount + ' project(s)' +
           '</td>' +
@@ -26619,6 +26629,8 @@ function renderFlSheetView() {
   var isGrouped = _flSheetFilter.groupByMonth !== false;
 
   var filtered = list.filter(function(item) {
+    // Hide dates before Oct 2026 by default
+    if (sc !== 'all_history' && item.date && item.date < '2026-10-01') return false;
     if (sc === 'this_month' && (!item.date || item.date.slice(0, 7) !== curMonth)) return false;
     if (sc === 'upcoming' && item.date && item.date < todayStr) return false;
     if (sc === 'past' && (!item.date || item.date >= todayStr)) return false;
@@ -26689,11 +26701,12 @@ function renderFlSheetView() {
     // Filter controls
     '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
       '<input class="fi" placeholder="Search couple, refcode, crew…" value="' + escHtml(_flSheetFilter.query || '') + '" style="max-width:240px" oninput="_flSheetFilter.query=this.value;renderFlSheetView()">' +
-      '<select class="fi" style="max-width:170px" onchange="_flSheetFilter.scope=this.value;renderFlSheetView()">' +
-        '<option value="all"' + (sc==='all'?' selected':'') + '>All Events</option>' +
+      '<select class="fi" style="max-width:210px" onchange="_flSheetFilter.scope=this.value;renderFlSheetView()">' +
+        '<option value="all"' + (sc==='all'?' selected':'') + '>Season (Oct 2026+)</option>' +
         '<option value="this_month"' + (sc==='this_month'?' selected':'') + '>This Month (' + curMonth + ')</option>' +
         '<option value="upcoming"' + (sc==='upcoming'?' selected':'') + '>Upcoming Events</option>' +
-        '<option value="past"' + (sc==='past'?' selected':'') + '>Past Events</option>' +
+        '<option value="past"' + (sc==='past'?' selected':'') + '>Past Events (Oct 2026+)</option>' +
+        '<option value="all_history"' + (sc==='all_history'?' selected':'') + '>All History (incl. Pre-Oct 2026)</option>' +
       '</select>' +
       '<span style="font-size:12px;color:#64748b;font-weight:700;margin-left:auto">' + filtered.length + ' event projects across ' + monthKeys.length + ' month' + (monthKeys.length!==1?'s':'') + '</span>' +
     '</div>';
@@ -26816,7 +26829,7 @@ function renderFlSheetView() {
       var mProfitPct = mVal > 0 ? Math.round((mProfit / mVal) * 100) : 0;
 
       // Month Header Row (Spanning all 12 columns)
-      html += '<tr id="fls-group-' + mKey + '" style="background:linear-gradient(90deg, #1e3a5f 0%, #0f172a 100%);color:#fff;cursor:pointer;user-select:none" onclick="flToggleMonthGroup(\'' + mKey + '\')">' +
+      html += '<tr id="fls-group-' + mKey + '" class="fl-month-hdr" style="color:#fff;cursor:pointer;user-select:none" onclick="flToggleMonthGroup(\'' + mKey + '\')">' +
         '<td colspan="12" style="padding:11px 16px;border-top:3px solid #0284c7">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">' +
             '<div style="display:flex;align-items:center;gap:10px">' +
@@ -26842,7 +26855,7 @@ function renderFlSheetView() {
         });
 
         // Month Subtotal Row (Matching all 12 columns)
-        html += '<tr style="background:#f1f5f9;font-weight:800;border-top:2px solid #94a3b8;border-bottom:2px solid #cbd5e1;font-size:12px">' +
+        html += '<tr class="fl-subtot-row" style="font-weight:800;border-top:2px solid #94a3b8;border-bottom:2px solid #cbd5e1;font-size:12px">' +
           '<td colspan="2" style="padding:9px 12px;color:#0f172a">' +
             '📊 Subtotal for ' + flGetMonthName(mKey) + ' (' + mItems.length + ' Events)' +
           '</td>' +
