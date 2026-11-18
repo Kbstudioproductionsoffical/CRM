@@ -212,6 +212,15 @@ html.portal-body-mode, body.portal-body-mode {
 .modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#888}
 .modal-body{padding:20px;max-height:78vh;overflow-y:auto}
 .modal-foot{padding:14px 20px;border-top:1px solid #f0f0f0;display:flex;gap:8px;justify-content:flex-end;background:#fff;border-radius:0 0 14px 14px;flex-shrink:0}
+/* ── CLASSY SLIDE-OVER DRAWER (Right 33vw, Backdrop Blur, Animation) ── */
+.drawer-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45)!important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:9999!important;display:flex!important;justify-content:flex-end!important;align-items:stretch!important;padding:0!important;opacity:0;pointer-events:none;transition:opacity .26s cubic-bezier(.16,1,.3,1)}
+.drawer-overlay.open{opacity:1!important;pointer-events:auto!important}
+.drawer-panel{width:34vw;min-width:450px;max-width:680px;height:100vh;background:#fff;box-shadow:-10px 0 35px rgba(0,0,0,.18);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);overflow:hidden}
+.drawer-overlay.open .drawer-panel{transform:translateX(0)}
+@media(max-width:768px){.drawer-panel{width:100vw!important;min-width:100%!important}}
+.drawer-hdr{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:#fff;flex-shrink:0}
+.drawer-body{flex:1;overflow-y:auto;padding:20px 22px 30px;-webkit-overflow-scrolling:touch}
+.drawer-foot{padding:14px 20px;border-top:1px solid #e2e8f0;background:#f8fafc;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-shrink:0}
 .tabs{display:flex;gap:2px;border-bottom:1px solid #e5e5e5;margin-bottom:16px;flex-wrap:wrap}
 .tab-btn{background:none;border:none;padding:9px 11px;font-size:12px;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit;font-weight:500;white-space:nowrap}
 .tab-btn.active{color:#1a1a1a;border-bottom-color:#1a1a1a;font-weight:700}
@@ -3643,6 +3652,7 @@ document.addEventListener('wheel', function(e) {
     <div class="modal-hdr">
       <div><div class="modal-title" id="proj-modal-title">New Project</div><div id="proj-modal-refcode" style="margin-top:4px"></div></div>
       <div style="display:flex;align-items:center;gap:8px">
+        <button id="btn-project-addon" type="button" onclick="openProjectAddonModal(editProjId)" style="display:none;background:#f0fdf4;color:#166534;border:1px solid #86efac;border-radius:8px;font-size:11.5px;font-weight:800;cursor:pointer;padding:6px 12px;white-space:nowrap" title="Add extra shoot dates, photographers, or deliverables and increase package value">➕ Add-on Extension</button>
         <button id="btn-sync-from-quot" onclick="kbSyncOrLinkQuotation(editProjId)" style="display:none;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;padding:6px 12px;white-space:nowrap" title="Pull latest details from the original quotation">🔄 Sync from Quotation</button>
         <button class="modal-close" data-close="proj-modal">✕</button>
       </div>
@@ -3743,12 +3753,15 @@ document.addEventListener('wheel', function(e) {
         </div>
 
         <!-- ══ EVENT DAYS & DAY-WISE PRODUCTION PLAN ══ -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
           <div>
             <div style="font-size:13px;font-weight:800;color:#1a1a1a">📅 Event Days &amp; Production Plan</div>
             <div style="font-size:11px;color:#888;margin-top:2px">Each day auto-appears on the Shoot Calendar with its team. Set production level per day.</div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="addEventDay()">+ Add Event Day</button>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn btn-sm" style="background:#f0fdf4;color:#166534;border:1px solid #86efac;font-weight:800" onclick="if(editProjId)openProjectAddonModal(editProjId);else showToast('⚠️ Save project first to add extensions.')" title="Add extra shoot date, crew, and update package amount in one click">➕ Add-on Extension (Date &amp; Fee)</button>
+            <button class="btn btn-primary btn-sm" onclick="addEventDay()">+ Add Event Day</button>
+          </div>
         </div>
         <div id="evday-container">
           <div class="empty" id="evday-empty">No event days yet. Click "+ Add Event Day" to plan your shoot schedule.</div>
@@ -4261,6 +4274,161 @@ document.addEventListener('wheel', function(e) {
   </div>
 </div>
 
+<!-- ═══ ADD-ON SERVICE & PACKAGE EXTENSION MODAL ═══ -->
+<div class="modal-overlay" id="project-addon-modal" style="z-index:10001">
+  <div class="modal" style="max-width:600px;border-radius:16px;overflow:hidden">
+    <div class="modal-hdr" style="background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff">
+      <div>
+        <div class="modal-title" style="font-size:16px;font-weight:800;display:flex;align-items:center;gap:6px">
+          <span>✨</span> Add-on Service &amp; Package Extension
+        </div>
+        <div id="padd-couple-ref" style="font-size:12px;color:#94a3b8;margin-top:2px">Project: —</div>
+      </div>
+      <button class="modal-close" style="color:#94a3b8" onclick="closeModal('project-addon-modal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px;max-height:80vh;overflow-y:auto">
+      <!-- Current Summary Box -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:10.5px;color:#64748b;font-weight:700;text-transform:uppercase">Current Package Value</div>
+          <div id="padd-current-val" style="font-size:16px;font-weight:800;color:#0f172a;margin-top:2px">₹0</div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;color:#64748b;font-weight:700;text-transform:uppercase">Scheduled Days</div>
+          <div id="padd-current-days" style="font-size:14px;font-weight:700;color:#0284c7;margin-top:2px">0 Days</div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;color:#64748b;font-weight:700;text-transform:uppercase">Balance Due</div>
+          <div id="padd-current-bal" style="font-size:16px;font-weight:800;color:#15803d;margin-top:2px">₹0</div>
+        </div>
+      </div>
+
+      <!-- Add-on Scope Selector -->
+      <div class="fr" style="margin-bottom:14px">
+        <label class="fl">Add-on Scope *</label>
+        <select class="fi" id="padd-scope" onchange="paddScopeChanged()" style="font-weight:700">
+          <option value="extra_day">📅 Extra Shoot Day / Function Coverage (Date + Crew + Fee)</option>
+          <option value="extra_crew">🎯 Extra Crew on Existing Scheduled Day</option>
+          <option value="extra_deliv">📦 Extra Deliverables (Album, Extra Reel, Drone raw footage only)</option>
+          <option value="fee_only">💰 Package Fee Extension / Overtime Charge only</option>
+        </select>
+      </div>
+
+      <!-- Section A: Extra Shoot Day -->
+      <div id="padd-day-fields">
+        <div class="fg">
+          <div class="fr">
+            <label class="fl">Extra Event Date *</label>
+            <input class="fi" type="date" id="padd-date">
+          </div>
+          <div class="fr">
+            <label class="fl">Function / Event Name *</label>
+            <input class="fi" id="padd-event-type" placeholder="e.g. Cocktail Night, Pool Party, Haldi, Reception">
+          </div>
+        </div>
+        <div class="fr">
+          <label class="fl">Venue / Location</label>
+          <input class="fi" id="padd-venue" placeholder="e.g. The Oberoi, Gurgaon">
+        </div>
+
+        <!-- Crew Allocations for the Extra Day -->
+        <div style="background:#f1f5f9;border-radius:10px;padding:12px;margin-bottom:14px">
+          <div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:8px">👥 Assign Crew for this Extra Day (optional now, can assign later):</div>
+          <div class="fg">
+            <div class="fr"><label class="fl" style="font-size:11px">Traditional Photo</label><select class="fi" id="padd-crew-tp"></select></div>
+            <div class="fr"><label class="fl" style="font-size:11px">Candid Photo</label><select class="fi" id="padd-crew-cp"></select></div>
+          </div>
+          <div class="fg">
+            <div class="fr"><label class="fl" style="font-size:11px">Traditional Video</label><select class="fi" id="padd-crew-tv"></select></div>
+            <div class="fr"><label class="fl" style="font-size:11px">Cinematographer</label><select class="fi" id="padd-crew-cv"></select></div>
+          </div>
+          <div class="fg">
+            <div class="fr"><label class="fl" style="font-size:11px">Drone Operator</label><select class="fi" id="padd-crew-dr"></select></div>
+            <div class="fr"><label class="fl" style="font-size:11px">Phonographer / Reels</label><select class="fi" id="padd-crew-ph"></select></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section B: Extra Crew on Existing Day -->
+      <div id="padd-crew-fields" style="display:none;background:#f1f5f9;border-radius:10px;padding:12px;margin-bottom:14px">
+        <div class="fr">
+          <label class="fl">Select Existing Scheduled Day *</label>
+          <select class="fi" id="padd-target-day"></select>
+        </div>
+        <div class="fg">
+          <div class="fr">
+            <label class="fl">Crew Slot / Role</label>
+            <select class="fi" id="padd-extra-role">
+              <option value="candid">Candid Photographer</option>
+              <option value="photographer">Traditional Photographer</option>
+              <option value="cinematographer">Cinematographer</option>
+              <option value="videographer">Traditional Videographer</option>
+              <option value="drone">Drone Operator</option>
+              <option value="phonographer">Phonographer / Reels Creator</option>
+            </select>
+          </div>
+          <div class="fr">
+            <label class="fl">Assign Team / Freelancer</label>
+            <select class="fi" id="padd-extra-person"></select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section C: Financial Adjustment (Package Amount to add) -->
+      <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:14px;margin-bottom:14px">
+        <div class="fg">
+          <div class="fr" style="flex:1">
+            <label class="fl" style="font-weight:800;color:#166534">Extra Amount to Add to Package Value (₹) *</label>
+            <input class="fi" type="number" id="padd-amount" placeholder="e.g. 35000" min="0" oninput="paddCalcNewTotals()" style="font-size:18px;font-weight:800;color:#166534;outline:none">
+          </div>
+          <div class="fr" style="flex:1">
+            <label class="fl" style="color:#166534">Updated Total Package Value</label>
+            <div id="padd-new-val-display" style="font-size:18px;font-weight:800;color:#0f172a;margin-top:7px">₹0</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:#15803d;margin-top:6px">
+          This amount will be added to the project value, and the balance due will recalculate automatically.
+        </div>
+      </div>
+
+      <!-- Optional Deliverables to append -->
+      <div class="fr" style="margin-bottom:12px">
+        <label class="fl">Add Deliverables to Post-Production (Optional)</label>
+        <input class="fi" id="padd-deliv" placeholder="e.g. 1 Extra 60-Sec Reel, 1 Canvera 12x36 Album">
+      </div>
+
+      <!-- Agreement / WhatsApp Reason Notes -->
+      <div class="fr" style="margin-bottom:14px">
+        <label class="fl">Client Agreement Notes / Reason *</label>
+        <textarea class="fi" id="padd-notes" rows="2" placeholder="e.g. Client requested 1 Candid + 1 Drone on WhatsApp for Cocktail Party. Agreed rate ₹35,000."></textarea>
+      </div>
+
+      <!-- Optional: Immediate Payment -->
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#92400e;cursor:pointer">
+          <input type="checkbox" id="padd-record-pay" onchange="document.getElementById('padd-pay-details').style.display=this.checked?'':'none'">
+          💰 Client paid an advance for this add-on right now?
+        </label>
+        <div id="padd-pay-details" style="display:none;margin-top:10px">
+          <div class="fg">
+            <div class="fr"><label class="fl">Payment Received (₹)</label><input class="fi" type="number" id="padd-pay-amount" placeholder="e.g. 15000"></div>
+            <div class="fr"><label class="fl">Payment Date</label><input class="fi" type="date" id="padd-pay-date"></div>
+          </div>
+          <div class="fg">
+            <div class="fr"><label class="fl">Payment Mode</label><select class="fi" id="padd-pay-mode"><option>UPI</option><option>Bank Transfer</option><option>Cash</option></select></div>
+            <div class="fr"><label class="fl">Account Received In</label><select class="fi" id="padd-pay-account"></select></div>
+          </div>
+          <div class="fr"><label class="fl">Transaction / UTR No.</label><input class="fi" id="padd-pay-ref" placeholder="e.g. UPI Ref 382910…"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot" style="background:#f8fafc">
+      <button class="btn" onclick="closeModal('project-addon-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitProjectAddon()" style="background:#166534;border-color:#166534;font-weight:800;padding:9px 20px">🚀 Confirm &amp; Add to Project</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ CLIENT 360 MODAL ═══ -->
 <div class="modal-overlay" id="client360-modal">
   <div class="modal" style="max-width:720px">
@@ -4535,28 +4703,68 @@ document.addEventListener('wheel', function(e) {
   </div>
 </div>
 
-<!-- FREELANCER MODAL -->
-<div class="modal-overlay" id="freelancer-modal">
-  <div class="modal modal-lg">
-    <div class="modal-hdr">
-      <div class="modal-title" id="freelancer-modal-title">Add Freelancer</div>
-      <button class="modal-close" data-close="freelancer-modal">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="info info-blue" style="margin-bottom:14px">
-        🎯 Freelancers are hired per-event. They appear in all Production Plan team dropdowns alongside your full-time team, marked with a <b>🎯</b> badge.
+<!-- FREELANCER SLIDE-OVER DRAWER (Right 34vw) -->
+<div class="modal-overlay drawer-overlay" id="freelancer-modal" onclick="flHandleDrawerBackdropClick(event)">
+  <div class="drawer-panel" onclick="event.stopPropagation()">
+    <div class="drawer-hdr">
+      <div style="display:flex;align-items:center;gap:12px;min-width:0">
+        <div id="fl-drawer-avatar" style="width:40px;height:40px;border-radius:10px;background:#0f172a;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0">🎯</div>
+        <div style="min-width:0">
+          <div class="drawer-title" id="freelancer-modal-title" style="font-size:16px;font-weight:800;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Add Freelancer</div>
+          <div id="fl-drawer-subtitle" style="font-size:11.5px;color:#64748b;margin-top:1px">KB Studio Productions • Partner Profile</div>
+        </div>
       </div>
-      <!-- Basic Info -->
-      <div class="section-divider">Basic Information</div>
-      <div class="fg"><div class="fr"><label class="fl">Full Name *</label><input class="fi" id="fl-name" placeholder="e.g. Rohit Verma"></div><div class="fr"><label class="fl">Nickname / Short Name</label><input class="fi" id="fl-nickname" placeholder="e.g. Roh"></div></div>
-      <div class="fg3"><div class="fr"><label class="fl">Primary Phone *</label><input class="fi" id="fl-phone" placeholder="9876543210"></div><div class="fr"><label class="fl">WhatsApp</label><input class="fi" id="fl-whatsapp" placeholder="9876543210"></div><div class="fr"><label class="fl">Email</label><input class="fi" type="email" id="fl-email" placeholder="rohit@email.com"></div></div>
-      <!-- Professional -->
-      <div class="section-divider" style="margin-top:8px">Professional Profile</div>
+      <button class="modal-close" type="button" onclick="flCloseDrawerWithGuard()" title="Close without saving" style="background:#f1f5f9;border:none;width:32px;height:32px;border-radius:8px;font-size:15px;cursor:pointer;color:#64748b;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    
+    <div class="drawer-body" id="fl-drawer-body">
+      <!-- Unsaved Changes Prompt Banner -->
+      <div id="fl-unsaved-alert-container"></div>
+
+      <!-- Quick Stats Card (Populated when editing existing freelancer) -->
+      <div id="fl-stats-card" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase">Events Done</div>
+            <div id="fl-stat-events" style="font-size:15px;font-weight:800;color:#0f172a;margin-top:2px">0</div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase">Verified Earned</div>
+            <div id="fl-stat-earned" style="font-size:15px;font-weight:800;color:#047857;margin-top:2px">₹0</div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase">Balance Due</div>
+            <div id="fl-stat-balance" style="font-size:15px;font-weight:800;color:#0284c7;margin-top:2px">₹0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info info-blue" style="margin-bottom:14px;font-size:12px;line-height:1.4">
+        🎯 Freelancers are partner crew hired per-event. They can log into their private operations portal to view shoots, report daily claims, and track payments.
+      </div>
+
+      <!-- 1. Basic Information -->
+      <div class="section-divider">👤 Personal &amp; Contact Details</div>
+      <div class="fg">
+        <div class="fr"><label class="fl">Full Name *</label><input class="fi" id="fl-name" placeholder="e.g. Rohit Verma"></div>
+        <div class="fr"><label class="fl">Nickname / Short Name</label><input class="fi" id="fl-nickname" placeholder="e.g. Roh"></div>
+      </div>
       <div class="fg3">
-        <div class="fr"><label class="fl">Role / Skill *</label>
+        <div class="fr"><label class="fl">Primary Phone *</label><input class="fi" id="fl-phone" placeholder="9876543210"></div>
+        <div class="fr"><label class="fl">WhatsApp</label><input class="fi" id="fl-whatsapp" placeholder="9876543210"></div>
+        <div class="fr"><label class="fl">Email</label><input class="fi" type="email" id="fl-email" placeholder="rohit@email.com"></div>
+      </div>
+      <div class="fg">
+        <div class="fr"><label class="fl">Based in City</label><input class="fi" id="fl-city" placeholder="e.g. Delhi, Jaipur, Mumbai…"></div>
+        <div class="fr"><label class="fl">Instagram / Portfolio URL</label><input class="fi" id="fl-instagram" placeholder="e.g. instagram.com/rohit_films"></div>
+      </div>
+
+      <!-- 2. Professional & Equipment -->
+      <div class="section-divider" style="margin-top:12px">🎯 Professional Profile &amp; Gear</div>
+      <div class="fg3">
+        <div class="fr"><label class="fl">Primary Role *</label>
           <select class="fi" id="fl-role" onchange="flRoleChanged(this)"></select>
         </div>
-        <div class="fr"><label class="fl">Based in City</label><input class="fi" id="fl-city" placeholder="e.g. Delhi, Jaipur…"></div>
         <div class="fr"><label class="fl">Availability</label>
           <select class="fi" id="fl-availability">
             <option value="available">✅ Available</option>
@@ -4564,10 +4772,6 @@ document.addEventListener('wheel', function(e) {
             <option value="inactive">⚫ Inactive / Retired</option>
           </select>
         </div>
-      </div>
-      <div class="fg3">
-        <div class="fr"><label class="fl">Experience (years)</label><input class="fi" type="number" id="fl-exp" placeholder="e.g. 4" min="0"></div>
-        <div class="fr"><label class="fl">Per Event Rate (₹)</label><input class="fi" type="number" id="fl-rate" placeholder="e.g. 5000"></div>
         <div class="fr"><label class="fl">Rating (1–5 ⭐)</label>
           <select class="fi" id="fl-rating">
             <option value="">Not rated</option>
@@ -4579,68 +4783,104 @@ document.addEventListener('wheel', function(e) {
           </select>
         </div>
       </div>
-      <div class="fg"><div class="fr"><label class="fl">Specialisation / Skills</label><input class="fi" id="fl-skills" placeholder="e.g. Candid, Drone, Reels, Color Grading"></div><div class="fr"><label class="fl">Equipment Owned</label><input class="fi" id="fl-equipment" placeholder="e.g. Sony A7IV, DJI Mini 3 Pro"></div></div>
-      <!-- Payment -->
-      <div class="section-divider" style="margin-top:8px">Payment Details</div>
-      <div class="fg3"><div class="fr"><label class="fl">UPI ID</label><input class="fi" id="fl-upi" placeholder="e.g. rohit@okaxis"></div><div class="fr"><label class="fl">Bank Account</label><input class="fi" id="fl-bankaccount" placeholder="Account number"></div><div class="fr"><label class="fl">IFSC Code</label><input class="fi" id="fl-ifsc" placeholder="e.g. HDFC0001234"></div></div>
-      <!-- Review Proposed Rates (from Self-Registration) -->
-      <div id="fl-review-rates-banner" style="display:none;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:12px;padding:14px;margin-top:10px;margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-weight:800;color:#92400e;font-size:13px">📋 PROPOSED RATES SUBMITTED BY FREELANCER</span>
-          <span id="fl-rate-status-badge" style="background:#b45309;color:#fff;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:6px">PENDING APPROVAL</span>
+      <div class="fg">
+        <div class="fr"><label class="fl">Experience (years)</label><input class="fi" type="number" id="fl-exp" placeholder="e.g. 4" min="0"></div>
+        <div class="fr"><label class="fl">Specialisation / Skills</label><input class="fi" id="fl-skills" placeholder="e.g. Candid, Cinematic, Drone, Reels, Colorist"></div>
+      </div>
+      <div class="fr"><label class="fl">Equipment Owned</label><input class="fi" id="fl-equipment" placeholder="e.g. Sony FX3, A7IV, 24-70 GM, DJI Mavic 3, Godox Flash"></div>
+
+      <!-- 3. Freelancer Portal Credentials (PIN System) -->
+      <div class="section-divider" style="margin-top:14px">🔑 Freelancer Portal Access &amp; Unique PIN</div>
+      <div style="background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:12px;padding:14px;margin-top:6px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-weight:800;color:#0f172a;font-size:13px">🔑 Operations Portal Credentials</span>
+          <span id="fl-pin-status-badge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:#ecfdf5;color:#065f46">Unique PIN Active</span>
         </div>
-        <div id="fl-proposed-summary" style="font-size:12.5px;color:#78350f;margin-bottom:10px;line-height:1.5"></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button type="button" class="btn btn-sm" style="background:#059669;color:#fff;font-weight:800;border:none;padding:6px 14px;border-radius:7px;cursor:pointer" onclick="flApproveFreelancerRates()">✅ Accept &amp; Set as Agreed Rates</button>
-          <span style="font-size:11px;color:#92400e">Or adjust any rates in the boxes below and click Save.</span>
+        
+        <div style="margin-bottom:10px">
+          <label class="fl" style="margin-bottom:4px">Studio PIN (Unique 4-digit code)</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input class="fi" id="fl-portalpin" placeholder="e.g. 5294" maxlength="8" autocomplete="off" style="font-weight:800;font-size:17px;letter-spacing:3px;font-family:monospace;max-width:130px;text-align:center">
+            <button type="button" class="btn btn-sm" onclick="flRegenerateRandomPin()" style="background:#0284c7;color:#fff;border:none;font-weight:700;padding:7px 12px;border-radius:7px;cursor:pointer">🎲 Random PIN</button>
+            <button type="button" class="btn btn-sm" onclick="flSetPinFromPhone()" style="background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;font-weight:600;padding:7px 12px;border-radius:7px;cursor:pointer">📱 Phone Last 4</button>
+          </div>
+          <div style="font-size:11px;color:#64748b;margin-top:4px">Enter any 4-digit code, or click <b>Random PIN</b>. It will never be overwritten automatically.</div>
+        </div>
+
+        <div>
+          <label class="fl" style="margin-bottom:4px">Portal Link &amp; Share Actions</label>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input class="fi" id="fl-portallink" readonly value="https://crm.kbstudio.in?portal=crew" style="background:#fff;color:#0369a1;font-size:12px;font-weight:600;flex:1;min-width:180px">
+            <button type="button" class="btn btn-sm" onclick="flCopyCredentialsFromDrawer()" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700;white-space:nowrap;padding:6px 11px;border-radius:7px;cursor:pointer">📋 Copy Text</button>
+            <button type="button" class="btn btn-sm" onclick="flWhatsAppCredentialsFromDrawer()" style="background:#25d366;color:#fff;border:none;font-weight:700;white-space:nowrap;padding:6px 11px;border-radius:7px;cursor:pointer">📲 WhatsApp</button>
+          </div>
+          <div style="font-size:11px;color:#64748b;margin-top:4px">Universal portal link for all freelancers. Sign in with registered phone + unique PIN.</div>
         </div>
       </div>
 
-      <!-- Rate card & terms -->
-      <div class="section-divider" style="margin-top:8px">💰 Rate Card — pay per deliverable</div>
-      <div class="info info-blue" style="margin-bottom:10px">Amount paid = rate × the deliverable's <b>Qty</b>, filled in automatically when you assign this freelancer in Post Production. You can override the amount for any single deliverable on the <b>Freelancer Payouts</b> page. Leave a rate blank if they don't do that work.</div>
-      <div id="fl-rate-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:10px"></div>
-      <div style="font-size:12px;font-weight:700;margin:4px 0 6px">➕ Other rates <span style="font-weight:400;color:#888">— any work not listed above (per day, per shoot, per hour, per design…)</span></div>
+      <!-- 4. Payment & Bank Details -->
+      <div class="section-divider" style="margin-top:12px">💳 Payment &amp; Bank Details</div>
+      <div class="fg3">
+        <div class="fr"><label class="fl">UPI ID</label><input class="fi" id="fl-upi" placeholder="e.g. rohit@okhdfcbank"></div>
+        <div class="fr"><label class="fl">Bank Account Number</label><input class="fi" id="fl-bankaccount" placeholder="Account number"></div>
+        <div class="fr"><label class="fl">IFSC Code</label><input class="fi" id="fl-ifsc" placeholder="e.g. HDFC0001234"></div>
+      </div>
+
+      <!-- 5. Rates & Rate Card -->
+      <div class="section-divider" style="margin-top:12px">💰 Rates &amp; Rate Card</div>
+      
+      <!-- Review Proposed Rates (from Self-Registration) -->
+      <div id="fl-review-rates-banner" style="display:none;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:12px;padding:12px 14px;margin-top:6px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:800;color:#92400e;font-size:12.5px">📋 PROPOSED RATES SUBMITTED BY FREELANCER</span>
+          <span id="fl-rate-status-badge" style="background:#b45309;color:#fff;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:6px">PENDING APPROVAL</span>
+        </div>
+        <div id="fl-proposed-summary" style="font-size:12px;color:#78350f;margin-bottom:8px;line-height:1.5"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button type="button" class="btn btn-sm" style="background:#059669;color:#fff;font-weight:800;border:none;padding:5px 12px;border-radius:7px;cursor:pointer" onclick="flApproveFreelancerRates()">✅ Accept &amp; Set as Agreed Rates</button>
+          <span style="font-size:11px;color:#92400e">Or adjust rates below and click Save.</span>
+        </div>
+      </div>
+
+      <div class="fg">
+        <div class="fr"><label class="fl">Standard Per Event Rate (₹)</label><input class="fi" type="number" id="fl-rate" placeholder="e.g. 5000"></div>
+        <div class="fr"><label class="fl">Fixed / Agreed Notes</label><input class="fi" id="fl-agreed-notes" placeholder="e.g. Wedding ₹8000, Short Event ₹4000"></div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:#334155;margin:8px 0 6px">Deliverable Rates (per item/deliverable):</div>
+      <div id="fl-rate-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:8px"></div>
+      
+      <div style="font-size:12px;font-weight:700;color:#334155;margin:10px 0 4px">➕ Other Custom Rates:</div>
       <div id="fl-custom-rates"></div>
-      <button type="button" class="btn btn-sm" style="margin-bottom:12px" onclick="flAddCustomRateRow('','')">+ Add rate line</button>
-      <div class="section-divider" style="margin-top:8px">📜 Terms &amp; Conditions</div>
+      <button type="button" class="btn btn-sm" style="margin-bottom:12px" onclick="flAddCustomRateRow('','')">+ Add Custom Rate</button>
+
+      <div class="section-divider" style="margin-top:12px">📜 Terms &amp; Conditions</div>
       <div class="fg3">
         <div class="fr"><label class="fl">Payment terms</label><select class="fi" id="fl-payterms"></select></div>
         <div class="fr"><label class="fl">Terms agreed on</label><input class="fi" type="date" id="fl-termsdate"></div>
         <div class="fr"><label class="fl">Freelancer accepted?</label><select class="fi" id="fl-termsagreed"><option value="no">⚠️ Not yet</option><option value="yes">✅ Yes, accepted</option></select></div>
       </div>
       <div class="fr"><label class="fl">Terms &amp; Conditions <button type="button" class="btn btn-sm" style="margin-left:8px" onclick="flLoadDefaultTerms()">Load default template</button></label>
-        <textarea class="fi" id="fl-terms" rows="10" placeholder="Click 'Load default template' and edit it, or write your own terms."></textarea></div>
-      <div class="fr" style="margin-top:6px">
-        <label class="fl">🤝 Fixed / Agreed Rate Notes with Freelancer <span style="font-weight:400;color:#64748b;font-size:11px">(e.g. Agreed ₹8,000 for Wedding, ₹4,000 for Haldi, ₹1,000 per reel)</span></label>
-        <input class="fi" id="fl-agreed-notes" placeholder="e.g. Discussed on phone: Wedding ₹8000, Short Event ₹4000, 2 revisions included">
+        <textarea class="fi" id="fl-terms" rows="6" placeholder="Click 'Load default template' and edit it, or write your own terms."></textarea>
       </div>
-      <!-- Notes -->
-      <div class="section-divider" style="margin-top:8px">Notes &amp; Tags</div>
-      <div class="fr"><label class="fl">Internal Notes</label><textarea class="fi" id="fl-notes" rows="2" placeholder="e.g. Very reliable for pre-wedding shoots. Brings own lighting."></textarea></div>
-      <div class="fg"><div class="fr"><label class="fl">ID Proof</label><input class="fi" id="fl-idproof" placeholder="e.g. Aadhar: 1234-5678-9012"></div><div class="fr"><label class="fl">Referred By</label><input class="fi" id="fl-referredby" placeholder="e.g. Vikram Sharma (Team)"></div></div>
-      <div class="section-divider" style="margin-top:8px">🔑 Freelancer Self-Portal Access</div>
+
+      <!-- 6. Internal Notes & Documents -->
+      <div class="section-divider" style="margin-top:12px">📝 Internal Studio Notes &amp; Documents</div>
+      <div class="fr"><label class="fl">Internal Notes</label><textarea class="fi" id="fl-notes" rows="2" placeholder="e.g. Highly reliable for destination weddings."></textarea></div>
       <div class="fg">
-        <div class="fr">
-          <label class="fl">Studio PIN <span style="font-weight:400;color:#94a3b8;font-size:11px">(unique 4-digit PIN for crm.kbstudio.in?portal=crew)</span></label>
-          <div style="display:flex;gap:6px">
-            <input class="fi" id="fl-portalpin" placeholder="e.g. 1234 or unique 4-digits" maxlength="8" autocomplete="off" style="font-weight:700;letter-spacing:2px">
-            <button type="button" class="btn btn-sm" onclick="(function(){ var ph=(gv('fl-phone')||gv('fl-whatsapp')||'').replace(/\D/g,''); var p=ph.length>=4?ph.slice(-4):String(Math.floor(1000+Math.random()*9000)); sv('fl-portalpin', p); })()" title="Auto-assign unique PIN">🎲 Generate</button>
-          </div>
-        </div>
-        <div class="fr" style="align-self:flex-end">
-          <label class="fl">Portal Link (share via WhatsApp)</label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input class="fi" id="fl-portallink" readonly value="https://crm.kbstudio.in?portal=crew" style="background:#f8fafc;color:#0369a1;font-size:12px">
-            <button type="button" class="btn btn-sm" onclick="navigator.clipboard.writeText('https://crm.kbstudio.in?portal=crew').then(function(){showToast('✅ Link copied!')})">📋 Copy</button>
-          </div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:3px">One universal link for ALL freelancers — each logs in with their phone + PIN.</div>
-        </div>
+        <div class="fr"><label class="fl">ID Proof / Aadhar</label><input class="fi" id="fl-idproof" placeholder="e.g. Aadhar: 1234-5678-9012"></div>
+        <div class="fr"><label class="fl">Referred By</label><input class="fi" id="fl-referredby" placeholder="e.g. Vikram (Team)"></div>
       </div>
     </div>
-    <div class="modal-foot">
-      <button class="btn" data-close="freelancer-modal">Cancel</button>
-      <button class="btn btn-primary" id="btn-save-freelancer">💾 Save Freelancer</button>
+    
+    <div class="drawer-foot">
+      <div>
+        <button class="btn btn-danger" type="button" id="fl-drawer-del-btn" style="display:none;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-weight:700" onclick="if(_editFreelancerId)deleteFreelancer(_editFreelancerId)">🗑️ Delete</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" type="button" onclick="flCloseDrawerWithGuard()">Cancel</button>
+        <button class="btn btn-primary" id="btn-save-freelancer" style="background:#0f172a;font-weight:800;padding:9px 20px;border-radius:8px">💾 Save Freelancer</button>
+      </div>
     </div>
   </div>
 </div>
@@ -12171,8 +12411,8 @@ function showUniversalCrewLoginScreen() {
     '<div style="background:#fff;border-radius:20px;padding:34px 30px;width:100%;max-width:410px;box-shadow:0 24px 64px rgba(0,0,0,.35)">' +
       '<div style="text-align:center;margin-bottom:24px">' +
         '<div style="font-size:38px;margin-bottom:6px">🎬</div>' +
-        '<div style="font-size:22px;font-weight:800;color:#0f172a">KB Studio</div>' +
-        '<div style="font-size:13px;color:#64748b;margin-top:4px">Freelancer Portal — Secure Login</div>' +
+        '<div style="font-size:22px;font-weight:900;color:#0f172a;letter-spacing:-0.5px">KB Studio Productions</div>' +
+        '<div style="font-size:11.5px;color:#64748b;margin-top:4px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase">Partner &amp; Freelancer Operations Portal</div>' +
       '</div>' +
       (totalCrew === 0 ?
         '<div id="cup-conn-warning" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#92400e;display:flex;align-items:center;justify-content:space-between">' +
@@ -21412,6 +21652,7 @@ $('btn-new-proj').addEventListener('click',function(){
   $('region-hint').style.display='none';
   populateStateDropdown('f-state','');
   $('btn-delete-proj').style.display='none';
+  var _addonBtn=$('btn-project-addon');if(_addonBtn)_addonBtn.style.display='none';
   var npBlock=$('new-proj-advance-block'); if(npBlock) npBlock.style.display='block';
   sv('np-amount','');sv('np-date',tod());sv('np-mode','UPI');sv('np-ref','');
   populateAccountDropdown('np-account');
@@ -24550,46 +24791,216 @@ function renderFreelancers() {
   setTimeout(flAutoAssignPins, 2000);
 }
 
+var _flInitialSnapshot = '';
+
+function flGetDrawerFormSnapshot() {
+  var keys = ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-instagram','fl-role','fl-availability','fl-exp','fl-rate','fl-rating','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-portalpin','fl-agreed-notes','fl-notes','fl-idproof','fl-referredby','fl-payterms','fl-termsdate','fl-termsagreed','fl-terms'];
+  var obj = {};
+  keys.forEach(function(k){ obj[k] = (gv(k) || '').trim(); });
+  return JSON.stringify(obj);
+}
+
+function flCloseDrawerWithGuard() {
+  var current = flGetDrawerFormSnapshot();
+  if (_flInitialSnapshot && current !== _flInitialSnapshot) {
+    flShowUnsavedPrompt();
+    return;
+  }
+  closeModal('freelancer-modal');
+  var alertBox = document.getElementById('fl-unsaved-alert-container');
+  if (alertBox) alertBox.innerHTML = '';
+}
+
+function flHandleDrawerBackdropClick(e) {
+  if (e.target && e.target.id === 'freelancer-modal') {
+    flCloseDrawerWithGuard();
+  }
+}
+
+function flShowUnsavedPrompt() {
+  var container = document.getElementById('fl-unsaved-alert-container');
+  if (!container) return;
+  container.innerHTML =
+    '<div id="fl-unsaved-alert" style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:12px;padding:14px;margin-bottom:14px;box-shadow:0 6px 20px rgba(0,0,0,0.08);animation:pulse 0.8s ease">' +
+      '<div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#92400e">' +
+        '<span style="font-size:18px">⚠️</span> Unsaved Changes in Freelancer Profile!' +
+      '</div>' +
+      '<div style="font-size:12px;color:#78350f;margin-top:4px;line-height:1.4">' +
+        'You have unsaved edits. Would you like to save before closing, or discard your changes?' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap">' +
+        '<button type="button" onclick="document.getElementById(\'fl-unsaved-alert-container\').innerHTML=\'\'" style="padding:6px 12px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;font-size:11.5px;font-weight:600;color:#475569;cursor:pointer">Keep Editing</button>' +
+        '<button type="button" onclick="document.getElementById(\'fl-unsaved-alert-container\').innerHTML=\'\';_flInitialSnapshot=\'\';closeModal(\'freelancer-modal\')" style="padding:6px 12px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;font-size:11.5px;font-weight:700;color:#dc2626;cursor:pointer">Discard &amp; Leave</button>' +
+        '<button type="button" onclick="document.getElementById(\'btn-save-freelancer\').click()" style="padding:6px 14px;background:#059669;border:none;border-radius:6px;font-size:11.5px;font-weight:800;color:#fff;cursor:pointer">💾 Save &amp; Close</button>' +
+      '</div>' +
+    '</div>';
+  var body = document.getElementById('fl-drawer-body');
+  if (body) body.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function flRegenerateRandomPin() {
+  var p = String(Math.floor(1000 + Math.random() * 9000));
+  var el = document.getElementById('fl-portalpin');
+  if (el) {
+    el.value = p;
+    el.dataset.customized = 'true';
+    el.focus();
+  }
+  showToast('🎲 New PIN generated: ' + p);
+}
+
+function flSetPinFromPhone() {
+  var ph = (gv('fl-phone') || gv('fl-whatsapp') || '').replace(/\D/g, '');
+  if (ph.length < 4) { alert('Please enter at least 4 digits in Primary Phone first.'); return; }
+  var p = ph.slice(-4);
+  var el = document.getElementById('fl-portalpin');
+  if (el) {
+    el.value = p;
+    el.dataset.customized = 'true';
+    el.focus();
+  }
+  showToast('📱 PIN set to last 4 digits: ' + p);
+}
+
+function flCopyCredentialsFromDrawer() {
+  var name = gv('fl-name') || 'Partner';
+  var phone = gv('fl-phone') || gv('fl-whatsapp') || '';
+  var pin = gv('fl-portalpin') || '';
+  if (!pin) {
+    var ph = phone.replace(/\D/g, '');
+    pin = ph.length >= 4 ? ph.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
+    sv('fl-portalpin', pin);
+  }
+  var url = 'https://crm.kbstudio.in?portal=crew';
+  var text = '🎬 *KB Studio Productions — Freelancer Operations Portal*\n\n' +
+    'Hi ' + name + ', here are your official portal credentials:\n\n' +
+    '🔗 *Portal Link:* ' + url + '\n' +
+    '📱 *Registered Mobile:* ' + phone + '\n' +
+    '🔑 *Your Studio PIN:* ' + pin + '\n\n' +
+    'Sign in at any time to view assigned shoots, report daily claims, and track verified payments!';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){
+      showToast('📋 Full portal credentials copied for ' + name + '!');
+    }).catch(function(){ prompt('Copy credentials:', text); });
+  } else {
+    prompt('Copy credentials:', text);
+  }
+}
+
+function flWhatsAppCredentialsFromDrawer() {
+  var name = gv('fl-name') || 'Partner';
+  var rawPhone = (gv('fl-whatsapp') || gv('fl-phone') || '').replace(/\D/g, '');
+  if (!rawPhone) { alert('Please enter a WhatsApp or Primary Phone number first.'); return; }
+  var phone = rawPhone.length === 10 ? '91' + rawPhone : rawPhone;
+  var pin = gv('fl-portalpin') || '';
+  if (!pin) {
+    pin = rawPhone.length >= 4 ? rawPhone.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
+    sv('fl-portalpin', pin);
+  }
+  var url = 'https://crm.kbstudio.in?portal=crew';
+  var msg = 'Hello ' + name + '! 👋\n\n' +
+    'Here is your official *KB Studio Productions* Partner & Freelancer Operations Portal link:\n' +
+    url + '\n\n' +
+    'Log in using your registered credentials:\n' +
+    '📱 *Mobile:* ' + (gv('fl-phone') || gv('fl-whatsapp')) + '\n' +
+    '🔑 *Your Studio PIN:* ' + pin + '\n\n' +
+    'You can view your verified shoot earnings, generate daily claims, track payouts received, and manage your ledger directly from your phone!';
+  window.open('https://api.whatsapp.com/send?phone=' + phone + '&text=' + encodeURIComponent(msg), '_blank');
+}
+
 function openAddFreelancer(prefill) {
   _editFreelancerId = null;
+  var alertBox = document.getElementById('fl-unsaved-alert-container');
+  if (alertBox) alertBox.innerHTML = '';
+  
   var modal_title = document.getElementById('freelancer-modal-title');
   if (modal_title) modal_title.textContent = 'Add Freelancer';
-  ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby','fl-portalpin','fl-agreed-notes'].forEach(function(i){sv(i,'');});
+  var sub = document.getElementById('fl-drawer-subtitle');
+  if (sub) sub.textContent = 'KB Studio Productions • New Partner Onboarding';
+  var av = document.getElementById('fl-drawer-avatar');
+  if (av) { av.textContent = '🎯'; av.style.background = '#0f172a'; }
+  var delBtn = document.getElementById('fl-drawer-del-btn');
+  if (delBtn) delBtn.style.display = 'none';
+  var statsCard = document.getElementById('fl-stats-card');
+  if (statsCard) statsCard.style.display = 'none';
+
+  ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-instagram','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby','fl-agreed-notes'].forEach(function(i){sv(i,'');});
+  
+  // Auto-generate fresh random 4-digit PIN for new freelancer (NEVER 0000)
+  var randomPin = String(Math.floor(1000 + Math.random() * 9000));
+  sv('fl-portalpin', randomPin);
+  var pinEl = document.getElementById('fl-portalpin');
+  if (pinEl) pinEl.dataset.customized = 'true';
+
   flFillRoleSelect('Photographer'); sv('fl-availability','available'); sv('fl-rating','');
   flBuildRateGrid({}, []); flFillPayTerms(''); sv('fl-terms',''); sv('fl-termsdate',''); sv('fl-termsagreed','no');
   var banner = document.getElementById('fl-review-rates-banner'); if (banner) banner.style.display = 'none';
+
   if (prefill) {
     if (prefill.name) sv('fl-name', prefill.name);
     if (prefill.role) flFillRoleSelect(prefill.role);
-    if (prefill.phone) { sv('fl-phone', prefill.phone); flAutoFillPin(prefill.phone); }
+    if (prefill.phone) sv('fl-phone', prefill.phone);
   }
+  
   openModal('freelancer-modal');
-  // Auto-fill PIN when phone is typed
-  setTimeout(function() {
-    var phoneEl = document.getElementById('fl-phone');
-    if (phoneEl) phoneEl.addEventListener('input', function() { flAutoFillPin(this.value); });
-    var waEl = document.getElementById('fl-whatsapp');
-    if (waEl) waEl.addEventListener('input', function() { flAutoFillPin(this.value); });
-  }, 200);
-}
-
-function flAutoFillPin(phoneRaw) {
-  var ph = String(phoneRaw || '').replace(/\D/g, '');
-  var pinEl = document.getElementById('fl-portalpin');
-  if (!pinEl || pinEl.dataset.customized === 'true') return;
-  if (ph.length >= 4) {
-    pinEl.value = ph.slice(-4);
-    pinEl.placeholder = 'Auto: ' + ph.slice(-4);
-  }
+  _flInitialSnapshot = flGetDrawerFormSnapshot();
 }
 
 function openEditFreelancer(id) {
   var f = freelancerData[id]; if (!f) return;
   _editFreelancerId = id;
+  var alertBox = document.getElementById('fl-unsaved-alert-container');
+  if (alertBox) alertBox.innerHTML = '';
+
   var modal_title = document.getElementById('freelancer-modal-title');
-  if (modal_title) modal_title.textContent = 'Edit \u2014 ' + f.name;
-  ['name','nickname','phone','whatsapp','email','city','exp','rate','skills','equipment','upi','bankaccount','ifsc','notes','idproof','referredby'].forEach(function(k){sv('fl-'+k, f[k]||'');});
-  sv('fl-portalpin', f.portalPin || '');
+  if (modal_title) modal_title.textContent = 'Edit — ' + f.name;
+  var sub = document.getElementById('fl-drawer-subtitle');
+  if (sub) sub.textContent = (f.role || 'Partner') + (f.city ? ' • ' + f.city : '') + ' • KB Studio Productions';
+  var av = document.getElementById('fl-drawer-avatar');
+  if (av) {
+    var inits = (f.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().substring(0,2);
+    av.textContent = inits || '🎯';
+    av.style.background = avatarColor(f.name);
+  }
+  var delBtn = document.getElementById('fl-drawer-del-btn');
+  if (delBtn) delBtn.style.display = (CU && (CU.role==='superadmin'||CU.role==='admin')) ? '' : 'none';
+
+  // Quick stats
+  var statsCard = document.getElementById('fl-stats-card');
+  if (statsCard) {
+    statsCard.style.display = '';
+    var bList = Object.values(flBillsData || {}).filter(function(b){ return b && b.freelancerId === id && b.status === 'verified'; });
+    var pList = Object.values(flPaymentsData || {}).filter(function(p){ return p && p.freelancerId === id; });
+    var totEarned = bList.reduce(function(sum, b){ return sum + (parseFloat(b.totalAmount) || 0); }, 0);
+    var totPaid = pList.reduce(function(sum, p){ return sum + (parseFloat(p.amount) || 0); }, 0);
+    var balDue = totEarned - totPaid;
+    var hireC = hireCounts[id] || bList.length || 0;
+    
+    var elEv = document.getElementById('fl-stat-events'); if (elEv) elEv.textContent = hireC;
+    var elEr = document.getElementById('fl-stat-earned'); if (elEr) elEr.textContent = '₹' + fmtNum(totEarned);
+    var elBl = document.getElementById('fl-stat-balance');
+    if (elBl) {
+      elBl.textContent = balDue > 0 ? ('₹' + fmtNum(balDue)) : 'Settled ✅';
+      elBl.style.color = balDue > 0 ? '#15803d' : '#64748b';
+    }
+  }
+
+  ['name','nickname','phone','whatsapp','email','city','instagram','exp','rate','skills','equipment','upi','bankaccount','ifsc','notes','idproof','referredby'].forEach(function(k){
+    sv('fl-'+k, f[k]||'');
+  });
+
+  // Unique PIN: ensure they have a dedicated 4-digit PIN (never '0000')
+  var pin = String(f.portalPin || '').trim();
+  if (!pin || pin === '0000' || pin === '0000 (default)' || pin.length < 4) {
+    var ph = String(f.phone || f.whatsapp || '').replace(/\D/g, '');
+    pin = ph.length >= 4 ? ph.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
+    f.portalPin = pin;
+    try { db.ref('crm_freelancers/' + id + '/portalPin').set(pin); } catch(e) {}
+  }
+  sv('fl-portalpin', pin);
+  var pinEl = document.getElementById('fl-portalpin');
+  if (pinEl) pinEl.dataset.customized = 'true';
+
   sv('fl-agreed-notes', f.agreedNotes || '');
   flFillRoleSelect(f.role||'Photographer');
   sv('fl-availability', f.availability||'available');
@@ -24617,7 +25028,7 @@ function openEditFreelancer(id) {
         magazine:'Magazine', frame:'Frame Design'
       };
       var lines = Object.keys(pr).filter(function(k){ return pr[k] > 0; }).map(function(k){
-        return '<span style="display:inline-block;background:#fef3c7;border-radius:5px;padding:2px 7px;margin:2px;font-size:12px"><strong>' + (rateLabels[k]||k) + ':</strong> \u20b9' + Number(pr[k]).toLocaleString('en-IN') + '</span>';
+        return '<span style="display:inline-block;background:#fef3c7;border-radius:5px;padding:2px 7px;margin:2px;font-size:12px"><strong>' + (rateLabels[k]||k) + ':</strong> ₹' + Number(pr[k]).toLocaleString('en-IN') + '</span>';
       });
       if (f.proposedRatesOther) lines.push('<div style="margin-top:5px;font-size:12px"><strong>Other:</strong> ' + escHtml(f.proposedRatesOther) + '</div>');
       if (f.proposedRevisions) lines.push('<div style="font-size:12px"><strong>Revisions:</strong> ' + escHtml(f.proposedRevisions) + '</div>');
@@ -24628,6 +25039,7 @@ function openEditFreelancer(id) {
   }
 
   openModal('freelancer-modal');
+  _flInitialSnapshot = flGetDrawerFormSnapshot();
 }
 
 function flApproveFreelancerRates() {
@@ -24646,7 +25058,7 @@ function flApproveFreelancerRates() {
   var newCustom = [];
   Object.keys(shootMap).forEach(function(k){ if (pr[k] > 0) newCustom.push({ label: shootMap[k], amount: pr[k] }); });
 
-  // Inject into the admin modal fields so Ketan can review before saving
+  // Inject into the admin drawer fields for review before saving
   if (typeof flBuildRateGrid === 'function') flBuildRateGrid(newRates, newCustom);
 
   var banner = document.getElementById('fl-review-rates-banner');
@@ -27828,7 +28240,10 @@ function renderMasterCrewPortal() {
         '<div style="font-size:18px;font-weight:800;color:' + (balanceDue > 0 ? '#15803d' : '#475569') + '">' +
           (balanceDue > 0 ? '₹' + fmtNum(balanceDue) : 'Settled ✅') +
         '</div>' +
-        '<button onclick="cupLogout()" style="margin-top:4px;padding:3px 8px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;font-size:11px;font-weight:600;color:#64748b;cursor:pointer" title="Sign out of your portal">🚪 Sign Out</button>' +
+        '<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:5px;flex-wrap:wrap">' +
+          '<button onclick="openPortalChangePinModal()" style="padding:4px 8px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;font-size:11px;font-weight:700;color:#334155;cursor:pointer" title="Change your portal login PIN">🔑 Change PIN</button>' +
+          '<button onclick="cupLogout()" style="padding:4px 8px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:6px;font-size:11px;font-weight:600;color:#64748b;cursor:pointer" title="Sign out of your portal">🚪 Sign Out</button>' +
+        '</div>' +
       '</div>' +
     '</div>' +
 
@@ -27908,7 +28323,7 @@ function renderMasterCrewPortal() {
     html +=
       '<div style="margin-top:28px;border:1.5px dashed #e2e8f0;border-radius:14px;padding:18px 20px;background:#fafbff">' +
         '<div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:4px">📢 Worked on a Shoot Not Listed Above?</div>' +
-        '<div style="font-size:12px;color:#64748b;margin-bottom:14px">If you were assigned to a shoot but it\'s missing from your list, or if the studio missed adding you — report it here. Ketan will review and confirm.</div>' +
+        '<div style="font-size:12px;color:#64748b;margin-bottom:14px">If you were assigned to a shoot but it\'s missing from your list, or if the studio missed adding you — report it here. The Studio Operations Team will review and confirm.</div>' +
         '<button onclick="openPortalMissedShootModal()" style="width:100%;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">📋 Report a Missed Shoot / Extra Work</button>' +
       '</div>';
 
@@ -27972,7 +28387,7 @@ function renderMasterCrewPortal() {
             '</div>' +
           '</div>';
         }).join('') +
-        '<div style="font-size:11px;color:#a16207;margin-top:8px">Ketan will review and verify these claims. Once verified, they will be added to your verified balance.</div>' +
+        '<div style="font-size:11px;color:#a16207;margin-top:8px">The Studio Operations Team will review and verify these claims. Once verified, they will be added to your verified balance.</div>' +
       '</div>';
     }
 
@@ -28058,6 +28473,96 @@ function closePortalClaimModal() {
   if (c) c.innerHTML = '';
 }
 
+function openPortalChangePinModal() {
+  var old = document.getElementById('portal-pin-modal');
+  if (old) old.remove();
+  var crewId = _crewPortal.crewId;
+  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId] || (window._cupAllFreelancers || {})[crewId] || {};
+  var currentPin = member.portalPin || '';
+
+  var modal = document.createElement('div');
+  modal.id = 'portal-pin-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.65);backdrop-filter:blur(4px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;';
+  modal.innerHTML =
+    '<div style="background:#fff;border-radius:18px;width:100%;max-width:390px;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden">' +
+      '<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);padding:18px 20px;color:#fff;display:flex;justify-content:space-between;align-items:center">' +
+        '<div>' +
+          '<div style="font-size:16px;font-weight:800;display:flex;align-items:center;gap:6px"><span>🔑</span> Change Studio PIN</div>' +
+          '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px">Set a memorable 4 to 6-digit PIN</div>' +
+        '</div>' +
+        '<button type="button" onclick="document.getElementById(\'portal-pin-modal\').remove()" style="background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer;padding:0 4px">✕</button>' +
+      '</div>' +
+      '<div style="padding:22px 20px">' +
+        '<div id="portal-pin-err" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:14px"></div>' +
+        '<div style="margin-bottom:14px">' +
+          '<label style="font-size:11.5px;font-weight:700;color:#475569;display:block;margin-bottom:4px">Current Active PIN</label>' +
+          '<input type="text" readonly value="' + (currentPin ? currentPin : 'Not set') + '" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:8px;font-size:14px;color:#64748b;font-weight:700;letter-spacing:2px;font-family:monospace;text-align:center">' +
+        '</div>' +
+        '<div style="margin-bottom:14px">' +
+          '<label style="font-size:11.5px;font-weight:700;color:#0f172a;display:block;margin-bottom:4px">New 4 to 6-Digit PIN *</label>' +
+          '<input id="new-fl-pin" type="tel" maxlength="6" inputmode="numeric" placeholder="e.g. 1234 or birth year" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #0284c7;border-radius:8px;font-size:18px;letter-spacing:4px;font-weight:800;outline:none;text-align:center" autofocus>' +
+          '<div style="font-size:11px;color:#64748b;margin-top:4px">Choose any 4 to 6 digits you recall easily.</div>' +
+        '</div>' +
+        '<div style="margin-bottom:18px">' +
+          '<label style="font-size:11.5px;font-weight:700;color:#0f172a;display:block;margin-bottom:4px">Confirm New PIN *</label>' +
+          '<input id="confirm-fl-pin" type="tel" maxlength="6" inputmode="numeric" placeholder="Repeat new PIN" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:18px;letter-spacing:4px;font-weight:800;outline:none;text-align:center">' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button type="button" onclick="document.getElementById(\'portal-pin-modal\').remove()" style="flex:1;padding:11px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:10px;font-size:13px;font-weight:700;color:#334155;cursor:pointer">Cancel</button>' +
+          '<button type="button" onclick="savePortalNewPin()" style="flex:2;padding:11px;background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer">💾 Save New PIN</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+}
+
+function savePortalNewPin() {
+  var p1 = (document.getElementById('new-fl-pin') || {value:''}).value.replace(/\D/g, '').trim();
+  var p2 = (document.getElementById('confirm-fl-pin') || {value:''}).value.replace(/\D/g, '').trim();
+  var errEl = document.getElementById('portal-pin-err');
+  if (errEl) errEl.style.display = 'none';
+
+  if (!p1 || p1.length < 4) {
+    if (errEl) { errEl.textContent = 'Please enter a PIN with at least 4 digits.'; errEl.style.display = ''; }
+    return;
+  }
+  if (p1 !== p2) {
+    if (errEl) { errEl.textContent = 'PINs do not match. Please verify and re-type.'; errEl.style.display = ''; }
+    return;
+  }
+
+  var crewId = _crewPortal.crewId;
+  if (!crewId) return;
+
+  // Save to Firebase
+  db.ref('crm_freelancers/' + crewId + '/portalPin').set(p1, function(err) {
+    if (err) {
+      if (errEl) { errEl.textContent = 'Error saving PIN: ' + err.message; errEl.style.display = ''; }
+      return;
+    }
+    // Update local memory objects
+    if (_crewPortal.freelancers && _crewPortal.freelancers[crewId]) {
+      _crewPortal.freelancers[crewId].portalPin = p1;
+    }
+    if (_crewPortal.team && _crewPortal.team[crewId]) {
+      _crewPortal.team[crewId].portalPin = p1;
+    }
+    if (window._cupAllFreelancers && window._cupAllFreelancers[crewId]) {
+      window._cupAllFreelancers[crewId].portalPin = p1;
+    }
+    var modal = document.getElementById('portal-pin-modal');
+    if (modal) modal.remove();
+
+    // Show toast in portal
+    var toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 24px;border-radius:12px;font-size:13px;font-weight:800;z-index:999999;box-shadow:0 8px 24px rgba(5,150,105,0.4);display:flex;align-items:center;gap:8px';
+    toast.innerHTML = '<span>✅</span> Studio PIN updated successfully to <b>' + p1 + '</b>! Use this PIN for next login.';
+    document.body.appendChild(toast);
+    setTimeout(function(){ toast.remove(); }, 5000);
+    renderCrewPortal();
+  });
+}
+
 function calcPortalTotal() {
   var f = parseFloat(document.getElementById('pclm-fee').value) || 0;
   var t = parseFloat(document.getElementById('pclm-travel').value) || 0;
@@ -28124,7 +28629,7 @@ function openPortalMissedShootModal() {
         '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1">' +
           '<div>' +
             '<div style="font-size:16px;font-weight:800;color:#0f172a">📢 Report a Missed Shoot</div>' +
-            '<div style="font-size:11px;color:#64748b;margin-top:2px">Fill details — Ketan will review and confirm</div>' +
+            '<div style="font-size:11px;color:#64748b;margin-top:2px">Fill details — Studio Operations Team will review and confirm</div>' +
           '</div>' +
           '<button onclick="closePortalClaimModal()" style="border:none;background:none;font-size:20px;cursor:pointer;padding:4px">✕</button>' +
         '</div>' +
@@ -28265,7 +28770,7 @@ function submitPortalMissedShoot() {
     if (portalEl) {
       var toast = document.createElement('div');
       toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#7c3aed;color:#fff;padding:12px 24px;border-radius:12px;font-size:13px;font-weight:700;z-index:999999;box-shadow:0 8px 24px rgba(124,58,237,0.4)';
-      toast.textContent = '✅ Report sent! Ketan will review and add you to the event.';
+      toast.textContent = '✅ Report sent! The studio operations team will review and confirm.';
       document.body.appendChild(toast);
       setTimeout(function(){ toast.remove(); }, 5000);
     }
@@ -28734,15 +29239,21 @@ document.addEventListener('DOMContentLoaded', function() {
     var name = gv('fl-name').trim();
     if (!name) { alert('Enter freelancer name.'); return; }
     var id = _editFreelancerId || ('fl_' + Date.now());
+    var pinVal = gv('fl-portalpin').trim();
+    if (!pinVal || pinVal === '0000' || pinVal === '0000 (default)' || pinVal.length < 4) {
+      var phDigits = (gv('fl-phone')||gv('fl-whatsapp')||'').replace(/\D/g,'');
+      pinVal = phDigits.length >= 4 ? phDigits.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
+    }
     var data = {
       id: id, name: name, nickname: gv('fl-nickname'), phone: gv('fl-phone'),
       whatsapp: gv('fl-whatsapp'), email: gv('fl-email'), city: gv('fl-city'),
+      instagram: gv('fl-instagram').trim(),
       role: gv('fl-role'), availability: gv('fl-availability'), exp: gv('fl-exp'),
       rate: gv('fl-rate'), rating: gv('fl-rating'), skills: gv('fl-skills'),
       equipment: gv('fl-equipment'), upi: gv('fl-upi'), bankaccount: gv('fl-bankaccount'),
       ifsc: gv('fl-ifsc'), notes: gv('fl-notes'), idproof: gv('fl-idproof'),
       referredby: gv('fl-referredby'), agreedNotes: gv('fl-agreed-notes'), isFreelancer: true,
-      portalPin: (function(){ var p=gv('fl-portalpin').trim(); if(p) return p; var ph=(gv('fl-phone')||gv('fl-whatsapp')||'').replace(/\D/g,''); return ph.length>=4 ? ph.slice(-4) : '0000'; })(),
+      portalPin: pinVal,
       rates: flReadRates(), customRates: flReadCustomRates(), payTerms: gv('fl-payterms'), terms: gv('fl-terms'),
       termsDate: gv('fl-termsdate'), termsAgreed: gv('fl-termsagreed') === 'yes',
       proposedRates: (_editFreelancerId && freelancerData[_editFreelancerId] && freelancerData[_editFreelancerId].proposedRates) || {},
@@ -28756,8 +29267,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // reflects the new/edited freelancer before Firebase round-trip completes
     var previousData = freelancerData[id] || null;
     freelancerData[id] = data;
+    _flInitialSnapshot = '';
+    var unsavedEl = document.getElementById('fl-unsaved-alert-container');
+    if (unsavedEl) unsavedEl.innerHTML = '';
     closeModal('freelancer-modal');
-    showToast('✅ Freelancer saved!');
+    showToast('✅ Freelancer profile & PIN (' + pinVal + ') saved!');
     renderFreelancers();
     db.ref('crm_freelancers/'+id).set(data, function(err) {
       if (err) {
@@ -32326,6 +32840,12 @@ function openProject(id, tabId) {
     syncBtn.style.display = 'none';
   }
 
+  // Show/hide the Add-on Extension button (for existing projects)
+  var addonBtn = document.getElementById('btn-project-addon');
+  if (addonBtn) {
+    addonBtn.style.display = (!isPPM && !isDM_sync) ? 'inline-flex' : 'none';
+  }
+
   // Jump to target tab
   var targetTab = tabId || (allowed ? allowed[0] : 't-details');
   var visibleTabs = [];
@@ -32341,6 +32861,292 @@ function openProjectDelivs(id) { openProject(id, 't-deliv'); }
 function openProjectPayments(id) { openProject(id, 't-payments'); }
 function openProjectBrief(id) { openProject(id, 't-brief'); }
 function openProjectStage(id) { openProject(id, 't-stage'); }
+
+// ═══ PROJECT ADD-ON SERVICE & PACKAGE EXTENSION ═════════════════════════════════
+var _activeAddonProjId = null;
+
+function openProjectAddonModal(projId) {
+  var p = projects[projId];
+  if (!p) {
+    alert('Project not found. Please save or select a project first.');
+    return;
+  }
+  _activeAddonProjId = projId;
+
+  // Header and couple info
+  var cName = coupleName(p.bride, p.groom);
+  var refEl = document.getElementById('padd-couple-ref');
+  if (refEl) refEl.textContent = 'Project: ' + cName + (p.refcode ? ' (' + p.refcode + ')' : '');
+
+  // Summary box
+  var val = netVal(p);
+  var due = balDue(p);
+  var evDays = (p.eventDays || []).filter(function(ed){ return ed && ed.date; });
+  var curValEl = document.getElementById('padd-current-val');
+  if (curValEl) curValEl.textContent = '₹' + fmtNum(p.value || 0);
+  var curDaysEl = document.getElementById('padd-current-days');
+  if (curDaysEl) curDaysEl.textContent = evDays.length + ' Days Scheduled';
+  var curBalEl = document.getElementById('padd-current-bal');
+  if (curBalEl) {
+    curBalEl.textContent = due > 0 ? ('₹' + fmtNum(due)) : 'Settled ✅';
+    curBalEl.style.color = due > 0 ? '#15803d' : '#64748b';
+  }
+
+  // Next suggested date: day after last scheduled date, or wedding date, or tomorrow
+  var nextDate = tod();
+  if (evDays.length) {
+    var sorted = evDays.map(function(d){ return d.date; }).sort();
+    var lastD = sorted[sorted.length - 1];
+    if (lastD) nextDate = _nextDateStr(lastD);
+  } else if (p.date) {
+    nextDate = p.date;
+  }
+  sv('padd-date', nextDate);
+  sv('padd-event-type', '');
+  sv('padd-venue', p.venue || p.city || '');
+  sv('padd-amount', '');
+  sv('padd-deliv', '');
+  sv('padd-notes', '');
+
+  // Payment checkbox
+  var recPay = document.getElementById('padd-record-pay');
+  if (recPay) recPay.checked = false;
+  var payDetails = document.getElementById('padd-pay-details');
+  if (payDetails) payDetails.style.display = 'none';
+  sv('padd-pay-amount', '');
+  sv('padd-pay-date', tod());
+  sv('padd-pay-mode', 'UPI');
+  sv('padd-pay-ref', '');
+  populateAccountDropdown('padd-pay-account');
+
+  // Populate crew dropdowns for extra day
+  ['padd-crew-tp','padd-crew-cp','padd-crew-tv','padd-crew-cv','padd-crew-dr','padd-crew-ph'].forEach(function(elId){
+    var el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = _buildAddonTeamOptions('');
+  });
+
+  // Populate existing day options (for Scope B)
+  var targetDaySel = document.getElementById('padd-target-day');
+  if (targetDaySel) {
+    targetDaySel.innerHTML = evDays.map(function(ed, idx){
+      return '<option value="' + (ed.id || idx) + '">' + fmtDate(ed.date) + ' — ' + escHtml(ed.type || 'Event') + (ed.venue ? ' (' + escHtml(ed.venue) + ')' : '') + '</option>';
+    }).join('') || '<option value="">No scheduled days</option>';
+  }
+
+  // Populate extra person dropdown for Scope B
+  var extraPersonSel = document.getElementById('padd-extra-person');
+  if (extraPersonSel) extraPersonSel.innerHTML = _buildAddonTeamOptions('');
+
+  // Reset scope & calculations
+  sv('padd-scope', 'extra_day');
+  paddScopeChanged();
+  paddCalcNewTotals();
+
+  openModal('project-addon-modal');
+}
+
+function _buildAddonTeamOptions(selected) {
+  var opts = '<option value="">— None / Select Later —</option>';
+  var members = Object.values(teamData || {}).sort(function(a,b){ return (a.name||'').localeCompare(b.name||''); });
+  if (members.length) {
+    opts += '<optgroup label="👥 Team Members">';
+    members.forEach(function(t){
+      var sel = (selected && (t.id === selected || t.name === selected)) ? ' selected' : '';
+      opts += '<option value="' + t.id + '"' + sel + '>' + (t.name||'') + (t.city ? ' · ' + t.city : '') + '</option>';
+    });
+    opts += '</optgroup>';
+  }
+  var fls = Object.values(freelancerData || {}).sort(function(a,b){
+    var aA = a.availability==='available' ? 0 : 1;
+    var bA = b.availability==='available' ? 0 : 1;
+    if (aA !== bA) return aA - bA;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+  if (fls.length) {
+    opts += '<optgroup label="🎯 Freelancers">';
+    fls.forEach(function(f){
+      var sel = (selected && (f.id === selected || f.name === selected)) ? ' selected' : '';
+      var avail = f.availability === 'busy' ? ' 🔴' : f.availability === 'inactive' ? ' ⚫' : '';
+      opts += '<option value="' + f.id + '"' + sel + '>🎯 ' + (f.name||'') + (f.city ? ' · ' + f.city : '') + avail + '</option>';
+    });
+    opts += '</optgroup>';
+  }
+  return opts;
+}
+
+function paddScopeChanged() {
+  var scope = gv('padd-scope');
+  var dayFields = document.getElementById('padd-day-fields');
+  var crewFields = document.getElementById('padd-crew-fields');
+  if (dayFields) dayFields.style.display = (scope === 'extra_day') ? '' : 'none';
+  if (crewFields) crewFields.style.display = (scope === 'extra_crew') ? '' : 'none';
+}
+
+function paddCalcNewTotals() {
+  var p = projects[_activeAddonProjId];
+  if (!p) return;
+  var currentVal = parseInt(p.value) || 0;
+  var addAmt = parseInt(gv('padd-amount')) || 0;
+  var newVal = currentVal + addAmt;
+  var disp = document.getElementById('padd-new-val-display');
+  if (disp) {
+    disp.textContent = '₹' + fmtNum(newVal) + (addAmt > 0 ? ' (+₹' + fmtNum(addAmt) + ')' : '');
+  }
+}
+
+function submitProjectAddon() {
+  var pId = _activeAddonProjId;
+  var p = projects[pId];
+  if (!p) { alert('No active project found.'); return; }
+
+  var scope = gv('padd-scope');
+  var addAmt = parseInt(gv('padd-amount')) || 0;
+  var notes = gv('padd-notes').trim();
+  var delivText = gv('padd-deliv').trim();
+
+  if (!notes) {
+    alert('Please enter agreement notes / reason for this add-on.');
+    document.getElementById('padd-notes').focus();
+    return;
+  }
+
+  var updates = {};
+  var oldVal = parseInt(p.value) || 0;
+  var newVal = oldVal + addAmt;
+  p.value = newVal;
+  updates['value'] = newVal;
+
+  // 1. Extra Shoot Day
+  if (scope === 'extra_day') {
+    var date = gv('padd-date');
+    var evType = gv('padd-event-type').trim();
+    var venue = gv('padd-venue').trim();
+    if (!date) { alert('Please select the extra event date.'); return; }
+    if (!evType) { alert('Please enter the event / function name.'); return; }
+
+    var newDay = {
+      id: genDayId(),
+      date: date,
+      type: evType,
+      venue: venue,
+      prodLevel: 'Standard',
+      photographer: gv('padd-crew-tp') || '',
+      candid: gv('padd-crew-cp') || '',
+      videographer: gv('padd-crew-tv') || '',
+      cinematographer: gv('padd-crew-cv') || '',
+      drone: gv('padd-crew-dr') || '',
+      phonographer: gv('padd-crew-ph') || '',
+      notes: 'Add-on extension: ' + notes
+    };
+    p.eventDays = p.eventDays || [];
+    p.eventDays.push(newDay);
+    // Sort event days by date
+    p.eventDays.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+    updates['eventDays'] = p.eventDays;
+  }
+  // 2. Extra Crew on Existing Day
+  else if (scope === 'extra_crew') {
+    var targetDayId = gv('padd-target-day');
+    var roleKey = gv('padd-extra-role');
+    var personId = gv('padd-extra-person');
+    if (p.eventDays && p.eventDays.length) {
+      var foundDay = p.eventDays.find(function(ed, idx){ return (ed.id === targetDayId || String(idx) === targetDayId); });
+      if (foundDay && personId) {
+        foundDay[roleKey] = personId;
+        updates['eventDays'] = p.eventDays;
+      }
+    }
+  }
+
+  // 3. Deliverables
+  if (delivText) {
+    p.customDelivs = p.customDelivs || [];
+    p.customDelivs.push({
+      name: delivText,
+      qty: 1,
+      unit: 'pc',
+      status: 'pending',
+      deadline: '',
+      notes: 'Add-on deliverable'
+    });
+    updates['customDelivs'] = p.customDelivs;
+  }
+
+  // 4. Record Add-on History Entry
+  p.addons = p.addons || [];
+  var addonRec = {
+    id: 'addon_' + Date.now(),
+    scope: scope,
+    title: (scope === 'extra_day' ? gv('padd-event-type') : (scope === 'extra_crew' ? 'Extra Crew Allocation' : 'Package Extension')),
+    date: (scope === 'extra_day' ? gv('padd-date') : tod()),
+    amount: addAmt,
+    deliv: delivText,
+    notes: notes,
+    addedBy: (CU && (CU.name || CU.username)) || 'Admin',
+    addedAt: Date.now()
+  };
+  p.addons.push(addonRec);
+  updates['addons'] = p.addons;
+  updates['updatedAt'] = Date.now();
+
+  // 5. Optional Immediate Payment
+  var recPay = document.getElementById('padd-record-pay');
+  if (recPay && recPay.checked) {
+    var pAmt = parseInt(gv('padd-pay-amount')) || 0;
+    var pDate = gv('padd-pay-date') || tod();
+    var pMode = gv('padd-pay-mode') || 'UPI';
+    var pAcc = gv('padd-pay-account') || '';
+    var pRef = gv('padd-pay-ref').trim();
+    if (pAmt > 0) {
+      p.payLedger = p.payLedger || [];
+      p.payLedger.push({
+        amount: pAmt,
+        date: pDate,
+        mode: pMode,
+        account: pAcc,
+        ref: pRef,
+        notes: 'Add-on payment: ' + (addonRec.title || 'Service Extension'),
+        recordedBy: (CU && (CU.name || CU.username)) || 'Admin',
+        recordedAt: Date.now()
+      });
+      updates['payLedger'] = p.payLedger;
+    }
+  }
+
+  // Write updates to Firebase
+  db.ref('crm_projects/' + pId).update(updates, function(err) {
+    if (err) {
+      alert('Error updating project: ' + err.message);
+      return;
+    }
+
+    // Log Activity
+    try {
+      if (typeof logActivity === 'function') {
+        logActivity('payment', 'Package Add-on Extension', coupleName(p.bride, p.groom) + ' (+₹' + fmtNum(addAmt) + ')', { projectId: pId });
+      }
+    } catch(eLog) {}
+
+    closeModal('project-addon-modal');
+    showToast('🎉 Add-on successfully added! Package value updated to ₹' + fmtNum(newVal));
+
+    // If project modal is currently open for this project, live update its inputs!
+    if (editProjId === pId) {
+      sv('f-value', newVal);
+      if (p.eventDays) renderEventDays(p.eventDays);
+      if (p.customDelivs) buildDelivRows(p);
+      if (typeof updatePayPresetPreview === 'function') updatePayPresetPreview();
+      var refcodeEl = document.getElementById('proj-modal-title');
+      if (refcodeEl) refcodeEl.textContent = coupleName(p.bride, p.groom);
+    }
+
+    // Refresh CRM views
+    if (typeof renderPipeline === 'function') renderPipeline();
+    if (typeof renderCalendar === 'function') renderCalendar();
+    if (typeof renderFlShootRoster === 'function') renderFlShootRoster();
+  });
+}
 
 // ═══ DELETE PROJECT + REFERRAL ════════════════════════════════════════════════
 function deleteProjDirect(id) {
@@ -34475,8 +35281,8 @@ function renderFreelancerSelfOnboardScreen() {
       // --- header
       '<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);padding:26px 24px 20px;text-align:center">' +
         '<div style="font-size:38px;margin-bottom:8px">\u{1F3AC}</div>' +
-        '<div style="font-size:21px;font-weight:800;color:#fff">Join KB Studio</div>' +
-        '<div style="font-size:12.5px;color:#94a3b8;margin-top:4px">Freelancer Registration \u2014 Fill your details to get registered</div>' +
+        '<div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px">KB Studio Productions</div>' +
+        '<div style="font-size:11.5px;color:#cbd5e1;margin-top:4px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase">Partner &amp; Freelancer Onboarding</div>' +
       '</div>' +
       // --- form body
       '<div style="padding:20px 20px 24px">' +
@@ -34519,7 +35325,7 @@ function renderFreelancerSelfOnboardScreen() {
           // rate disclaimer
           '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;font-size:12px;color:#78350f;margin-bottom:18px;line-height:1.5">' +
             '<strong>\u26a0\ufe0f About these rates:</strong> The amounts you enter are your <em>proposed / expected</em> rates. ' +
-            'Ketan will review them and confirm the final agreed rate before assigning you to any shoot or editing project. ' +
+            'The Studio Management Team will review them and confirm the final agreed rate before assigning you to any shoot or editing project. ' +
             'You will get a WhatsApp message once confirmed.' +
           '</div>' +
           '<button onclick="flSubmitJoinForm()" style="width:100%;padding:15px;background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(15,23,42,0.4)">\ud83d\ude80 Register &amp; Get My Portal</button>' +
@@ -34581,7 +35387,7 @@ function flJoinRoleChanged() {
 function flJoinShooterRates(role) {
   return flJoinSectionHead('\ud83d\udcb0 Your Rates per Event Type (Proposed)') +
     '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:14px">' +
-      '<div style="font-size:11.5px;color:#64748b;margin-bottom:12px">Fill only what applies. Leave blank if you don\'t do that type. <strong>All amounts are your proposed rates</strong> — Ketan will confirm the final rate with you.</div>' +
+      '<div style="font-size:11.5px;color:#64748b;margin-bottom:12px">Fill only what applies. Leave blank if you don\'t do that type. <strong>All amounts are your proposed rates</strong> — Studio Management will confirm the final rate with you.</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
         flJoinRateInput('Wedding / Main Event (\u20b9)','fl-j-r-wedding','e.g. 10000') +
         flJoinRateInput('Short Event / Haldi / Mehendi (\u20b9)','fl-j-r-short','e.g. 4000') +
@@ -34600,7 +35406,7 @@ function flJoinShooterRates(role) {
 function flJoinEditorRates(role) {
   return flJoinSectionHead('\ud83d\udcb0 Your Rates per Deliverable (Proposed)') +
     '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:14px">' +
-      '<div style="font-size:11.5px;color:#64748b;margin-bottom:12px">Fill what you offer. Leave blank if you don\'t do that type. Rates are per deliverable (1 video/album/design). Ketan will confirm final rates with you.</div>' +
+      '<div style="font-size:11.5px;color:#64748b;margin-bottom:12px">Fill what you offer. Leave blank if you don\'t do that type. Rates are per deliverable (1 video/album/design). Studio Management will confirm final rates with you.</div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
         flJoinRateInput('Teaser Video (\u20b9)','fl-j-r-teaser','e.g. 1500') +
         flJoinRateInput('Highlight Reel (\u20b9)','fl-j-r-highlight','e.g. 3000') +
@@ -34810,7 +35616,7 @@ function flShowJoinSuccess(name, pin, alreadyExists) {
         '</div>' +
         '<div style="font-size:13px;color:#64748b;margin-bottom:20px">' +
           (alreadyExists ? 'Your profile is already in our system.' : 'Your profile has been added to KB Studio Productions.') +
-          ' Ketan will review your proposed rates and confirm them on WhatsApp.' +
+          ' The studio team will review your proposed rates and confirm them on WhatsApp.' +
         '</div>' +
         '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px;margin-bottom:20px">' +
           '<div style="font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;margin-bottom:6px">Your Studio PIN</div>' +
