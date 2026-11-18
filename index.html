@@ -2789,7 +2789,7 @@ document.addEventListener('wheel', function(e) {
                   <select class="fi" id="cn-settle-mode" onchange="onCnSettleModeChange();renderCnPreview()">
                     <option value="adjust_balance">Adjust Against Project Balance Due (Auto-Deduct)</option>
                     <option value="refund_issued">Direct Bank / UPI Refund Issued to Client</option>
-                    <option value="account_credit">Retain as Studio Credit Balance on Account</option>
+                    <option value="account_credit">Retain as Credit for Next Booking / Future Project</option>
                   </select>
                 </div>
                 <div class="fr" id="cn-refund-ref-wrap" style="display:none">
@@ -22801,6 +22801,27 @@ function renderPayLedger(){
 
   $('t-pay-summary').innerHTML = 'Net Value: <strong>'+fmt(net)+'</strong> &nbsp;&middot;&nbsp; Paid: <strong style="color:#16a34a">'+fmt(paid)+' ('+pctPaid+'%)</strong> &nbsp;&middot;&nbsp; Balance: <strong style="color:'+(bal>0?'#dc2626':'#16a34a')+'">'+fmt(bal)+'</strong>'+(gstColl>0?' &nbsp;&middot;&nbsp; GST: <strong style="color:#7c3aed">'+fmt(gstColl)+'</strong>':'');
 
+  // Check for Retained Credit Note balance for this client
+  var clientCreditBannerHtml = '';
+  var pPhoneDigits = (p.phone || p.whatsapp || '').replace(/\D/g, '');
+  if (pPhoneDigits.length >= 10) pPhoneDigits = pPhoneDigits.slice(-10);
+  if (window._clientCreditsCache && pPhoneDigits && window._clientCreditsCache[pPhoneDigits]) {
+    var cWallet = window._clientCreditsCache[pPhoneDigits];
+    if (cWallet.availableBalance > 0 && String(cWallet.fromProjectId) !== String(p.id)) {
+      clientCreditBannerHtml = '<div style="background:#ecfdf5;border:1.5px solid #10b981;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:800;color:#065f46">🎁 Available Credit from Previous Booking</div>' +
+          '<div style="font-size:12px;color:#047857;margin-top:2px">' +
+            'This client has an available credit balance of <b>₹' + fmt(cWallet.availableBalance) + '</b> from Credit Note <b>' + escHtml(cWallet.creditNoteNo || 'CN') + '</b>.' +
+          '</div>' +
+        '</div>' +
+        '<button type="button" class="btn btn-sm" onclick="applyClientCreditNoteToProject(\'' + editProjId + '\', \'' + pPhoneDigits + '\')" style="background:#059669;color:#fff;font-weight:800;border:none;padding:6px 14px;border-radius:6px;cursor:pointer">' +
+          '⚡ Apply ₹' + fmt(cWallet.availableBalance) + ' Credit to this Booking' +
+        '</button>' +
+      '</div>';
+    }
+  }
+
   // 2. Payment Ledger Table
   var ledger = p.payLedger || [];
   var ledgerHtml = ledger.length ?
@@ -22959,7 +22980,7 @@ function renderPayLedger(){
     '</div>';
   }).join('');
 
-  $('pay-ledger').innerHTML = accountStatementHtml + ledgerHtml + scheduleHeaderHtml + scheduleCardsHtml + '</div>';
+  $('pay-ledger').innerHTML = accountStatementHtml + clientCreditBannerHtml + ledgerHtml + scheduleHeaderHtml + scheduleCardsHtml + '</div>';
 
   // Wire input listeners
   document.querySelectorAll('.pay-term-label-inp').forEach(function(inp){
@@ -35515,7 +35536,7 @@ function buildCreditNoteHTML(data) {
   var settleLabel = data.settlementMode === 'refund_issued'
     ? 'Direct Bank / UPI Refund Transferred to Client'
     : (data.settlementMode === 'account_credit'
-       ? 'Retained as Studio Credit Balance on Account'
+       ? 'Retained as Studio Credit Balance on Account (Applicable on Next Booking)'
        : 'Adjusted Against Contract Balance Due');
 
   var itemsHtml = (data.items || []).map(function(it) {
@@ -35682,12 +35703,29 @@ function saveCreditNoteToFirebase() {
     if (err) { alert('Error saving credit note: ' + err.message); return; }
     showToast('✅ Credit Note ' + data.creditNoteNo + ' saved!');
 
-    // If settlement is auto-deduct against project balance, add note or adjust
+    // If settlement is auto-deduct against current project balance, add note
     if (data.settlementMode === 'adjust_balance' && data.projectId && projects[data.projectId]) {
       var p = projects[data.projectId];
       var existingNotes = p.generalNotes || '';
       var noteAdd = '\n[Credit Note ' + data.creditNoteNo + ' of ₹' + data.totalCredit.toLocaleString('en-IN') + ' issued on ' + fmtDate(tod()) + ' — ' + data.reasonCategory + ']';
       db.ref('crm_projects/' + data.projectId + '/generalNotes').set(existingNotes + noteAdd);
+    }
+    // If settlement is retain for next booking, store in client credit wallet
+    if (data.settlementMode === 'account_credit') {
+      var phoneDigits = (data.phone || '').replace(/\D/g, '');
+      if (phoneDigits.length >= 10) phoneDigits = phoneDigits.slice(-10);
+      var creditWalletKey = phoneDigits || (data.clientName || 'client').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      db.ref('crm_client_credits/' + creditWalletKey).set({
+        key: creditWalletKey,
+        phone: phoneDigits,
+        clientName: data.clientName || coupleName(data.bride, data.groom),
+        availableBalance: data.totalCredit,
+        totalCredit: data.totalCredit,
+        creditNoteNo: data.creditNoteNo,
+        fromProjectId: data.projectId || null,
+        date: data.date,
+        updatedAt: Date.now()
+      });
     }
     renderPastCreditNotes();
   });
@@ -35818,6 +35856,57 @@ function deleteCreditNote(cKey) {
     if (err) { alert('Error deleting: ' + err.message); return; }
     showToast('🗑️ Credit Note ' + num + ' deleted.');
     renderPastCreditNotes();
+  });
+}
+
+
+// ── CLIENT CREDIT WALLET LISTENER & APPLY HANDLER ─────────────────
+var _clientCreditsCache = {};
+db.ref('crm_client_credits').on('value', function(snap) {
+  window._clientCreditsCache = snap.val() || {};
+  if (typeof editProjId !== 'undefined' && editProjId && typeof renderPayLedger === 'function') {
+    var pEl = document.getElementById('pay-ledger');
+    if (pEl && pEl.offsetParent !== null) renderPayLedger();
+  }
+});
+
+function applyClientCreditNoteToProject(projId, phoneDigits) {
+  var p = projects[projId];
+  if (!p) { alert('Project not found'); return; }
+  var cWallet = (window._clientCreditsCache || {})[phoneDigits];
+  if (!cWallet || !cWallet.availableBalance) { alert('No available credit balance found.'); return; }
+
+  var creditAmt = cWallet.availableBalance;
+  var cnNum = cWallet.creditNoteNo || 'Credit Note';
+
+  if (!confirm('Apply ₹' + fmt(creditAmt) + ' from ' + cnNum + ' to this project as an advance payment adjustment?')) return;
+
+  var newEntry = {
+    id: 'pay_' + Date.now(),
+    date: tod(),
+    stage: 'advance',
+    amount: creditAmt,
+    mode: 'Credit Note Adjustment',
+    account: 'Credit Note Balance',
+    ref: cnNum,
+    notes: 'Transferred from previous booking Credit Note ' + cnNum,
+    recordedBy: (typeof CU !== 'undefined' && CU) ? CU.name : 'Super Admin',
+    createdAt: Date.now()
+  };
+
+  var updatedLedger = (p.payLedger || []).concat([newEntry]);
+  p.payLedger = updatedLedger;
+
+  // Save to project in Firebase
+  db.ref('crm_projects/' + projId + '/payLedger').set(updatedLedger, function(err) {
+    if (err) { alert('Error applying credit: ' + err.message); return; }
+
+    // Zero out available balance in client wallet
+    db.ref('crm_client_credits/' + phoneDigits + '/availableBalance').set(0);
+    db.ref('crm_client_credits/' + phoneDigits + '/usedInProjectId').set(projId);
+
+    showToast('✅ ₹' + fmt(creditAmt) + ' Credit applied to this project!');
+    renderPayLedger();
   });
 }
 
