@@ -64,6 +64,33 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{touch-action:manipulation;-ms-touch-action:manipulation;overscroll-behavior:none;height:100%}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;background:#f4f4f6;color:#1a1a1a;overscroll-behavior:none;-webkit-text-size-adjust:100%;text-size-adjust:100%;height:100%;overflow:hidden}
+html.portal-body-mode, body.portal-body-mode {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  overscroll-behavior-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+#crew-portal {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 90px;
+}
+#crew-universal-portal {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 70px;
+}
 .login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .login-box{background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -4595,8 +4622,11 @@ document.addEventListener('wheel', function(e) {
       <div class="section-divider" style="margin-top:8px">🔑 Freelancer Self-Portal Access</div>
       <div class="fg">
         <div class="fr">
-          <label class="fl">Portal PIN <span style="font-weight:400;color:#94a3b8;font-size:11px">(freelancer uses this to log in at crm.kbstudio.in?portal=crew)</span></label>
-          <input class="fi" id="fl-portalpin" placeholder="e.g. 1234  (leave blank = default 0000)" maxlength="8" autocomplete="off">
+          <label class="fl">Studio PIN <span style="font-weight:400;color:#94a3b8;font-size:11px">(unique 4-digit PIN for crm.kbstudio.in?portal=crew)</span></label>
+          <div style="display:flex;gap:6px">
+            <input class="fi" id="fl-portalpin" placeholder="e.g. 1234 or unique 4-digits" maxlength="8" autocomplete="off" style="font-weight:700;letter-spacing:2px">
+            <button type="button" class="btn btn-sm" onclick="(function(){ var ph=(gv('fl-phone')||gv('fl-whatsapp')||'').replace(/\D/g,''); var p=ph.length>=4?ph.slice(-4):String(Math.floor(1000+Math.random()*9000)); sv('fl-portalpin', p); })()" title="Auto-assign unique PIN">🎲 Generate</button>
+          </div>
         </div>
         <div class="fr" style="align-self:flex-end">
           <label class="fl">Portal Link (share via WhatsApp)</label>
@@ -11709,18 +11739,53 @@ function getCrewPortalURL(id, projId) {
   return url;
 }
 function copyCrewPortalLink(id, projId) {
-  var url = getCrewPortalURL(id, projId);
-  navigator.clipboard.writeText(url).then(function(){ showToast(projId ? '🔗 Link copied — shows only this event\'s checklist.' : '🔗 Shoot portal link copied (all their events)!'); });
+  var f = (freelancerData && freelancerData[id]) || (teamData && teamData[id]);
+  var pin = '';
+  if (f) {
+    pin = String(f.portalPin || '').trim();
+    if (!pin || pin === '0000' || pin === '0000 (default)' || pin.length < 4) {
+      var ph = String(f.phone || f.whatsapp || '').replace(/\D/g, '');
+      pin = ph.length >= 4 ? ph.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
+      f.portalPin = pin;
+      try { db.ref('crm_freelancers/' + id + '/portalPin').set(pin); } catch(e) {}
+    }
+  }
+  var url = 'https://crm.kbstudio.in?portal=crew';
+  var copyText = f ? ('KB Studio Freelancer Portal: ' + url + '\n📱 Registered Phone: ' + (f.phone || f.whatsapp || '') + '\n🔑 Your Studio PIN: ' + pin) : url;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(copyText).then(function(){
+      showToast(f ? ('🔗 Portal link & unique PIN (' + pin + ') copied for ' + f.name + '!') : '🔗 Portal link copied!');
+    }).catch(function(){
+      prompt('Copy portal details:', copyText);
+    });
+  } else {
+    prompt('Copy portal details:', copyText);
+  }
 }
 
 function flSharePortalWhatsapp(flId) {
-  var f = freelancerData && freelancerData[flId];
+  var f = (freelancerData && freelancerData[flId]) || (teamData && teamData[flId]);
   if (!f) return;
   var rawPhone = (f.whatsapp || f.phone || '').replace(/[^0-9]/g, '');
   if (!rawPhone) { alert('No phone or WhatsApp number saved for ' + f.name); return; }
   var phone = rawPhone.length === 10 ? '91' + rawPhone : rawPhone;
-  var pin = f.portalPin ? f.portalPin : '0000 (default)';
-  var msg = 'Hello ' + f.name + '! 👋\n\nHere is your KB Studio Freelancer Portal link:\nhttps://crm.kbstudio.in?portal=crew\n\nLog in using:\n📱 Phone: ' + (f.phone || f.whatsapp) + '\n🔑 PIN: ' + pin + '\n\nYou can view your upcoming shoot dates, checklist, submit your shoot fees, and track your payment ledger directly from your phone!';
+
+  // Make sure freelancer has a unique dedicated PIN (never generic 0000)
+  var pin = String(f.portalPin || '').trim();
+  if (!pin || pin === '0000' || pin === '0000 (default)' || pin.length < 4) {
+    var phDigits = rawPhone.replace(/\D/g, '');
+    pin = phDigits.length >= 4 ? phDigits.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
+    f.portalPin = pin;
+    try { db.ref('crm_freelancers/' + flId + '/portalPin').set(pin); } catch(e) {}
+  }
+
+  var msg = 'Hello ' + f.name + '! 👋\n\n' +
+    'Here is your personal KB Studio Freelancer Portal link:\n' +
+    'https://crm.kbstudio.in?portal=crew\n\n' +
+    'Log in using your registered credentials:\n' +
+    '📱 Phone: ' + (f.phone || f.whatsapp) + '\n' +
+    '🔑 Your Studio PIN: ' + pin + '\n\n' +
+    'You can generate your daily shoot bills, view payouts received, and track your payment ledger directly from your phone!';
   window.open('https://api.whatsapp.com/send?phone=' + phone + '&text=' + encodeURIComponent(msg), '_blank');
 }
 
@@ -11739,7 +11804,37 @@ function cupEnsureDataLoaded() {
   if (_cupDataReady) return _cupDataReady;
   _cupDataLoadAttempt++;
   _cupDataReady = new Promise(function(resolve) {
+    // 1. Immediately restore cached crew records from device storage so portal responds instantly
+    try {
+      if (!window._cupAllFreelancers || Object.keys(window._cupAllFreelancers).length === 0) {
+        var cFl = localStorage.getItem('kb_cup_cache_freelancers');
+        if (cFl) window._cupAllFreelancers = JSON.parse(cFl);
+      }
+      if (!window._cupAllTeam || Object.keys(window._cupAllTeam).length === 0) {
+        var cTm = localStorage.getItem('kb_cup_cache_team');
+        if (cTm) window._cupAllTeam = JSON.parse(cTm);
+      }
+      if (!window._cupAllUsers || Object.keys(window._cupAllUsers).length === 0) {
+        var cUs = localStorage.getItem('kb_cup_cache_users');
+        if (cUs) window._cupAllUsers = JSON.parse(cUs);
+      }
+    } catch(eCache) {}
+
     var DB_URL = 'https://kbstudiocrm-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+    function cacheToLocal() {
+      try {
+        if (window._cupAllFreelancers && Object.keys(window._cupAllFreelancers).length > 0) {
+          localStorage.setItem('kb_cup_cache_freelancers', JSON.stringify(window._cupAllFreelancers));
+        }
+        if (window._cupAllTeam && Object.keys(window._cupAllTeam).length > 0) {
+          localStorage.setItem('kb_cup_cache_team', JSON.stringify(window._cupAllTeam));
+        }
+        if (window._cupAllUsers && Object.keys(window._cupAllUsers).length > 0) {
+          localStorage.setItem('kb_cup_cache_users', JSON.stringify(window._cupAllUsers));
+        }
+      } catch(eSave) {}
+    }
 
     // REST fetch (no auth needed if rules allow public read on these paths)
     function restFetch(path) {
@@ -11772,69 +11867,70 @@ function cupEnsureDataLoaded() {
              Object.keys(window._cupAllTeam || {}).length;
     }
 
+    function doSdkFetch() {
+      return Promise.all([
+        sdkFetch('crm_freelancers'),
+        sdkFetch('crm_team'),
+        sdkFetch('crm_users')
+      ]).then(function(r) {
+        if (r[0] && Object.keys(r[0]).length > 0) window._cupAllFreelancers = r[0];
+        if (r[1] && Object.keys(r[1]).length > 0) window._cupAllTeam        = r[1];
+        if (r[2] && Object.keys(r[2]).length > 0) window._cupAllUsers       = r[2];
+        mergeDefaults();
+        cacheToLocal();
+        resolve();
+      }).catch(function() {
+        mergeDefaults();
+        cacheToLocal();
+        resolve();
+      });
+    }
+
     // Step 1: Try REST API (works without any auth if RTDB rules allow it)
     Promise.all([
       restFetch('crm_freelancers'),
       restFetch('crm_team'),
       restFetch('crm_users')
     ]).then(function(results) {
-      window._cupAllFreelancers = results[0] || {};
-      window._cupAllTeam        = results[1] || {};
-      window._cupAllUsers       = results[2] || {};
+      if (results[0] && Object.keys(results[0]).length > 0) window._cupAllFreelancers = results[0];
+      if (results[1] && Object.keys(results[1]).length > 0) window._cupAllTeam        = results[1];
+      if (results[2] && Object.keys(results[2]).length > 0) window._cupAllUsers       = results[2];
       mergeDefaults();
 
       if (totalLoaded() > 0) {
         // REST succeeded
+        cacheToLocal();
         resolve();
         return;
       }
 
-      // Step 2: REST returned nothing (likely 401 — rules not public yet)
+      // Step 2: REST returned empty (HTTP 401 — security rules require auth).
       // Fall back to Firebase SDK with anonymous auth
-      function sdkFallback() {
-        Promise.all([
-          sdkFetch('crm_freelancers'),
-          sdkFetch('crm_team'),
-          sdkFetch('crm_users')
-        ]).then(function(r) {
-          window._cupAllFreelancers = r[0] || window._cupAllFreelancers || {};
-          window._cupAllTeam        = r[1] || window._cupAllTeam || {};
-          window._cupAllUsers       = r[2] || window._cupAllUsers || {};
-          mergeDefaults();
-          resolve();
-        }).catch(function() { mergeDefaults(); resolve(); });
+      if (typeof ensureAnonAuth === 'function') {
+        ensureAnonAuth(function() { doSdkFetch(); });
+      } else if (typeof firebase !== 'undefined' && firebase.auth) {
+        var user = firebase.auth().currentUser;
+        if (user) {
+          doSdkFetch();
+        } else {
+          firebase.auth().signInAnonymously().then(doSdkFetch).catch(function(e) {
+            if (e && (e.code === 'auth/admin-restricted-operation' || /admin/i.test(e.message||''))) {
+              window._firebaseAnonAuthDisabled = true;
+            }
+            doSdkFetch();
+          });
+        }
+      } else {
+        doSdkFetch();
       }
 
-      try {
-        if (typeof firebase !== 'undefined' && firebase.auth) {
-          var user = firebase.auth().currentUser;
-          if (user) {
-            sdkFallback();
-          } else {
-            firebase.auth().signInAnonymously().then(sdkFallback).catch(sdkFallback);
-          }
-        } else {
-          sdkFallback();
-        }
-      } catch(e) { sdkFallback(); }
-
     }).catch(function() {
-      // Network error — try SDK anyway
-      try {
-        if (typeof firebase !== 'undefined' && firebase.auth) {
-          var u2 = firebase.auth().currentUser;
-          if (u2) {
-            Promise.all([sdkFetch('crm_freelancers'),sdkFetch('crm_team'),sdkFetch('crm_users')])
-              .then(function(r){ window._cupAllFreelancers=r[0]||{}; window._cupAllTeam=r[1]||{}; window._cupAllUsers=r[2]||{}; mergeDefaults(); resolve(); })
-              .catch(function(){ mergeDefaults(); resolve(); });
-          } else {
-            firebase.auth().signInAnonymously()
-              .then(function(){ return Promise.all([sdkFetch('crm_freelancers'),sdkFetch('crm_team'),sdkFetch('crm_users')]); })
-              .then(function(r){ window._cupAllFreelancers=r[0]||{}; window._cupAllTeam=r[1]||{}; window._cupAllUsers=r[2]||{}; mergeDefaults(); resolve(); })
-              .catch(function(){ mergeDefaults(); resolve(); });
-          }
-        } else { mergeDefaults(); resolve(); }
-      } catch(ex) { mergeDefaults(); resolve(); }
+      // Network error on REST — try SDK anyway
+      if (typeof ensureAnonAuth === 'function') {
+        ensureAnonAuth(function() { doSdkFetch(); });
+      } else {
+        doSdkFetch();
+      }
     });
   });
   return _cupDataReady;
@@ -11842,9 +11938,6 @@ function cupEnsureDataLoaded() {
 
 function cupRetryDataLoad() {
   _cupDataReady = null;
-  window._cupAllFreelancers = {};
-  window._cupAllTeam = {};
-  window._cupAllUsers = {};
   var errEl = document.getElementById('cup-error');
   var retryBtn = document.getElementById('cup-retry-btn');
   if (errEl) errEl.style.display = 'none';
@@ -11854,7 +11947,17 @@ function cupRetryDataLoad() {
     if (retryBtn) { retryBtn.disabled = false; retryBtn.textContent = '🔄 Retry Connection'; }
     if (total === 0) {
       if (errEl) {
-        errEl.innerHTML = '⚠️ Still cannot connect to the studio database.<br><span style="font-size:11.5px;color:#94a3b8">Check your internet connection and tap Retry again.</span>';
+        if (window._firebaseAnonAuthDisabled) {
+          errEl.innerHTML = '⚠️ <b>Firebase Setup Action Required</b><br>' +
+            '<span style="font-size:12px;color:#fca5a5;line-height:1.45;margin-top:4px;display:block">' +
+            'Firebase Anonymous Authentication is turned OFF in your Firebase Console.<br>' +
+            'To allow freelancers to log in, enable <b>Anonymous</b> under:<br>' +
+            '<b>Firebase Console → Authentication → Sign-in method</b>' +
+            '</span>' +
+            '<button type="button" onclick="cupRetryDataLoad()" style="margin-top:8px;padding:6px 14px;background:#38bdf8;color:#0f172a;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">🔄 Test Connection Again</button>';
+        } else {
+          errEl.innerHTML = '⚠️ Still cannot connect to the studio database.<br><span style="font-size:11.5px;color:#94a3b8">Check your internet connection and tap Retry again.</span>';
+        }
         errEl.style.display = '';
       }
     } else {
@@ -11982,9 +12085,22 @@ function cupCheckPinMatch(person, pin) {
   return false;
 }
 
+function enablePortalScrollMode() {
+  try {
+    document.documentElement.classList.add('portal-body-mode');
+    document.body.classList.add('portal-body-mode');
+    document.body.style.overflow = 'auto';
+    document.body.style.height = 'auto';
+    document.documentElement.style.overflow = 'auto';
+    document.documentElement.style.height = 'auto';
+  } catch(e) {}
+}
+
 function checkCrewPortalMode() {
   var params = new URLSearchParams(window.location.search);
   if (params.get('portal') !== 'crew') return false;
+
+  enablePortalScrollMode();
 
   if (params.get('logout') === '1') {
     try {
@@ -12060,7 +12176,7 @@ function showUniversalCrewLoginScreen() {
       '</div>' +
       (totalCrew === 0 ?
         '<div id="cup-conn-warning" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:8px 12px;margin-bottom:14px;font-size:12px;color:#92400e;display:flex;align-items:center;justify-content:space-between">' +
-          '<span>⚠️ Database syncing...</span>' +
+          '<span>' + (window._firebaseAnonAuthDisabled ? '⚠️ Studio Auth Setup Required' : '⚠️ Database syncing...') + '</span>' +
           '<button type="button" id="cup-retry-btn" onclick="cupRetryDataLoad()" style="padding:4px 10px;background:#d97706;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">Retry</button>' +
         '</div>' : '') +
       '<div id="cup-error" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;line-height:1.4"></div>' +
@@ -12117,7 +12233,7 @@ function showUniversalCrewLoginScreen() {
           '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">🔑 Studio PIN</label>' +
           '<input id="cup-pin-val" type="password" maxlength="15" placeholder="Enter PIN (default: 0000)" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;outline:none" ' +
             'onkeydown="if(event.key===\'Enter\')cupDoPinLogin()">' +
-          '<div style="font-size:11px;color:#94a3b8;margin-top:3px">Default PIN is <b>0000</b> unless changed by admin.</div>' +
+          '<div style="font-size:11px;color:#94a3b8;margin-top:3px">Enter the PIN you created when you registered, or use OTP login.</div>' +
         '</div>' +
         '<button onclick="cupDoPinLogin()" style="width:100%;padding:13px;background:#0f172a;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Sign In with PIN →</button>' +
         '<div style="text-align:center;margin-top:16px">' +
@@ -12175,7 +12291,15 @@ function cupSendOtp() {
     var matched = cupFindPerson(raw);
     if (!matched) {
       if (errEl) {
-        if (totalCrew === 0) {
+        if (window._firebaseAnonAuthDisabled) {
+          errEl.innerHTML = '⚠️ <b>Firebase Setup Action Required</b><br>' +
+            '<span style="font-size:12px;color:#fca5a5;line-height:1.45;margin-top:4px;display:block">' +
+            'Firebase Anonymous Authentication is turned OFF in your Firebase Console.<br>' +
+            'To allow crew login, enable <b>Anonymous</b> under:<br>' +
+            '<b>Firebase Console → Authentication → Sign-in method</b>' +
+            '</span>' +
+            '<button type="button" onclick="cupRetryDataLoad()" style="margin-top:8px;padding:6px 14px;background:#38bdf8;color:#0f172a;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">🔄 Test Connection Again</button>';
+        } else if (totalCrew === 0) {
           errEl.innerHTML = '⚠️ <b>Could not connect to studio database.</b><br>' +
             '<span style="font-size:11.5px;color:#94a3b8;margin-top:4px;display:block">Could not load freelancer records from server. Please check your internet connection and tap retry.</span>' +
             '<button type="button" onclick="cupRetryDataLoad()" style="margin-top:8px;padding:6px 14px;background:#0f172a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">🔄 Retry Connection</button>';
@@ -12358,7 +12482,15 @@ function cupDoPinLogin() {
     var matched = cupFindPerson(raw);
     if (!matched) {
       if (errEl) {
-        if (totalCrew === 0) {
+        if (window._firebaseAnonAuthDisabled) {
+          errEl.innerHTML = '⚠️ <b>Firebase Setup Action Required</b><br>' +
+            '<span style="font-size:12px;color:#fca5a5;line-height:1.45;margin-top:4px;display:block">' +
+            'Firebase Anonymous Authentication is turned OFF in your Firebase Console.<br>' +
+            'To allow crew login, enable <b>Anonymous</b> under:<br>' +
+            '<b>Firebase Console → Authentication → Sign-in method</b>' +
+            '</span>' +
+            '<button type="button" onclick="cupRetryDataLoad()" style="margin-top:8px;padding:6px 14px;background:#38bdf8;color:#0f172a;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">🔄 Test Connection Again</button>';
+        } else if (totalCrew === 0) {
           errEl.innerHTML = '⚠️ <b>Could not connect to studio database.</b><br>' +
             '<span style="font-size:11.5px;color:#94a3b8;margin-top:4px;display:block">Could not load freelancer records from server. Please check your internet connection and tap retry.</span>' +
             '<button type="button" onclick="cupRetryDataLoad()" style="margin-top:8px;padding:6px 14px;background:#0f172a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">🔄 Retry Connection</button>';
@@ -12377,7 +12509,7 @@ function cupDoPinLogin() {
             '<span style="font-size:11.5px;color:#94a3b8;margin-top:4px;display:block">Freelancer profiles are still loading. Please tap Retry Connection and try again.</span>' +
             '<button type="button" onclick="cupRetryDataLoad()" style="margin-top:8px;padding:6px 14px;background:#0f172a;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">🔄 Retry Connection</button>';
         } else {
-          errEl.innerHTML = 'PIN is incorrect.<br><span style="font-size:11.5px;color:#94a3b8">Default PIN is <b>0000</b>. You can also switch to <b>OTP Login</b> above.</span>';
+          errEl.innerHTML = 'PIN is incorrect.<br><span style="font-size:11.5px;color:#94a3b8">Use the PIN you set during registration, or switch to <b>OTP Login</b> above.</span>';
         }
         errEl.style.display = '';
       }
@@ -12410,6 +12542,7 @@ function cupLogout() {
 }
 
 function launchCrewPortalUi(matchedId) {
+  enablePortalScrollMode();
   // Stamp login time for session tracking
   try {
     localStorage.setItem('kb_crew_portal_id', matchedId);
@@ -12425,8 +12558,10 @@ function launchCrewPortalUi(matchedId) {
   if (!portal) {
     portal = document.createElement('div');
     portal.id = 'crew-portal';
-    portal.style.cssText = 'min-height:100vh;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+    portal.style.cssText = 'min-height:100vh;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:90px;';
     document.body.appendChild(portal);
+  } else {
+    portal.style.cssText = 'min-height:100vh;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:90px;';
   }
 
   window._crewPortal = {
@@ -12534,72 +12669,9 @@ function checkCrewMode() {
 }
 
 function renderCrewPortal() {
-  var portal = _crewPortal.el;
-  var crewId = _crewPortal.crewId;
-  var eventFilter = _crewPortal.eventFilter;
-  // Expanded member lookup: check team, freelancers, and cupAllFreelancers / users
-  var member = _crewPortal.team[crewId] || _crewPortal.freelancers[crewId] ||
-               (window._cupAllFreelancers || {})[crewId] || (window._cupAllTeam || {})[crewId] ||
-               (window._cupAllUsers || {})[crewId];
-  if (!portal) return;
-  if (!member) {
-    // Admin or unknown user: show helpful notice instead of blank
-    portal.innerHTML = '<div style="min-height:100vh;background:linear-gradient(135deg,#0f172a,#1e3a5f);display:flex;align-items:center;justify-content:center;font-family:-apple-system,sans-serif">' +
-      '<div style="background:#fff;border-radius:16px;padding:32px;max-width:420px;width:100%;text-align:center;margin:20px">' +
-        '<div style="font-size:48px;margin-bottom:12px">⚠️</div>' +
-        '<h2 style="color:#0f172a;margin:0 0 8px">Profile Not Found</h2>' +
-        '<p style="color:#64748b;font-size:13px;line-height:1.6">Your login ID (<code>' + escHtml(crewId) + '</code>) was not found in the freelancer database.<br><br>' +
-        'Please contact KB Studio admin to get your profile added, then try logging in again.</p>' +
-        '<button onclick="cupLogout()" style="margin-top:16px;padding:10px 24px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🚪 Back to Login</button>' +
-      '</div>' +
-    '</div>';
-    return;
+  if (typeof renderMasterCrewPortal === 'function') {
+    return renderMasterCrewPortal();
   }
-  var initials = (member.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().substring(0,2);
-
-  var myDays = [];
-  Object.keys(_crewPortal.projects).forEach(function(projId) {
-    if (eventFilter && String(projId) !== String(eventFilter)) return;
-    var p = _crewPortal.projects[projId]; if (!p) return;
-    (p.eventDays || []).forEach(function(ed, idx) {
-      if (!ed || !ed.date) return;
-      var isMine = CREW_SLOT_KEYS.some(function(k){ return ed[k] === crewId; });
-      if (isMine) myDays.push({ p: Object.assign({}, p, { id: projId }), ed: ed, dayId: ed.id || ('idx_'+idx) });
-    });
-  });
-
-  if (eventFilter) {
-    // Single-event mode: just this event's shoot day(s), no other clients, no upcoming/past split.
-    myDays.sort(function(a,b){ return a.ed.date.localeCompare(b.ed.date); });
-    var evtProject = myDays.length ? myDays[0].p : (_crewPortal.projects[eventFilter] ? Object.assign({}, _crewPortal.projects[eventFilter], {id: eventFilter}) : null);
-    var coupleLine = evtProject ? (coupleName(evtProject.bride||'', evtProject.groom||'')) : 'This Event';
-    portal.innerHTML =
-      '<div style="max-width:640px;margin:0 auto;padding:20px 16px 60px">' +
-        '<div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)">' +
-          '<div style="background:#0369a1;color:#fff;width:48px;height:48px;font-size:17px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:800;flex-shrink:0">'+initials+'</div>' +
-          '<div><div style="font-size:16px;font-weight:800">'+escHtml(member.name||'')+'</div><div style="font-size:12px;color:#888">'+escHtml(member.role||'')+' · '+escHtml(coupleLine)+'</div></div>' +
-        '</div>' +
-        (myDays.length ? myDays.map(function(x){ return checklistDayCardHTML(x.p, x.ed, x.dayId, _crewPortal.tpl, 'crewToggleChecklistItem', false); }).join('') :
-          '<div style="background:#fff;border-radius:10px;padding:24px;text-align:center;color:#aaa;font-size:13px">You\'re not assigned to a shoot day on this event, or the link has expired.</div>') +
-      '</div>';
-    return;
-  }
-
-  var todayStr = new Date().toISOString().slice(0,10);
-  var upcoming = myDays.filter(function(x){ return x.ed.date >= todayStr; }).sort(function(a,b){ return a.ed.date.localeCompare(b.ed.date); });
-  var past = myDays.filter(function(x){ return x.ed.date < todayStr; }).sort(function(a,b){ return b.ed.date.localeCompare(a.ed.date); });
-
-  portal.innerHTML =
-    '<div style="max-width:640px;margin:0 auto;padding:20px 16px 60px">' +
-      '<div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;padding:16px;margin-bottom:18px;box-shadow:0 2px 10px rgba(0,0,0,.05)">' +
-        '<div style="background:#0369a1;color:#fff;width:48px;height:48px;font-size:17px;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:800;flex-shrink:0">'+initials+'</div>' +
-        '<div><div style="font-size:16px;font-weight:800">'+escHtml(member.name||'')+'</div><div style="font-size:12px;color:#888">'+escHtml(member.role||'')+' · Shoot Checklist Portal</div></div>' +
-      '</div>' +
-      '<div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:8px">📅 Upcoming Shoots ('+upcoming.length+')</div>' +
-      (upcoming.length ? upcoming.map(function(x){ return checklistDayCardHTML(x.p, x.ed, x.dayId, _crewPortal.tpl, 'crewToggleChecklistItem', true); }).join('') :
-        '<div style="background:#fff;border-radius:10px;padding:24px;text-align:center;color:#aaa;font-size:13px;margin-bottom:20px">No upcoming shoots assigned to you right now.</div>') +
-      (past.length ? '<div style="font-size:13px;font-weight:800;color:#374151;margin:22px 0 8px">🗂️ Past Shoots</div>' + past.slice(0,10).map(function(x){ return checklistDayCardHTML(x.p, x.ed, x.dayId, _crewPortal.tpl, 'crewToggleChecklistItem', true); }).join('') : '') +
-    '</div>';
 }
 
 function crewToggleChecklistItem(projId, dayId, key, checked) {
@@ -24344,15 +24416,16 @@ function flAutoAssignPins() {
   Object.keys(freelancerData || {}).forEach(function(id) {
     var f = freelancerData[id];
     if (!f) return;
-    if (f.portalPin && f.portalPin.length >= 4) return; // already set
+    var cur = String(f.portalPin || '').trim();
+    if (cur && cur.length >= 4 && cur !== '0000' && cur !== '0000 (default)') return; // already has unique PIN
     var ph = String(f.phone || f.whatsapp || '').replace(/\D/g, '');
-    var pin = ph.length >= 4 ? ph.slice(-4) : '0000';
+    var pin = ph.length >= 4 ? ph.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
     updates[id + '/portalPin'] = pin;
     freelancerData[id].portalPin = pin; // update local cache too
   });
   if (Object.keys(updates).length > 0) {
     try { db.ref('crm_freelancers').update(updates); } catch(e) {}
-    console.log('[flAutoAssignPins] Assigned PINs to ' + Object.keys(updates).length + ' freelancers.');
+    console.log('[flAutoAssignPins] Assigned unique PINs to ' + Object.keys(updates).length + ' freelancers.');
   }
 }
 
@@ -27671,9 +27744,9 @@ function printFlStatement(flId) {
 console.log("Billing & Ledger module syntax check passed!");
 
 // ── 4. FREELANCER DEDICATED PORTAL ──────────────────────────────────
-var _portalActiveTab = 'shoots';
+var _portalActiveTab = 'statement';
 
-function renderCrewPortal() {
+function renderMasterCrewPortal() {
   var portal = _crewPortal.el;
   var crewId = _crewPortal.crewId;
   var eventFilter = _crewPortal.eventFilter;
@@ -27759,17 +27832,15 @@ function renderCrewPortal() {
       '</div>' +
     '</div>' +
 
-    // Navigation Tabs
+    // Navigation Tabs — Shoots tab hidden for now (dedicated interface coming soon)
     '<div style="display:flex;background:#e2e8f0;border-radius:10px;padding:3px;margin-bottom:18px">' +
-      '<button onclick="_portalActiveTab=\'shoots\';renderCrewPortal()" style="flex:1;padding:8px 12px;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:' + (_portalActiveTab==='shoots'?'#fff':'transparent') + ';color:' + (_portalActiveTab==='shoots'?'#0f172a':'#64748b') + '">' +
-        '📅 My Shoots &amp; Checklists (' + myDays.length + ')' +
-      '</button>' +
-      '<button onclick="_portalActiveTab=\'statement\';renderCrewPortal()" style="flex:1;padding:8px 12px;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:' + (_portalActiveTab==='statement'?'#fff':'transparent') + ';color:' + (_portalActiveTab==='statement'?'#0f172a':'#64748b') + '">' +
+      '<button onclick="_portalActiveTab=\'statement\';renderCrewPortal()" style="flex:1;padding:8px 12px;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:#fff;color:#0f172a">' +
         '💰 My Earnings &amp; Statement' +
       '</button>' +
     '</div>';
 
-  if (_portalActiveTab === 'shoots') {
+  // Always show statement tab (Shoots tab hidden — dedicated interface coming soon)
+  if (false) {
     // ── SHOOTS TAB ──
     html += '<div style="font-size:13px;font-weight:800;color:#374151;margin-bottom:8px">📅 Upcoming Shoots (' + upcoming.length + ')</div>' +
       (upcoming.length ? upcoming.map(function(x){
@@ -34166,9 +34237,18 @@ function ensureAnonAuth(cb) {
       attempts++;
       firebase.auth().signInAnonymously().then(function(){
         _anonAuthPromise = null;
+        window._firebaseAnonAuthDisabled = false;
         resolve();
       }).catch(function(err){
         console.warn('Anonymous Firebase auth attempt ' + attempts + ' failed:', err);
+        var isRestricted = (err && (err.code === 'auth/admin-restricted-operation' || /admin/i.test(err.message || '') || err.code === 'ADMIN_ONLY_OPERATION'));
+        if (isRestricted) {
+          window._firebaseAnonAuthDisabled = true;
+          _anonAuthPromise = null;
+          console.error('Firebase Anonymous Auth is disabled in Firebase Console! Please enable it in Firebase Console > Authentication > Sign-in method.');
+          reject(err);
+          return;
+        }
         if (attempts < 5) {
           setTimeout(attempt, Math.min(1000 * Math.pow(2, attempts - 1), 8000));
         } else {
@@ -34426,6 +34506,16 @@ function renderFreelancerSelfOnboardScreen() {
             '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Anything else you want us to know?</label>' +
             '<textarea id="fl-j-notes" rows="2" placeholder="e.g. Only available on weekends, need advance before shoot..." style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:13px;resize:vertical;outline:none"></textarea>' +
           '</div>' +
+          // section: Studio PIN (Choose your own memorable 4-digit PIN)
+          flJoinSectionHead('\u{1F511} Create Your Studio PIN') +
+          '<div style="margin-bottom:16px">' +
+            '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Create Your 4-Digit Studio PIN *</label>' +
+            '<div style="display:flex;gap:8px;align-items:center">' +
+              '<input id="fl-j-pin" type="text" maxlength="6" inputmode="numeric" placeholder="e.g. 1234 or any 4 digits" style="flex:1;box-sizing:border-box;padding:12px 14px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:16px;letter-spacing:3px;font-weight:800;outline:none">' +
+              '<button type="button" onclick="flGenerateJoinPin()" style="padding:12px 14px;background:#f1f5f9;border:1.5px solid #cbd5e1;border-radius:10px;font-size:12px;font-weight:700;color:#334155;cursor:pointer;white-space:nowrap">🎲 Generate</button>' +
+            '</div>' +
+            '<div style="font-size:11px;color:#64748b;margin-top:4px">Enter 4 digits you recall easily (e.g. 1234, birth year). You will log into your portal with your mobile number + this PIN.</div>' +
+          '</div>' +
           // rate disclaimer
           '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;font-size:12px;color:#78350f;margin-bottom:18px;line-height:1.5">' +
             '<strong>\u26a0\ufe0f About these rates:</strong> The amounts you enter are your <em>proposed / expected</em> rates. ' +
@@ -34550,6 +34640,12 @@ function flJoinRateInput(label, id, placeholder) {
 function flGv(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
 function flJoinGvNum(id) { var v = parseFloat(flGv(id)); return (v > 0) ? v : null; }
 
+function flGenerateJoinPin() {
+  var pin = String(Math.floor(1000 + Math.random() * 9000));
+  var el = document.getElementById('fl-j-pin');
+  if (el) { el.value = pin; el.focus(); }
+}
+
 function flSubmitJoinForm() {
   var name  = flGv('fl-j-name');
   var phone = flGv('fl-j-phone').replace(/\D/g,'');
@@ -34570,7 +34666,9 @@ function flSubmitJoinForm() {
   var submitBtn = document.querySelector('#fl-join-form button');
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Registering…'; }
 
-  var pin = phone.slice(-4);
+  // Use user-chosen PIN from form; fall back to last 4 of phone
+  var pinRaw = (function(){ var el = document.getElementById('fl-j-pin'); return el ? el.value.replace(/\D/g,'').trim() : ''; })();
+  var pin = (pinRaw.length >= 4) ? pinRaw.slice(0, 6) : phone.slice(-4);
   var id  = 'fl_join_' + Date.now();
 
   // Collect proposed rates
@@ -34624,10 +34722,10 @@ function flSubmitJoinForm() {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '🚀 Register & Get My Portal'; }
         if (errEl) {
           var userMsg = 'Could not save details: ' + (err.message || 'database error') + '. Please try again.';
-          if (err.code === 'PERMISSION_DENIED') {
-            userMsg = 'Database permission error. Please inform studio admin.';
+          if (err.code === 'PERMISSION_DENIED' || window._firebaseAnonAuthDisabled) {
+            userMsg = '⚠️ <b>Registration Notice</b><br><span style="font-size:12px;margin-top:4px;display:block">Your details are safely stored on this phone as a draft.<br>Database write was blocked because Anonymous Authentication is not yet enabled in Firebase Console.<br>Please inform Studio Admin to enable <b>Anonymous</b> under <b>Firebase Console → Authentication → Sign-in method</b>.</span>';
           }
-          errEl.textContent = userMsg;
+          errEl.innerHTML = userMsg;
           errEl.style.display = '';
         }
         return;
@@ -34717,7 +34815,7 @@ function flShowJoinSuccess(name, pin, alreadyExists) {
         '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px;margin-bottom:20px">' +
           '<div style="font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;margin-bottom:6px">Your Studio PIN</div>' +
           '<div style="font-size:36px;font-weight:900;letter-spacing:8px;color:#0f172a;font-family:monospace;background:#e0f2fe;padding:8px 20px;border-radius:10px;display:inline-block">' + pin + '</div>' +
-          '<div style="font-size:11px;color:#64748b;margin-top:8px">Save this PIN \u2014 it\'s the last 4 digits of your mobile number</div>' +
+          '<div style="font-size:11px;color:#64748b;margin-top:8px">Save this PIN — you created it during registration. Use it to log in anytime.</div>' +
         '</div>' +
         '<a href="' + portalUrl + '" style="display:block;width:100%;box-sizing:border-box;padding:14px;background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff;text-decoration:none;border-radius:10px;font-size:15px;font-weight:800;text-align:center;margin-bottom:12px">\ud83d\ude80 Open My Portal Now</a>' +
         '<div style="font-size:12px;color:#94a3b8">Portal Link: <span style="font-family:monospace;font-size:11px">' + portalUrl + '</span></div>' +
