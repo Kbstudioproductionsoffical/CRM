@@ -24974,7 +24974,16 @@ function openEditFreelancer(id) {
     var totEarned = bList.reduce(function(sum, b){ return sum + (parseFloat(b.totalAmount) || 0); }, 0);
     var totPaid = pList.reduce(function(sum, p){ return sum + (parseFloat(p.amount) || 0); }, 0);
     var balDue = totEarned - totPaid;
-    var hireC = hireCounts[id] || bList.length || 0;
+    // Compute hire count inline (hireCounts is local to renderFreelancers, so recalculate here)
+    var _hc = {};
+    Object.values(projects||{}).forEach(function(p){
+      (p.eventDays||[]).forEach(function(ed){
+        ['dayPh1','dayPh2','dayPh3','dayPh4','dayVid1','dayVid2','dayVid3','dayVid4','dayDrone','dayPhono','dayCoord','dayAsst1','dayAsst2'].forEach(function(k){
+          if(ed[k]) _hc[ed[k]] = (_hc[ed[k]]||0) + 1;
+        });
+      });
+    });
+    var hireC = _hc[id] || bList.length || 0;
     
     var elEv = document.getElementById('fl-stat-events'); if (elEv) elEv.textContent = hireC;
     var elEr = document.getElementById('fl-stat-earned'); if (elEr) elEr.textContent = '₹' + fmtNum(totEarned);
