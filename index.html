@@ -5055,11 +5055,22 @@ document.addEventListener('wheel', function(e) {
             <option value="other">📦 Other</option>
           </select>
         </div>
-        <div class="fr" style="flex:1">
-          <label class="fl">Link Client / Project (Optional)</label>
-          <select class="fi" id="fmb-project">
-            <option value="">-- No specific client --</option>
-          </select>
+        <div class="fr" style="flex:1;position:relative" id="fmb-proj-wrap">
+          <label class="fl" style="display:flex;justify-content:space-between;align-items:center">
+            <span>Link Client / Project (Optional)</span>
+            <span id="fmb-proj-badge" style="display:none;font-size:10px;font-weight:700;color:#16a34a;background:#dcfce7;border-radius:4px;padding:1px 6px">✓ Linked</span>
+          </label>
+          <!-- Actual hidden input storing selected project ID for gv('fmb-project') -->
+          <input type="hidden" id="fmb-project" value="">
+          
+          <div style="position:relative;display:flex;align-items:center">
+            <input class="fi" id="fmb-project-search" placeholder="🔍 Search client (A–Z) or ref code…" autocomplete="off" style="width:100%;padding-right:28px;font-size:12.5px" onfocus="fmbShowProjDropdown()" oninput="fmbFilterProjects(this.value)">
+            <button type="button" id="fmb-proj-clear-btn" onclick="fmbClearProject()" style="position:absolute;right:8px;background:none;border:none;color:#94a3b8;font-size:14px;cursor:pointer;padding:0;display:none;line-height:1" title="Clear client">✕</button>
+          </div>
+          
+          <div id="fmb-proj-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:9999;background:#fff;border:1.5px solid #cbd5e1;border-radius:10px;box-shadow:0 12px 28px rgba(0,0,0,0.18);max-height:220px;overflow-y:auto;margin-top:4px">
+            <!-- Populated dynamically with alphabetically sorted clients -->
+          </div>
         </div>
       </div>
 
@@ -25433,6 +25444,8 @@ var _flTab = 'roster';
 var _flRosterFilter = { scope: 'all', flId: '', role: '', query: '', groupByDate: true };
 var _flRosterCollapsedDates = {};
 var _flBillingSelectedFl = '';
+var _flBillingScope = 'till_today'; // 'till_today' | 'all' | 'upcoming'
+var _flBillingCutoff = ''; // empty = current date (today)
 
 function flToggleDateGroup(dt) {
   _flRosterCollapsedDates[dt] = !_flRosterCollapsedDates[dt];
@@ -25685,21 +25698,27 @@ function flGetAllShootAssignments() {
   return assignments;
 }
 
-function flComputeBalances() {
+function flComputeBalances(customCutoff) {
   var bills = window.flBillsData || {};
   var payments = window.flPaymentsData || {};
   var allFl = freelancerData || {};
+  var todayStr = customCutoff || (_flBillingCutoff || new Date().toISOString().slice(0, 10));
 
   var flStats = {};
   Object.keys(allFl).forEach(function(fId) {
     flStats[fId] = {
       freelancer: allFl[fId],
       totalBilled: 0,
+      billedTillToday: 0,
+      upcomingBilled: 0,
       totalPaid: 0,
       balance: 0,
+      balanceTillToday: 0,
       pendingClaims: 0,
       lastPaymentDate: '',
-      verifiedCount: 0
+      verifiedCount: 0,
+      verifiedTillTodayCount: 0,
+      upcomingCount: 0
     };
   });
 
@@ -25708,12 +25727,34 @@ function flComputeBalances() {
     if (!b || !b.freelancerId) return;
     var st = flStats[b.freelancerId];
     if (!st) {
-      st = flStats[b.freelancerId] = { freelancer: { name: b.freelancerName || 'Unknown' }, totalBilled: 0, totalPaid: 0, balance: 0, pendingClaims: 0, lastPaymentDate: '', verifiedCount: 0 };
+      st = flStats[b.freelancerId] = {
+        freelancer: { name: b.freelancerName || 'Unknown' },
+        totalBilled: 0,
+        billedTillToday: 0,
+        upcomingBilled: 0,
+        totalPaid: 0,
+        balance: 0,
+        balanceTillToday: 0,
+        pendingClaims: 0,
+        lastPaymentDate: '',
+        verifiedCount: 0,
+        verifiedTillTodayCount: 0,
+        upcomingCount: 0
+      };
     }
     var amt = parseFloat(b.totalAmount) || 0;
+    var bDate = b.eventDate || (b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 10) : '');
+
     if (b.status === 'verified') {
       st.totalBilled += amt;
       st.verifiedCount++;
+      if (!bDate || bDate <= todayStr) {
+        st.billedTillToday += amt;
+        st.verifiedTillTodayCount++;
+      } else {
+        st.upcomingBilled += amt;
+        st.upcomingCount++;
+      }
     } else if (b.status === 'pending') {
       st.pendingClaims += amt;
     }
@@ -25724,7 +25765,20 @@ function flComputeBalances() {
     if (!p || !p.freelancerId) return;
     var st = flStats[p.freelancerId];
     if (!st) {
-      st = flStats[p.freelancerId] = { freelancer: { name: p.freelancerName || 'Unknown' }, totalBilled: 0, totalPaid: 0, balance: 0, pendingClaims: 0, lastPaymentDate: '', verifiedCount: 0 };
+      st = flStats[p.freelancerId] = {
+        freelancer: { name: p.freelancerName || 'Unknown' },
+        totalBilled: 0,
+        billedTillToday: 0,
+        upcomingBilled: 0,
+        totalPaid: 0,
+        balance: 0,
+        balanceTillToday: 0,
+        pendingClaims: 0,
+        lastPaymentDate: '',
+        verifiedCount: 0,
+        verifiedTillTodayCount: 0,
+        upcomingCount: 0
+      };
     }
     var amt = parseFloat(p.amount) || 0;
     st.totalPaid += amt;
@@ -25734,22 +25788,31 @@ function flComputeBalances() {
   });
 
   var companyBilled = 0;
+  var companyBilledTillToday = 0;
+  var companyUpcomingBilled = 0;
   var companyPaid = 0;
   var companyPending = 0;
 
   Object.keys(flStats).forEach(function(fId) {
     var st = flStats[fId];
     st.balance = st.totalBilled - st.totalPaid;
+    st.balanceTillToday = st.billedTillToday - st.totalPaid;
     companyBilled += st.totalBilled;
+    companyBilledTillToday += st.billedTillToday;
+    companyUpcomingBilled += st.upcomingBilled;
     companyPaid += st.totalPaid;
     companyPending += st.pendingClaims;
   });
 
   return {
     perFreelancer: flStats,
+    cutoffDate: todayStr,
     companyTotalBilled: companyBilled,
+    companyTotalBilledTillToday: companyBilledTillToday,
+    companyUpcomingBilled: companyUpcomingBilled,
     companyTotalPaid: companyPaid,
     companyNetDue: companyBilled - companyPaid,
+    companyDueTillToday: companyBilledTillToday - companyPaid,
     companyPendingClaims: companyPending
   };
 }
@@ -26428,7 +26491,9 @@ function openUniversalFlEntryModal(mode) {
     var pOpts = '<option value="">-- Select Client / Project --</option>';
     var pKeys = Object.keys(projects||{}).sort(function(a,b){
       var pa=projects[a], pb=projects[b];
-      return ((pa.date||'').localeCompare(pb.date||''));
+      var na = (coupleName(pa.bride, pa.groom) || pa.refcode || 'Untitled').trim().toLowerCase();
+      var nb = (coupleName(pb.bride, pb.groom) || pb.refcode || 'Untitled').trim().toLowerCase();
+      return na.localeCompare(nb);
     });
     for (var pi = 0; pi < pKeys.length; pi++) {
       var pid = pKeys[pi];
@@ -26629,11 +26694,23 @@ function fueOnPayFreelancerChange() {
   var balances = (typeof flComputeBalances === 'function') ? flComputeBalances() : {perFreelancer:{}};
   var st  = balances.perFreelancer[flId];
   var bal = st ? st.balance : 0;
+  var balToday = st ? st.balanceTillToday : bal;
+  var upcBilled = st ? (st.upcomingBilled || 0) : 0;
   if (hint) {
-    hint.innerHTML = 'Outstanding Balance Due: <strong style="color:'+(bal>0?'#dc2626':'#059669')+';font-size:14px">\u20b9'+fmtNum(bal)+'</strong>'+
-      (fl && fl.upi ? ' &nbsp;&middot;&nbsp; <span style="color:#6d28d9;font-weight:700">UPI: '+escHtml(fl.upi)+'</span>' : '');
+    hint.innerHTML = '<div style="margin-bottom:6px">' +
+      'Payable Now (Till Today): <strong style="color:' + (balToday > 0 ? '#059669' : '#64748b') + ';font-size:14px">₹' + fmtNum(balToday) + '</strong>' +
+      (upcBilled > 0 ? ' &nbsp;·&nbsp; <span style="color:#d97706;font-size:11.5px">Upcoming Bookings: ₹' + fmtNum(upcBilled) + '</span> &nbsp;·&nbsp; Total Pipeline: ₹' + fmtNum(bal) : '') +
+      (fl && fl.upi ? ' &nbsp;·&nbsp; <span style="color:#6d28d9;font-weight:700">UPI: ' + escHtml(fl.upi) + '</span>' : '') +
+      '</div>' +
+      (upcBilled > 0 ? (
+        '<div style="display:flex;gap:6px;margin-top:4px">' +
+          '<button type="button" class="btn btn-sm" style="font-size:11px;padding:2px 8px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-weight:700" onclick="document.getElementById(\'fue-pay-amount\').value=\'' + Math.max(0, balToday) + '\';fueUpdatePayUpiBox()">⚡ Fill Payable Today (₹' + fmtNum(balToday) + ')</button>' +
+          '<button type="button" class="btn btn-sm" style="font-size:11px;padding:2px 8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700" onclick="document.getElementById(\'fue-pay-amount\').value=\'' + Math.max(0, bal) + '\';fueUpdatePayUpiBox()">Fill Full Pipeline (₹' + fmtNum(bal) + ')</button>' +
+        '</div>'
+      ) : '');
   }
-  if (amtEl && !amtEl.value && bal > 0) amtEl.value = bal;
+  if (amtEl && !amtEl.value && balToday > 0) amtEl.value = balToday;
+  else if (amtEl && !amtEl.value && bal > 0) amtEl.value = bal;
   fueUpdatePayUpiBox();
 }
 
@@ -27657,24 +27734,38 @@ function renderFlBillingLedger() {
   var payments = window.flPaymentsData || {};
 
   var selFl = _flBillingSelectedFl;
+  var cutoff = balances.cutoffDate;
+  var isCutoffToday = (cutoff === new Date().toISOString().slice(0, 10));
+  var cutoffLabel = isCutoffToday ? 'Today (' + fmtDate(cutoff) + ')' : fmtDate(cutoff);
 
   // 1. KPI Cards
-  var html = '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:18px">' +
-    '<div class="metric blue"><div class="ml">Total Billed to Date</div><div class="mv">₹' + fmtNum(balances.companyTotalBilled) + '</div><div style="font-size:11px;color:#64748b;margin-top:2px">All verified shoots &amp; expenses</div></div>' +
-    '<div class="metric green"><div class="ml">Total Paid to Date</div><div class="mv">₹' + fmtNum(balances.companyTotalPaid) + '</div><div style="font-size:11px;color:#64748b;margin-top:2px">Total studio payouts released</div></div>' +
-    '<div class="metric ' + (balances.companyNetDue > 0 ? 'red' : 'teal') + '"><div class="ml">Company Outstanding Due</div><div class="mv" style="color:' + (balances.companyNetDue > 0 ? '#dc2626' : '#059669') + '">₹' + fmtNum(balances.companyNetDue) + '</div><div style="font-size:11px;color:#64748b;margin-top:2px">Unpaid balance across crew</div></div>' +
-    '<div class="metric amber"><div class="ml">Pending Claims</div><div class="mv" style="color:#d97706">₹' + fmtNum(balances.companyPendingClaims) + '</div><div style="font-size:11px;color:#64748b;margin-top:2px">Awaiting studio confirmation</div></div>' +
+  var html = '<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px">' +
+    '<div class="metric green"><div class="ml">🟢 Due Till ' + (isCutoffToday ? 'Today' : 'Cut-Off') + ' (Payable Now)</div><div class="mv" style="color:' + (balances.companyDueTillToday > 0 ? '#059669' : '#059669') + '">₹' + fmtNum(balances.companyDueTillToday) + '</div><div style="font-size:11px;color:#64748b;margin-top:2px">Completed shoots to ' + cutoffLabel + ' minus payouts</div></div>' +
+    '<div class="metric amber"><div class="ml">⏳ Upcoming Bookings</div><div class="mv" style="color:#d97706">₹' + fmtNum(balances.companyUpcomingBilled) + '</div><div style="font-size:11px;color:#64748b;margin-top:2px">Future scheduled shoot fees</div></div>' +
+    '<div class="metric blue"><div class="ml">📋 Total Pipeline Due</div><div class="mv" style="color:' + (balances.companyNetDue > 0 ? '#dc2626' : '#2563eb') + '">₹' + fmtNum(balances.companyNetDue) + '</div><div style="font-size:11px;color:#64748b;margin-top:2px">All verified shoots minus payouts</div></div>' +
+    '<div class="metric teal"><div class="ml">Total Payouts Released</div><div class="mv" style="color:#059669">₹' + fmtNum(balances.companyTotalPaid) + '</div><div style="font-size:11px;color:#64748b;margin-top:2px">Total studio payouts to date</div></div>' +
   '</div>';
 
   // 2. Freelancer Selector & Controls
-  html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">' +
+  html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">' +
     '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
       '<span style="font-size:13px;font-weight:700;color:#1e293b">Select Freelancer:</span>' +
-      '<select class="fi" style="max-width:260px" onchange="_flBillingSelectedFl=this.value;renderFlBillingLedger()">' +
+      '<select class="fi" style="max-width:280px" onchange="_flBillingSelectedFl=this.value;renderFlBillingLedger()">' +
         '<option value="">👥 All Freelancers (Master Balance Summary)</option>' +
         Object.keys(allFl).map(function(id) {
           var st = balances.perFreelancer[id];
-          var balText = st && st.balance > 0 ? ' (Due: ₹' + fmtNum(st.balance) + ')' : (st && st.balance < 0 ? ' (Adv: ₹' + fmtNum(Math.abs(st.balance)) + ')' : ' (Settled)');
+          var balToday = st ? st.balanceTillToday : 0;
+          var balTotal = st ? st.balance : 0;
+          var balText = '';
+          if (balToday > 0) {
+            balText = ' (Payable: ₹' + fmtNum(balToday) + (st.upcomingBilled > 0 ? ' | Upc: ₹' + fmtNum(st.upcomingBilled) : '') + ')';
+          } else if (balTotal > 0) {
+            balText = ' (Upcoming: ₹' + fmtNum(balTotal) + ')';
+          } else if (balTotal < 0) {
+            balText = ' (Adv: ₹' + fmtNum(Math.abs(balTotal)) + ')';
+          } else {
+            balText = ' (Settled)';
+          }
           return '<option value="' + id + '"' + (selFl===id?' selected':'') + '>' + escHtml(allFl[id].name) + balText + '</option>';
         }).join('') +
       '</select>' +
@@ -27687,33 +27778,52 @@ function renderFlBillingLedger() {
     '</div>' +
   '</div>';
 
+  // 3. Filter Pills and Cut-off Date Controls
+  html += '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">' +
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+      '<span style="font-size:12px;font-weight:700;color:#475569">Statement View:</span>' +
+      '<button class="btn btn-sm" style="font-size:11.5px;padding:4px 12px;border-radius:20px;font-weight:700;' + (_flBillingScope==='till_today' ? 'background:#059669;color:#fff;border:1px solid #059669;box-shadow:0 1px 3px rgba(5,150,105,0.3)' : 'background:#fff;color:#334155;border:1px solid #cbd5e1') + '" onclick="_flBillingScope=\'till_today\';renderFlBillingLedger()">🟢 Bill Till ' + (isCutoffToday ? 'Today' : 'Cut-Off') + ' (Payable Now)</button>' +
+      '<button class="btn btn-sm" style="font-size:11.5px;padding:4px 12px;border-radius:20px;font-weight:700;' + (_flBillingScope==='all' ? 'background:#2563eb;color:#fff;border:1px solid #2563eb;box-shadow:0 1px 3px rgba(37,99,235,0.3)' : 'background:#fff;color:#334155;border:1px solid #cbd5e1') + '" onclick="_flBillingScope=\'all\';renderFlBillingLedger()">📋 All Pipeline Entries</button>' +
+      '<button class="btn btn-sm" style="font-size:11.5px;padding:4px 12px;border-radius:20px;font-weight:700;' + (_flBillingScope==='upcoming' ? 'background:#d97706;color:#fff;border:1px solid #d97706;box-shadow:0 1px 3px rgba(217,119,6,0.3)' : 'background:#fff;color:#334155;border:1px solid #cbd5e1') + '" onclick="_flBillingScope=\'upcoming\';renderFlBillingLedger()">⏳ Upcoming Shoots Only</button>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:6px">' +
+      '<span style="font-size:11.5px;color:#64748b;font-weight:600">📅 Cut-Off Date:</span>' +
+      '<input type="date" class="fi" style="padding:4px 8px;font-size:12px;width:130px" value="' + cutoff + '" onchange="_flBillingCutoff=this.value;renderFlBillingLedger()">' +
+      (!isCutoffToday ? '<button class="btn btn-sm" style="padding:4px 8px;font-size:11px;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;font-weight:700" onclick="_flBillingCutoff=\'\';renderFlBillingLedger()" title="Reset cut-off to today">Reset to Today</button>' : '') +
+    '</div>' +
+  '</div>';
+
   if (!selFl) {
     // ── MASTER BALANCES SUMMARY TABLE ──
     html += '<div class="card" style="padding:0;overflow:hidden"><div class="mob-scroll"><table class="tbl"><thead><tr>' +
       '<th>Freelancer</th>' +
       '<th>Role / Contact</th>' +
       '<th>Payment Details</th>' +
-      '<th style="text-align:right">Total Billed</th>' +
+      '<th style="text-align:right">Billed Till Cut-Off</th>' +
       '<th style="text-align:right">Total Paid</th>' +
-      '<th style="text-align:right">Balance Due</th>' +
+      '<th style="text-align:right;background:#ecfdf5;color:#065f46">🟢 Payable Now (' + (isCutoffToday ? 'Today' : 'Cut-Off') + ')</th>' +
+      '<th style="text-align:right;background:#fffbeb;color:#92400e">⏳ Upcoming Bookings</th>' +
+      '<th style="text-align:right">Total Pipeline Due</th>' +
       '<th>Last Payout</th>' +
       '<th>Action</th>' +
     '</tr></thead><tbody>';
 
     var flIds = Object.keys(allFl).sort(function(a, b) {
-      var balA = (balances.perFreelancer[a] && balances.perFreelancer[a].balance) || 0;
-      var balB = (balances.perFreelancer[b] && balances.perFreelancer[b].balance) || 0;
-      return balB - balA; // highest due first
+      var balA = (balances.perFreelancer[a] && balances.perFreelancer[a].balanceTillToday) || 0;
+      var balB = (balances.perFreelancer[b] && balances.perFreelancer[b].balanceTillToday) || 0;
+      return balB - balA; // highest payable today first
     });
 
     if (!flIds.length) {
-      html += '<tr><td colspan="8" class="empty">No freelancers added yet.</td></tr>';
+      html += '<tr><td colspan="10" class="empty">No freelancers added yet.</td></tr>';
     } else {
       flIds.forEach(function(id) {
         var fl = allFl[id];
-        var st = balances.perFreelancer[id] || { totalBilled: 0, totalPaid: 0, balance: 0, lastPaymentDate: '' };
+        var st = balances.perFreelancer[id] || { totalBilled: 0, billedTillToday: 0, upcomingBilled: 0, totalPaid: 0, balance: 0, balanceTillToday: 0, lastPaymentDate: '', upcomingCount: 0 };
         var balColor = st.balance > 0 ? '#dc2626' : (st.balance < 0 ? '#2563eb' : '#059669');
-        var balLabel = st.balance > 0 ? '₹' + fmtNum(st.balance) + ' Due' : (st.balance < 0 ? '₹' + fmtNum(Math.abs(st.balance)) + ' Advance' : 'Settled ✅');
+        var balLabel = st.balance > 0 ? '₹' + fmtNum(st.balance) + ' Due' : (st.balance < 0 ? '₹' + fmtNum(Math.abs(st.balance)) + ' Adv' : 'Settled ✅');
+        var nowColor = st.balanceTillToday > 0 ? '#059669' : (st.balanceTillToday < 0 ? '#2563eb' : '#64748b');
+        var nowLabel = st.balanceTillToday > 0 ? '₹' + fmtNum(st.balanceTillToday) + ' Due' : (st.balanceTillToday < 0 ? '₹' + fmtNum(Math.abs(st.balanceTillToday)) + ' Adv' : 'Settled ✅');
 
         html += '<tr>' +
           '<td>' +
@@ -27728,9 +27838,11 @@ function renderFlBillingLedger() {
             (fl.upi ? '<div style="font-size:11px;color:#6d28d9;font-weight:700">UPI: ' + escHtml(fl.upi) + '</div>' : '') +
             (fl.bankaccount ? '<div style="font-size:10px;color:#64748b">A/C: ' + escHtml(fl.bankaccount) + ' · ' + escHtml(fl.ifsc||'') + '</div>' : (!fl.upi ? '—' : '')) +
           '</td>' +
-          '<td style="text-align:right;font-weight:600">₹' + fmtNum(st.totalBilled) + '</td>' +
+          '<td style="text-align:right;font-weight:600">₹' + fmtNum(st.billedTillToday) + '</td>' +
           '<td style="text-align:right;font-weight:600;color:#059669">₹' + fmtNum(st.totalPaid) + '</td>' +
-          '<td style="text-align:right;font-weight:800;font-size:14px;color:' + balColor + '">' + balLabel + '</td>' +
+          '<td style="text-align:right;font-weight:800;font-size:13.5px;color:' + nowColor + ';background:#f0fdf4">' + nowLabel + '</td>' +
+          '<td style="text-align:right;font-weight:600;font-size:12px;color:#b45309;background:#fefce8">' + (st.upcomingBilled > 0 ? '₹' + fmtNum(st.upcomingBilled) + ' <span style="font-size:10.5px">(' + st.upcomingCount + ' shoots)</span>' : '—') + '</td>' +
+          '<td style="text-align:right;font-weight:800;font-size:13.5px;color:' + balColor + '">' + balLabel + '</td>' +
           '<td style="font-size:11px;color:#64748b">' + (st.lastPaymentDate ? fmtDate(st.lastPaymentDate) : 'No payouts yet') + '</td>' +
           '<td style="white-space:nowrap">' +
             '<button class="btn btn-sm" style="font-size:11px;padding:4px 8px;margin-right:4px" onclick="_flBillingSelectedFl=\'' + id + '\';renderFlBillingLedger()">Statement</button>' +
@@ -27745,36 +27857,68 @@ function renderFlBillingLedger() {
   } else {
     // ── INDIVIDUAL FREELANCER STATEMENT & LEDGER ──
     var curFl = allFl[selFl];
-    var st = balances.perFreelancer[selFl] || { totalBilled: 0, totalPaid: 0, balance: 0 };
+    var st = balances.perFreelancer[selFl] || { totalBilled: 0, billedTillToday: 0, upcomingBilled: 0, totalPaid: 0, balance: 0, balanceTillToday: 0, upcomingCount: 0 };
 
     html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.02)">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">' +
         '<div>' +
-          '<div style="font-size:18px;font-weight:800;color:#0f172a">' + escHtml(curFl.name) + '</div>' +
-          '<div style="font-size:12px;color:#64748b;margin-top:2px">' +
-            escHtml(curFl.role || '') + (curFl.phone ? ' · 📞 ' + escHtml(curFl.phone) : '') + (curFl.city ? ' · 📍 ' + escHtml(curFl.city) : '') +
+          '<div style="display:flex;align-items:center;gap:10px">' +
+            '<div style="font-size:20px;font-weight:800;color:#0f172a">' + escHtml(curFl.name) + '</div>' +
+            (curFl.role ? '<span style="background:#f1f5f9;color:#475569;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:6px">' + escHtml(curFl.role) + '</span>' : '') +
+          '</div>' +
+          '<div style="font-size:12px;color:#64748b;margin-top:4px">' +
+            (curFl.phone ? '📞 ' + escHtml(curFl.phone) : '') + (curFl.city ? ' · 📍 ' + escHtml(curFl.city) : '') +
             (curFl.upi ? ' · <span style="color:#6d28d9;font-weight:700">UPI: ' + escHtml(curFl.upi) + '</span>' : '') +
+            (curFl.bankaccount ? ' · A/C: ' + escHtml(curFl.bankaccount) + ' (' + escHtml(curFl.ifsc||'') + ')' : '') +
           '</div>' +
         '</div>' +
-        '<div style="text-align:right">' +
-          '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Current Net Balance</div>' +
-          '<div style="font-size:22px;font-weight:800;color:' + (st.balance > 0 ? '#dc2626' : '#059669') + '">' +
-            (st.balance > 0 ? '₹' + fmtNum(st.balance) + ' Due' : (st.balance < 0 ? '₹' + fmtNum(Math.abs(st.balance)) + ' Advance' : 'Settled ✅')) +
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">' +
+          '<div style="background:#ecfdf5;border:1.5px solid #a7f3d0;border-radius:10px;padding:10px 14px;text-align:right">' +
+            '<div style="font-size:10px;font-weight:800;color:#047857;text-transform:uppercase">🟢 Payable Now (' + (isCutoffToday ? 'Today' : 'Cut-off') + ')</div>' +
+            '<div style="font-size:20px;font-weight:800;color:' + (st.balanceTillToday > 0 ? '#047857' : '#059669') + '">' +
+              (st.balanceTillToday > 0 ? '₹' + fmtNum(st.balanceTillToday) + ' Due' : (st.balanceTillToday < 0 ? '₹' + fmtNum(Math.abs(st.balanceTillToday)) + ' Adv' : 'Settled ✅')) +
+            '</div>' +
+            '<div style="font-size:10px;color:#065f46">Completed events to ' + cutoffLabel + '</div>' +
+          '</div>' +
+          '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px 14px;text-align:right">' +
+            '<div style="font-size:10px;font-weight:800;color:#92400e;text-transform:uppercase">⏳ Upcoming Bookings</div>' +
+            '<div style="font-size:18px;font-weight:800;color:#b45309">₹' + fmtNum(st.upcomingBilled) + '</div>' +
+            '<div style="font-size:10px;color:#a16207">' + st.upcomingCount + ' future shoots</div>' +
+          '</div>' +
+          '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;text-align:right">' +
+            '<div style="font-size:10px;font-weight:800;color:#64748b;text-transform:uppercase">📋 Total Pipeline Due</div>' +
+            '<div style="font-size:18px;font-weight:800;color:' + (st.balance > 0 ? '#dc2626' : '#059669') + '">' +
+              (st.balance > 0 ? '₹' + fmtNum(st.balance) + ' Due' : 'Settled ✅') +
+            '</div>' +
+            '<div style="font-size:10px;color:#64748b">All shoots minus payouts</div>' +
           '</div>' +
         '</div>' +
       '</div>' +
     '</div>';
+
+    if (_flBillingScope === 'till_today' && st.upcomingBilled > 0) {
+      html += '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 16px;margin-bottom:14px;font-size:12px;color:#1e40af;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+        '<div>' +
+          '<b>Showing Completed Shoots Till ' + (isCutoffToday ? 'Today' : cutoffLabel) + ':</b> ' +
+          'Only executed events and payouts are calculated below. (₹' + fmtNum(st.upcomingBilled) + ' across ' + st.upcomingCount + ' upcoming shoots not included in current payable).' +
+        '</div>' +
+        '<button class="btn btn-sm" style="font-size:11px;padding:3px 10px;background:#fff;border:1px solid #93c5fd;color:#1d4ed8;font-weight:700" onclick="_flBillingScope=\'all\';renderFlBillingLedger()">View All Pipeline Entries</button>' +
+      '</div>';
+    }
 
     // Compile transactions: Verified Bills (+) and Payments (-)
     var txns = [];
     Object.keys(bills).forEach(function(bId) {
       var b = bills[bId];
       if (b && b.freelancerId === selFl && b.status === 'verified') {
+        var d = b.eventDate || (b.createdAt ? new Date(b.createdAt).toISOString().slice(0,10) : '');
+        var isFuture = (d > cutoff);
         txns.push({
           id: bId,
           type: 'bill',
           category: b.category || 'shoot',
-          date: b.eventDate || (b.createdAt ? new Date(b.createdAt).toISOString().slice(0,10) : ''),
+          date: d,
+          isFuture: isFuture,
           desc: (b.coupleName ? b.coupleName + ' — ' : '') + (b.eventType || b.description || 'Shoot Fee'),
           fee: parseFloat(b.shootFee) || 0,
           travel: parseFloat(b.travelExpense) || 0,
@@ -27790,11 +27934,14 @@ function renderFlBillingLedger() {
     Object.keys(payments).forEach(function(pId) {
       var p = payments[pId];
       if (p && p.freelancerId === selFl) {
+        var d = p.date || (p.createdAt ? new Date(p.createdAt).toISOString().slice(0,10) : '');
+        var isFuture = (d > cutoff);
         txns.push({
           id: pId,
           type: 'payment',
           category: 'payout',
-          date: p.date || (p.createdAt ? new Date(p.createdAt).toISOString().slice(0,10) : ''),
+          date: d,
+          isFuture: isFuture,
           desc: 'Payment Released (' + (p.mode || 'UPI') + (p.account ? ' · ' + p.account : '') + ')',
           fee: 0,
           travel: 0,
@@ -27818,8 +27965,15 @@ function renderFlBillingLedger() {
       t.runningBalance = runningBal;
     });
 
+    // Filter by _flBillingScope
+    var filteredTxns = txns.filter(function(t) {
+      if (_flBillingScope === 'till_today') return !t.isFuture;
+      if (_flBillingScope === 'upcoming') return t.isFuture;
+      return true; // 'all'
+    });
+
     // Display descending (latest first)
-    var displayTxns = txns.slice().reverse();
+    var displayTxns = filteredTxns.slice().reverse();
 
     html += '<div class="card" style="padding:0;overflow:hidden"><div class="mob-scroll"><table class="tbl"><thead><tr>' +
       '<th>Date</th>' +
@@ -27834,12 +27988,28 @@ function renderFlBillingLedger() {
     '</tr></thead><tbody>';
 
     if (!displayTxns.length) {
-      html += '<tr><td colspan="9" class="empty">No billing or payment entries recorded for this freelancer yet.</td></tr>';
+      html += '<tr><td colspan="9" class="empty">No entries found for this view scope.</td></tr>';
     } else {
+      var dividerRendered = false;
       displayTxns.forEach(function(t) {
-        var typeBadge = t.type === 'payment'
-          ? '<span style="background:#ecfdf5;color:#047857;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:700">💳 Payment</span>'
-          : '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:700">🎬 Bill / Fee</span>';
+        // In 'all' view, render a visual divider line when crossing from future to completed shoots
+        if (_flBillingScope === 'all' && !dividerRendered && !t.isFuture) {
+          dividerRendered = true;
+          html += '<tr style="background:#f1f5f9;border-top:2px solid #059669;border-bottom:2px solid #059669">' +
+            '<td colspan="9" style="text-align:center;padding:9px 12px;font-size:11.5px;color:#065f46;font-weight:700">' +
+              '── 📅 Cut-Off: ' + cutoffLabel + ' &nbsp;|&nbsp; Completed Shoots Net Balance: <span style="font-weight:800;color:#059669">₹' + fmtNum(st.balanceTillToday) + ' Due</span> &nbsp;|&nbsp; Future Pipeline: ₹' + fmtNum(st.upcomingBilled) + ' ──' +
+            '</td>' +
+          '</tr>';
+        }
+
+        var typeBadge = '';
+        if (t.type === 'payment') {
+          typeBadge = '<span style="background:#ecfdf5;color:#047857;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:700">💳 Payment</span>';
+        } else if (t.isFuture) {
+          typeBadge = '<span style="background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:700">⏳ Upcoming Shoot</span>';
+        } else {
+          typeBadge = '<span style="background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:4px;font-size:10.5px;font-weight:700">🎬 Bill / Fee</span>';
+        }
 
         var breakdown = '';
         if (t.type === 'bill') {
@@ -27858,7 +28028,9 @@ function renderFlBillingLedger() {
           ? '<button class="btn-danger" style="padding:2px 6px;font-size:10px" onclick="' + (t.type==='payment' ? 'deleteFlPayment(\'' + t.id + '\')' : 'deleteFlBill(\'' + t.id + '\')') + '">✕</button>'
           : '';
 
-        html += '<tr>' +
+        var rowBg = t.isFuture ? ' style="background:#fffdfa"' : '';
+
+        html += '<tr' + rowBg + '>' +
           '<td style="white-space:nowrap;font-weight:600">' + fmtDate(t.date) + '</td>' +
           '<td>' + typeBadge + '</td>' +
           '<td><strong style="color:#0f172a">' + escHtml(t.desc) + '</strong></td>' +
@@ -27891,8 +28063,19 @@ function openRecordFlPaymentModal(prefillFlId) {
   sel.innerHTML = '<option value="">-- Choose Freelancer --</option>' +
     Object.keys(allFl).map(function(id) {
       var st = balances.perFreelancer[id];
-      var bal = st ? st.balance : 0;
-      return '<option value="' + id + '"' + (prefillFlId===id?' selected':'') + '>' + escHtml(allFl[id].name) + ' (Due: ₹' + fmtNum(bal) + ')</option>';
+      var balToday = st ? st.balanceTillToday : 0;
+      var balTotal = st ? st.balance : 0;
+      var balText = '';
+      if (balToday > 0) {
+        balText = ' (Payable Today: ₹' + fmtNum(balToday) + (st.upcomingBilled > 0 ? ' | Upcoming: ₹' + fmtNum(st.upcomingBilled) : '') + ')';
+      } else if (balTotal > 0) {
+        balText = ' (Upcoming Shoots: ₹' + fmtNum(balTotal) + ')';
+      } else if (balTotal < 0) {
+        balText = ' (Advance: ₹' + fmtNum(Math.abs(balTotal)) + ')';
+      } else {
+        balText = ' (Settled)';
+      }
+      return '<option value="' + id + '"' + (prefillFlId===id?' selected':'') + '>' + escHtml(allFl[id].name) + balText + '</option>';
     }).join('');
 
   if (prefillFlId) sel.value = prefillFlId;
@@ -27925,12 +28108,25 @@ function frpOnFreelancerChange() {
   var balances = flComputeBalances();
   var st = balances.perFreelancer[flId];
   var bal = st ? st.balance : 0;
+  var balToday = st ? st.balanceTillToday : bal;
+  var upcBilled = st ? (st.upcomingBilled || 0) : 0;
   var fl = freelancerData && freelancerData[flId];
   if (hint) {
-    hint.innerHTML = 'Current Outstanding Due: <strong style="color:' + (bal > 0 ? '#dc2626' : '#059669') + ';font-size:13px">₹' + fmtNum(bal) + '</strong>' +
-      (fl && fl.upi ? ' &nbsp;·&nbsp; <span style="color:#6d28d9;font-weight:700">UPI: ' + escHtml(fl.upi) + '</span>' : '');
+    hint.innerHTML = '<div style="margin-bottom:6px">' +
+      'Payable Now (Till Today): <strong style="color:' + (balToday > 0 ? '#059669' : '#64748b') + ';font-size:14px">₹' + fmtNum(balToday) + '</strong>' +
+      (upcBilled > 0 ? ' &nbsp;·&nbsp; <span style="color:#d97706;font-size:11.5px">Upcoming Bookings: ₹' + fmtNum(upcBilled) + '</span> &nbsp;·&nbsp; Total Pipeline: ₹' + fmtNum(bal) : '') +
+      (fl && fl.upi ? ' &nbsp;·&nbsp; <span style="color:#6d28d9;font-weight:700">UPI: ' + escHtml(fl.upi) + '</span>' : '') +
+      '</div>' +
+      (upcBilled > 0 ? (
+        '<div style="display:flex;gap:6px;margin-top:4px">' +
+          '<button type="button" class="btn btn-sm" style="font-size:11px;padding:3px 8px;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-weight:700" onclick="document.getElementById(\'frp-amount\').value=\'' + Math.max(0, balToday) + '\';frpUpdateUpiBox()">⚡ Fill Payable Today (₹' + fmtNum(balToday) + ')</button>' +
+          '<button type="button" class="btn btn-sm" style="font-size:11px;padding:3px 8px;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;font-weight:700" onclick="document.getElementById(\'frp-amount\').value=\'' + Math.max(0, bal) + '\';frpUpdateUpiBox()">Fill Full Pipeline (₹' + fmtNum(bal) + ')</button>' +
+        '</div>'
+      ) : '');
   }
-  if (amtInput && !amtInput.value && bal > 0) {
+  if (amtInput && !amtInput.value && balToday > 0) {
+    amtInput.value = balToday;
+  } else if (amtInput && !amtInput.value && bal > 0) {
     amtInput.value = bal;
   }
   frpUpdateUpiBox();
@@ -28022,24 +28218,153 @@ function frpSavePayment() {
   });
 }
 
-function openAddFlManualBillModal(prefillFlId) {
+// ═══ SEARCHABLE & ALPHABETICALLY SORTED CLIENT PICKER (FMB MODAL) ═══
+function fmbInitProjectsList() {
+  var list = Object.keys(projects || {}).map(function(id) {
+    var p = projects[id];
+    if (!p) return null;
+    var name = (coupleName(p.bride, p.groom) || p.name || p.bride || p.groom || 'Untitled').trim();
+    var ref = p.refcode || '';
+    var date = p.date || '';
+    var city = p.city || p.venue || '';
+    return {
+      id: id,
+      name: name,
+      ref: ref,
+      date: date,
+      city: city,
+      label: name + (ref ? ' (' + ref + ')' : ''),
+      searchText: (name + ' ' + ref + ' ' + date + ' ' + city).toLowerCase()
+    };
+  }).filter(Boolean).sort(function(a, b) {
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+
+  window._fmbProjectsList = list;
+  return list;
+}
+
+function fmbRenderProjDropdown(query) {
+  var dd = document.getElementById('fmb-proj-dropdown');
+  if (!dd) return;
+  var list = window._fmbProjectsList || fmbInitProjectsList();
+  var curVal = document.getElementById('fmb-project') ? document.getElementById('fmb-project').value : '';
+  
+  var q = (query || '').toLowerCase().trim();
+  var filtered = list;
+  if (q) {
+    filtered = list.filter(function(item) {
+      return item.searchText.indexOf(q) > -1;
+    });
+  }
+
+  var html = '';
+  // Top option: No specific client
+  html += '<div onclick="fmbSelectProject(\'\', \'\')" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:12px;color:#64748b;display:flex;align-items:center;justify-content:space-between;background:' + (!curVal ? '#f8fafc' : '#fff') + '" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'' + (!curVal ? '#f8fafc' : '#fff') + '\'">' +
+            '<span>-- No specific client --</span>' +
+            (!curVal ? '<span style="color:#16a34a;font-weight:700">✓</span>' : '') +
+          '</div>';
+
+  if (!filtered.length) {
+    html += '<div style="padding:14px;text-align:center;color:#94a3b8;font-size:12px">No clients found matching "<b>' + escHtml(query) + '</b>"</div>';
+  } else {
+    filtered.forEach(function(item) {
+      var isSel = item.id === curVal;
+      var bg = isSel ? '#f0fdf4' : '#fff';
+      html += '<div onclick="fmbSelectProject(\'' + item.id + '\', \'' + escHtml(item.label).replace(/'/g, "\\'") + '\')" ' +
+                'style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f8fafc;display:flex;align-items:center;justify-content:space-between;gap:8px;background:' + bg + '" ' +
+                'onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'' + bg + '\'">' +
+                '<div style="min-width:0">' +
+                  '<div style="font-weight:700;font-size:12.5px;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(item.name) + '</div>' +
+                  '<div style="font-size:11px;color:#64748b;display:flex;gap:6px;align-items:center;margin-top:1px">' +
+                    (item.ref ? '<span style="background:#e2e8f0;color:#334155;border-radius:4px;padding:0 5px;font-size:10px;font-weight:600">' + escHtml(item.ref) + '</span>' : '') +
+                    (item.date ? '<span>📅 ' + fmtDate(item.date) + '</span>' : '') +
+                    (item.city ? '<span>📍 ' + escHtml(item.city) + '</span>' : '') +
+                  '</div>' +
+                '</div>' +
+                (isSel ? '<span style="color:#16a34a;font-weight:800;font-size:14px">✓</span>' : '') +
+              '</div>';
+    });
+  }
+
+  dd.innerHTML = html;
+}
+
+function fmbShowProjDropdown() {
+  var dd = document.getElementById('fmb-proj-dropdown');
+  if (dd) {
+    dd.style.display = 'block';
+    fmbRenderProjDropdown(document.getElementById('fmb-project-search').value);
+  }
+}
+
+function fmbFilterProjects(q) {
+  var dd = document.getElementById('fmb-proj-dropdown');
+  if (dd) {
+    dd.style.display = 'block';
+    fmbRenderProjDropdown(q);
+  }
+  var clearBtn = document.getElementById('fmb-proj-clear-btn');
+  if (clearBtn) clearBtn.style.display = q ? 'block' : 'none';
+  if (!q) {
+    var hid = document.getElementById('fmb-project');
+    if (hid) hid.value = '';
+    var badge = document.getElementById('fmb-proj-badge');
+    if (badge) badge.style.display = 'none';
+  }
+}
+
+function fmbSelectProject(id, label) {
+  var hidden = document.getElementById('fmb-project');
+  var searchInput = document.getElementById('fmb-project-search');
+  var clearBtn = document.getElementById('fmb-proj-clear-btn');
+  var badge = document.getElementById('fmb-proj-badge');
+  var dd = document.getElementById('fmb-proj-dropdown');
+
+  if (hidden) hidden.value = id || '';
+  if (searchInput) searchInput.value = label || '';
+  if (clearBtn) clearBtn.style.display = id ? 'block' : 'none';
+  if (badge) badge.style.display = id ? 'inline-block' : 'none';
+  if (dd) dd.style.display = 'none';
+}
+
+function fmbClearProject() {
+  fmbSelectProject('', '');
+  var searchInput = document.getElementById('fmb-project-search');
+  if (searchInput) {
+    searchInput.focus();
+    fmbShowProjDropdown();
+  }
+}
+
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('fmb-proj-wrap');
+  var dd = document.getElementById('fmb-proj-dropdown');
+  if (wrap && dd && !wrap.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+
+function openAddFlManualBillModal(prefillFlId, prefillProjId) {
   var sel = document.getElementById('fmb-freelancer');
   if (!sel) return;
   var allFl = freelancerData || {};
+  var flKeys = Object.keys(allFl).sort(function(a, b) {
+    return ((allFl[a].name || '').localeCompare(allFl[b].name || ''));
+  });
   sel.innerHTML = '<option value="">-- Choose Freelancer --</option>' +
-    Object.keys(allFl).map(function(id) {
+    flKeys.map(function(id) {
       return '<option value="' + id + '"' + (prefillFlId===id?' selected':'') + '>' + escHtml(allFl[id].name) + '</option>';
     }).join('');
   if (prefillFlId) sel.value = prefillFlId;
 
-  // Projects dropdown
-  var pSel = document.getElementById('fmb-project');
-  if (pSel) {
-    pSel.innerHTML = '<option value="">-- No specific client --</option>' +
-      Object.keys(projects || {}).map(function(id) {
-        var p = projects[id];
-        return '<option value="' + id + '">' + escHtml(coupleName(p.bride, p.groom)) + (p.refcode ? ' (' + p.refcode + ')' : '') + '</option>';
-      }).join('');
+  // Initialize and populate alphabetical client picker
+  fmbInitProjectsList();
+  fmbSelectProject('', '');
+  if (prefillProjId && projects && projects[prefillProjId]) {
+    var p = projects[prefillProjId];
+    var pLabel = coupleName(p.bride, p.groom) + (p.refcode ? ' (' + p.refcode + ')' : '');
+    fmbSelectProject(prefillProjId, pLabel);
   }
 
   sv('fmb-date', new Date().toISOString().slice(0, 10));
@@ -28128,14 +28453,20 @@ function flExportStatementCsv(flId) {
   if (!fl) return;
   var bills = window.flBillsData || {};
   var payments = window.flPaymentsData || {};
+  var balances = flComputeBalances();
+  var cutoff = balances.cutoffDate;
 
   var txns = [];
   Object.keys(bills).forEach(function(bId) {
     var b = bills[bId];
     if (b && b.freelancerId === flId && b.status === 'verified') {
+      var d = b.eventDate || (b.createdAt ? new Date(b.createdAt).toISOString().slice(0,10) : '');
+      var isFuture = (d > cutoff);
+      if (_flBillingScope === 'till_today' && isFuture) return;
+      if (_flBillingScope === 'upcoming' && !isFuture) return;
       txns.push({
-        date: b.eventDate || '',
-        type: 'Bill / Fee',
+        date: d,
+        type: isFuture ? 'Upcoming Shoot (Scheduled)' : 'Bill / Fee (Completed)',
         desc: (b.coupleName ? b.coupleName + ' — ' : '') + (b.eventType || b.description || 'Shoot Fee'),
         billed: parseFloat(b.totalAmount) || 0,
         paid: 0,
@@ -28146,8 +28477,11 @@ function flExportStatementCsv(flId) {
   Object.keys(payments).forEach(function(pId) {
     var p = payments[pId];
     if (p && p.freelancerId === flId) {
+      var d = p.date || (p.createdAt ? new Date(p.createdAt).toISOString().slice(0,10) : '');
+      var isFuture = (d > cutoff);
+      if (_flBillingScope === 'upcoming' && !isFuture) return;
       txns.push({
-        date: p.date || '',
+        date: d,
         type: 'Payment Payout',
         desc: 'Paid via ' + (p.mode || 'UPI') + (p.txnRef ? ' (Ref: ' + p.txnRef + ')' : ''),
         billed: 0,
@@ -28164,8 +28498,9 @@ function flExportStatementCsv(flId) {
     return [t.date, t.type, t.desc, t.billed, t.paid, run, t.notes];
   });
 
-  var head = ['Date', 'Transaction Type', 'Description / Event', 'Billed Amount (INR)', 'Paid Amount (INR)', 'Balance (INR)', 'Notes'];
-  flExportCsv('Statement_' + fl.name.replace(/[^a-zA-Z0-9]/g, '_') + '_' + new Date().toISOString().slice(0,10) + '.csv', [head].concat(rows));
+  var head = ['Date', 'Transaction Type', 'Description / Event', 'Billed Amount (INR)', 'Paid Amount (INR)', 'Running Balance (INR)', 'Notes'];
+  var scopeTag = _flBillingScope === 'till_today' ? '_Till_' + cutoff : (_flBillingScope === 'upcoming' ? '_Upcoming' : '_Full_Pipeline');
+  flExportCsv('Statement_' + fl.name.replace(/[^a-zA-Z0-9]/g, '_') + scopeTag + '.csv', [head].concat(rows));
   showToast('📥 Statement exported!');
 }
 
@@ -28175,15 +28510,23 @@ function printFlStatement(flId) {
   var bills = window.flBillsData || {};
   var payments = window.flPaymentsData || {};
   var balances = flComputeBalances();
-  var st = balances.perFreelancer[flId] || { totalBilled: 0, totalPaid: 0, balance: 0 };
+  var cutoff = balances.cutoffDate;
+  var isCutoffToday = (cutoff === new Date().toISOString().slice(0, 10));
+  var cutoffLabel = isCutoffToday ? 'Today (' + fmtDate(cutoff) + ')' : fmtDate(cutoff);
+  var st = balances.perFreelancer[flId] || { totalBilled: 0, billedTillToday: 0, upcomingBilled: 0, totalPaid: 0, balance: 0, balanceTillToday: 0 };
 
   var txns = [];
   Object.keys(bills).forEach(function(bId) {
     var b = bills[bId];
     if (b && b.freelancerId === flId && b.status === 'verified') {
+      var d = b.eventDate || (b.createdAt ? new Date(b.createdAt).toISOString().slice(0,10) : '');
+      var isFuture = (d > cutoff);
+      if (_flBillingScope === 'till_today' && isFuture) return;
+      if (_flBillingScope === 'upcoming' && !isFuture) return;
       txns.push({
-        date: b.eventDate || '',
-        desc: (b.coupleName ? b.coupleName + ' — ' : '') + (b.eventType || b.description || 'Shoot Fee'),
+        date: d,
+        isFuture: isFuture,
+        desc: (b.coupleName ? b.coupleName + ' — ' : '') + (b.eventType || b.description || 'Shoot Fee') + (isFuture ? ' [Upcoming]' : ''),
         billed: parseFloat(b.totalAmount) || 0,
         paid: 0,
         notes: b.notes || ''
@@ -28193,8 +28536,12 @@ function printFlStatement(flId) {
   Object.keys(payments).forEach(function(pId) {
     var p = payments[pId];
     if (p && p.freelancerId === flId) {
+      var d = p.date || (p.createdAt ? new Date(p.createdAt).toISOString().slice(0,10) : '');
+      var isFuture = (d > cutoff);
+      if (_flBillingScope === 'upcoming' && !isFuture) return;
       txns.push({
-        date: p.date || '',
+        date: d,
+        isFuture: false,
         desc: 'Payment (' + (p.mode || 'UPI') + (p.txnRef ? ' · Ref: ' + p.txnRef : '') + ')',
         billed: 0,
         paid: parseFloat(p.amount) || 0,
@@ -28206,20 +28553,22 @@ function printFlStatement(flId) {
   var run = 0;
   var tableRows = txns.map(function(t) {
     run += (t.billed - t.paid);
-    return '<tr><td>' + fmtDate(t.date) + '</td><td>' + escHtml(t.desc) + '</td><td style="text-align:right">' + (t.billed ? '₹' + fmtNum(t.billed) : '—') + '</td><td style="text-align:right">' + (t.paid ? '₹' + fmtNum(t.paid) : '—') + '</td><td style="text-align:right;font-weight:700">₹' + fmtNum(run) + '</td><td>' + escHtml(t.notes) + '</td></tr>';
+    var rowStyle = t.isFuture ? ' style="background:#fffdf7"' : '';
+    return '<tr' + rowStyle + '><td>' + fmtDate(t.date) + '</td><td>' + escHtml(t.desc) + '</td><td style="text-align:right">' + (t.billed ? '₹' + fmtNum(t.billed) : '—') + '</td><td style="text-align:right">' + (t.paid ? '₹' + fmtNum(t.paid) : '—') + '</td><td style="text-align:right;font-weight:700">₹' + fmtNum(run) + '</td><td>' + escHtml(t.notes) + '</td></tr>';
   }).join('') || '<tr><td colspan="6" style="text-align:center;color:#999">No entries found</td></tr>';
 
   var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Statement — ' + escHtml(fl.name) + '</title>' +
     '<style>body{font-family:Arial,sans-serif;max-width:800px;margin:30px auto;padding:0 20px;color:#222;font-size:12px;line-height:1.5}' +
     'h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ddd;padding:6px 8px}th{background:#f8fafc;font-size:11px}' +
-    '.kpis{display:flex;gap:20px;margin:16px 0;background:#f8fafc;padding:12px 16px;border-radius:8px}' +
+    '.kpis{display:flex;gap:12px;margin:16px 0;background:#f8fafc;padding:12px 16px;border-radius:8px}' +
     '.kpi{flex:1}.kpi-l{font-size:10px;text-transform:uppercase;color:#64748b;font-weight:700}.kpi-v{font-size:16px;font-weight:800;margin-top:2px}</style></head><body>' +
-    '<h1>KB Studio Productions</h1><div style="color:#666">Freelancer Account Statement &amp; Ledger</div>' +
+    '<h1>KB Studio Productions</h1><div style="color:#666">Freelancer Account Statement &amp; Ledger (Cut-Off: ' + cutoffLabel + ')</div>' +
     '<div style="margin-top:14px"><b>Freelancer:</b> ' + escHtml(fl.name) + ' (' + escHtml(fl.role||'') + ')' + (fl.phone ? ' · Phone: ' + escHtml(fl.phone) : '') + (fl.upi ? ' · UPI: ' + escHtml(fl.upi) : '') + '</div>' +
     '<div class="kpis">' +
-      '<div class="kpi"><div class="kpi-l">Total Billed</div><div class="kpi-v">₹' + fmtNum(st.totalBilled) + '</div></div>' +
+      '<div class="kpi"><div class="kpi-l">Payable Now (Till Cut-Off)</div><div class="kpi-v" style="color:' + (st.balanceTillToday>0?'#059669':'#64748b') + '">₹' + fmtNum(st.balanceTillToday) + '</div></div>' +
       '<div class="kpi"><div class="kpi-l">Total Paid</div><div class="kpi-v" style="color:#059669">₹' + fmtNum(st.totalPaid) + '</div></div>' +
-      '<div class="kpi"><div class="kpi-l">Net Balance Due</div><div class="kpi-v" style="color:' + (st.balance>0?'#dc2626':'#059669') + '">₹' + fmtNum(st.balance) + '</div></div>' +
+      '<div class="kpi"><div class="kpi-l">Upcoming Booked Shoots</div><div class="kpi-v" style="color:#d97706">₹' + fmtNum(st.upcomingBilled) + '</div></div>' +
+      '<div class="kpi"><div class="kpi-l">Total Pipeline Due</div><div class="kpi-v" style="color:' + (st.balance>0?'#dc2626':'#059669') + '">₹' + fmtNum(st.balance) + '</div></div>' +
     '</div>' +
     '<table><thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Billed (+)</th><th style="text-align:right">Paid (-)</th><th style="text-align:right">Balance</th><th>Notes</th></tr></thead><tbody>' +
     tableRows +
@@ -28269,8 +28618,15 @@ function renderMasterCrewPortal() {
   var myPendingBills = Object.values(bills).filter(function(b){ return b && b.freelancerId === crewId && (b.status === 'pending' || b.status === 'pending_review'); });
   var myPayments = Object.values(payments).filter(function(p){ return p && p.freelancerId === crewId; });
 
+  var todayStr = new Date().toISOString().slice(0, 10);
   var totalEarned = myVerifiedBills.reduce(function(sum, b){ return sum + (parseFloat(b.totalAmount) || 0); }, 0);
+  var earnedTillToday = myVerifiedBills.reduce(function(sum, b){
+    var d = b.eventDate || (b.createdAt ? new Date(b.createdAt).toISOString().slice(0,10) : '');
+    return sum + ((!d || d <= todayStr) ? (parseFloat(b.totalAmount) || 0) : 0);
+  }, 0);
+  var upcomingBooked = totalEarned - earnedTillToday;
   var totalPaid = myPayments.reduce(function(sum, p){ return sum + (parseFloat(p.amount) || 0); }, 0);
+  var payableNow = earnedTillToday - totalPaid;
   var balanceDue = totalEarned - totalPaid;
 
   var myDays = [];
@@ -28409,28 +28765,56 @@ function renderMasterCrewPortal() {
 
   } else {
     // ── EARNINGS & STATEMENT TAB ──
-    html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">' +
-      '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e2e8f0;text-align:center">' +
-        '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase">Total Earned</div>' +
-        '<div style="font-size:16px;font-weight:800;color:#0f172a;margin-top:2px">₹' + fmtNum(totalEarned) + '</div>' +
-      '</div>' +
-      '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e2e8f0;text-align:center">' +
-        '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase">Total Paid</div>' +
-        '<div style="font-size:16px;font-weight:800;color:#059669;margin-top:2px">₹' + fmtNum(totalPaid) + '</div>' +
-      '</div>' +
-      '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e2e8f0;text-align:center">' +
-        '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase">Balance Due</div>' +
-        '<div style="font-size:16px;font-weight:800;color:' + (balanceDue > 0 ? '#15803d' : '#64748b') + ';margin-top:2px">₹' + fmtNum(balanceDue) + '</div>' +
-      '</div>' +
-    '</div>';
+    if (upcomingBooked > 0) {
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px">' +
+        '<div style="background:#ecfdf5;border-radius:12px;padding:12px 14px;border:1.5px solid #a7f3d0;text-align:center">' +
+          '<div style="font-size:10px;color:#047857;font-weight:800;text-transform:uppercase">🟢 Payable Now (Today)</div>' +
+          '<div style="font-size:17px;font-weight:800;color:' + (payableNow > 0 ? '#047857' : '#059669') + ';margin-top:2px">₹' + fmtNum(payableNow) + '</div>' +
+          '<div style="font-size:10px;color:#065f46">Completed events</div>' +
+        '</div>' +
+        '<div style="background:#fffbeb;border-radius:12px;padding:12px 14px;border:1px solid #fde68a;text-align:center">' +
+          '<div style="font-size:10px;color:#92400e;font-weight:800;text-transform:uppercase">⏳ Upcoming Bookings</div>' +
+          '<div style="font-size:17px;font-weight:800;color:#b45309;margin-top:2px">₹' + fmtNum(upcomingBooked) + '</div>' +
+          '<div style="font-size:10px;color:#a16207">Future scheduled shoots</div>' +
+        '</div>' +
+        '<div style="background:#fff;border-radius:12px;padding:12px 14px;border:1px solid #e2e8f0;text-align:center">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase">Total Paid</div>' +
+          '<div style="font-size:17px;font-weight:800;color:#059669;margin-top:2px">₹' + fmtNum(totalPaid) + '</div>' +
+          '<div style="font-size:10px;color:#64748b">Payouts received</div>' +
+        '</div>' +
+        '<div style="background:#fff;border-radius:12px;padding:12px 14px;border:1px solid #e2e8f0;text-align:center">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase">Total Pipeline</div>' +
+          '<div style="font-size:17px;font-weight:800;color:#0f172a;margin-top:2px">₹' + fmtNum(balanceDue) + '</div>' +
+          '<div style="font-size:10px;color:#64748b">All shoots minus payouts</div>' +
+        '</div>' +
+      '</div>';
+    } else {
+      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">' +
+        '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e2e8f0;text-align:center">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase">Total Earned</div>' +
+          '<div style="font-size:16px;font-weight:800;color:#0f172a;margin-top:2px">₹' + fmtNum(totalEarned) + '</div>' +
+        '</div>' +
+        '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e2e8f0;text-align:center">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase">Total Paid</div>' +
+          '<div style="font-size:16px;font-weight:800;color:#059669;margin-top:2px">₹' + fmtNum(totalPaid) + '</div>' +
+        '</div>' +
+        '<div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #e2e8f0;text-align:center">' +
+          '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase">Balance Due</div>' +
+          '<div style="font-size:16px;font-weight:800;color:' + (balanceDue > 0 ? '#15803d' : '#64748b') + ';margin-top:2px">₹' + fmtNum(balanceDue) + '</div>' +
+        '</div>' +
+      '</div>';
+    }
 
     // Transactions
     var pTxns = [];
     myVerifiedBills.forEach(function(b){
+      var d = b.eventDate || '';
+      var isFuture = (d > todayStr);
       pTxns.push({
-        date: b.eventDate || '',
+        date: d,
         type: 'bill',
-        desc: (b.coupleName ? b.coupleName + ' — ' : '') + (b.eventType || 'Shoot'),
+        isFuture: isFuture,
+        desc: (b.coupleName ? b.coupleName + ' — ' : '') + (b.eventType || 'Shoot') + (isFuture ? ' (Upcoming)' : ''),
         billed: parseFloat(b.totalAmount) || 0,
         paid: 0,
         notes: b.notes || ''
@@ -28440,6 +28824,7 @@ function renderMasterCrewPortal() {
       pTxns.push({
         date: p.date || '',
         type: 'payment',
+        isFuture: false,
         desc: 'Payout Received (' + (p.mode || 'UPI') + ')',
         billed: 0,
         paid: parseFloat(p.amount) || 0,
