@@ -213,8 +213,8 @@ html.portal-body-mode, body.portal-body-mode {
 .modal-body{padding:20px;max-height:78vh;overflow-y:auto}
 .modal-foot{padding:14px 20px;border-top:1px solid #f0f0f0;display:flex;gap:8px;justify-content:flex-end;background:#fff;border-radius:0 0 14px 14px;flex-shrink:0}
 /* ── CLASSY SLIDE-OVER DRAWER (Right 33vw, Backdrop Blur, Animation) ── */
-.drawer-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45)!important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:9999!important;display:flex!important;justify-content:flex-end!important;align-items:stretch!important;padding:0!important;opacity:0;pointer-events:none;transition:opacity .26s cubic-bezier(.16,1,.3,1)}
-.drawer-overlay.open{opacity:1!important;pointer-events:auto!important}
+.drawer-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45)!important;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:9999!important;display:flex!important;justify-content:flex-end!important;align-items:stretch!important;padding:0!important;opacity:0;pointer-events:none;visibility:hidden;transition:opacity .26s cubic-bezier(.16,1,.3,1), visibility .26s}
+.drawer-overlay.open{opacity:1!important;pointer-events:auto!important;visibility:visible!important}
 .drawer-panel{width:34vw;min-width:450px;max-width:680px;height:100vh;background:#fff;box-shadow:-10px 0 35px rgba(0,0,0,.18);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);overflow:hidden}
 .drawer-overlay.open .drawer-panel{transform:translateX(0)}
 @media(max-width:768px){.drawer-panel{width:100vw!important;min-width:100%!important}}
@@ -8606,7 +8606,13 @@ function loadAll(){
       db.ref('crm_team').on('value',function(snap){teamData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();});
       db.ref('crm_checklist_templates').on('value',function(snap){checklistTemplates=snap.val()||{};if(editProjId&&projects[editProjId]&&document.getElementById('t-checklist')&&document.getElementById('t-checklist').classList.contains('active'))renderChecklistTab(projects[editProjId],editProjId);if(document.getElementById('checklist-tpl-modal')&&document.getElementById('checklist-tpl-modal').classList.contains('open'))renderChecklistTplList();});
       db.ref('crm_followup_templates').on('value',function(snap){followupTemplates=snap.val()||{};if(document.getElementById('page-followups')&&document.getElementById('page-followups').classList.contains('active'))renderFollowUps();});
-      db.ref('crm_freelancers').on('value',function(snap){freelancerData=snap.val()||{};if(typeof renderTeam==='function')renderTeam();if(typeof renderFreelancers==='function')renderFreelancers();});
+      db.ref('crm_freelancers').on('value',function(snap){
+        var raw=snap.val()||{};
+        Object.keys(raw).forEach(function(k){ if(raw[k] && typeof raw[k]==='object' && !raw[k].id) raw[k].id = k; });
+        freelancerData=raw;
+        if(typeof renderTeam==='function')renderTeam();
+        if(typeof renderFreelancers==='function')renderFreelancers();
+      });
       window.flBillsData = {};
       window.flPaymentsData = {};
       db.ref('crm_freelancer_bills').on('value', function(snap){
@@ -24706,7 +24712,14 @@ function renderFreelancers() {
   var rolF = ((document.getElementById('freelancer-role-f')||{}).value||'');
   var avF  = ((document.getElementById('freelancer-avail-f')||{}).value||'');
 
-  var list = Object.values(freelancerData).filter(function(f) {
+  var list = Object.keys(freelancerData || {}).map(function(k){
+    var item = freelancerData[k];
+    if (item && typeof item === 'object') {
+      if (!item.id) item.id = k;
+      return item;
+    }
+    return null;
+  }).filter(Boolean).filter(function(f) {
     var match = (f.name+' '+(f.role||'')+' '+(f.city||'')+' '+(f.skills||'')).toLowerCase().includes(q);
     if (rolF && f.role !== rolF) return false;
     if (avF  && f.availability !== avF) return false;
@@ -24719,7 +24732,9 @@ function renderFreelancers() {
   // Count how many times each freelancer has been hired (from eventDays)
   var hireCounts = {};
   Object.values(projects||{}).forEach(function(p) {
+    if (!p) return;
     (p.eventDays||[]).forEach(function(ed) {
+      if (!ed) return;
       ['dayPh1','dayPh2','dayPh3','dayPh4','dayVid1','dayVid2','dayVid3','dayVid4','dayDrone','dayPhono','dayCoord','dayAsst1','dayAsst2'].forEach(function(k) {
         if (ed[k]) hireCounts[ed[k]] = (hireCounts[ed[k]]||0) + 1;
       });
@@ -24909,146 +24924,186 @@ function flWhatsAppCredentialsFromDrawer() {
 }
 
 function openAddFreelancer(prefill) {
-  _editFreelancerId = null;
-  var alertBox = document.getElementById('fl-unsaved-alert-container');
-  if (alertBox) alertBox.innerHTML = '';
-  
-  var modal_title = document.getElementById('freelancer-modal-title');
-  if (modal_title) modal_title.textContent = 'Add Freelancer';
-  var sub = document.getElementById('fl-drawer-subtitle');
-  if (sub) sub.textContent = 'KB Studio Productions • New Partner Onboarding';
-  var av = document.getElementById('fl-drawer-avatar');
-  if (av) { av.textContent = '🎯'; av.style.background = '#0f172a'; }
-  var delBtn = document.getElementById('fl-drawer-del-btn');
-  if (delBtn) delBtn.style.display = 'none';
-  var statsCard = document.getElementById('fl-stats-card');
-  if (statsCard) statsCard.style.display = 'none';
+  try {
+    _editFreelancerId = null;
+    var alertBox = document.getElementById('fl-unsaved-alert-container');
+    if (alertBox) alertBox.innerHTML = '';
+    
+    var modal_title = document.getElementById('freelancer-modal-title');
+    if (modal_title) modal_title.textContent = 'Add Freelancer';
+    var sub = document.getElementById('fl-drawer-subtitle');
+    if (sub) sub.textContent = 'KB Studio Productions • New Partner Onboarding';
+    var av = document.getElementById('fl-drawer-avatar');
+    if (av) { av.textContent = '🎯'; av.style.background = '#0f172a'; }
+    var delBtn = document.getElementById('fl-drawer-del-btn');
+    if (delBtn) delBtn.style.display = 'none';
+    var statsCard = document.getElementById('fl-stats-card');
+    if (statsCard) statsCard.style.display = 'none';
 
-  ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-instagram','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby','fl-agreed-notes'].forEach(function(i){sv(i,'');});
-  
-  // Auto-generate fresh random 4-digit PIN for new freelancer (NEVER 0000)
-  var randomPin = String(Math.floor(1000 + Math.random() * 9000));
-  sv('fl-portalpin', randomPin);
-  var pinEl = document.getElementById('fl-portalpin');
-  if (pinEl) pinEl.dataset.customized = 'true';
+    ['fl-name','fl-nickname','fl-phone','fl-whatsapp','fl-email','fl-city','fl-instagram','fl-exp','fl-rate','fl-skills','fl-equipment','fl-upi','fl-bankaccount','fl-ifsc','fl-notes','fl-idproof','fl-referredby','fl-agreed-notes'].forEach(function(i){sv(i,'');});
+    
+    // Auto-generate fresh random 4-digit PIN for new freelancer (NEVER 0000)
+    var randomPin = String(Math.floor(1000 + Math.random() * 9000));
+    sv('fl-portalpin', randomPin);
+    var pinEl = document.getElementById('fl-portalpin');
+    if (pinEl) pinEl.dataset.customized = 'true';
 
-  flFillRoleSelect('Photographer'); sv('fl-availability','available'); sv('fl-rating','');
-  flBuildRateGrid({}, []); flFillPayTerms(''); sv('fl-terms',''); sv('fl-termsdate',''); sv('fl-termsagreed','no');
-  var banner = document.getElementById('fl-review-rates-banner'); if (banner) banner.style.display = 'none';
+    if (typeof flFillRoleSelect === 'function') flFillRoleSelect('Photographer');
+    sv('fl-availability','available'); sv('fl-rating','');
+    if (typeof flBuildRateGrid === 'function') flBuildRateGrid({}, []);
+    if (typeof flFillPayTerms === 'function') flFillPayTerms('');
+    sv('fl-terms',''); sv('fl-termsdate',''); sv('fl-termsagreed','no');
+    var banner = document.getElementById('fl-review-rates-banner'); if (banner) banner.style.display = 'none';
 
-  if (prefill) {
-    if (prefill.name) sv('fl-name', prefill.name);
-    if (prefill.role) flFillRoleSelect(prefill.role);
-    if (prefill.phone) sv('fl-phone', prefill.phone);
+    if (prefill) {
+      if (prefill.name) sv('fl-name', prefill.name);
+      if (prefill.role && typeof flFillRoleSelect === 'function') flFillRoleSelect(prefill.role);
+      if (prefill.phone) sv('fl-phone', prefill.phone);
+    }
+    
+    openModal('freelancer-modal');
+    var m = document.getElementById('freelancer-modal');
+    if (m) { m.classList.add('open'); m.style.display = 'flex'; }
+    if (typeof flGetDrawerFormSnapshot === 'function') _flInitialSnapshot = flGetDrawerFormSnapshot();
+  } catch(err) {
+    console.error('Error in openAddFreelancer:', err);
+    openModal('freelancer-modal');
+    var m = document.getElementById('freelancer-modal');
+    if (m) { m.classList.add('open'); m.style.display = 'flex'; }
   }
-  
-  openModal('freelancer-modal');
-  _flInitialSnapshot = flGetDrawerFormSnapshot();
 }
 
 function openEditFreelancer(id) {
-  var f = freelancerData[id]; if (!f) return;
-  _editFreelancerId = id;
-  var alertBox = document.getElementById('fl-unsaved-alert-container');
-  if (alertBox) alertBox.innerHTML = '';
+  try {
+    if (!id) return;
+    var f = freelancerData && freelancerData[id];
+    if (!f) {
+      var matchK = Object.keys(freelancerData || {}).find(function(k){
+        var it = freelancerData[k];
+        return it && (k === id || it.id === id || (it.name && it.name.trim().toLowerCase() === String(id).trim().toLowerCase()));
+      });
+      if (matchK) { id = matchK; f = freelancerData[matchK]; }
+    }
+    if (!f) { alert('Freelancer record not found.'); return; }
+    _editFreelancerId = id;
+    var alertBox = document.getElementById('fl-unsaved-alert-container');
+    if (alertBox) alertBox.innerHTML = '';
 
-  var modal_title = document.getElementById('freelancer-modal-title');
-  if (modal_title) modal_title.textContent = 'Edit — ' + f.name;
-  var sub = document.getElementById('fl-drawer-subtitle');
-  if (sub) sub.textContent = (f.role || 'Partner') + (f.city ? ' • ' + f.city : '') + ' • KB Studio Productions';
-  var av = document.getElementById('fl-drawer-avatar');
-  if (av) {
-    var inits = (f.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().substring(0,2);
-    av.textContent = inits || '🎯';
-    av.style.background = avatarColor(f.name);
-  }
-  var delBtn = document.getElementById('fl-drawer-del-btn');
-  if (delBtn) delBtn.style.display = (CU && (CU.role==='superadmin'||CU.role==='admin')) ? '' : 'none';
+    var modal_title = document.getElementById('freelancer-modal-title');
+    if (modal_title) modal_title.textContent = 'Edit — ' + (f.name || 'Freelancer');
+    var sub = document.getElementById('fl-drawer-subtitle');
+    if (sub) sub.textContent = (f.role || 'Partner') + (f.city ? ' • ' + f.city : '') + ' • KB Studio Productions';
+    var av = document.getElementById('fl-drawer-avatar');
+    if (av) {
+      var inits = (f.name||'?').split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().substring(0,2);
+      av.textContent = inits || '🎯';
+      av.style.background = typeof avatarColor === 'function' ? avatarColor(f.name) : '#0f172a';
+    }
+    var delBtn = document.getElementById('fl-drawer-del-btn');
+    if (delBtn) delBtn.style.display = (CU && (CU.role==='superadmin'||CU.role==='admin')) ? '' : 'none';
 
-  // Quick stats
-  var statsCard = document.getElementById('fl-stats-card');
-  if (statsCard) {
-    statsCard.style.display = '';
-    var bList = Object.values(flBillsData || {}).filter(function(b){ return b && b.freelancerId === id && b.status === 'verified'; });
-    var pList = Object.values(flPaymentsData || {}).filter(function(p){ return p && p.freelancerId === id; });
-    var totEarned = bList.reduce(function(sum, b){ return sum + (parseFloat(b.totalAmount) || 0); }, 0);
-    var totPaid = pList.reduce(function(sum, p){ return sum + (parseFloat(p.amount) || 0); }, 0);
-    var balDue = totEarned - totPaid;
-    // Compute hire count inline (hireCounts is local to renderFreelancers, so recalculate here)
-    var _hc = {};
-    Object.values(projects||{}).forEach(function(p){
-      (p.eventDays||[]).forEach(function(ed){
-        ['dayPh1','dayPh2','dayPh3','dayPh4','dayVid1','dayVid2','dayVid3','dayVid4','dayDrone','dayPhono','dayCoord','dayAsst1','dayAsst2'].forEach(function(k){
-          if(ed[k]) _hc[ed[k]] = (_hc[ed[k]]||0) + 1;
+    // Quick stats
+    var statsCard = document.getElementById('fl-stats-card');
+    if (statsCard) {
+      statsCard.style.display = '';
+      var bList = Object.values(flBillsData || {}).filter(function(b){ return b && b.freelancerId === id && b.status === 'verified'; });
+      var pList = Object.values(flPaymentsData || {}).filter(function(p){ return p && p.freelancerId === id; });
+      var totEarned = bList.reduce(function(sum, b){ return sum + (parseFloat(b.totalAmount) || 0); }, 0);
+      var totPaid = pList.reduce(function(sum, p){ return sum + (parseFloat(p.amount) || 0); }, 0);
+      var balDue = totEarned - totPaid;
+      
+      var _hc = {};
+      try {
+        Object.values(projects||{}).forEach(function(p){
+          if (!p) return;
+          (p.eventDays||[]).forEach(function(ed){
+            if (!ed) return;
+            ['dayPh1','dayPh2','dayPh3','dayPh4','dayVid1','dayVid2','dayVid3','dayVid4','dayDrone','dayPhono','dayCoord','dayAsst1','dayAsst2'].forEach(function(k){
+              if(ed[k]) _hc[ed[k]] = (_hc[ed[k]]||0) + 1;
+            });
+          });
         });
-      });
-    });
-    var hireC = _hc[id] || bList.length || 0;
-    
-    var elEv = document.getElementById('fl-stat-events'); if (elEv) elEv.textContent = hireC;
-    var elEr = document.getElementById('fl-stat-earned'); if (elEr) elEr.textContent = '₹' + fmtNum(totEarned);
-    var elBl = document.getElementById('fl-stat-balance');
-    if (elBl) {
-      elBl.textContent = balDue > 0 ? ('₹' + fmtNum(balDue)) : 'Settled ✅';
-      elBl.style.color = balDue > 0 ? '#15803d' : '#64748b';
-    }
-  }
-
-  ['name','nickname','phone','whatsapp','email','city','instagram','exp','rate','skills','equipment','upi','bankaccount','ifsc','notes','idproof','referredby'].forEach(function(k){
-    sv('fl-'+k, f[k]||'');
-  });
-
-  // Unique PIN: ensure they have a dedicated 4-digit PIN (never '0000')
-  var pin = String(f.portalPin || '').trim();
-  if (!pin || pin === '0000' || pin === '0000 (default)' || pin.length < 4) {
-    var ph = String(f.phone || f.whatsapp || '').replace(/\D/g, '');
-    pin = ph.length >= 4 ? ph.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
-    f.portalPin = pin;
-    try { db.ref('crm_freelancers/' + id + '/portalPin').set(pin); } catch(e) {}
-  }
-  sv('fl-portalpin', pin);
-  var pinEl = document.getElementById('fl-portalpin');
-  if (pinEl) pinEl.dataset.customized = 'true';
-
-  sv('fl-agreed-notes', f.agreedNotes || '');
-  flFillRoleSelect(f.role||'Photographer');
-  sv('fl-availability', f.availability||'available');
-  sv('fl-rating', f.rating||'');
-  flBuildRateGrid(f.rates||{}, f.customRates||[]); flFillPayTerms(f.payTerms||''); sv('fl-terms', f.terms||''); sv('fl-termsdate', f.termsDate||''); sv('fl-termsagreed', f.termsAgreed?'yes':'no');
-
-  // Show proposed rates banner if pending
-  var banner = document.getElementById('fl-review-rates-banner');
-  var statusBadge = document.getElementById('fl-rate-status-badge');
-  var summary = document.getElementById('fl-proposed-summary');
-  if (banner) {
-    var pr = f.proposedRates || {};
-    var hasPr = Object.keys(pr).length > 0 || f.proposedRatesOther;
-    var isPending = f.proposedRatesStatus === 'pending';
-    if (hasPr) {
-      banner.style.display = '';
-      if (statusBadge) {
-        statusBadge.textContent = isPending ? 'PENDING APPROVAL' : 'APPROVED';
-        statusBadge.style.background = isPending ? '#b45309' : '#059669';
+      } catch(e) {}
+      var hireC = _hc[id] || bList.length || 0;
+      
+      var elEv = document.getElementById('fl-stat-events'); if (elEv) elEv.textContent = hireC;
+      var elEr = document.getElementById('fl-stat-earned'); if (elEr) elEr.textContent = '₹' + (typeof fmtNum === 'function' ? fmtNum(totEarned) : Number(totEarned).toLocaleString('en-IN'));
+      var elBl = document.getElementById('fl-stat-balance');
+      if (elBl) {
+        elBl.textContent = balDue > 0 ? ('₹' + (typeof fmtNum === 'function' ? fmtNum(balDue) : Number(balDue).toLocaleString('en-IN'))) : 'Settled ✅';
+        elBl.style.color = balDue > 0 ? '#15803d' : '#64748b';
       }
-      var rateLabels = {
-        wedding:'Wedding/Main', short:'Short Event', prewed:'Pre-Wedding', big:'Big Event/Sangeet',
-        halfday:'Half Day', day:'Per Day', teaser:'Teaser', highlight:'Highlight Reel',
-        longvideo:'Full Film', reel:'Reel', editedpics:'Edited Photos', album:'Album Design',
-        magazine:'Magazine', frame:'Frame Design'
-      };
-      var lines = Object.keys(pr).filter(function(k){ return pr[k] > 0; }).map(function(k){
-        return '<span style="display:inline-block;background:#fef3c7;border-radius:5px;padding:2px 7px;margin:2px;font-size:12px"><strong>' + (rateLabels[k]||k) + ':</strong> ₹' + Number(pr[k]).toLocaleString('en-IN') + '</span>';
-      });
-      if (f.proposedRatesOther) lines.push('<div style="margin-top:5px;font-size:12px"><strong>Other:</strong> ' + escHtml(f.proposedRatesOther) + '</div>');
-      if (f.proposedRevisions) lines.push('<div style="font-size:12px"><strong>Revisions:</strong> ' + escHtml(f.proposedRevisions) + '</div>');
-      if (summary) summary.innerHTML = lines.join('') || 'No specific amounts submitted.';
-    } else {
-      banner.style.display = 'none';
     }
-  }
 
-  openModal('freelancer-modal');
-  _flInitialSnapshot = flGetDrawerFormSnapshot();
+    ['name','nickname','phone','whatsapp','email','city','instagram','exp','rate','skills','equipment','upi','bankaccount','ifsc','notes','idproof','referredby'].forEach(function(k){
+      sv('fl-'+k, f[k]||'');
+    });
+
+    // Dedicated PIN: ensure they have a dedicated 4-digit PIN (never '0000')
+    var pin = String(f.portalPin || '').trim();
+    if (!pin || pin === '0000' || pin === '0000 (default)' || pin.length < 4) {
+      var ph = String(f.phone || f.whatsapp || '').replace(/\D/g, '');
+      pin = ph.length >= 4 ? ph.slice(-4) : String(Math.floor(1000 + Math.random() * 9000));
+      f.portalPin = pin;
+      try { db.ref('crm_freelancers/' + id + '/portalPin').set(pin); } catch(e) {}
+    }
+    sv('fl-portalpin', pin);
+    var pinEl = document.getElementById('fl-portalpin');
+    if (pinEl) pinEl.dataset.customized = 'true';
+
+    sv('fl-agreed-notes', f.agreedNotes || '');
+    if (typeof flFillRoleSelect === 'function') flFillRoleSelect(f.role||'Photographer');
+    sv('fl-availability', f.availability||'available');
+    sv('fl-rating', f.rating||'');
+    
+    var crArray = Array.isArray(f.customRates) ? f.customRates : (f.customRates && typeof f.customRates === 'object' ? Object.values(f.customRates) : []);
+    if (typeof flBuildRateGrid === 'function') flBuildRateGrid(f.rates||{}, crArray);
+    if (typeof flFillPayTerms === 'function') flFillPayTerms(f.payTerms||'');
+    sv('fl-terms', f.terms||'');
+    sv('fl-termsdate', f.termsDate||'');
+    sv('fl-termsagreed', f.termsAgreed?'yes':'no');
+
+    // Show proposed rates banner if pending
+    var banner = document.getElementById('fl-review-rates-banner');
+    var statusBadge = document.getElementById('fl-rate-status-badge');
+    var summary = document.getElementById('fl-proposed-summary');
+    if (banner) {
+      var pr = (f.proposedRates && typeof f.proposedRates === 'object') ? f.proposedRates : {};
+      var hasPr = Object.keys(pr).length > 0 || f.proposedRatesOther;
+      var isPending = f.proposedRatesStatus === 'pending';
+      if (hasPr) {
+        banner.style.display = '';
+        if (statusBadge) {
+          statusBadge.textContent = isPending ? 'PENDING APPROVAL' : 'APPROVED';
+          statusBadge.style.background = isPending ? '#b45309' : '#059669';
+        }
+        var rateLabels = {
+          wedding:'Wedding/Main', short:'Short Event', prewed:'Pre-Wedding', big:'Big Event/Sangeet',
+          halfday:'Half Day', day:'Per Day', teaser:'Teaser', highlight:'Highlight Reel',
+          longvideo:'Full Film', reel:'Reel', editedpics:'Edited Photos', album:'Album Design',
+          magazine:'Magazine', frame:'Frame Design'
+        };
+        var lines = Object.keys(pr).filter(function(k){ return pr[k] > 0; }).map(function(k){
+          return '<span style="display:inline-block;background:#fef3c7;border-radius:5px;padding:2px 7px;margin:2px;font-size:12px"><strong>' + (rateLabels[k]||k) + ':</strong> ₹' + Number(pr[k]).toLocaleString('en-IN') + '</span>';
+        });
+        if (f.proposedRatesOther) lines.push('<div style="margin-top:5px;font-size:12px"><strong>Other:</strong> ' + escHtml(f.proposedRatesOther) + '</div>');
+        if (f.proposedRevisions) lines.push('<div style="font-size:12px"><strong>Revisions:</strong> ' + escHtml(f.proposedRevisions) + '</div>');
+        if (summary) summary.innerHTML = lines.join('') || 'No specific amounts submitted.';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    openModal('freelancer-modal');
+    var m = document.getElementById('freelancer-modal');
+    if (m) { m.classList.add('open'); m.style.display = 'flex'; }
+    if (typeof flGetDrawerFormSnapshot === 'function') _flInitialSnapshot = flGetDrawerFormSnapshot();
+  } catch(err) {
+    console.error('Error in openEditFreelancer:', err);
+    openModal('freelancer-modal');
+    var m = document.getElementById('freelancer-modal');
+    if (m) { m.classList.add('open'); m.style.display = 'flex'; }
+  }
 }
 
 function flApproveFreelancerRates() {
@@ -25142,18 +25197,26 @@ function flReadCustomRates() {
   return out;
 }
 function flCustomChips(f) {
-  return (f.customRates || []).map(function(c) {
-    return '<span style="display:inline-block;background:#ecfeff;color:#0e7490;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700;margin:1px 3px 1px 0">' + escHtml(c.label) + ' ₹' + Number(c.amount).toLocaleString('en-IN') + '</span>';
+  var cr = Array.isArray(f && f.customRates) ? f.customRates : (f && f.customRates && typeof f.customRates === 'object' ? Object.values(f.customRates) : []);
+  return cr.map(function(c) {
+    if (!c) return '';
+    return '<span style="display:inline-block;background:#ecfeff;color:#0e7490;border-radius:6px;padding:2px 7px;font-size:10.5px;font-weight:700;margin:1px 3px 1px 0">' + escHtml(c.label || '') + ' ₹' + Number(c.amount || 0).toLocaleString('en-IN') + '</span>';
   }).join('');
 }
 function flCustomRows(f) {
-  return (f.customRates || []).map(function(c) {
-    return '<tr><td>' + escHtml(c.label) + '</td><td style="text-align:right">₹' + Number(c.amount).toLocaleString('en-IN') + '</td></tr>';
+  var cr = Array.isArray(f && f.customRates) ? f.customRates : (f && f.customRates && typeof f.customRates === 'object' ? Object.values(f.customRates) : []);
+  return cr.map(function(c) {
+    if (!c) return '';
+    return '<tr><td>' + escHtml(c.label || '') + '</td><td style="text-align:right">₹' + Number(c.amount || 0).toLocaleString('en-IN') + '</td></tr>';
   }).join('');
 }
 function flBuildRateGrid(rates, customRates) {
   var ch = document.getElementById('fl-custom-rates');
-  if (ch) { ch.innerHTML = ''; (customRates || []).forEach(function(c) { flAddCustomRateRow(c.label, c.amount); }); }
+  if (ch) {
+    ch.innerHTML = '';
+    var cr = Array.isArray(customRates) ? customRates : (customRates && typeof customRates === 'object' ? Object.values(customRates) : []);
+    cr.forEach(function(c) { if (c) flAddCustomRateRow(c.label, c.amount); });
+  }
   var host = document.getElementById('fl-rate-grid'); if (!host) return;
   rates = rates || {};
   host.innerHTML = FL_RATE_TYPES.map(function(t) {
@@ -25285,7 +25348,14 @@ function renderFlDirectory() {
   var money   = can('canSeeFinancials') || (CU && CU.role === 'superadmin');
   var qEl = document.getElementById('fld-search'), rEl = document.getElementById('fld-role');
   var q = qEl ? qEl.value.toLowerCase() : '', rf = rEl ? rEl.value : '';
-  var list = Object.values(freelancerData || {}).filter(function(f) {
+  var list = Object.keys(freelancerData || {}).map(function(k){
+    var item = freelancerData[k];
+    if (item && typeof item === 'object') {
+      if (!item.id) item.id = k;
+      return item;
+    }
+    return null;
+  }).filter(Boolean).filter(function(f) {
     if (rf && f.role !== rf) return false;
     if (!q) return true;
     return [f.name, f.nickname, f.city, f.skills, f.phone, f.role].join(' ').toLowerCase().indexOf(q) > -1;
@@ -25320,7 +25390,8 @@ function renderFlDirectory() {
       Object.keys(roles).sort().map(function(r) { return '<option' + (rf === r ? ' selected' : '') + '>' + escHtml(r) + '</option>'; }).join('') + '</select>' +
     '<span style="font-size:12px;color:#888">' + list.length + ' freelancer' + (list.length !== 1 ? 's' : '') + '</span>' +
     '<div style="margin-left:auto;display:flex;gap:8px;align-items:center">' +
-      '<button class="btn btn-sm" onclick="navigator.clipboard.writeText(\'https://crm.kbstudio.in?portal=crew\').then(function(){showToast(\'✅ Universal Portal Link copied!\')})" style="background:#0f172a;color:#fff;font-weight:700;font-size:12px;padding:7px 12px;border-radius:8px" title="Single universal link for all freelancers. They log in with their phone + PIN.">📱 Copy Universal Portal Link</button>' +
+      '<button class="btn btn-primary" onclick="openAddFreelancer()" style="background:#0f172a;color:#fff;font-weight:800;font-size:12px;padding:7px 14px;border-radius:8px;cursor:pointer">➕ Add Freelancer</button>' +
+      '<button class="btn btn-sm" onclick="navigator.clipboard.writeText(\'https://crm.kbstudio.in?portal=crew\').then(function(){showToast(\'✅ Universal Portal Link copied!\')})" style="background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;font-weight:700;font-size:12px;padding:7px 12px;border-radius:8px" title="Single universal link for all freelancers. They log in with their phone + PIN.">📱 Copy Universal Portal Link</button>' +
     '</div>' +
     '</div>';
 
@@ -25336,7 +25407,7 @@ function renderFlDirectory() {
         '<td style="max-width:300px">' + chips + '</td>' +
         '<td>' + (f.termsAgreed ? '<span style="color:#16a34a;font-size:11px;font-weight:700">✅ Agreed' + (f.termsDate ? '<br>' + fmtDate(f.termsDate) : '') + '</span>' : '<span style="color:#aaa;font-size:11px">Not signed</span>') + '</td>' +
         '<td style="font-size:12px">' + ((hires[f.id] || 0) ? '🎬 ' + hires[f.id] + ' event' + (hires[f.id] > 1 ? 's' : '') + '<br>' : '') + ((w.open + w.done) ? w.open + ' open · ' + w.done + ' deliverables done' : '<span style="color:#aaa">No edits assigned</span>') + (money && w.due ? '<div style="color:#d97706;font-weight:700">' + fmt(w.due) + ' due</div>' : '') + '</td>' +
-        '<td style="white-space:nowrap">' + (canEdit ? '<button class="btn btn-sm" onclick="openEditFreelancer(\'' + f.id + '\')">Edit</button> ' : '') +
+        '<td style="white-space:nowrap">' + (canEdit ? '<button class="btn btn-sm" onclick="openEditFreelancer(\'' + escHtml(f.id || '') + '\')">Edit</button> ' : '') +
           '<button class="btn btn-sm" title="Share portal link on WhatsApp" onclick="flSharePortalWhatsapp(\'' + f.id + '\')">💬 WhatsApp</button> ' +
           '<button class="btn btn-sm" title="Copy direct one-click link" onclick="copyCrewPortalLink(\'' + f.id + '\')">🔗</button> ' +
           '<button class="btn btn-sm" title="Rate card &amp; agreement (print)" onclick="printFreelancerAgreement(\'' + f.id + '\')">📄</button> ' +
