@@ -3666,6 +3666,7 @@ document.addEventListener('wheel', function(e) {
         <button class="tab-btn" data-tab="t-brief">📋 Client Brief</button>
         <button class="tab-btn" data-tab="t-raw">💾 Raw Data</button>
         <button class="tab-btn" data-tab="t-payments">💳 Payments</button>
+        <button class="tab-btn" data-tab="t-expenses">💰 Project Expenses</button>
         <button class="tab-btn" data-tab="t-checklist">✅ Shoot Checklist</button>
         <button class="tab-btn" data-tab="t-client-issues">🚩 Client Issues</button>
         <button class="tab-btn" data-tab="t-client-timeline">💬 Client Timeline</button>
@@ -4107,6 +4108,8 @@ document.addEventListener('wheel', function(e) {
           </div>
         </div>
       </div>
+
+      <div id="t-expenses" class="tab-pane"></div>
 
       <div id="t-docs" class="tab-pane">
         <div class="info info-blue">Attach payment screenshots, invoices, quotations and contracts (max 5MB each).</div>
@@ -4948,9 +4951,12 @@ document.addEventListener('wheel', function(e) {
         <textarea class="fi" id="fcs-notes" rows="2" placeholder="e.g. Flight ticket reimbursed, Jaipur local cab ₹450, etc."></textarea>
       </div>
     </div>
-    <div class="modal-foot">
-      <button class="btn" data-close="fl-confirm-shoot-modal">Cancel</button>
-      <button class="btn btn-primary" onclick="fcsSaveConfirm()">💾 Confirm &amp; Add to Billing Ledger</button>
+    <div class="modal-foot" style="display:flex;justify-content:space-between;align-items:center">
+      <button type="button" class="btn-danger" style="font-size:11.5px;padding:7px 13px;font-weight:700" onclick="fcsDeleteShootAssignment()" title="Permanently delete this entry & remove from shoot schedule">🗑️ Delete &amp; Remove from Shoot</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" data-close="fl-confirm-shoot-modal">Cancel</button>
+        <button class="btn btn-primary" onclick="fcsSaveConfirm()">💾 Confirm &amp; Add to Billing Ledger</button>
+      </div>
     </div>
   </div>
 </div>
@@ -5033,7 +5039,7 @@ document.addEventListener('wheel', function(e) {
       <div class="fg">
         <div class="fr" style="flex:1">
           <label class="fl">Freelancer *</label>
-          <select class="fi" id="fmb-freelancer">
+          <select class="fi" id="fmb-freelancer" onchange="fmbOnFreelancerChange()">
             <option value="">-- Choose Freelancer --</option>
           </select>
         </div>
@@ -8353,7 +8359,7 @@ document.body.addEventListener('click', function(e) {
 })();
 
 document.querySelectorAll('.tab-btn').forEach(function(btn){
-  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);setTimeout(function(){_attachKbErpListeners();if(editProjId&&projects[editProjId]){var _p2=projects[editProjId];if(_p2.kbSchedule&&typeof kbErpLoadSchedule==='function'){kbErpLoadSchedule(_p2.kbSchedule);}else{onPayPresetChange();kbErpAutoFillEventDate();}}else{onPayPresetChange();}},200);}if(target==='t-docs')renderDocsList();if(target==='t-checklist'&&editProjId&&projects[editProjId])renderChecklistTab(projects[editProjId],editProjId);if(target==='t-client-issues'&&editProjId){var wrap=document.getElementById('client-issues-panel-wrap');if(wrap){wrap.innerHTML='<div id="client-issues-panel-'+editProjId+'"><div style="color:#aaa;font-size:12px;padding:20px;text-align:center">Loading…</div></div>';renderClientIssuesPanel(editProjId);}}if(target==='t-client-timeline'&&editProjId){renderClientTimelinePanel(editProjId);}});
+  btn.addEventListener('click',function(){var target=btn.getAttribute('data-tab');var parent=btn.closest('.modal-body')||btn.closest('.page');if(!parent)return;parent.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});parent.querySelectorAll('.tab-pane').forEach(function(p){p.classList.remove('active');});btn.classList.add('active');var pane=$(target);if(pane)pane.classList.add('active');if(target==='t-stage'){renderStageTL();renderPipelineActionBlock();}if(target==='t-expenses'&&editProjId){renderProjectExpensesTab(editProjId);}if(target==='t-payments'){renderPayLedger();setTimeout(initPayTabInvoice,100);setTimeout(function(){_attachKbErpListeners();if(editProjId&&projects[editProjId]){var _p2=projects[editProjId];if(_p2.kbSchedule&&typeof kbErpLoadSchedule==='function'){kbErpLoadSchedule(_p2.kbSchedule);}else{onPayPresetChange();kbErpAutoFillEventDate();}}else{onPayPresetChange();}},200);}if(target==='t-docs')renderDocsList();if(target==='t-checklist'&&editProjId&&projects[editProjId])renderChecklistTab(projects[editProjId],editProjId);if(target==='t-client-issues'&&editProjId){var wrap=document.getElementById('client-issues-panel-wrap');if(wrap){wrap.innerHTML='<div id="client-issues-panel-'+editProjId+'"><div style="color:#aaa;font-size:12px;padding:20px;text-align:center">Loading…</div></div>';renderClientIssuesPanel(editProjId);}}if(target==='t-client-timeline'&&editProjId){renderClientTimelinePanel(editProjId);}});
 });
 
 // Attaches the live crm_users listener with automatic retry. Right after Google
@@ -24805,9 +24811,13 @@ function renderFreelancers() {
           var waPhone = String(f.whatsapp||f.phone||'').replace(/\D/g,'');
           if(waPhone.length===10) waPhone='91'+waPhone;
           var waMsg = encodeURIComponent('Hi '+f.name+'! Your KB Studio Freelancer Portal is ready.\n\nPortal Link: '+portalLink+'\nYour Mobile: (use your registered number)\nYour PIN: '+pin+'\n\nSign in with OTP or PIN at any time!');
-          return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:6px">' +
+          return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap">' +
             '<span style="font-size:11px;background:#fef3c7;border:1px solid #fde047;border-radius:6px;padding:3px 8px;font-weight:800;color:#78350f;cursor:pointer" onclick="showToast(\'🔑 PIN for '+escHtml(f.name||'')+': '+pin+' (send portal link with WhatsApp invite button)\')" title="Click to view PIN">🔑 PIN: ' + pin + '</span>' +
-            (waPhone ? '<a href="https://api.whatsapp.com/send?phone='+waPhone+'&text='+waMsg+'" target="_blank" style="font-size:11px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:3px 8px;font-weight:700;color:#15803d;text-decoration:none">📲 Send Portal Invite</a>' : '') +
+            '<div style="display:flex;gap:4px;align-items:center">' +
+              '<button class="btn btn-sm" style="background:#f0fdf4;color:#065f46;border:1px solid #bbf7d0;font-size:10px;font-weight:700;padding:2px 6px" title="Send personal profile update & PIN setup link on WhatsApp" onclick="flWhatsappUpdateLink(\'' + f.id + '\')">📲 Update</button>' +
+              '<button class="btn btn-sm" style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;font-size:10px;padding:2px 5px" title="Copy profile update link" onclick="flCopyUpdateLink(\'' + f.id + '\')">📋</button>' +
+              (waPhone ? '<a href="https://api.whatsapp.com/send?phone='+waPhone+'&text='+waMsg+'" target="_blank" style="font-size:10px;background:#dcfce7;border:1px solid #86efac;border-radius:6px;padding:2px 6px;font-weight:700;color:#15803d;text-decoration:none" title="Send portal invite">🚀 Invite</a>' : '') +
+            '</div>' +
           '</div>';
         })() +
       '</div>';
@@ -25146,8 +25156,62 @@ function flApproveFreelancerRates() {
 
 function deleteFreelancer(id) {
   var f = freelancerData[id]; if (!f) return;
-  if (!confirm('Remove freelancer "' + f.name + '"?\nThis cannot be undone.')) return;
-  db.ref('crm_freelancers/'+id).remove(function(){ showToast('Freelancer removed.'); });
+
+  // Count how many event days this freelancer is assigned to
+  var assignedCount = 0;
+  var assignedProjects = [];
+  var SLOT_KEYS = ['dayPh1','dayPh2','dayPh3','dayPh4','dayVid1','dayVid2','dayVid3','dayVid4','dayDrone','dayPhono','dayCoord','dayAsst1','dayAsst2'];
+  Object.values(projects || {}).forEach(function(p) {
+    if (!p) return;
+    var found = false;
+    (p.eventDays || []).forEach(function(ed) {
+      if (!ed) return;
+      SLOT_KEYS.forEach(function(k) { if (ed[k] === id) { assignedCount++; found = true; } });
+    });
+    if (found) assignedProjects.push((p.bride||'') + (p.groom ? ' & ' + p.groom : '') || 'Unnamed Event');
+  });
+
+  var warning = 'Remove freelancer "' + f.name + '"?\n\n';
+  if (assignedCount > 0) {
+    warning += '\u26a0\ufe0f WARNING: This freelancer is assigned to ' + assignedCount + ' shoot day(s) across ' + assignedProjects.length + ' project(s).\nDeleting will remove them from the freelancer list but NOT from shoot schedules. Consider unassigning first.\n\n';
+  }
+  warning += 'This cannot be undone. Continue?';
+
+  if (!confirm(warning)) return;
+  db.ref('crm_freelancers/'+id).remove(function(err) {
+    if (err) { showToast('\u274c Error: ' + err.message); return; }
+    if (freelancerData) delete freelancerData[id];
+    showToast('\ud83d\uddd1\ufe0f Freelancer "' + f.name + '" removed.');
+    renderFreelancers();
+  });
+}
+
+// \u2550\u2550\u2550 FREELANCER PROFILE-UPDATE LINK HELPERS \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+function flGetUpdateLink(id) {
+  return location.origin + location.pathname + '?update=' + encodeURIComponent(id);
+}
+
+function flCopyUpdateLink(id) {
+  var f = freelancerData && freelancerData[id]; if (!f) return;
+  var link = flGetUpdateLink(id);
+  var text = 'Hi ' + f.name + '! \ud83d\udc4b\n\nPlease use this personal link to complete / update your KB Studio profile and set your portal PIN:\n\n\ud83d\udd17 ' + link + '\n\nAfter updating, log into your freelancer portal at:\nhttps://crm.kbstudio.in?portal=crew\n\nusing your mobile number and the PIN you set.';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(function() {
+      showToast('\ud83d\udccb Profile update link copied for ' + f.name + '!');
+    }).catch(function() { prompt('Copy and send this link to ' + f.name + ':', link); });
+  } else {
+    prompt('Copy and send this link to ' + f.name + ':', link);
+  }
+}
+
+function flWhatsappUpdateLink(id) {
+  var f = freelancerData && freelancerData[id]; if (!f) return;
+  var rawPhone = (f.whatsapp || f.phone || '').replace(/\D/g, '');
+  if (!rawPhone) { showToast('\u26a0\ufe0f No phone number saved for ' + f.name); return; }
+  var phone = rawPhone.length === 10 ? '91' + rawPhone : rawPhone;
+  var link = flGetUpdateLink(id);
+  var msg = 'Hi ' + f.name + '! \ud83d\udc4b\n\nKB Studio Productions has created a profile for you. Please use this personal link to review your details, update them and set your portal PIN:\n\n\ud83d\udd17 ' + link + '\n\nAfter updating, log into your freelancer portal any time at:\nhttps://crm.kbstudio.in?portal=crew\n\nusing your mobile number + the PIN you set.\n\nLooking forward to working with you! \u2014 KB Studio Productions';
+  window.open('https://api.whatsapp.com/send?phone=' + phone + '&text=' + encodeURIComponent(msg), '_blank');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -25421,9 +25485,11 @@ function renderFlDirectory() {
         '<td style="white-space:nowrap">' + (canEdit ? '<button class="btn btn-sm" onclick="openEditFreelancer(\'' + escHtml(f.id || '') + '\')">Edit</button> ' : '') +
           '<button class="btn btn-sm" title="Share portal link on WhatsApp" onclick="flSharePortalWhatsapp(\'' + f.id + '\')">💬 WhatsApp</button> ' +
           '<button class="btn btn-sm" title="Copy direct one-click link" onclick="copyCrewPortalLink(\'' + f.id + '\')">🔗</button> ' +
+          '<button class="btn btn-sm" style="background:#f0fdf4;color:#065f46;border:1px solid #bbf7d0;font-weight:700" title="Send personal profile update & PIN setup link to this freelancer via WhatsApp" onclick="flWhatsappUpdateLink(\'' + f.id + '\')">📲 Update Profile</button> ' +
+          '<button class="btn btn-sm" style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe;" title="Copy profile update link" onclick="flCopyUpdateLink(\'' + f.id + '\')">📋</button> ' +
           '<button class="btn btn-sm" title="Rate card &amp; agreement (print)" onclick="printFreelancerAgreement(\'' + f.id + '\')">📄</button> ' +
           '<button class="btn btn-sm" title="View their work" onclick="_flpState.fl=\'' + f.id + '\';flGoTab(\'work\')">📦</button> ' +
-          (canDel ? '<button class="btn-danger" onclick="deleteFreelancer(\'' + f.id + '\')">✕</button>' : '') + '</td></tr>';
+          (canDel ? '<button class="btn-danger" title="Delete freelancer" onclick="deleteFreelancer(\'' + f.id + '\')">✕</button>' : '') + '</td></tr>';
     }).join('') : '<tr><td colspan="6" class="empty">No freelancers yet. Click <b>➕ Add Freelancer</b> to add your first one.</td></tr>') +
     '</tbody></table></div></div>';
 
@@ -25821,6 +25887,7 @@ function updateFlConfirmBadge() {
   var badge = document.getElementById('fl-confirm-badge');
   if (!badge) return;
   var assignments = flGetAllShootAssignments();
+  window._flRosterAssignments = assignments;
   var needsConfirm = assignments.filter(function(a){ return a.status === 'needs_confirm'; }).length;
   var bills = window.flBillsData || {};
   var pendingClaims = Object.values(bills).filter(function(b){ return b && (b.status === 'pending' || b.status === 'pending_review'); }).length;
@@ -26016,12 +26083,18 @@ function renderFlShootRoster() {
         '<button class="btn btn-sm" style="font-size:11px;padding:3px 8px;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;font-weight:700" onclick="flOpenEditBillModal(\'' + a.bill.id + '\')" title="Edit fee, travel, freelancer or date">✏️ Edit</button>' +
         (a.bill.status === 'pending' ? '<button class="btn btn-sm" style="background:#fef08a;color:#713f12;font-size:10px;font-weight:700;border:1px solid #eab308;padding:3px 6px" onclick="openFlClaimReviewModal(\'' + a.bill.id + '\')">Review</button>' : '') +
         '<button class="btn btn-sm" style="font-size:10px;padding:3px 6px" onclick="_flBillingSelectedFl=\'' + a.freelancerId + '\';flGoTab(\'billing\')">Ledger</button>' +
-        '<button class="btn-danger" style="font-size:10px;padding:3px 6px" onclick="deleteFlBill(\'' + a.bill.id + '\')" title="Delete entry">🗑️</button>' +
+        '<button class="btn-danger" style="font-size:10px;padding:3px 6px" onclick="flDeleteRosterAssignment(\'' + a.id + '\',\'' + a.bill.id + '\')" title="Permanently delete entry & unassign shoot">🗑️</button>' +
       '</div>';
     } else if (a.status === 'needs_confirm') {
-      actionHtml = '<button class="btn btn-sm btn-primary" style="font-size:11px;padding:4px 8px" onclick="openFlConfirmShootModal(\'' + a.id + '\')">🔔 Confirm Shoot</button>';
+      actionHtml = '<div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">' +
+        '<button class="btn btn-sm btn-primary" style="font-size:11px;padding:4px 8px" onclick="openFlConfirmShootModal(\'' + a.id + '\')">🔔 Confirm Shoot</button>' +
+        '<button class="btn-danger" style="font-size:11px;padding:4px 7px" onclick="flDeleteRosterAssignment(\'' + a.id + '\',\'\')" title="Permanently delete this entry & unassign shoot">🗑️ Delete</button>' +
+      '</div>';
     } else {
-      actionHtml = '<button class="btn btn-sm" style="font-size:10px;padding:3px 7px" onclick="copyCrewPortalLink(\'' + a.freelancerId + '\',\'' + a.projectId + '\')">🔗 Shoot Link</button>';
+      actionHtml = '<div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap">' +
+        '<button class="btn btn-sm" style="font-size:10px;padding:3px 7px" onclick="copyCrewPortalLink(\'' + a.freelancerId + '\',\'' + a.projectId + '\')">🔗 Shoot Link</button>' +
+        '<button class="btn-danger" style="font-size:10px;padding:3px 6px" onclick="flDeleteRosterAssignment(\'' + a.id + '\',\'\')" title="Unassign freelancer from this shoot">🗑️</button>' +
+      '</div>';
     }
 
     return '<tr>' +
@@ -27752,6 +27825,7 @@ function renderFlBillingLedger() {
       '<span style="font-size:13px;font-weight:700;color:#1e293b">Select Freelancer:</span>' +
       '<select class="fi" style="max-width:280px" onchange="_flBillingSelectedFl=this.value;renderFlBillingLedger()">' +
         '<option value="">👥 All Freelancers (Master Balance Summary)</option>' +
+        '<option value="__direct__"' + (selFl==='__direct__'?' selected':'') + '>🏢 Direct Client Expenses (Travel, Food, Stay, Gear)</option>' +
         Object.keys(allFl).map(function(id) {
           var st = balances.perFreelancer[id];
           var balToday = st ? st.balanceTillToday : 0;
@@ -27773,6 +27847,7 @@ function renderFlBillingLedger() {
     '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       '<button class="btn btn-success" style="font-size:12px;padding:7px 14px;font-weight:700" onclick="openRecordFlPaymentModal(\'' + selFl + '\')">💳 Record Payment</button>' +
       '<button class="btn" style="font-size:12px;padding:7px 14px;background:#f8fafc;border:1px solid #cbd5e1;font-weight:700" onclick="openAddFlManualBillModal(\'' + selFl + '\')">➕ Add Bill / Expense</button>' +
+      '<button class="btn" style="font-size:12px;padding:7px 14px;background:#f0fdf4;color:#166534;border:1px solid #86efac;font-weight:700" onclick="openAddProjectExpenseModal()">✈️ + Add Client Expense</button>' +
       (selFl ? '<button class="btn" style="font-size:12px;padding:7px 14px" onclick="flExportStatementCsv(\'' + selFl + '\')">📥 Export Statement</button>' : '') +
       (selFl ? '<button class="btn" style="font-size:12px;padding:7px 14px" onclick="printFlStatement(\'' + selFl + '\')">🖨️ Print</button>' : '') +
     '</div>' +
@@ -27847,6 +27922,117 @@ function renderFlBillingLedger() {
           '<td style="white-space:nowrap">' +
             '<button class="btn btn-sm" style="font-size:11px;padding:4px 8px;margin-right:4px" onclick="_flBillingSelectedFl=\'' + id + '\';renderFlBillingLedger()">Statement</button>' +
             '<button class="btn btn-sm btn-success" style="font-size:11px;padding:4px 8px" onclick="openRecordFlPaymentModal(\'' + id + '\')">Pay</button>' +
+          '</td>' +
+        '</tr>';
+      });
+    }
+
+    html += '</tbody></table></div></div>';
+
+  } else if (selFl === '__direct__') {
+    // ── DIRECT CLIENT PROJECT EXPENSES ──
+    var allBills = window.flBillsData || {};
+    var directExpenses = [];
+    var totalTravel = 0, totalFoodStay = 0, totalEquip = 0, totalOther = 0, totalDirect = 0;
+
+    Object.keys(allBills).forEach(function(bId) {
+      var b = allBills[bId];
+      if (!b) return;
+      b.id = bId;
+      var isDirect = b.isDirectExpense || !b.freelancerId || b.freelancerId === '__direct__' || b.freelancerName === 'Direct Project Expense';
+      if (!isDirect && !b.projectId) return;
+      if (!isDirect) return;
+
+      directExpenses.push(b);
+      var amt = parseFloat(b.totalAmount) || 0;
+      totalDirect += amt;
+      if (b.category === 'travel') totalTravel += amt;
+      else if (b.category === 'allowance' || b.category === 'food' || b.category === 'stay') totalFoodStay += amt;
+      else if (b.category === 'equipment') totalEquip += amt;
+      else totalOther += amt;
+    });
+
+    directExpenses.sort(function(a, b) {
+      var da = a.eventDate || a.date || '';
+      var db = b.eventDate || b.date || '';
+      return db.localeCompare(da);
+    });
+
+    html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;margin-bottom:16px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">' +
+        '<div>' +
+          '<div style="font-size:18px;font-weight:800;color:#0f172a">🏢 Direct Client &amp; Project Expenses (Studio Paid)</div>' +
+          '<div style="font-size:12px;color:#64748b;margin-top:3px">Outstation flights, cabs, crew food &amp; DA, hotels, camera rentals, and production expenses billed to projects.</div>' +
+        '</div>' +
+        '<button class="btn btn-primary" style="font-size:12px;padding:8px 16px;font-weight:700" onclick="openAddProjectExpenseModal()">✈️ + Add Client Expense</button>' +
+      '</div>' +
+    '</div>';
+
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">' +
+      '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:12px 14px">' +
+        '<div style="font-size:11px;font-weight:700;color:#047857;text-transform:uppercase">✈️ Travel Expenses</div>' +
+        '<div style="font-size:20px;font-weight:900;color:#065f46;margin-top:4px">₹' + fmtNum(totalTravel) + '</div>' +
+        '<div style="font-size:11px;color:#047857;margin-top:3px">Flights, trains, cabs &amp; fuel</div>' +
+      '</div>' +
+      '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px 14px">' +
+        '<div style="font-size:11px;font-weight:700;color:#92400e;text-transform:uppercase">🍽️ Food &amp; Accommodation</div>' +
+        '<div style="font-size:20px;font-weight:900;color:#b45309;margin-top:4px">₹' + fmtNum(totalFoodStay) + '</div>' +
+        '<div style="font-size:11px;color:#92400e;margin-top:3px">Crew DA, meals &amp; hotel stays</div>' +
+      '</div>' +
+      '<div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:12px 14px">' +
+        '<div style="font-size:11px;font-weight:700;color:#6d28d9;text-transform:uppercase">🎥 Equipment &amp; Gear</div>' +
+        '<div style="font-size:20px;font-weight:900;color:#7c3aed;margin-top:4px">₹' + fmtNum(totalEquip) + '</div>' +
+        '<div style="font-size:11px;color:#6d28d9;margin-top:3px">Lenses, lights, drones hire</div>' +
+      '</div>' +
+      '<div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:12px;padding:12px 14px">' +
+        '<div style="font-size:11px;font-weight:700;color:#334155;text-transform:uppercase">💰 Total Direct Expenses</div>' +
+        '<div style="font-size:20px;font-weight:900;color:#0f172a;margin-top:4px">₹' + fmtNum(totalDirect) + '</div>' +
+        '<div style="font-size:11px;color:#64748b;margin-top:3px">' + directExpenses.length + ' expenses recorded</div>' +
+      '</div>' +
+    '</div>';
+
+    html += '<div class="card" style="padding:0;overflow:hidden"><div class="mob-scroll"><table class="tbl"><thead><tr>' +
+      '<th>Date</th>' +
+      '<th>Client / Project</th>' +
+      '<th>Category</th>' +
+      '<th>Description</th>' +
+      '<th style="text-align:right">Amount (₹)</th>' +
+      '<th>Notes</th>' +
+      '<th>Action</th>' +
+    '</tr></thead><tbody>';
+
+    if (!directExpenses.length) {
+      html += '<tr><td colspan="7" class="empty" style="padding:32px 16px;text-align:center">' +
+        '<div style="font-size:32px;margin-bottom:8px">✈️</div>' +
+        '<div style="font-weight:700;font-size:14px;color:#0f172a">No direct client expenses recorded yet</div>' +
+        '<div style="font-size:12px;color:#64748b;margin:4px 0 14px">Record client flight tickets, cabs, crew dinner, or hotel stays directly against any project.</div>' +
+        '<button class="btn btn-sm btn-primary" onclick="openAddProjectExpenseModal()">+ Add Direct Client Expense</button>' +
+      '</td></tr>';
+    } else {
+      directExpenses.forEach(function(b) {
+        var catBadge = '';
+        if (b.category === 'travel') catBadge = '<span style="background:#ecfdf5;color:#047857;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">✈️ Travel</span>';
+        else if (b.category === 'allowance' || b.category === 'food') catBadge = '<span style="background:#fffbeb;color:#b45309;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🍽️ Food / DA</span>';
+        else if (b.category === 'stay') catBadge = '<span style="background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🏨 Stay</span>';
+        else if (b.category === 'equipment') catBadge = '<span style="background:#f5f3ff;color:#6d28d9;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🎥 Equipment</span>';
+        else catBadge = '<span style="background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">📦 Other</span>';
+
+        var p = (b.projectId && projects && projects[b.projectId]) || null;
+        var pName = b.coupleName || (p ? coupleName(p.bride, p.groom) : 'Direct Expense');
+
+        html += '<tr>' +
+          '<td><span style="font-weight:600;font-size:12px">' + fmtDate(b.eventDate || b.date) + '</span></td>' +
+          '<td>' +
+            '<div style="font-weight:700;color:#1e40af;cursor:pointer" onclick="' + (b.projectId ? 'openProject(' + b.projectId + ', \'t-expenses\')' : '') + '">' + escHtml(pName) + '</div>' +
+            (p && p.refcode ? '<div style="font-size:10px;color:#64748b">' + escHtml(p.refcode) + '</div>' : '') +
+          '</td>' +
+          '<td>' + catBadge + '</td>' +
+          '<td><div style="font-weight:600;font-size:13px">' + escHtml(b.description || b.notes || 'Expense') + '</div></td>' +
+          '<td style="text-align:right"><span style="font-weight:800;color:#dc2626;font-size:13px">₹' + fmtNum(b.totalAmount) + '</span></td>' +
+          '<td><span style="font-size:11px;color:#64748b">' + escHtml(b.notes || '—') + '</span></td>' +
+          '<td style="white-space:nowrap">' +
+            '<button class="btn btn-sm" style="font-size:10px;padding:3px 7px;margin-right:4px" onclick="flOpenEditBillModal(\'' + b.id + '\')">✏️ Edit</button>' +
+            '<button class="btn-danger" style="font-size:10px;padding:3px 6px" onclick="deleteFlBill(\'' + b.id + '\')" title="Delete expense">🗑️</button>' +
           '</td>' +
         '</tr>';
       });
@@ -28345,6 +28531,142 @@ document.addEventListener('click', function(e) {
   }
 });
 
+
+function fcsDeleteShootAssignment() {
+  var assignId = gv('fcs-assignment-id');
+  if (!assignId) return;
+  closeModal('fl-confirm-shoot-modal');
+  flDeleteRosterAssignment(assignId, '');
+}
+
+function flDeleteRosterAssignment(assignId, billId) {
+  var assignments = window._flRosterAssignments || flGetAllShootAssignments();
+  var a = assignments.find(function(x){ return x.id === assignId; });
+
+  var flName = a ? a.freelancerName : 'Freelancer';
+  var couple = a ? a.couple : 'Client Shoot';
+  var dateStr = a && a.date ? fmtDate(a.date) : '';
+
+  var confirmMsg = '⚠️ Permanently delete this shoot entry?\n\n' +
+                   '• Freelancer: ' + flName + '\n' +
+                   '• Client: ' + couple + '\n' +
+                   (dateStr ? '• Date: ' + dateStr + '\n' : '') +
+                   '\nThis will permanently unassign ' + flName + ' from this shoot and delete any associated billing entry so it is completely removed (won\'t return to Needs Confirmation).\n\nContinue?';
+
+  if (!confirm(confirmMsg)) return;
+
+  var pId = a ? a.projectId : null;
+  var dayId = a ? a.dayId : null;
+  var slotKey = a ? a.slotKey : null;
+  var crewId = a ? a.freelancerId : null;
+
+  if (!pId && assignId && assignId.indexOf('flshoot_') === 0) {
+    var parts = assignId.split('_');
+    pId = parts[1];
+    dayId = parts[2];
+    crewId = parts[3];
+    slotKey = parts[4];
+  }
+
+  // 1. Remove from project eventDays in Firebase RTDB
+  if (pId && projects && projects[pId]) {
+    var p = projects[pId];
+    var changed = false;
+    (p.eventDays || []).forEach(function(ed, idx) {
+      var isDayMatch = (ed.id && ed.id === dayId) || ('idx_' + idx === dayId) || (a && ed.date === a.date);
+      if (isDayMatch) {
+        if (slotKey && ed[slotKey] === crewId) {
+          ed[slotKey] = '';
+          changed = true;
+        } else {
+          CREW_SLOT_KEYS.forEach(function(k) {
+            if (ed[k] === crewId) {
+              ed[k] = '';
+              changed = true;
+            }
+          });
+        }
+      }
+    });
+
+    if (changed) {
+      db.ref('crm_projects/' + pId + '/eventDays').set(p.eventDays, function(err) {
+        if (err) console.error('Error updating project eventDays:', err);
+      });
+    }
+  }
+
+  // 2. Delete linked bill from crm_freelancer_bills
+  var bId = billId || (a && a.bill ? a.bill.id : null);
+  if (!bId && a) {
+    var allBills = window.flBillsData || {};
+    Object.keys(allBills).forEach(function(k) {
+      var b = allBills[k];
+      if (b && b.freelancerId === a.freelancerId && b.projectId === a.projectId && (b.eventDate === a.date || b.date === a.date)) {
+        bId = k;
+      }
+    });
+  }
+
+  if (!bId && window.flBillsData && window.flBillsData[assignId]) {
+    bId = assignId;
+  }
+
+  if (bId) {
+    db.ref('crm_freelancer_bills/' + bId).remove(function(err) {
+      if (err) console.error('Error removing bill:', err);
+    });
+    if (window.flBillsData) delete window.flBillsData[bId];
+  }
+
+  showToast('🗑️ Entry for ' + flName + ' permanently deleted.');
+  if (typeof updateFlConfirmBadge === 'function') updateFlConfirmBadge();
+  renderFlShootRoster();
+  renderFlBillingLedger();
+  if (typeof editProjId !== 'undefined' && editProjId && typeof renderProjectExpensesTab === 'function') {
+    renderProjectExpensesTab(editProjId);
+  }
+}
+
+function fmbOnFreelancerChange() {
+  var flVal = gv('fmb-freelancer');
+  var isDirect = (!flVal || flVal === '__direct__');
+  var projLabel = document.querySelector('#fmb-proj-wrap label span');
+  var catSel = document.getElementById('fmb-category');
+  var modalTitle = document.querySelector('#fl-manual-bill-modal .modal-title');
+
+  if (isDirect) {
+    if (projLabel) projLabel.innerHTML = '<span style="color:#1d4ed8;font-weight:800">Client / Project * (Required)</span>';
+    if (modalTitle) modalTitle.textContent = '✈️ Add Client Expense (Travel / Food / Stay)';
+    if (catSel) {
+      catSel.innerHTML =
+        '<option value="travel">✈️ Travel / Cab / Flight / Train</option>' +
+        '<option value="allowance">🍽️ Food / Catering / DA for Crew</option>' +
+        '<option value="stay">🏨 Hotel / Stay / Accommodation</option>' +
+        '<option value="equipment">🎥 Equipment Hire / Camera Rental</option>' +
+        '<option value="storage">💾 Storage / Hard Drives / SSDs</option>' +
+        '<option value="venue">🎟️ Location / Permission Charges</option>' +
+        '<option value="other">📦 Other Production Expense</option>';
+    }
+  } else {
+    if (projLabel) projLabel.textContent = 'Link Client / Project (Optional)';
+    if (modalTitle) modalTitle.textContent = '➕ Add Freelancer Bill / Expense';
+    if (catSel) {
+      catSel.innerHTML =
+        '<option value="shoot">🎬 Shoot Fee</option>' +
+        '<option value="travel">✈️ Travel / Conveyance Expense</option>' +
+        '<option value="allowance">🍽️ Food / DA / Outstation Stay</option>' +
+        '<option value="equipment">🎥 Equipment Hire / Rental</option>' +
+        '<option value="bonus">🌟 Bonus / Extra Hours</option>' +
+        '<option value="other">📦 Other</option>';
+    }
+  }
+}
+
+function openAddProjectExpenseModal(projId) {
+  openAddFlManualBillModal('__direct__', projId);
+}
+
 function openAddFlManualBillModal(prefillFlId, prefillProjId) {
   var sel = document.getElementById('fmb-freelancer');
   if (!sel) return;
@@ -28352,13 +28674,16 @@ function openAddFlManualBillModal(prefillFlId, prefillProjId) {
   var flKeys = Object.keys(allFl).sort(function(a, b) {
     return ((allFl[a].name || '').localeCompare(allFl[b].name || ''));
   });
-  sel.innerHTML = '<option value="">-- Choose Freelancer --</option>' +
+  sel.innerHTML = '<option value="__direct__" style="font-weight:800;color:#1e40af">🏢 Direct Client Expense (No Freelancer — Studio Paid)</option>' +
+    '<option value="">-- Or Choose a Freelancer --</option>' +
     flKeys.map(function(id) {
       return '<option value="' + id + '"' + (prefillFlId===id?' selected':'') + '>' + escHtml(allFl[id].name) + '</option>';
     }).join('');
-  if (prefillFlId) sel.value = prefillFlId;
 
-  // Initialize and populate alphabetical client picker
+  if (prefillFlId) sel.value = prefillFlId;
+  else if (prefillFlId === undefined || prefillFlId === '') sel.value = '__direct__';
+
+  // Initialize client picker
   fmbInitProjectsList();
   fmbSelectProject('', '');
   if (prefillProjId && projects && projects[prefillProjId]) {
@@ -28368,36 +28693,46 @@ function openAddFlManualBillModal(prefillFlId, prefillProjId) {
   }
 
   sv('fmb-date', new Date().toISOString().slice(0, 10));
-  sv('fmb-category', 'travel');
   sv('fmb-desc', '');
   sv('fmb-amount', '');
   sv('fmb-notes', '');
 
+  fmbOnFreelancerChange();
   openModal('fl-manual-bill-modal');
 }
 
 function fmbSaveBill() {
   var flId = gv('fmb-freelancer');
-  if (!flId) { alert('Please select a freelancer.'); return; }
-  var fl = freelancerData && freelancerData[flId];
-  var flName = fl ? fl.name : 'Unknown';
+  var isDirect = (!flId || flId === '__direct__');
 
   var date = gv('fmb-date');
-  var cat = gv('fmb-category');
+  var cat = gv('fmb-category') || (isDirect ? 'travel' : 'shoot');
   var pId = gv('fmb-project');
   var desc = gv('fmb-desc').trim();
   var amount = parseFloat(gv('fmb-amount')) || 0;
   var notes = gv('fmb-notes').trim();
 
-  if (!date || !desc || amount <= 0) { alert('Please enter date, description, and positive amount.'); return; }
+  if (!date || !desc || amount <= 0) {
+    alert('Please enter date, description, and positive amount.');
+    return;
+  }
+
+  if (isDirect && !pId) {
+    alert('Please select a Client / Project for this direct project expense.');
+    return;
+  }
+
+  var fl = (!isDirect && freelancerData) ? freelancerData[flId] : null;
+  var flName = fl ? fl.name : (isDirect ? 'Direct Project Expense' : 'Unknown');
 
   var p = pId ? projects[pId] : null;
   var cName = p ? coupleName(p.bride, p.groom) : '';
 
-  var billId = 'fbill_manual_' + Date.now();
+  var billId = isDirect ? ('pe_exp_' + Date.now()) : ('fbill_manual_' + Date.now());
   var billData = {
     id: billId,
-    freelancerId: flId,
+    isDirectExpense: isDirect,
+    freelancerId: isDirect ? '' : flId,
     freelancerName: flName,
     projectId: pId || '',
     coupleName: cName,
@@ -28419,22 +28754,208 @@ function fmbSaveBill() {
   db.ref('crm_freelancer_bills/' + billId).set(billData, function(err) {
     if (err) { alert('Error: ' + err.message); return; }
     closeModal('fl-manual-bill-modal');
-    showToast('✅ Bill entry of ₹' + fmtNum(amount) + ' added to ledger!');
+    showToast('✅ Expense of ₹' + fmtNum(amount) + ' recorded successfully!');
     if (!window.flBillsData) window.flBillsData = {};
     window.flBillsData[billId] = billData;
     renderFlBillingLedger();
+    if (typeof renderFlShootRoster === 'function') renderFlShootRoster();
+    if (typeof editProjId !== 'undefined' && editProjId && typeof renderProjectExpensesTab === 'function') {
+      renderProjectExpensesTab(editProjId);
+    }
   });
 }
 
 function deleteFlBill(billId) {
-  if (!confirm('Delete this billing entry? This will update the freelancer balance.')) return;
+  var b = window.flBillsData && window.flBillsData[billId];
+  var hasShoot = b && (b.assignmentId || (b.projectId && b.eventDate && b.freelancerId));
+  var confirmMsg = 'Delete this billing/expense entry?';
+  if (hasShoot) {
+    confirmMsg = 'Delete this billing entry for ' + (b.freelancerName || 'freelancer') + ' (' + (b.coupleName || 'Event') + ')?\n\n' +
+                 'This will also unassign them from the shoot schedule so it does not reappear in Needs Confirmation.';
+  }
+  if (!confirm(confirmMsg)) return;
+
+  // Unassign from project eventDays if linked to shoot
+  if (hasShoot && b.projectId && projects && projects[b.projectId]) {
+    var p = projects[b.projectId];
+    var changed = false;
+    (p.eventDays || []).forEach(function(ed) {
+      if (ed.date === b.eventDate) {
+        CREW_SLOT_KEYS.forEach(function(k) {
+          if (ed[k] === b.freelancerId) {
+            ed[k] = '';
+            changed = true;
+          }
+        });
+      }
+    });
+    if (changed) {
+      db.ref('crm_projects/' + b.projectId + '/eventDays').set(p.eventDays);
+    }
+  }
+
   db.ref('crm_freelancer_bills/' + billId).remove(function(err) {
     if (!err) {
-      showToast('Bill removed.');
+      showToast('Entry removed.');
       if (window.flBillsData) delete window.flBillsData[billId];
+      if (typeof updateFlConfirmBadge === 'function') updateFlConfirmBadge();
       renderFlBillingLedger();
+      if (typeof renderFlShootRoster === 'function') renderFlShootRoster();
+      if (typeof editProjId !== 'undefined' && editProjId && typeof renderProjectExpensesTab === 'function') {
+        renderProjectExpensesTab(editProjId);
+      }
     }
   });
+}
+
+function renderProjectExpensesTab(projId) {
+  var pane = document.getElementById('t-expenses');
+  if (!pane) return;
+  if (!projId || !projects || !projects[projId]) {
+    pane.innerHTML = '<div style="color:#64748b;padding:24px;text-align:center">No project selected.</div>';
+    return;
+  }
+  var p = projects[projId];
+  var cName = coupleName(p.bride, p.groom) || 'Client';
+
+  var pkgVal = parseFloat(p.packageValue || p.value || 0) || 0;
+
+  var clientReceived = 0;
+  if (p.payments && Array.isArray(p.payments)) {
+    p.payments.forEach(function(pm){ clientReceived += (parseFloat(pm.amount) || 0); });
+  }
+
+  var allBills = window.flBillsData || {};
+  var projExpenses = [];
+  var totalExp = 0;
+  var shootFeesTotal = 0;
+  var travelTotal = 0;
+  var foodStayTotal = 0;
+  var otherTotal = 0;
+
+  Object.keys(allBills).forEach(function(bId) {
+    var b = allBills[bId];
+    if (!b) return;
+    b.id = bId;
+    var matchProj = (b.projectId && (String(b.projectId) === String(projId))) ||
+                    (p.refcode && b.refcode && b.refcode === p.refcode);
+    if (!matchProj) return;
+
+    projExpenses.push(b);
+    var amt = parseFloat(b.totalAmount) || 0;
+    totalExp += amt;
+
+    if (b.category === 'shoot') shootFeesTotal += (parseFloat(b.shootFee) || amt);
+    else if (b.category === 'travel') travelTotal += (parseFloat(b.travelExpense) || amt);
+    else if (b.category === 'allowance' || b.category === 'food' || b.category === 'stay') foodStayTotal += (parseFloat(b.otherExpense) || amt);
+    else otherTotal += amt;
+  });
+
+  projExpenses.sort(function(a, b) {
+    var da = a.eventDate || a.date || '';
+    var db = b.eventDate || b.date || '';
+    return db.localeCompare(da);
+  });
+
+  var netMargin = clientReceived - totalExp;
+  var projectedMargin = pkgVal - totalExp;
+
+  var html = '<div style="margin-bottom:18px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:16px">' +
+      '<div>' +
+        '<div style="font-size:15px;font-weight:800;color:#0f172a">💰 ' + escHtml(cName) + ' — Project Expenses &amp; Cost Sheet</div>' +
+        '<div style="font-size:12px;color:#64748b;margin-top:2px">Track all freelancer fees, flights, outstation travel, crew food, hotel stay and gear rental for this project.</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button class="btn btn-sm" style="background:#f0fdf4;color:#166534;border:1px solid #86efac;font-weight:700;padding:6px 12px" onclick="openAddProjectExpenseModal(\'' + projId + '\')">✈️ + Add Travel / Food / Stay Expense</button>' +
+        '<button class="btn btn-primary btn-sm" style="font-size:12px;padding:6px 12px" onclick="openAddFlManualBillModal(\'\',\'' + projId + '\')">🎬 + Add Freelancer Bill / Shoot Fee</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px">' +
+        '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">💼 Contract Package</div>' +
+        '<div style="font-size:20px;font-weight:900;color:#0f172a;margin-top:4px">₹' + fmtNum(pkgVal) + '</div>' +
+        '<div style="font-size:11px;color:#64748b;margin-top:3px">Agreed total package</div>' +
+      '</div>' +
+      '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px 14px">' +
+        '<div style="font-size:11px;font-weight:700;color:#1e40af;text-transform:uppercase">💳 Client Paid</div>' +
+        '<div style="font-size:20px;font-weight:900;color:#1d4ed8;margin-top:4px">₹' + fmtNum(clientReceived) + '</div>' +
+        '<div style="font-size:11px;color:#3b82f6;margin-top:3px">Bal due: ₹' + fmtNum(Math.max(0, pkgVal - clientReceived)) + '</div>' +
+      '</div>' +
+      '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px 14px">' +
+        '<div style="font-size:11px;font-weight:700;color:#991b1b;text-transform:uppercase">💸 Total Project Expenses</div>' +
+        '<div style="font-size:20px;font-weight:900;color:#dc2626;margin-top:4px">₹' + fmtNum(totalExp) + '</div>' +
+        '<div style="font-size:11px;color:#ef4444;margin-top:3px">' + projExpenses.length + ' expense item' + (projExpenses.length !== 1 ? 's' : '') + ' recorded</div>' +
+      '</div>' +
+      '<div style="background:' + (netMargin >= 0 ? '#ecfdf5' : '#fffbeb') + ';border:1px solid ' + (netMargin >= 0 ? '#a7f3d0' : '#fde68a') + ';border-radius:12px;padding:12px 14px">' +
+        '<div style="font-size:11px;font-weight:700;color:' + (netMargin >= 0 ? '#065f46' : '#92400e') + ';text-transform:uppercase">📈 Realized Net Margin</div>' +
+        '<div style="font-size:20px;font-weight:900;color:' + (netMargin >= 0 ? '#059669' : '#d97706') + ';margin-top:4px">₹' + fmtNum(netMargin) + '</div>' +
+        '<div style="font-size:11px;color:#64748b;margin-top:3px">Projected: ₹' + fmtNum(projectedMargin) + '</div>' +
+      '</div>' +
+    '</div>';
+
+  if (totalExp > 0) {
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;background:#f8fafc;padding:8px 12px;border-radius:10px;border:1px solid #e2e8f0;font-size:11.5px">' +
+      '<span style="font-weight:700;color:#475569">Expense Breakdown:</span>' +
+      (shootFeesTotal > 0 ? '<span style="background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:6px;font-weight:700">🎬 Shoots: ₹' + fmtNum(shootFeesTotal) + '</span>' : '') +
+      (travelTotal > 0 ? '<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:6px;font-weight:700">✈️ Travel: ₹' + fmtNum(travelTotal) + '</span>' : '') +
+      (foodStayTotal > 0 ? '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:6px;font-weight:700">🍽️ Food/Stay: ₹' + fmtNum(foodStayTotal) + '</span>' : '') +
+      (otherTotal > 0 ? '<span style="background:#f1f5f9;color:#475569;padding:2px 8px;border-radius:6px;font-weight:700">📦 Gear/Other: ₹' + fmtNum(otherTotal) + '</span>' : '') +
+    '</div>';
+  }
+
+  html += '<div class="card" style="padding:0;overflow:hidden"><div class="mob-scroll"><table class="tbl"><thead><tr>' +
+    '<th>Date</th>' +
+    '<th>Category</th>' +
+    '<th>Description</th>' +
+    '<th>Freelancer / Paid To</th>' +
+    '<th>Amount (₹)</th>' +
+    '<th>Notes</th>' +
+    '<th>Action</th>' +
+  '</tr></thead><tbody>';
+
+  if (!projExpenses.length) {
+    html += '<tr><td colspan="7" class="empty" style="padding:28px 16px;text-align:center">' +
+      '<div style="font-size:32px;margin-bottom:8px">📝</div>' +
+      '<div style="font-weight:700;color:#0f172a;font-size:14px">No expenses recorded for this project yet</div>' +
+      '<div style="font-size:12px;color:#64748b;margin:4px 0 14px">Add client travel, food, accommodation, or freelancer shoot bills above to track the complete budget.</div>' +
+      '<button class="btn btn-sm" style="background:#f0fdf4;color:#166534;border:1px solid #86efac;font-weight:700" onclick="openAddProjectExpenseModal(\'' + projId + '\')">✈️ Add First Expense</button>' +
+    '</td></tr>';
+  } else {
+    projExpenses.forEach(function(b) {
+      var catBadge = '';
+      if (b.category === 'shoot') catBadge = '<span style="background:#eff6ff;color:#1e40af;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🎬 Shoot Fee</span>';
+      else if (b.category === 'travel') catBadge = '<span style="background:#ecfdf5;color:#047857;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">✈️ Travel</span>';
+      else if (b.category === 'allowance' || b.category === 'food') catBadge = '<span style="background:#fffbeb;color:#b45309;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🍽️ Food/DA</span>';
+      else if (b.category === 'stay') catBadge = '<span style="background:#fef3c7;color:#92400e;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🏨 Stay</span>';
+      else if (b.category === 'equipment') catBadge = '<span style="background:#f5f3ff;color:#6d28d9;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">🎥 Equipment</span>';
+      else catBadge = '<span style="background:#f1f5f9;color:#475569;padding:2px 7px;border-radius:6px;font-size:11px;font-weight:700">📦 Other</span>';
+
+      var payee = b.freelancerName || (b.freelancerId ? (freelancerData[b.freelancerId] && freelancerData[b.freelancerId].name) : 'Studio Direct');
+      var amt = parseFloat(b.totalAmount) || 0;
+
+      html += '<tr>' +
+        '<td><span style="font-weight:600;font-size:12px">' + fmtDate(b.eventDate || b.date) + '</span></td>' +
+        '<td>' + catBadge + '</td>' +
+        '<td><div style="font-weight:600;font-size:13px">' + escHtml(b.description || b.notes || 'Expense') + '</div></td>' +
+        '<td><div style="font-weight:700;color:#334155">' + escHtml(payee) + '</div></td>' +
+        '<td><span style="font-weight:800;color:#dc2626;font-size:13px">₹' + fmtNum(amt) + '</span></td>' +
+        '<td><span style="font-size:11px;color:#64748b">' + escHtml(b.notes || '—') + '</span></td>' +
+        '<td style="white-space:nowrap">' +
+          '<button class="btn btn-sm" style="font-size:10px;padding:3px 7px;margin-right:4px" onclick="flOpenEditBillModal(\'' + b.id + '\')">✏️ Edit</button>' +
+          '<button class="btn-danger" style="font-size:10px;padding:3px 6px" onclick="deleteFlBill(\'' + b.id + '\')" title="Delete expense">🗑️</button>' +
+        '</td>' +
+      '</tr>';
+    });
+  }
+
+  html += '</tbody></table></div></div></div>';
+  pane.innerHTML = html;
+}
+
+function openProjectExpenses(projId) {
+  openProject(projId, 't-expenses');
 }
 
 function deleteFlPayment(payId) {
@@ -36095,9 +36616,455 @@ function flShowJoinSuccess(name, pin, alreadyExists) {
 }
 
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FREELANCER SELF PROFILE-UPDATE & PIN SETUP — ?update=<freelancerID>
+// Allows existing freelancers to complete/update their profile, review/set
+// their proposed rate card, configure their private 4-digit PIN, and get
+// immediate access to their studio portal.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function checkFreelancerUpdateMode() {
+  var params = new URLSearchParams(window.location.search);
+  var updateId = params.get('update') || params.get('fl_update') || params.get('edit_profile');
+  if (!updateId) return false;
+
+  var loginEl = document.getElementById('login-screen');
+  var appEl   = document.getElementById('main-app');
+  if (loginEl) loginEl.style.display = 'none';
+  if (appEl)   appEl.style.display   = 'none';
+
+  renderFreelancerUpdateScreen(updateId.trim());
+  return true;
+}
+
+function renderFreelancerUpdateScreen(flId) {
+  var old = document.getElementById('fl-update-screen');
+  if (old) old.remove();
+
+  var wrap = document.createElement('div');
+  wrap.id = 'fl-update-screen';
+  wrap.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;z-index:999999;';
+
+  wrap.innerHTML =
+    '<div style="min-height:100%;display:flex;align-items:center;justify-content:center;padding:20px 16px">' +
+      '<div style="background:#fff;border-radius:20px;width:100%;max-width:460px;padding:40px 24px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.4)">' +
+        '<div style="font-size:42px;margin-bottom:12px">⏳</div>' +
+        '<div style="font-size:18px;font-weight:800;color:#0f172a">Loading your profile…</div>' +
+        '<div style="font-size:13px;color:#64748b;margin-top:6px">Connecting to KB Studio Productions</div>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(wrap);
+
+  var DB_URL = 'https://kbstudiocrm-default-rtdb.asia-southeast1.firebasedatabase.app';
+  var resolved = false;
+
+  function onLoaded(f, actualId) {
+    if (resolved) return;
+    resolved = true;
+    if (!f || !f.name) {
+      renderFlUpdateNotFound(wrap, flId);
+      return;
+    }
+    renderFreelancerUpdateForm(wrap, actualId || flId, f);
+  }
+
+  // 1. Try in-memory cache first
+  if (window.freelancerData && window.freelancerData[flId]) {
+    onLoaded(window.freelancerData[flId], flId);
+    return;
+  }
+  if (window.freelancerData) {
+    var matchKey = Object.keys(window.freelancerData).find(function(k){
+      var item = window.freelancerData[k];
+      return item && (k === flId || item.id === flId || (item.phone && item.phone.replace(/\D/g,'') === flId.replace(/\D/g,'')));
+    });
+    if (matchKey && window.freelancerData[matchKey]) {
+      onLoaded(window.freelancerData[matchKey], matchKey);
+      return;
+    }
+  }
+
+  // 2. REST fetch by direct key
+  fetch(DB_URL + '/crm_freelancers/' + encodeURIComponent(flId) + '.json')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(data){
+      if (data && data.name) {
+        onLoaded(data, flId);
+      } else {
+        // Try fetching all freelancers from REST
+        fetch(DB_URL + '/crm_freelancers.json')
+          .then(function(r2){ return r2.ok ? r2.json() : null; })
+          .then(function(all){
+            if (all && typeof all === 'object') {
+              var foundKey = Object.keys(all).find(function(k){
+                var it = all[k];
+                return it && (k === flId || it.id === flId || (it.phone && it.phone.replace(/\D/g,'') === flId.replace(/\D/g,'')));
+              });
+              if (foundKey && all[foundKey]) {
+                onLoaded(all[foundKey], foundKey);
+                return;
+              }
+            }
+            trySdkFallback();
+          }).catch(function(){ trySdkFallback(); });
+      }
+    })
+    .catch(function(){ trySdkFallback(); });
+
+  function trySdkFallback() {
+    try {
+      if (typeof db !== 'undefined' && db.ref) {
+        db.ref('crm_freelancers/' + flId).once('value', function(snap){
+          if (snap.exists() && snap.val() && snap.val().name) {
+            onLoaded(snap.val(), flId);
+          } else {
+            db.ref('crm_freelancers').once('value', function(allSnap){
+              var found = null;
+              var foundKey = null;
+              allSnap.forEach(function(ch){
+                var v = ch.val();
+                if (ch.key === flId || (v && v.id === flId) || (v && v.phone && v.phone.replace(/\D/g,'') === flId.replace(/\D/g,''))) {
+                  found = v;
+                  foundKey = ch.key;
+                }
+              });
+              onLoaded(found, foundKey || flId);
+            }, function(){ onLoaded(null, flId); });
+          }
+        }, function(){ onLoaded(null, flId); });
+      } else {
+        onLoaded(null, flId);
+      }
+    } catch(e) {
+      onLoaded(null, flId);
+    }
+  }
+}
+
+function renderFlUpdateNotFound(wrap, flId) {
+  wrap.innerHTML =
+    '<div style="min-height:100%;display:flex;align-items:center;justify-content:center;padding:20px 16px">' +
+      '<div style="background:#fff;border-radius:20px;width:100%;max-width:440px;padding:36px 24px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.4)">' +
+        '<div style="font-size:48px;margin-bottom:12px">⚠️</div>' +
+        '<h2 style="font-size:20px;font-weight:800;color:#dc2626;margin:0 0 8px">Profile Link Not Found</h2>' +
+        '<p style="font-size:13px;color:#64748b;line-height:1.6;margin:0 0 20px">This personal update link could not be located or may have been removed. Please contact KB Studio Productions to receive an updated link.</p>' +
+        '<a href="?portal=crew" style="display:inline-block;padding:12px 20px;background:#0f172a;color:#fff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700">Go to Freelancer Portal →</a>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderFreelancerUpdateForm(wrap, flId, f) {
+  var existingPin = String(f.portalPin || '').trim();
+  if (!existingPin && f.phone) {
+    existingPin = String(f.phone).replace(/\D/g,'').slice(-4);
+  }
+  if (!existingPin) existingPin = '1234';
+
+  var rates = f.rates || f.proposedRates || {};
+  var roleOptions = ['Photographer','Videographer','Drone Operator','Phonographer','Editor','Photo Editor','Video Editor','Album Designer','Colorist','Assistant','Coordinator','Makeup Artist','Other'];
+  var curRole = f.role || 'Photographer';
+  if (roleOptions.indexOf(curRole) === -1) roleOptions.unshift(curRole);
+
+  wrap.innerHTML =
+    '<div style="min-height:100%;display:flex;align-items:flex-start;justify-content:center;padding:20px 16px 80px">' +
+    '<div style="background:#fff;border-radius:20px;width:100%;max-width:540px;box-shadow:0 24px 64px rgba(0,0,0,.4);overflow:hidden">' +
+      // Header
+      '<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);padding:26px 24px 20px;text-align:center">' +
+        '<div style="font-size:38px;margin-bottom:8px">🎬</div>' +
+        '<div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px">KB Studio Productions</div>' +
+        '<div style="font-size:11.5px;color:#cbd5e1;margin-top:4px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase">Update Profile &amp; Portal PIN</div>' +
+      '</div>' +
+      // Body
+      '<div style="padding:22px 22px 28px">' +
+        '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px 14px;margin-bottom:18px;font-size:13px;color:#1e40af;line-height:1.5">' +
+          '👋 Hi <strong>' + escHtml(f.name || 'there') + '</strong>! Please review and update your information below. Set your 4-digit Studio PIN so you can access your private shoots, billing ledgers, and assignments.' +
+        '</div>' +
+        '<div id="fl-upd-err" style="display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>' +
+        '<div id="fl-upd-success" style="display:none"></div>' +
+        '<div id="fl-upd-form">' +
+          // 👤 Basic Info
+          '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;border-bottom:1.5px solid #ede9fe;padding-bottom:5px;margin:0 0 14px">👤 Basic Information</div>' +
+          '<div style="margin-bottom:14px">' +
+            '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Full Name *</label>' +
+            '<input id="fl-u-name" type="text" value="' + escHtml(f.name || '') + '" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none">' +
+          '</div>' +
+          '<div style="margin-bottom:14px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">' +
+              '<label style="font-size:12px;font-weight:700;color:#374151">Mobile Number (Your Login ID)</label>' +
+              '<span style="font-size:10px;font-weight:800;background:#e2e8f0;color:#475569;border-radius:4px;padding:1px 6px">🔒 READ ONLY</span>' +
+            '</div>' +
+            '<input type="tel" value="' + escHtml(f.phone || f.whatsapp || '') + '" readonly style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:14px;background:#f8fafc;color:#64748b;outline:none">' +
+            '<div style="font-size:11px;color:#94a3b8;margin-top:4px">Your registered mobile number is used as your username to log in to the portal.</div>' +
+          '</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">' +
+            '<div>' +
+              '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Primary Role *</label>' +
+              '<select id="fl-u-role" onchange="flUpdateRoleChanged()" style="width:100%;box-sizing:border-box;padding:11px 10px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:13.5px;background:#fff;outline:none">' +
+                roleOptions.map(function(r){ return '<option value="' + escHtml(r) + '"' + (r === curRole ? ' selected' : '') + '>' + escHtml(r) + '</option>'; }).join('') +
+              '</select>' +
+            '</div>' +
+            '<div>' +
+              '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">City / Base Location *</label>' +
+              '<input id="fl-u-city" type="text" value="' + escHtml(f.city || '') + '" placeholder="e.g. Delhi, Mumbai" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none">' +
+            '</div>' +
+          '</div>' +
+          '<div style="margin-bottom:14px">' +
+            '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Years of Experience</label>' +
+            '<input id="fl-u-exp" type="text" value="' + escHtml(f.exp || '') + '" placeholder="e.g. 5" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none">' +
+          '</div>' +
+
+          // 🎺 Equipment & Payment
+          '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;border-bottom:1.5px solid #ede9fe;padding-bottom:5px;margin:20px 0 14px">🎺 Equipment &amp; Payment Details</div>' +
+          '<div style="margin-bottom:14px">' +
+            '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Equipment / Gear you bring</label>' +
+            '<input id="fl-u-equip" type="text" value="' + escHtml(f.equipment || '') + '" placeholder="e.g. Sony FX3 + A7IV, 24-70mm GM II, DJI Mavic 3 Pro" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none">' +
+          '</div>' +
+          '<div style="margin-bottom:14px">' +
+            '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">UPI ID or Bank Account Details *</label>' +
+            '<input id="fl-u-upi" type="text" value="' + escHtml(f.upi || f.bankaccount || '') + '" placeholder="e.g. 9876543210@paytm or Account Number + IFSC" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none">' +
+            '<div style="font-size:11px;color:#64748b;margin-top:4px">KB Studio will use this for direct shoot payouts and advances.</div>' +
+          '</div>' +
+          '<div style="margin-bottom:14px">' +
+            '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Instagram / Portfolio Link</label>' +
+            '<input id="fl-u-insta" type="url" value="' + escHtml(f.instagram || '') + '" placeholder="instagram.com/yourhandle or website" style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;outline:none">' +
+          '</div>' +
+          '<div style="margin-bottom:14px">' +
+            '<label style="font-size:12px;font-weight:700;color:#374151;display:block;margin-bottom:5px">Notes / Special Preferences</label>' +
+            '<textarea id="fl-u-notes" rows="2" placeholder="e.g. Preferred wedding destinations, travel availability, etc." style="width:100%;box-sizing:border-box;padding:11px 12px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:13px;resize:vertical;outline:none">' + escHtml(f.notes || '') + '</textarea>' +
+          '</div>' +
+
+          // 💰 Rates
+          '<div id="fl-u-rate-section"></div>' +
+
+          // 🔑 Studio Portal PIN
+          '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;border-bottom:1.5px solid #ede9fe;padding-bottom:5px;margin:22px 0 14px">🔑 Your Studio Portal PIN</div>' +
+          '<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:20px">' +
+            '<label style="font-size:12px;font-weight:800;color:#0f172a;display:block;margin-bottom:6px">4-Digit Private Studio PIN *</label>' +
+            '<div style="display:flex;gap:10px;align-items:center">' +
+              '<input id="fl-u-pin" type="text" maxlength="6" inputmode="numeric" value="' + escHtml(existingPin) + '" placeholder="e.g. 1234" style="flex:1;box-sizing:border-box;padding:12px 14px;border:2px solid #cbd5e1;border-radius:10px;font-size:18px;letter-spacing:4px;font-weight:900;outline:none;font-family:monospace;background:#fff">' +
+              '<button type="button" onclick="document.getElementById(\'fl-u-pin\').value=String(Math.floor(1000+Math.random()*9000))" style="padding:12px 16px;background:#f1f5f9;border:1.5px solid #cbd5e1;border-radius:10px;font-size:12px;font-weight:800;color:#334155;cursor:pointer;white-space:nowrap">🎲 Generate</button>' +
+            '</div>' +
+            '<div style="font-size:11.5px;color:#64748b;margin-top:8px;line-height:1.4">' +
+              '💡 <strong>Important:</strong> You will use this PIN to log in to your portal at <strong>crm.kbstudio.in?portal=crew</strong> using your mobile number.' +
+            '</div>' +
+          '</div>' +
+
+          '<button onclick="flSubmitUpdateForm(\'' + flId + '\')" style="width:100%;padding:16px;background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,0.35);letter-spacing:0.3px">💾 Save &amp; Update My Profile</button>' +
+          '<div style="text-align:center;margin-top:16px;font-size:12.5px;color:#94a3b8">Ready to see your portal? <a href="?portal=crew" style="color:#0284c7;font-weight:700;text-decoration:none">Open My Portal →</a></div>' +
+        '</div>' +
+      '</div>' +
+    '</div></div>';
+
+  window._flUpdateCurrentRates = rates;
+  flUpdateRoleChanged();
+}
+
+function flUpdateRoleChanged() {
+  var role = (document.getElementById('fl-u-role') || {}).value || 'Photographer';
+  var el = document.getElementById('fl-u-rate-section');
+  if (!el) return;
+  var r = role.toLowerCase();
+  var rates = window._flUpdateCurrentRates || {};
+
+  function rVal(k) {
+    var v = rates[k];
+    return (v !== undefined && v !== null && v !== '') ? v : '';
+  }
+
+  function rateBox(label, id, key, placeholder) {
+    return '<div>' +
+      '<label style="font-size:11.5px;font-weight:700;color:#374151;display:block;margin-bottom:4px">' + label + '</label>' +
+      '<input id="' + id + '" type="number" min="0" value="' + escHtml(String(rVal(key))) + '" placeholder="' + placeholder + '" style="width:100%;box-sizing:border-box;padding:9px 10px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:13px;outline:none">' +
+    '</div>';
+  }
+
+  if (r.indexOf('photo') !== -1 || r.indexOf('cine') !== -1 || r.indexOf('vid') !== -1 || r.indexOf('drone') !== -1 || r.indexOf('gim') !== -1 || r.indexOf('phono') !== -1) {
+    el.innerHTML =
+      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;border-bottom:1.5px solid #ede9fe;padding-bottom:5px;margin:20px 0 14px">💰 Your Proposed Rates (Per Shoot Event)</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:14px">' +
+        '<div style="font-size:11.5px;color:#64748b;margin-bottom:12px">Enter your standard rates per event. KB Studio will confirm final rates upon shoot booking.</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+          rateBox('Wedding / Main Event (₹)', 'fl-u-r-wedding', 'wedding', 'e.g. 10000') +
+          rateBox('Short Event / Haldi (₹)', 'fl-u-r-short', 'short', 'e.g. 4000') +
+          rateBox('Pre-Wedding / Engagement (₹)', 'fl-u-r-prewed', 'prewed', 'e.g. 6000') +
+          rateBox('Big Event / Sangeet (₹)', 'fl-u-r-big', 'big', 'e.g. 6000') +
+          rateBox('Half Day (up to 4 hrs) (₹)', 'fl-u-r-halfday', 'halfday', 'e.g. 3000') +
+          rateBox('Per Day (Full Day) (₹)', 'fl-u-r-day', 'day', 'e.g. 8000') +
+        '</div>' +
+      '</div>';
+  } else if (r.indexOf('edit') !== -1 || r.indexOf('album') !== -1 || r.indexOf('color') !== -1 || r.indexOf('design') !== -1) {
+    el.innerHTML =
+      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;border-bottom:1.5px solid #ede9fe;padding-bottom:5px;margin:20px 0 14px">💰 Your Proposed Rates (Per Deliverable)</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:14px">' +
+        '<div style="font-size:11.5px;color:#64748b;margin-bottom:12px">Enter your deliverable rates. Leave blank any you don\'t offer.</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+          rateBox('Teaser Video (₹)', 'fl-u-r-teaser', 'teaser', 'e.g. 1500') +
+          rateBox('Highlight Film (₹)', 'fl-u-r-highlight', 'highlight', 'e.g. 3000') +
+          rateBox('Full Length Film (₹)', 'fl-u-r-longvideo', 'longvideo', 'e.g. 5000') +
+          rateBox('Reel / Short (₹)', 'fl-u-r-reel', 'reel', 'e.g. 800') +
+          rateBox('Edited Photos (per 100) (₹)', 'fl-u-r-editedpics', 'editedpics', 'e.g. 1500') +
+          rateBox('Album Design (₹)', 'fl-u-r-album', 'album', 'e.g. 2000') +
+          rateBox('Magazine Design (₹)', 'fl-u-r-magazine', 'magazine', 'e.g. 1500') +
+          rateBox('Frame Design (₹)', 'fl-u-r-frame', 'frame', 'e.g. 300') +
+        '</div>' +
+      '</div>';
+  } else {
+    el.innerHTML =
+      '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6d28d9;border-bottom:1.5px solid #ede9fe;padding-bottom:5px;margin:20px 0 14px">💰 Standard Rate</div>' +
+      '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:14px">' +
+        rateBox('Per Day / Per Event Rate (₹)', 'fl-u-r-day', 'day', 'e.g. 5000') +
+      '</div>';
+  }
+}
+
+function flSubmitUpdateForm(flId) {
+  var name  = ((document.getElementById('fl-u-name')||{}).value || '').trim();
+  var city  = ((document.getElementById('fl-u-city')||{}).value || '').trim();
+  var role  = ((document.getElementById('fl-u-role')||{}).value || 'Photographer').trim();
+  var exp   = ((document.getElementById('fl-u-exp')||{}).value || '').trim();
+  var equip = ((document.getElementById('fl-u-equip')||{}).value || '').trim();
+  var upi   = ((document.getElementById('fl-u-upi')||{}).value || '').trim();
+  var insta = ((document.getElementById('fl-u-insta')||{}).value || '').trim();
+  var notes = ((document.getElementById('fl-u-notes')||{}).value || '').trim();
+  var pinRaw= (((document.getElementById('fl-u-pin')||{}).value || '').replace(/\D/g,'')).trim();
+
+  var errEl = document.getElementById('fl-upd-err');
+  if (errEl) errEl.style.display = 'none';
+
+  if (!name) {
+    if (errEl) { errEl.textContent = 'Please enter your full name.'; errEl.style.display = ''; }
+    return;
+  }
+  if (!city) {
+    if (errEl) { errEl.textContent = 'Please enter your city/base location.'; errEl.style.display = ''; }
+    return;
+  }
+  if (!upi) {
+    if (errEl) { errEl.textContent = 'Please enter your UPI ID or bank account details.'; errEl.style.display = ''; }
+    return;
+  }
+  if (!pinRaw || pinRaw.length < 4) {
+    if (errEl) { errEl.textContent = 'Please choose a 4-digit PIN (numbers only).'; errEl.style.display = ''; }
+    return;
+  }
+  var pin = pinRaw.slice(0, 6);
+
+  var submitBtn = document.querySelector('#fl-upd-form button');
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+
+  // Collect updated rates
+  var updatedRates = Object.assign({}, window._flUpdateCurrentRates || {});
+  var rKeys = ['wedding','short','prewed','big','halfday','day','teaser','highlight','longvideo','reel','editedpics','album','magazine','frame'];
+  rKeys.forEach(function(k){
+    var el = document.getElementById('fl-u-r-' + k);
+    if (el) {
+      var v = parseFloat(el.value);
+      if (v > 0) updatedRates[k] = v;
+      else if (el.value === '') delete updatedRates[k];
+    }
+  });
+
+  var updates = {
+    name: name,
+    city: city,
+    role: role,
+    exp: exp,
+    equipment: equip,
+    upi: upi,
+    instagram: insta,
+    notes: notes,
+    portalPin: pin,
+    rates: updatedRates,
+    proposedRates: updatedRates,
+    profileSelfUpdated: true,
+    updatedAt: Date.now()
+  };
+
+  function executeSave() {
+    db.ref('crm_freelancers/' + flId).update(updates, function(err) {
+      if (err) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '💾 Save & Update My Profile'; }
+        if (errEl) {
+          errEl.textContent = 'Could not save updates: ' + (err.message || 'database error') + '. Please try again.';
+          errEl.style.display = '';
+        }
+        return;
+      }
+
+      // Update in-memory if present
+      if (window.freelancerData && window.freelancerData[flId]) {
+        Object.assign(window.freelancerData[flId], updates);
+      }
+
+      // Push notification for studio admin
+      try {
+        db.ref('crm_notifications').push({
+          type: 'freelancer_profile_updated',
+          message: name + ' (' + role + ') updated their profile & set their Studio PIN (' + pin + '). City: ' + city,
+          freelancerId: flId,
+          name: name,
+          role: role,
+          city: city,
+          createdAt: Date.now(),
+          read: false
+        });
+      } catch(eNotify) {}
+
+      // Display Success Screen
+      var formEl = document.getElementById('fl-upd-form');
+      var succEl = document.getElementById('fl-upd-success');
+      if (formEl) formEl.style.display = 'none';
+      if (succEl) {
+        succEl.style.display = '';
+        var portalUrl = location.origin + location.pathname + '?portal=crew';
+        succEl.innerHTML =
+          '<div style="text-align:center;padding:8px 0 6px">' +
+            '<div style="font-size:52px;margin-bottom:12px">🎉</div>' +
+            '<div style="font-size:22px;font-weight:900;color:#0f172a;margin-bottom:6px">Profile Updated!</div>' +
+            '<div style="font-size:13.5px;color:#64748b;margin-bottom:20px;line-height:1.5">' +
+              'Hi <strong>' + escHtml(name) + '</strong>, your information and rates have been saved to KB Studio Productions.' +
+            '</div>' +
+            '<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:14px;padding:20px;margin-bottom:20px">' +
+              '<div style="font-size:11px;font-weight:800;color:#065f46;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Your Studio PIN</div>' +
+              '<div style="font-size:36px;font-weight:900;letter-spacing:8px;color:#0f172a;font-family:monospace;background:#e0f2fe;padding:8px 24px;border-radius:10px;display:inline-block">' + pin + '</div>' +
+              '<div style="font-size:11.5px;color:#64748b;margin-top:10px;line-height:1.4">Save this PIN — you will log in anytime with your <strong>registered mobile number</strong> and this <strong>PIN</strong>.</div>' +
+            '</div>' +
+            '<a href="' + portalUrl + '" style="display:block;width:100%;box-sizing:border-box;padding:15px;background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff;text-decoration:none;border-radius:12px;font-size:16px;font-weight:800;text-align:center;margin-bottom:14px;box-shadow:0 6px 18px rgba(15,23,42,0.3)">🚀 Open My Studio Portal Now</a>' +
+            '<button type="button" onclick="navigator.clipboard.writeText(\'KB Studio Portal: ' + portalUrl + '\\nPIN: ' + pin + '\').then(function(){alert(\'Portal link & PIN copied to clipboard!\');})" style="width:100%;padding:11px;background:#f8fafc;border:1.5px solid #cbd5e1;border-radius:10px;font-size:13px;font-weight:700;color:#334155;cursor:pointer;margin-bottom:16px">📋 Copy My Portal Link &amp; PIN</button>' +
+            '<div style="text-align:left;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;font-size:12px;color:#475569;line-height:1.6">' +
+              '<div style="font-weight:800;color:#0f172a;margin-bottom:6px">📱 In your Freelancer Portal, you can:</div>' +
+              '<div>✅ View upcoming shoot bookings, call dates &amp; locations</div>' +
+              '<div>✅ Check shoot gear checklists &amp; client briefs</div>' +
+              '<div>✅ View your complete payment ledger &amp; approved bills</div>' +
+              '<div>✅ Track post-production video/photo deliverables</div>' +
+            '</div>' +
+          '</div>';
+      }
+    });
+  }
+
+  // Auth check
+  try {
+    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+      executeSave();
+      return;
+    }
+  } catch(e) {}
+
+  if (typeof ensureAnonAuth === 'function') {
+    ensureAnonAuth(function(){ executeSave(); });
+  } else if (typeof firebase !== 'undefined' && firebase.auth) {
+    firebase.auth().signInAnonymously().then(function(){ executeSave(); }).catch(function(){ executeSave(); });
+  } else {
+    executeSave();
+  }
+}
+
 // ═══ STARTUP ══════════════════════════════════════════════════════════════════
 (function() {
-  if(!checkFreelancerJoinMode() && !checkBriefMode() && !checkEditorMode() && !checkCrewPortalMode() && !checkCrewMode() && !checkOnboardMode()) {
+  if(!checkFreelancerUpdateMode() && !checkFreelancerJoinMode() && !checkBriefMode() && !checkEditorMode() && !checkCrewPortalMode() && !checkCrewMode() && !checkOnboardMode()) {
     var ls = document.getElementById('login-screen');
     var ma = document.getElementById('main-app');
     if (ls) ls.style.display = 'flex';
